@@ -1,1 +1,0 @@
-# stickerswap2026
