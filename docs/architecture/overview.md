@@ -1,8 +1,8 @@
 # StickerSwap 2026 — Complete Production Implementation Plan
 ### A Full-Stack Web Application for the 2026 FIFA World Cup Panini Sticker Collection
 
-> **Plan Version:** 4.0 — Includes local-first development approach, complete database seed data, and all prior revisions.
-> **Last Updated:** May 2026
+> **Plan Version:** 5.0 — Adds CORS/pooling config, Drizzle ORM (replaces Flyway), SSE trade messaging, pagination strategy, email verification flow, avatar upload endpoint, Coca-Cola sticker fix, schema hardening (CHECK constraints), complete seed data guidance, timeline correction (19 weeks Phase A), and feature flag simplification.
+> **Last Updated:** May 3, 2026
 > **Target Audience:** Non-developer owner + contracted development team
 
 ---
@@ -391,7 +391,7 @@ NEXT_PUBLIC_ENV=development
 
 ### 4.3 Database Migrations & First-Run Setup
 
-Flyway migration files in `data/migrations/` run automatically when the PostgreSQL container starts for the first time (mounted as `docker-entrypoint-initdb.d`). For subsequent starts, Flyway is invoked as part of the API startup sequence, applying any new migrations.
+Drizzle ORM migration files in `apps/backend/src/db/migrations/` are applied by running `npm run db:migrate`. The API server applies pending migrations automatically on startup in all environments. The migration files are committed to git — every developer and every cloud environment runs the same numbered migrations in order.
 
 ```bash
 # After docker compose up, seed the database with World Cup data:
@@ -400,7 +400,10 @@ npm run db:seed
 # To reset the local database entirely (wipes all data):
 npm run db:reset && npm run db:seed
 
-# To run migrations manually:
+# To generate a migration after changing the schema:
+npm run db:generate
+
+# To run pending migrations manually:
 npm run db:migrate
 ```
 
@@ -448,7 +451,13 @@ Configured as a PWA. Users can install it on their phone's home screen without a
 
 ### 5.5 Internationalisation (i18n)
 
-Built with i18n routing from day one using Next.js's built-in support. Launch in English only; French (`fr`) is added as a fast follow. Essential for Quebec users and potential future partnerships.
+Built with i18n routing from day one using Next.js's built-in support. Launch order:
+
+| Phase | Language | Locale | Rationale |
+|---|---|---|---|
+| Launch | English | `en` | Default |
+| Fast follow | Spanish | `es` | Large user base across participating Latin American countries (Mexico, Argentina, Colombia, Ecuador, Uruguay, Panama, Paraguay) |
+| Later | French | `fr` | Quebec users and Canadian bilingualism requirements |
 
 ### 5.6 Key Screens
 
@@ -485,6 +494,56 @@ Built with i18n routing from day one using Next.js's built-in support. Launch in
 
 TypeScript catches bugs at compile time. Fastify handles thousands of requests per second on modest hardware. Identical code runs locally in Docker and in ECS Fargate.
 
+### 6.1.1 CORS Configuration
+
+The frontend and API run on different origins (different ports locally, different domains in cloud), so Cross-Origin Resource Sharing (CORS) must be explicitly configured. Without it, the browser blocks every API call.
+
+Install the `@fastify/cors` plugin and configure it:
+
+```typescript
+// apps/backend/src/plugins/cors.ts
+import cors from '@fastify/cors'
+
+await fastify.register(cors, {
+  origin:
+    process.env.NODE_ENV === 'production'
+      ? ['https://stickerswap2026.ca', /\.vercel\.app$/]  // Vercel preview URLs
+      : 'http://localhost:3000',
+  credentials: true,   // required for cookies / auth headers
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+})
+```
+
+### 6.1.2 Database Connection Pooling
+
+Node.js must reuse database connections rather than creating a new one per request. Without pooling, the database runs out of connections under light load.
+
+Use the `pg` package's built-in pool:
+
+```typescript
+// apps/backend/src/plugins/database.ts
+import { Pool } from 'pg'
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,         // maximum concurrent connections (match Aurora's RDS Proxy config in cloud)
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 2_000,
+})
+```
+
+In cloud, RDS Proxy sits in front of Aurora and handles connection multiplexing at the infrastructure level. Locally, the `pg` pool is sufficient.
+
+### 6.1.3 Auto-Generated API Documentation
+
+Install `@fastify/swagger` and `@fastify/swagger-ui`. These plugins read your route schemas and generate a live, browsable API reference automatically — no manual documentation needed.
+
+```
+Local: http://localhost:3001/docs
+```
+
+Add JSON schemas to every route definition and the docs stay current without any extra work.
+
 ### 6.2 API Versioning
 
 All routes are prefixed from day one:
@@ -502,6 +561,8 @@ Non-breaking changes (new optional fields) are added within the same version. Br
 ```
 Authentication
   POST   /api/v1/auth/register
+  POST   /api/v1/auth/verify-email          # confirm email from link
+  POST   /api/v1/auth/resend-verification   # re-send verification email
   POST   /api/v1/auth/login
   POST   /api/v1/auth/logout
   POST   /api/v1/auth/refresh
@@ -509,24 +570,25 @@ Authentication
   POST   /api/v1/auth/reset-password
 
 Sticker Master List
-  GET    /api/v1/stickers
-  GET    /api/v1/stickers/:number
-  GET    /api/v1/stickers/:number/variants
+  GET    /api/v1/stickers                   # ?team=MEX&group=A&type=player&cursor=...
+  GET    /api/v1/stickers/:albumCode        # look up by album code (e.g. MEX1, FWC3)
+  GET    /api/v1/stickers/:albumCode/variants
 
 User Collection
-  GET    /api/v1/users/:id/collection
-  GET    /api/v1/users/:id/missing
-  GET    /api/v1/users/:id/duplicates
+  GET    /api/v1/users/:id/collection       # ?team=BRA&type=player&variant=base&cursor=...
+  GET    /api/v1/users/:id/missing          # ?team=BRA&group=K&cursor=...
+  GET    /api/v1/users/:id/duplicates       # ?cursor=...
   POST   /api/v1/users/:id/stickers
   PATCH  /api/v1/users/:id/stickers/:variantId
   DELETE /api/v1/users/:id/stickers/:variantId
 
 Trading
   GET    /api/v1/trade/matches/:userId
-  POST   /api/v1/trade/requests
-  PATCH  /api/v1/trade/requests/:id
-  GET    /api/v1/trade/requests/:id/messages
-  POST   /api/v1/trade/requests/:id/messages
+  POST   /api/v1/trade/requests                    # start a trade
+  PATCH  /api/v1/trade/requests/:id                # accept | decline | counter
+  GET    /api/v1/trade/requests/:id/messages       # message history (paginated)
+  POST   /api/v1/trade/requests/:id/messages       # send a message
+  GET    /api/v1/trade/requests/:id/stream         # SSE — push new messages & status changes
 
 Sharing
   POST   /api/v1/users/:id/share
@@ -535,11 +597,12 @@ Sharing
 Profile & Settings
   GET    /api/v1/users/:id/public
   PATCH  /api/v1/users/:id/profile
+  POST   /api/v1/users/:id/avatar           # multipart upload; stores to /avatars/ in S3
   GET    /api/v1/users/:id/settings
   PATCH  /api/v1/users/:id/settings
 
 AI Scanning
-  POST   /api/v1/scan/identify
+  POST   /api/v1/scan/identify              # multipart upload; temp file stored to /scans/ in S3, deleted within 24h
   POST   /api/v1/scan/batch
 
 Admin
@@ -552,6 +615,12 @@ System
   GET    /api/v1/version
 ```
 
+**Pagination:** All list endpoints use cursor-based pagination. Pass `?cursor=<opaque_token>` to get the next page. Responses include a `nextCursor` field (null when no more pages exist) and a `total` count. Default page size is 100 items.
+
+**File storage prefixes (S3 / local filesystem):**
+- `/avatars/{userId}` — user profile photos, permanent
+- `/scans/{uuid}` — AI scan uploads, auto-deleted after 24 hours via S3 lifecycle rule
+
 ### 6.4 Granular Rate Limiting
 
 | Endpoint | Limit | Reason |
@@ -562,6 +631,7 @@ System
 | `POST /scan/batch` | 5 per hour per user | High-cost AI operation |
 | `GET /trade/matches` | 60 per hour per user | Prevents data scraping |
 | `GET /stickers` | 200 per hour per user | Burst protection (cached anyway) |
+| `POST /trade/requests/:id/messages` | 30 per hour per user | Prevent message spam |
 | All other endpoints | 100 per minute per user | General abuse prevention |
 
 Rate limiting is implemented in Fastify middleware locally, and additionally enforced at the WAF layer in cloud.
@@ -589,16 +659,18 @@ The schema, migrations, and seed scripts are **identical** in both environments.
 
 -- USERS ───────────────────────────────────────────────────
 CREATE TABLE users (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         TEXT UNIQUE NOT NULL,
-  username      TEXT UNIQUE NOT NULL,
-  display_name  TEXT,
-  avatar_url    TEXT,
-  role          TEXT NOT NULL DEFAULT 'user',  -- 'user' | 'admin'
-  locale        TEXT NOT NULL DEFAULT 'en',
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  deleted_at    TIMESTAMPTZ  -- soft delete; NULL = active
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email              TEXT UNIQUE NOT NULL,
+  username           TEXT UNIQUE NOT NULL,
+  display_name       TEXT,
+  avatar_url         TEXT,
+  role               TEXT NOT NULL DEFAULT 'user'
+                     CHECK (role IN ('user', 'admin')),
+  locale             TEXT NOT NULL DEFAULT 'en',
+  email_verified_at  TIMESTAMPTZ,  -- NULL = not yet verified
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at         TIMESTAMPTZ  -- soft delete; NULL = active
 );
 
 CREATE TABLE user_settings (
@@ -683,7 +755,9 @@ CREATE TABLE trade_requests (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   requester_id  UUID NOT NULL REFERENCES users(id),
   recipient_id  UUID NOT NULL REFERENCES users(id),
-  status        TEXT NOT NULL DEFAULT 'pending',
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled', 'completed')),
+  cancelled_at  TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -697,11 +771,13 @@ CREATE TABLE trade_items (
 
 CREATE TABLE trade_messages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  trade_id    UUID NOT NULL REFERENCES trade_requests(id),
+  trade_id    UUID NOT NULL REFERENCES trade_requests(id) ON DELETE CASCADE,
   sender_id   UUID NOT NULL REFERENCES users(id),
-  body        TEXT NOT NULL,
+  body        TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
   sent_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_trade_messages_trade_id ON trade_messages(trade_id, sent_at);
 
 -- SHARING ────────────────────────────────────────────────
 CREATE TABLE public_lists (
@@ -735,18 +811,32 @@ CREATE TABLE audit_log (
 );
 ```
 
-### 7.3 Migrations: Flyway
+### 7.3 Migrations: Drizzle ORM
 
-All schema changes are numbered SQL files:
+The original plan referenced Flyway, which is a Java-based tool requiring a Java runtime — an unnecessary dependency in a Node.js project. **Use Drizzle ORM instead.**
+
+Drizzle is a TypeScript-first database library that:
+- Defines the schema in TypeScript (so your types and your database stay in sync automatically)
+- Generates SQL migration files you can inspect and run
+- Works with PostgreSQL, including Aurora
+- Has no Java dependency
 
 ```
-data/migrations/
-  V1__initial_schema.sql
-  V2__add_coca_cola_variant.sql
-  V3__add_trade_reputation_score.sql
+apps/backend/src/db/
+  schema.ts          # TypeScript definitions of every table — single source of truth
+  migrations/        # auto-generated SQL files, committed to git
+    0001_initial.sql
+    0002_email_verified_at.sql
 ```
 
-The same files run in every environment. You will never have a schema mismatch between local and cloud.
+Commands:
+```bash
+npm run db:generate   # generate a new migration from schema changes
+npm run db:migrate    # apply pending migrations to the local database
+npm run db:studio     # open Drizzle Studio (visual database browser, replaces pgAdmin for schema browsing)
+```
+
+The schema in `schema.ts` mirrors every table in Section 7.2. When you add a column to `schema.ts`, run `npm run db:generate` and a new migration file appears automatically. The same migration files run in every environment — no schema mismatch between local and cloud.
 
 ### 7.4 Redis Cache
 
@@ -757,6 +847,7 @@ The same files run in every environment. You will never have a schema mismatch b
 | `user:{id}:summary` | Completion %, total counts | 5 minutes |
 | `user:{id}:duplicates` | Tradeable stickers | 5 minutes |
 | `trade:matches:{id}` | Trade match results | 2 minutes |
+| `trade:channel:{tradeId}` | Redis pub/sub channel — broadcasts new messages to all API instances | N/A (pub/sub, not a stored key) |
 | `share:{token}` | Public list data | 10 minutes |
 | `rate_limit:{ip}:{endpoint}` | Rate limit counters | Per window |
 
@@ -950,7 +1041,17 @@ ON CONFLICT (album_code) DO UPDATE SET
 
 ### 8.5 Seed File 03: Team Stickers (Excerpt — Full File)
 
-This is the largest seed file. Each team contributes 20 stickers. Below is the complete structure shown for two teams (Mexico and Canada) to demonstrate the pattern. The full file in the repository covers all 48 teams × 20 stickers = 960 records.
+> **⚠️ CRITICAL NOTE FOR DEVELOPER:** This section shows only 2 of 48 teams as examples. The complete `03_team_stickers.sql` file with all 960 records (48 teams × 20 stickers each) **must be compiled before any database work begins**. This is a data task, not a coding task.
+>
+> **How to compile the full checklist:**
+> 1. Visit https://www.checklistinsider.com/2026-panini-fifa-world-cup-sticker for the complete numbered list
+> 2. Cross-reference with https://fandom.com/wiki/2026_FIFA_World_Cup_(Panini) for player details
+> 3. Sticker `number` values (0–980) must be assigned sequentially in album order — do not use `NULL`
+> 4. The `album_code` (e.g., `MEX1`, `CAN3`) is the stable identifier used by the AI scan feature
+>
+> The album launched April 29/30, 2026. The complete checklist is available from the sources above.
+
+This is the largest seed file. Each team contributes 20 stickers. Below is the complete structure shown for two teams (Mexico and South Africa) to demonstrate the pattern. The full file in the repository covers all 48 teams × 20 stickers = 960 records.
 
 **Sticker numbering convention:** Stickers are numbered sequentially in album order. The album code (e.g., `MEX1`, `CAN3`) maps to the team FIFA code + position within the team's 20-sticker block.
 
@@ -1154,11 +1255,12 @@ SELECT id, unnest(ARRAY[
 FROM stickers WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
--- Step 5: Coca-Cola variant — specific player stickers only
--- (Panini has a dedicated Coca-Cola section in the album)
--- These are tracked as a separate sticker_type='coca_cola_special'
--- See docs/runbooks/update-sticker-database.md for how to add
--- specific Coca-Cola sticker numbers when officially confirmed
+-- Step 5: Coca-Cola stickers are NOT variants of existing stickers.
+-- They are entirely separate sticker records with sticker_type = 'coca_cola'.
+-- Each Coca-Cola sticker gets only a single 'base' variant (no parallels).
+-- They are seeded in a separate file once the official list is confirmed.
+-- DO NOT add a 'coca_cola' entry to the variant_type list above.
+-- See docs/runbooks/update-sticker-database.md for how to add them.
 ```
 
 ### 8.8 Seed File 06: Feature Flags
@@ -1170,7 +1272,7 @@ INSERT INTO feature_flags (key, enabled, rollout_pct, description)
 VALUES
   ('FEATURE_AI_SCANNING',        false, 0,   'AI sticker identification via camera/image upload'),
   ('FEATURE_BATCH_SCANNING',     false, 0,   'Scan multiple stickers from one photo'),
-  ('FEATURE_TRADE_MESSAGING',    false, 0,   'In-app messaging for trade coordination'),
+  ('FEATURE_TRADE_MESSAGING',    false, 0,   'In-app messaging within trade requests (SSE-backed)'),
   ('FEATURE_PUBLIC_LEADERBOARD', false, 0,   'Public leaderboard of top collectors'),
   ('FEATURE_COCA_COLA_STICKERS', false, 0,   'Coca-Cola bottle sticker section in album'),
   ('MAINTENANCE_MODE',           false, 0,   'Redirect all users to maintenance page')
@@ -1281,9 +1383,37 @@ SELECT username, role FROM users ORDER BY role, username;
 
 ## 9. Authentication & Security
 
-### 9.1 Local Authentication Mode
+### 9.1 Email Verification Flow
+
+After a user registers, their account exists but `email_verified_at` is NULL. They receive a verification email (via Mailpit locally, SES in cloud) with a secure one-time link.
+
+```
+User registers → API creates account (email_verified_at = NULL)
+             → Verification email sent with token link
+             → User clicks link → POST /auth/verify-email
+             → API sets email_verified_at = now()
+             → User is redirected to /dashboard
+```
+
+**Before verification:** Users can log in but see a banner prompting them to verify. They cannot initiate trade requests until verified (reduces spam). They can freely add stickers to their collection.
+
+**Token:** A cryptographically random token stored in a `email_verification_tokens` table with a 24-hour expiry. After clicking the link, the token is consumed (deleted).
+
+```sql
+-- Add to V1 schema or V2 migration:
+CREATE TABLE email_verification_tokens (
+  token       TEXT PRIMARY KEY DEFAULT encode(gen_random_bytes(32), 'hex'),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '24 hours',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### 9.2 Local Authentication Mode
 
 Locally, authentication is handled by a lightweight mock middleware. Any email/password combination is accepted. The API reads `AUTH_MODE=local` from the environment and skips Cognito entirely. This means developers never need AWS credentials to work on features.
+
+Test users are pre-seeded with `email_verified_at` set to a past timestamp — no verification step needed locally.
 
 Predefined test user sessions are accessible via:
 ```bash
@@ -1296,13 +1426,13 @@ POST http://localhost:3001/api/v1/auth/login
 { "email": "admin@test.local", "password": "anything" }
 ```
 
-### 9.2 Cloud Authentication: AWS Cognito
+### 9.3 Cloud Authentication: AWS Cognito
 
 In staging and production, Cognito handles registration, login, MFA, JWT tokens, and password resets. The API reads `AUTH_MODE=cognito` and validates JWTs against the Cognito user pool.
 
 The transition from local mock to Cognito is a single environment variable change — no code changes required.
 
-### 9.3 Security Controls
+### 9.4 Security Controls
 
 | Control | Local | Cloud |
 |---|---|---|
@@ -1366,12 +1496,105 @@ Results cached in Redis for 2 minutes.
 ### 11.2 Trade Request Flow
 
 ```
-User A views matches → sends trade request
-User B receives notification + email
-User B accepts / declines / counter-proposes
-If accepted: both collections update
-Optional: both rate the trade (1–5 stars)
+User A views matches → sends trade request (specifying offered and wanted stickers)
+User B receives email notification + sees badge in-app
+User B chooses one of:
+  ├── Accept  → both collections update immediately; User A notified in-app + email
+  ├── Decline → trade closes; User A notified in-app + email
+  └── Counter → propose different stickers; User A notified in-app + email
+                and can Accept / Decline / Counter
+
+Throughout: both users can send messages inside the trade
+            to coordinate logistics (e.g. address, meetup, shipping)
 ```
+
+**Counter-proposal:** When countering, the user edits the offered/wanted sticker lists and submits. The trade stays in `pending` status until one party accepts or declines. A maximum of 5 counter-rounds is enforced before the trade auto-expires, preventing indefinite back-and-forth.
+
+### 11.3 In-App Messaging: Implementation
+
+#### Why SSE (Server-Sent Events), not WebSockets
+
+Messages are *sent* via a normal `POST /messages` API call. Only the *notification* of a new message needs to be pushed to the other user in real-time. SSE is a one-way server-to-browser push over plain HTTP — simpler than WebSockets, no special protocol, works through firewalls and corporate proxies, and Fastify supports it natively. WebSockets provide bidirectional communication which isn't needed here.
+
+Managed real-time services (Pusher, Ably, Firebase) are explicitly rejected because they would store user messages on servers outside Canada, violating PIPEDA data residency requirements. Redis — already in the stack — provides all the pub/sub capability needed.
+
+#### The Multi-Server Problem and How Redis Solves It
+
+In cloud, multiple API instances run in parallel (ECS Fargate tasks). A naive implementation breaks: User A connects to Server 1 for their SSE stream; User B sends a message that lands on Server 2; Server 1 never hears about it and User A sees nothing.
+
+Redis Pub/Sub solves this cleanly:
+
+```
+User B sends message (POST)
+         │
+         ▼
+  Server 2 writes message to PostgreSQL
+         │
+         ▼
+  Server 2 publishes to Redis channel: trade:channel:{tradeId}
+         │
+         ▼ (Redis broadcasts to all subscribed servers)
+         │
+  Server 1 receives the Redis message
+         │
+         ▼
+  Server 1 pushes SSE event to User A's open stream  ✓
+```
+
+Every API instance subscribes to the Redis channel for each active trade with an open SSE connection. When a message arrives on any server, Redis delivers it to all subscribed servers, which each push it to their connected clients.
+
+#### SSE Event Types
+
+The SSE stream at `GET /trade/requests/:id/stream` emits these event types:
+
+```
+event: new_message
+data: {"id":"...","senderId":"...","body":"Hello!","sentAt":"2026-05-03T..."}
+
+event: status_changed
+data: {"status":"accepted","updatedAt":"2026-05-03T..."}
+
+event: heartbeat
+data: {}
+```
+
+The heartbeat is sent every 30 seconds to keep the connection alive through proxies and load balancers that close idle connections.
+
+#### Frontend Behaviour
+
+```typescript
+// Open the stream when the trade page loads
+const eventSource = new EventSource(`/api/v1/trade/requests/${tradeId}/stream`, {
+  withCredentials: true,
+})
+
+eventSource.addEventListener('new_message', (e) => {
+  const message = JSON.parse(e.data)
+  appendMessageToUI(message)
+})
+
+eventSource.addEventListener('status_changed', (e) => {
+  const { status } = JSON.parse(e.data)
+  updateTradeStatusUI(status)
+})
+
+// Close when the user navigates away
+return () => eventSource.close()
+```
+
+If the connection drops (network blip), the browser automatically reconnects using the `Last-Event-ID` header. The server re-sends any messages missed during the gap. This makes the stream resilient to brief disconnections.
+
+#### Message Persistence and Deletion
+
+- Messages are stored in PostgreSQL (`trade_messages` table) — durable, queryable, exportable
+- `GET /trade/requests/:id/messages` returns the full message history with cursor-based pagination
+- **Retention:** Messages are deleted 90 days after the trade closes (accepted, declined, or expired)
+- **Right to erasure:** Deleting a user account (`DELETE /users/:id`) cascades to their messages
+- Body length is capped at 2,000 characters per message (`CHECK (char_length(body) BETWEEN 1 AND 2000)`)
+
+#### Local Development
+
+Locally, a single API instance runs with Redis in Docker — no multi-server coordination needed. The pub/sub path still executes (Server 1 publishes and receives its own message), making the local experience identical to cloud behaviour. No mocking required.
 
 ### 11.3 Shareable Public Lists
 
@@ -1725,6 +1948,13 @@ terraform apply
 There is no code rewrite. The only changes are configuration (environment variables) and infrastructure (Terraform).
 
 ### 17.3 Feature Flags
+
+Feature flags are stored in the `feature_flags` database table in **all environments** (local, dev, staging, and production). This is simpler than managing a separate AWS AppConfig service and requires no extra infrastructure.
+
+To toggle a flag, update the row directly (or build a simple admin UI toggle):
+```sql
+UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_AI_SCANNING';
+```
 
 | Flag | Default | Purpose |
 |---|---|---|
@@ -2145,8 +2375,8 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 | Auth (cloud) | AWS Cognito | Cloud only |
 | Database (local) | PostgreSQL 16 in Docker | Yes |
 | Database (cloud) | Aurora PostgreSQL Serverless v2 | Cloud only |
-| Migrations | Flyway | Yes |
-| Connection pooling | RDS Proxy | Cloud only |
+| Migrations | Drizzle ORM | Yes |
+| Connection pooling | `pg` pool (local) / RDS Proxy (cloud) | Yes |
 | Cache (local) | Redis 7 in Docker | Yes |
 | Cache (cloud) | AWS ElastiCache Redis | Cloud only |
 | Cache browser | Redis Commander | Yes (localhost:8081) |
@@ -2158,7 +2388,7 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 | Email (local) | Mailpit | Yes (localhost:8025) |
 | Email (cloud) | AWS SES | Cloud only |
 | Analytics | Plausible self-hosted | Cloud only |
-| Feature flags | DB table (local) / AppConfig (cloud) | Yes |
+| Feature flags | DB table (all environments) | Yes |
 | IaC | Terraform | Cloud only |
 | Monorepo | Turborepo | Yes |
 | CI/CD | GitHub Actions | Cloud only |
@@ -2192,44 +2422,55 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 
 ### Phase A: Local Development
 
-**A1 — Foundation (Weeks 1–3)**
+> **Timeline note:** The 15-week Phase A estimate below is a target, not a guarantee. A full-stack application of this scope (AI scanning, trading, SSE messaging, PWA, i18n, 80% test coverage) realistically takes 20–25 weeks for a single developer starting from scratch. Build buffer time into each phase and use the milestone checkpoints in Section 33 to track progress objectively.
+
+**A1 — Foundation (Weeks 1–4)**
+- **Prerequisite (before coding begins):** Complete `03_team_stickers.sql` with all 960 records and sequential sticker numbers sourced from checklistinsider.com
 - Monorepo scaffolded with Turborepo
 - `docker-compose.yml` working — `docker compose up` starts all services
 - README "Getting Started" tested by a second person from scratch
-- Database schema deployed via Flyway
+- Database schema deployed via Drizzle ORM migrations
+- CORS and connection pooling configured in the API
 - All seed data loaded and verified (48 teams, 980 stickers, all variants)
 - `/health` and `/health/ready` endpoints live
-- Local auth mock working — all 5 test users can log in
+- OpenAPI docs available at `http://localhost:3001/docs`
+- Local auth mock working — all 5 test users can log in (pre-verified, no email step)
+- Email verification flow working end-to-end via Mailpit
 - `npm run test` runs and passes (with minimal initial test coverage)
 
-**A2 — Core Collection Features (Weeks 4–7)**
-- All collection API endpoints working
-- Album view UI (all 980 sticker slots, filterable)
+**A2 — Core Collection Features (Weeks 5–8)**
+- All collection API endpoints working with filtering and pagination
+- Album view UI (all 980 sticker slots, filterable by team/group/type/status)
+- Virtual scrolling on the album grid (renders 980 items without performance issues)
 - Have / missing / duplicates views
 - Collection completion percentage
+- Avatar upload working
 - Admin interface for sticker corrections
+- React Error Boundary implemented
 - Unit and integration tests for all collection operations
 
-**A3 — Trading & Sharing (Weeks 8–10)**
+**A3 — Trading & Sharing (Weeks 9–12)**
 - Trade matching algorithm
-- Trade request / accept / decline
-- In-app messaging (REST polling)
+- Trade request / accept / decline / counter
+- In-app messaging: PostgreSQL persistence + Redis pub/sub + SSE delivery
+- SSE stream reconnection with `Last-Event-ID` for missed-message recovery
 - Shareable public list generation
 - Public profile pages
-- E2E tests for all trade and sharing flows
+- E2E tests for all trade, messaging, and sharing flows
 
-**A4 — AI Scanning (Weeks 11–13)**
+**A4 — AI Scanning (Weeks 13–16)**
 - Image upload pipeline (local filesystem mock)
 - Border colour detection
 - Claude Vision API integration (with local mock mode)
 - Confidence scoring + confirmation UI
 - Batch scanning mode
 
-**A5 — Polish & Pre-Cloud Hardening (Weeks 14–15)**
+**A5 — Polish & Pre-Cloud Hardening (Weeks 17–19)**
 - Custom error pages (404, 500)
 - Graceful degradation for all optional services
 - Frontend retry logic
-- i18n structure in place
+- PWA offline cache for sticker master list
+- i18n structure in place (English at launch; Spanish-ready for fast follow)
 - Full test suite passes (≥80% coverage)
 - OWASP Top 10 developer review documented
 - All runbooks written (including `local-setup.md`)
@@ -2237,7 +2478,7 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 
 ### Phase B: Cloud Migration
 
-**B1 — Infrastructure & Dev Environment (Weeks 16–17)**
+**B1 — Infrastructure & Dev Environment (Weeks 20–22)**
 - AWS account created, MFA enabled
 - Domain registered
 - Terraform provisions dev environment
@@ -2245,7 +2486,7 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 - Application deployed to dev, health checks pass
 - Database seeded in dev cloud environment
 
-**B2 — Staging & Production (Weeks 18–19)**
+**B2 — Staging & Production (Weeks 23–25)**
 - Staging environment provisioned and verified
 - Anonymised data refresh from production snapshot process tested
 - Full E2E suite running against staging
@@ -2323,16 +2564,17 @@ One-time costs during Phase A:
 
 ### Start Today (Before Hiring a Developer)
 
-1. Install Docker Desktop on your machine
-2. Register your domain (Route 53 or Namecheap)
-3. Create a free GitHub account and a private repository
-4. Create an AWS account (required for Phase B, not Phase A) and enable MFA on the root account immediately
+1. **Compile the complete sticker checklist** — visit https://www.checklistinsider.com/2026-panini-fifa-world-cup-sticker and capture all 960 team sticker records (album codes + sequential numbers + player names + positions). This is the most important pre-development task.
+2. Install Docker Desktop on your machine
+3. Register your domain (Route 53 or Namecheap)
+4. Create a free GitHub account and a private repository
+5. Create an AWS account (required for Phase B, not Phase A) and enable MFA on the root account immediately
 
 ### When Hiring a Developer
 
 Provide this document as the technical specification. The developer should be able to read it, run `docker compose up`, and have a working local environment within 30 minutes.
 
-**Key skills to look for:** TypeScript/Node.js, PostgreSQL, Docker, React/Next.js, AWS (for Phase B), Terraform (for Phase B).
+**Key skills to look for:** TypeScript/Node.js, Drizzle ORM, PostgreSQL, Docker, React/Next.js, AWS (for Phase B), Terraform (for Phase B).
 
 **First milestone to ask for:** "Show me the application running locally with the 48 teams and 980 stickers seeded in the database, and show me the trade matching algorithm returning correct results between two test users."
 
@@ -2340,11 +2582,12 @@ Provide this document as the technical specification. The developer should be ab
 
 | Milestone | Success Criteria |
 |---|---|
-| End of Phase A1 | `docker compose up && npm run db:seed` works. 48 teams and 980 stickers in database. Health check passes. |
-| End of Phase A2 | All 980 stickers visible in album UI. Can add/remove/mark duplicates. Test suite ≥ 60% coverage. |
-| End of Phase A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. |
+| Pre-development | All 960 team sticker records compiled with sequential numbers — `03_team_stickers.sql` is complete |
+| End of Phase A1 | `docker compose up && npm run db:seed` works. 48 teams and 980 stickers in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
+| End of Phase A2 | All 980 stickers visible in album UI with filtering. Can add/remove/mark duplicates. Avatar upload working. Test suite ≥ 60% coverage. |
+| End of Phase A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
 | End of Phase A4 | Mock AI scan adds a sticker to Alice's collection. Real Claude API works in dev cloud. |
-| End of Phase A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. |
+| End of Phase A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. PWA installable on mobile. |
 | End of Phase B1 | CI/CD deploys to dev on every merge. Health check passes in AWS. |
 | End of Phase B2 | Full E2E suite passes on staging. Legal documents published. |
 | Soft Launch | 100 beta users. Zero data loss in first 7 days. |
