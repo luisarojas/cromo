@@ -757,6 +757,8 @@ CREATE TABLE trade_requests (
   recipient_id  UUID NOT NULL REFERENCES users(id),
   status        TEXT NOT NULL DEFAULT 'pending'
                 CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled', 'completed')),
+  accepted_at   TIMESTAMPTZ,   -- digital agreement timestamp
+  completed_at  TIMESTAMPTZ,   -- physical exchange confirmed timestamp
   cancelled_at  TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -1499,16 +1501,32 @@ Results cached in Redis for 2 minutes.
 User A views matches → sends trade request (specifying offered and wanted stickers)
 User B receives email notification + sees badge in-app
 User B chooses one of:
-  ├── Accept  → both collections update immediately; User A notified in-app + email
+  ├── Accept  → status → accepted; both notified in-app + email
+  │             *** no inventory change yet ***
+  │             both users coordinate physical exchange via in-app messages
+  │             either party clicks "Mark as Complete" once stickers are in hand
+  │                → status → completed; both inventories update; both notified
   ├── Decline → trade closes; User A notified in-app + email
   └── Counter → propose different stickers; User A notified in-app + email
                 and can Accept / Decline / Counter
+
+Either party may cancel an accepted trade before it is marked complete.
 
 Throughout: both users can send messages inside the trade
             to coordinate logistics (e.g. address, meetup, shipping)
 ```
 
 **Counter-proposal:** When countering, the user edits the offered/wanted sticker lists and submits. The trade stays in `pending` status until one party accepts or declines. A maximum of 5 counter-rounds is enforced before the trade auto-expires, preventing indefinite back-and-forth.
+
+**Inventory update on completion:** When either party marks the trade complete (`status → completed`), the API runs a single database transaction:
+
+1. `UPDATE trade_requests SET status = 'completed', completed_at = now()`
+2. For each `trade_item` with `direction = 'offer'`: decrement quantity in requester's `user_stickers`
+3. For each `trade_item` with `direction = 'want'`: decrement quantity in recipient's `user_stickers`
+4. Insert `user_stickers` rows for stickers each party received
+5. Delete any `user_stickers` rows where `quantity` has reached `0`
+
+If the transaction fails, the status remains `accepted` and no collections are changed.
 
 ### 11.3 In-App Messaging: Implementation
 
@@ -1553,6 +1571,9 @@ data: {"id":"...","senderId":"...","body":"Hello!","sentAt":"2026-05-03T..."}
 
 event: status_changed
 data: {"status":"accepted","updatedAt":"2026-05-03T..."}
+
+event: status_changed
+data: {"status":"completed","updatedAt":"2026-05-03T..."}
 
 event: heartbeat
 data: {}
