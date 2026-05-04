@@ -1,7 +1,7 @@
 # StickerSwap 2026 — Complete Production Implementation Plan
 ### A Full-Stack Web Application for the 2026 FIFA World Cup Panini Sticker Collection
 
-> **Plan Version:** 5.0 — Adds CORS/pooling config, Drizzle ORM (replaces Flyway), SSE trade messaging, pagination strategy, email verification flow, avatar upload endpoint, Coca-Cola sticker fix, schema hardening (CHECK constraints), complete seed data guidance, timeline correction (19 weeks Phase A), and feature flag simplification.
+> **Plan Version:** 5.1 — Internal-consistency pass: removes residual Flyway references, fixes the Phase A 20–22 week gap, deduplicates section 11.3, completes the V1 schema (`email_verification_tokens`, `trade_items.quantity`, `trade_requests.counter_count`). Adds: scheduled-jobs section, web push, idempotency keys, security headers, cookie/password/lockout policy, file-upload validation, frontend error tracking, cache-stampede + Aurora cold-start handling, SES bounce/DMARC handling, age-gate, account-deletion grace window, audit-log IP truncation, ADR seeds, glossary.
 > **Last Updated:** May 3, 2026
 > **Target Audience:** Non-developer owner + contracted development team
 
@@ -42,7 +42,9 @@
 31. [Development Phases](#31-development-phases)
 32. [Cost Estimate](#32-cost-estimate)
 33. [Trust & Safety](#33-trust--safety)
-34. [Next Steps](#34-next-steps)
+34. [Scheduled Jobs](#34-scheduled-jobs)
+35. [Glossary](#35-glossary)
+36. [Next Steps](#36-next-steps)
 
 ---
 
@@ -480,7 +482,17 @@ Built with i18n routing from day one using Next.js's built-in support. Launch or
 | `/security` | Responsible disclosure policy |
 | `/legal/[doc]` | Privacy policy, terms, cookies |
 
-### 5.7 Local Hosting vs Cloud Hosting
+### 5.7 Static Image Assets
+
+The 48 team flags (referenced by `teams.flag_url`) and any sticker-position diagrams are bundled as static assets in `apps/frontend/public/images/flags/{fifa_code}.svg`. Bundling is preferred over S3 hosting because:
+- The set is fixed and small (~48 SVGs, < 200 KB total)
+- No additional infrastructure to provision
+- Vercel's CDN serves them with edge caching automatically
+- Bundling avoids cross-origin headaches with `<img src>` and `Content-Security-Policy`
+
+User-generated images (avatars, scan uploads) remain on S3 / local filesystem (§6.3). Sticker artwork itself is **not** stored or rendered by this application — Panini owns the artwork and the album experience reproduces only the metadata (number, name, team, variant). The album grid uses placeholder cards with sticker numbers rather than artwork.
+
+### 5.8 Local Hosting vs Cloud Hosting
 
 | Environment | Hosting | URL |
 |---|---|---|
@@ -571,7 +583,7 @@ Authentication
   POST   /api/v1/auth/reset-password
 
 Sticker Master List
-  GET    /api/v1/stickers                   # ?team=MEX&group=A&type=player&cursor=...
+  GET    /api/v1/stickers                   # ?team=MEX&group=A&type=player&search=pulisic&cursor=...
   GET    /api/v1/stickers/:albumCode        # look up by album code (e.g. MEX1, FWC3)
   GET    /api/v1/stickers/:albumCode/variants
 
@@ -634,6 +646,10 @@ System
 **File storage prefixes (S3 / local filesystem):**
 - `/avatars/{userId}` — user profile photos, permanent
 - `/scans/{uuid}` — AI scan uploads, auto-deleted after 24 hours via S3 lifecycle rule
+
+**Search:** `GET /api/v1/stickers?search=<term>` performs fuzzy player-name and team-name matching using PostgreSQL `pg_trgm` (trigram) extension. Index: `CREATE INDEX idx_stickers_player_name_trgm ON stickers USING gin (player_name gin_trgm_ops);`. Results are ranked by similarity and capped at 50 per page. Cached in Redis (`stickers:search:{normalized_term}`, TTL 1 hour) since the master list is read-only.
+
+**File upload validation:** All `multipart/form-data` endpoints (`/scan/identify`, `/scan/batch`, `/users/:id/avatar`) enforce: max 10 MB per file; allowed MIME types `image/jpeg`, `image/png`, `image/webp`; magic-byte validation via the `file-type` package (defends against MIME-spoofed uploads). Avatar uploads are additionally resized server-side to a 512×512 max and stripped of EXIF before storage. ClamAV scanning is added at the 1,000-user threshold (deferred for cost; see §29.3).
 
 ### 6.4 Granular Rate Limiting
 
@@ -715,6 +731,16 @@ CREATE TABLE consent_records (
   recorded_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE email_verification_tokens (
+  token       TEXT PRIMARY KEY DEFAULT encode(gen_random_bytes(32), 'hex'),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '24 hours',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_email_verification_tokens_user_id
+  ON email_verification_tokens(user_id);
+
 -- STICKER MASTER DATA ────────────────────────────────────
 CREATE TABLE teams (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -771,23 +797,26 @@ CREATE INDEX idx_user_stickers_duplicates
 
 -- TRADING ────────────────────────────────────────────────
 CREATE TABLE trade_requests (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  requester_id  UUID NOT NULL REFERENCES users(id),
-  recipient_id  UUID NOT NULL REFERENCES users(id),
-  status        TEXT NOT NULL DEFAULT 'pending'
-                CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled', 'completed')),
-  accepted_at   TIMESTAMPTZ,   -- digital agreement timestamp
-  completed_at  TIMESTAMPTZ,   -- physical exchange confirmed timestamp
-  cancelled_at  TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requester_id   UUID NOT NULL REFERENCES users(id),
+  recipient_id   UUID NOT NULL REFERENCES users(id),
+  status         TEXT NOT NULL DEFAULT 'pending'
+                 CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled', 'completed', 'expired')),
+  counter_count  INT NOT NULL DEFAULT 0 CHECK (counter_count BETWEEN 0 AND 5),
+  accepted_at    TIMESTAMPTZ,   -- digital agreement timestamp
+  completed_at   TIMESTAMPTZ,   -- physical exchange confirmed timestamp
+  cancelled_at   TIMESTAMPTZ,
+  expires_at     TIMESTAMPTZ,   -- auto-expiry deadline for accepted-but-not-completed trades
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE trade_items (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trade_id            UUID NOT NULL REFERENCES trade_requests(id),
   sticker_variant_id  UUID NOT NULL REFERENCES sticker_variants(id),
-  direction           TEXT NOT NULL  -- 'offer' | 'want'
+  direction           TEXT NOT NULL,  -- 'offer' | 'want'
+  quantity            INT NOT NULL DEFAULT 1 CHECK (quantity > 0)
 );
 
 CREATE TABLE trade_messages (
@@ -948,7 +977,7 @@ scripts/
     07_test_users.sql       # DEV/LOCAL ONLY — test accounts
 ```
 
-The master script checks the `NODE_ENV` environment variable. If it is `production`, it refuses to run seed files 06 and 07 (test users). This is a safety guard.
+The master script checks the `NODE_ENV` environment variable. If it is `production`, it refuses to run seed file 07 (test users). Feature flags (file 06) are required in every environment, so they are not gated. This is a safety guard.
 
 ```bash
 #!/bin/bash
@@ -1462,17 +1491,11 @@ User registers → API creates account (email_verified_at = NULL)
 
 **Before verification:** Users can log in but see a banner prompting them to verify. They cannot initiate trade requests until verified (reduces spam). They can freely add stickers to their collection.
 
-**Token:** A cryptographically random token stored in a `email_verification_tokens` table with a 24-hour expiry. After clicking the link, the token is consumed (deleted).
+**Token:** A cryptographically random token stored in the `email_verification_tokens` table (see §7.2 schema) with a 24-hour expiry. After clicking the link, the token is consumed (deleted).
 
-```sql
--- Add to V1 schema or V2 migration:
-CREATE TABLE email_verification_tokens (
-  token       TEXT PRIMARY KEY DEFAULT encode(gen_random_bytes(32), 'hex'),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at  TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '24 hours',
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
+**Re-send flow:** `POST /auth/resend-verification` deletes any existing tokens for the user, generates a new one, and emails the new link. Rate-limited to 3 requests per hour per user to prevent email-bombing. If the previous token has not expired, the user can still use either link until first use; the new token simply provides another chance.
+
+**Expired tokens:** If a user clicks an expired link, the API returns `410 Gone` with a "Verification link expired" page that includes a one-click re-send button.
 
 ### 9.2 Local Authentication Mode
 
@@ -1508,6 +1531,53 @@ The transition from local mock to Cognito is a single environment variable chang
 | Auth enforcement | Mock — any credentials | Cognito JWT validation |
 | Secrets | `.env.local` file | AWS Secrets Manager |
 | DDoS protection | None | AWS Shield Standard |
+
+### 9.5 Security Headers
+
+The API and frontend send the following headers on every response. Implemented via `@fastify/helmet` on the API and `next.config.js` headers on the frontend:
+
+| Header | Value |
+|---|---|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` (cloud only) |
+| `Content-Security-Policy` | `default-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.stickerswap2026.ca; frame-ancestors 'none'` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `camera=(self), microphone=(), geolocation=()` |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+
+CSP is initially set in report-only mode (`Content-Security-Policy-Report-Only`) and tightened to enforcing once observed violations are zero.
+
+### 9.6 Cookie Configuration
+
+Auth cookies (refresh-token cookie issued by the API) are configured as:
+- `HttpOnly` — not accessible to JavaScript
+- `Secure` — sent only over HTTPS (cloud only)
+- `SameSite=Lax` — sent on top-level GET navigation, not on cross-site POSTs
+- `Max-Age=2592000` — 30 days; matches refresh-token TTL
+- `Path=/api/v1/auth`
+- `Domain=stickerswap2026.ca` (omitted locally)
+
+Access tokens are short-lived JWTs (15 min TTL) stored in memory by the frontend (Zustand) — never in `localStorage`.
+
+### 9.7 Password Policy & Account Lockout
+
+When `AUTH_MODE=cognito`:
+
+| Policy | Setting |
+|---|---|
+| Minimum length | 12 characters |
+| Required character classes | At least 1 lowercase, 1 uppercase, 1 number |
+| Breached-password check | Cognito advanced security: blocks passwords found in haveibeenpwned breach corpus |
+| MFA | Optional at launch (TOTP); required for admin role |
+| Lockout | 5 failed login attempts on the same account → 15-minute lock (separate from per-IP rate limit in §6.4) |
+| Password reset | Email-only flow; tokens 1-hour TTL, single-use |
+
+Account lockout is keyed on `user_id`, not IP, to prevent password-spray attacks across many IPs. Implemented via Redis (`lockout:{user_id}`, TTL 900s).
+
+### 9.8 Logging PII Policy
+
+Structured logs (§20) **never** contain: full passwords, JWT tokens or refresh tokens, full email addresses (only the masked form `a***@example.com`), `user_reports.description` content, `trade_messages.body` content, or full `audit_log.ip_address` values for entries older than 90 days. A pre-commit hook runs `gitleaks` to catch accidental commits of secrets.
 
 ---
 
@@ -1579,17 +1649,24 @@ Throughout: both users can send messages inside the trade
             to coordinate logistics (e.g. address, meetup, shipping)
 ```
 
-**Counter-proposal:** When countering, the user edits the offered/wanted sticker lists and submits. The trade stays in `pending` status until one party accepts or declines. A maximum of 5 counter-rounds is enforced before the trade auto-expires, preventing indefinite back-and-forth.
+**Counter-proposal:** When countering, the user edits the offered/wanted sticker lists and submits; the API increments `trade_requests.counter_count` (CHECK constraint enforces ≤ 5). The trade stays in `pending` status until one party accepts or declines. The 6th counter-attempt returns `409 Conflict`; a scheduled job (§34) transitions the trade to `expired` after 30 days of no activity in `pending` status.
+
+**Multi-quantity:** Each `trade_items` row carries an explicit `quantity` (default 1). A user offering "2× MEX5 base + 1× BRA10 base" results in three `trade_items` rows (or two — one per variant — with appropriate quantities).
+
+**Accepted-trade timeout:** When a trade transitions to `accepted`, `expires_at` is set to `accepted_at + INTERVAL '30 days'`. A daily scheduled job (§34) sweeps `accepted` trades whose `expires_at` has passed and transitions them to `expired`, notifying both parties. Either party may extend by sending a message (resets `expires_at` to `now() + 30 days`, max 3 extensions).
+
+**Race condition on Mark Complete:** Either party may click "Mark complete." If both click simultaneously, the API wraps the inventory update in a single transaction that begins with `SELECT ... FOR UPDATE` on the `trade_requests` row, then re-checks the status. If the status is no longer `accepted`, the second click is a no-op (returns the already-completed response). This prevents double inventory mutation.
 
 **Inventory update on completion:** When either party marks the trade complete (`status → completed`), the API runs a single database transaction:
 
-1. `UPDATE trade_requests SET status = 'completed', completed_at = now()`
-2. For each `trade_item` with `direction = 'offer'`: decrement quantity in requester's `user_stickers`
-3. For each `trade_item` with `direction = 'want'`: decrement quantity in recipient's `user_stickers`
-4. Insert `user_stickers` rows for stickers each party received
-5. Delete any `user_stickers` rows where `quantity` has reached `0`
+1. `SELECT … FROM trade_requests WHERE id = $1 FOR UPDATE`; abort if status is not `accepted`
+2. `UPDATE trade_requests SET status = 'completed', completed_at = now()`
+3. For each `trade_item` with `direction = 'offer'`: decrement requester's `user_stickers.quantity` by `trade_items.quantity`
+4. For each `trade_item` with `direction = 'want'`: decrement recipient's `user_stickers.quantity` by `trade_items.quantity`
+5. Upsert `user_stickers` rows on the receiving side, incrementing `quantity` by the traded amount
+6. Delete any `user_stickers` rows where `quantity` has reached `0`
 
-If the transaction fails, the status remains `accepted` and no collections are changed.
+If the transaction fails (e.g., insufficient quantity due to concurrent modification), the status remains `accepted` and no collections are changed; the user sees an error toast prompting them to refresh.
 
 ### 11.3 In-App Messaging: Implementation
 
@@ -1675,21 +1752,31 @@ If the connection drops (network blip), the browser automatically reconnects usi
 - **Retention:** Messages are deleted 90 days after the trade closes (accepted, declined, or expired)
 - **Right to erasure:** Deleting a user account (`DELETE /users/:id`) cascades to their messages
 - Body length is capped at 2,000 characters per message (`CHECK (char_length(body) BETWEEN 1 AND 2000)`)
+- **XSS prevention:** Messages are stored as plain text and rendered with HTML escaping. No HTML, Markdown, or rich text is permitted; URLs are detected client-side and rendered as `<a rel="noopener noreferrer nofollow" target="_blank">`. The `Content-Security-Policy` header (§9.4) provides defence-in-depth.
+- **Idempotency:** `POST /api/v1/trade/requests/:id/messages` accepts an optional `Idempotency-Key` header (UUID). The server stores `(key, sender_id) → response` in Redis for 24 hours and replays the cached response on duplicate requests, preventing duplicate messages from mobile retry loops.
 
 #### Local Development
 
 Locally, a single API instance runs with Redis in Docker — no multi-server coordination needed. The pub/sub path still executes (Server 1 publishes and receives its own message), making the local experience identical to cloud behaviour. No mocking required.
 
-### 11.3 Post-Trade Ratings (Trust & Safety)
+### 11.4 Post-Trade Ratings (Trust & Safety)
 
 After a trade is marked `completed`, both parties enter a **14-day rating window** where they can rate each other on a binary scale (thumbs up / thumbs down). This rating system builds trust and helps identify users with problematic behaviour. Full details on the rating system, user reporting, and moderation capabilities are in **Section 33: Trust & Safety**.
 
-### 11.4 Shareable Public Lists
+### 11.5 Disputes
+
+If a trade is marked `completed` but one party never received their stickers (or received fakes/damaged stickers), the formal recourse is the user-reporting flow described in §33.2. Categories `no_show`, `fake_stickers`, and `damaged_stickers` exist specifically to capture these cases. Reports filed within the 14-day rating window are weighted more heavily during admin review (linked-trade context is preserved on the report).
+
+There is no "rollback" of a completed trade — once both inventories have been updated, the inventory cannot be unwound automatically (the physical stickers may already have been re-traded). Disputes therefore lead to ratings and reports, not inventory changes. Admins may issue partial refunds of trust-score impact in egregious cases via the moderation tools described in §33.3.
+
+### 11.6 Shareable Public Lists
 
 Unique expiring share links generated with cryptographically random tokens:
 `https://stickerswap2026.ca/share/abc123xyz`
 
 Privacy options per list: Private (default) | Link-only | Public.
+
+Share links can be revoked manually by their owner via `DELETE /api/v1/users/:id/share/:token`. Revoked tokens return `410 Gone`.
 
 ---
 
@@ -1706,6 +1793,41 @@ All outbound email in cloud environments routes through AWS SES. Setup: verify s
 ### 12.3 CASL Compliance
 
 Marketing emails require explicit opt-in. Transactional emails (verification, password reset, trade notifications) do not. Consent records stored in the database. Every marketing email includes a one-click unsubscribe. Violations carry fines up to $10 million CAD.
+
+### 12.4 SES Bounce & Complaint Handling
+
+SES disables sending if bounce rate exceeds 5% or complaint rate exceeds 0.1%. Both events are forwarded via SNS topic to a small Lambda (cloud) or in-API webhook (local mock) which:
+
+1. Updates a new `users.email_status` column (`active` | `bounced_soft` | `bounced_hard` | `complaint`)
+2. Suppresses future sends to the address (the API checks `email_status` before queueing email)
+3. Adds the address to a SES suppression list automatically (hard bounces only)
+4. For `complaint`: also unsets `user_settings.email_marketing` and writes a `consent_records` revocation row
+
+`email_status` is exposed in the Settings UI ("Your email is bouncing — please update your address").
+
+### 12.5 Email Authentication: SPF / DKIM / DMARC
+
+All three are configured at launch:
+- **SPF**: `v=spf1 include:amazonses.com -all` in Route 53
+- **DKIM**: SES-managed CNAMEs added to Route 53 during domain verification
+- **DMARC**: starts at `v=DMARC1; p=quarantine; rua=mailto:dmarc@stickerswap2026.ca; pct=100`. After 30 days of clean reports, tightened to `p=reject`.
+
+DMARC reports are aggregated via a free service (e.g., dmarcian) and reviewed monthly.
+
+### 12.6 Web Push Notifications
+
+For the installed PWA experience, transactional notifications (new trade message, trade accepted, trade marked complete) are delivered via the Web Push API. SSE handles real-time push for active sessions; web push handles "user closed the app" cases.
+
+| Element | Choice |
+|---|---|
+| Standard | W3C Web Push + VAPID |
+| Server library | `web-push` (Node) |
+| Subscription storage | New table `push_subscriptions` (user_id, endpoint, keys (p256dh, auth), created_at) |
+| Trigger points | New trade request, trade accepted, new trade message, trade auto-expiring within 24h |
+| User control | `user_settings.push_*` boolean per notification type; opt-in only |
+| Privacy | Subscription endpoint URLs are PII (browser-derived); deleted on account deletion |
+
+Web push is feature-flagged behind `FEATURE_WEB_PUSH` (default false). Scheduled to roll out in Phase A6 (weeks 20–22) after the core trade flow is stable.
 
 ---
 
@@ -1787,9 +1909,12 @@ stickerswap2026/
 │           ├── staging/
 │           └── production/
 │
+├── apps/backend/src/db/
+│   ├── schema.ts                     # Drizzle schema (single source of truth)
+│   └── migrations/                   # Drizzle-generated SQL migration files
+│       └── 0001_initial.sql
+│
 ├── data/
-│   ├── migrations/                   # Flyway SQL migration files
-│   │   └── V1__initial_schema.sql
 │   └── seeds/                        # Seed data scripts
 │       ├── 01_teams.sql
 │       ├── 02_intro_stickers.sql
@@ -1802,7 +1927,11 @@ stickerswap2026/
 ├── docs/
 │   ├── architecture/
 │   │   ├── overview.md               # This document
-│   │   └── decisions/                # Architecture Decision Records
+│   │   └── decisions/                # Architecture Decision Records (ADRs)
+│   │       ├── _template.md          # ADR template (context, decision, consequences)
+│   │       ├── 0001-drizzle-over-prisma-flyway.md
+│   │       ├── 0002-sse-over-websockets.md
+│   │       └── 0003-vercel-frontend-ecs-backend.md
 │   ├── api/v1/                       # OpenAPI spec
 │   └── runbooks/
 │
@@ -2092,7 +2221,7 @@ Developer opens Pull Request
 │  · Build + tag Docker image      │
 │  · Push to AWS ECR               │
 │  · ECS blue/green deploy         │
-│  · Flyway migrations             │
+│  · Drizzle migrations            │
 │  · Integration tests             │
 │  · OWASP ZAP scan                │
 │  · Smoke tests                   │
@@ -2204,6 +2333,46 @@ Slow request debugging — shows which specific query or API call caused a delay
 | Redis memory | > 80% |
 | Health check failures | 3 consecutive |
 | AWS spend | > $400 USD/month |
+| SES bounce rate | > 4% (warns before SES auto-suspend at 5%) |
+| SES complaint rate | > 0.05% (warns before suspend at 0.1%) |
+| Frontend error rate | > 1% of sessions over 30 min (Sentry) |
+| Background job failure | Any scheduled job fails 3× consecutively |
+
+### 20.4 Frontend Error Tracking
+
+Backend logs do not catch errors that happen in the user's browser (component crashes, failed fetches, JS exceptions). To close that gap, the frontend integrates **Sentry** (or **GlitchTip** if data residency is a concern — GlitchTip can be self-hosted in `ca-central-1`).
+
+| Aspect | Choice |
+|---|---|
+| Service | Sentry SaaS (default) or self-hosted GlitchTip in `ca-central-1` (if PIPEDA review prefers) |
+| Captured | Unhandled exceptions, React error-boundary errors, slow transactions, failed `fetch` requests with status ≥ 500 |
+| Not captured | URLs containing `share/<token>`, request bodies, anything matching email regex |
+| User context | Anonymous user-ID hash only; no email or username |
+| Sample rate | 100% errors, 10% performance traces |
+| Release tag | `APP_VERSION` from §15 |
+
+Errors are correlated to backend logs via the `requestId` header (sent on every API response, captured by the frontend client and attached to Sentry events).
+
+### 20.5 Cache Stampede Prevention
+
+Hot keys (`stickers:all`, `user:{id}:summary` for popular users) expiring during peak load (the pack-opening spike in §21.7) cause "thundering herd" — many concurrent requests recompute the value and pile onto PostgreSQL.
+
+Mitigation (singleflight pattern):
+1. On cache miss, the request acquires a short-TTL Redis lock: `SET cache:lock:{key} 1 NX PX 5000`
+2. The winner computes the value and writes it to cache; losers wait briefly (200 ms) and re-read
+3. After write, the lock is released
+4. If a loser still misses after the wait, it computes anyway (lock-failure escape hatch)
+
+Implemented as a wrapper helper (`cachedOrCompute(key, ttl, fn)`) and applied to all GET endpoints that hit cached read-mostly data.
+
+### 20.6 Aurora Serverless v2 Cold Start
+
+Aurora Serverless v2 with `min_capacity = 0` saves money at night but adds 10–30 s latency on the first request after a scale-to-zero. Our mitigations:
+
+1. **Production min_capacity = 0.5 ACU** — never scales to zero. The ~$15/month cost is worth the consistent UX.
+2. **Dev/staging min_capacity = 0** — saves money, accepts cold-start during dev work.
+3. **CloudWatch Synthetics canary** — an external GET to `/health/ready` every 4 minutes keeps the connection pool warm even outside business hours (defence in depth).
+4. **Frontend UX during cold start** — the `/health/ready` endpoint is checked from the landing page; if it returns 503, the UI shows a "Waking up — this takes about 20 seconds" notice rather than a generic error.
 
 ---
 
@@ -2337,7 +2506,35 @@ The Trust & Safety system (user ratings, reporting, moderation) has additional p
 
 Full details in Section 33: Trust & Safety.
 
-### 23.4 Legal Documents Required Before Launch
+### 23.4 Age Gate Implementation
+
+Registration collects `birth_year` only (data minimisation — full DOB is not needed). The frontend displays a year picker. The backend rejects any year that would make the user under 13 at registration time with `403 Forbidden` and a generic message ("You must be at least 13 to use this service"). `birth_year` is stored on `users` and is included in data exports but never displayed publicly.
+
+Quebec users (Law 25) under 14 cannot consent on their own behalf for non-essential data processing; the consent UI is gated to 14+ for the analytics/marketing checkboxes. (Functional account creation is allowed at 13+ federally.)
+
+### 23.5 Account Deletion: Soft-Delete + Grace Window
+
+The 30-day SLA from §23.2 is implemented as a two-stage process:
+
+1. **Day 0 — User clicks "Delete my account":** `users.deleted_at = now()` (soft delete). The user is logged out. The account is hidden from search, trade matching, profiles, and shareable lists. The user can restore by logging in within 14 days (a "Your account is scheduled for deletion — restore?" banner appears).
+2. **Day 14 — Grace window expires:** A daily scheduled job (§34) hard-deletes / anonymises:
+   - Email, username, display_name → cleared / replaced with `[Deleted User]`
+   - `birth_year`, `avatar_url` → NULL
+   - `hashed_email` → retained for ban-evasion prevention (§33.3)
+   - `trade_ratings` they gave/received → comments cleared, IDs anonymised at API layer (§33.9)
+   - `trade_messages` → deleted (CASCADE)
+   - Active trades → cancelled with status `'cancelled'` and a system-generated message
+3. **Day 30 — Backups age out:** Aurora point-in-time recovery rolls past the deletion event. The account is now unrecoverable everywhere.
+
+### 23.6 IP Address Retention in `audit_log`
+
+IP addresses are PII under PIPEDA. To minimise retention while preserving abuse-investigation utility, a daily scheduled job (§34) truncates IPs in `audit_log` rows older than 90 days:
+- IPv4 → `/24` (e.g., `203.0.113.42` → `203.0.113.0/24`)
+- IPv6 → `/48`
+
+Truncated IPs remain useful for spotting patterns (same /24 ban-evading) without identifying individuals.
+
+### 23.7 Legal Documents Required Before Launch
 
 - Privacy Policy
 - Terms of Service
@@ -2369,7 +2566,8 @@ The application tracks sticker metadata (numbers, names) — it does not reprodu
 | Role | Permissions |
 |---|---|
 | Standard User | Own collection, trade, share |
-| Admin | All above + sticker database management |
+| Admin | All above + sticker database management + Trust & Safety moderation (§33) |
+| `_system` (pseudo-user) | Internal-only account (UUID `00000000-0000-0000-0000-000000000099`) used as the actor for automated moderation actions (e.g., auto-soft-bans). Cannot log in. Created by seed file `07_test_users.sql`. |
 
 ### 25.2 Privacy Controls
 
@@ -2437,6 +2635,7 @@ Stored in `docs/runbooks/`. Required before public launch.
 | `scale-infrastructure.md` | Increase capacity under high load |
 | `grafana-guide.md` | Read dashboards, add panels, query CloudWatch |
 | `redis-guide.md` | Cache key patterns, Redis CLI inspection |
+| `scheduled-jobs.md` | List of all cron jobs, how to pause/resume, what to do if a job fails (see §34) |
 | `dr-exercise-log.md` | Quarterly DR exercise results |
 
 ---
@@ -2522,7 +2721,7 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 
 ### Phase A: Local Development
 
-> **Timeline note:** The 22-week Phase A estimate below is a target, not a guarantee. A full-stack application of this scope (AI scanning, trading, SSE messaging, PWA, i18n, trust & safety moderation, 80% test coverage) realistically takes 25–32 weeks for a single developer starting from scratch. Build buffer time into each phase and use the milestone checkpoints to track progress objectively.
+> **Timeline note:** The 25-week Phase A estimate below is a target, not a guarantee. A full-stack application of this scope (AI scanning, trading, SSE messaging, PWA, i18n, trust & safety moderation, scheduled jobs, web push, 80% test coverage) realistically takes 25–32 weeks for a single developer starting from scratch. Phase A6 is an explicit buffer/hardening block; if implementation runs ahead of schedule, A6 work may begin earlier and A7 polish work can expand into the freed weeks. Use the milestone checkpoints to track progress objectively.
 
 **A1 — Foundation (Weeks 1–4)**
 - **Prerequisite (before coding begins):** Complete `03_team_stickers.sql` with all 960 records and sequential sticker numbers sourced from checklistinsider.com
@@ -2575,15 +2774,25 @@ Professional penetration test scheduled ($3,000–8,000 CAD).
 - Integration tests for rating window logic, duplicate report prevention, auto-flag threshold
 - See Section 33 for full design
 
-**A6 — Polish & Pre-Cloud Hardening (Weeks 23–25)**
+**A6 — Buffer & Integration Hardening (Weeks 20–22)**
+- End-to-end smoke tests across all features built so far (collection → trading → AI scan → trust & safety)
+- Bug-fix and stabilisation buffer (catches regressions before final polish)
+- Background-jobs harness operational with all scheduled jobs from §34
+- Idempotency-key middleware deployed and verified on all `POST` create endpoints
+- Web push notification subscription flow working in PWA mode
+- Redis cache stampede / singleflight pattern in place on hot keys
+- Image-upload validation hardened (size, MIME, magic bytes — see §10)
+
+**A7 — Polish & Pre-Cloud Hardening (Weeks 23–25)**
 - Custom error pages (404, 500)
 - Graceful degradation for all optional services
 - Frontend retry logic
+- Frontend error tracking (Sentry / GlitchTip — §20.4) wired up
 - PWA offline cache for sticker master list
 - i18n structure in place (English at launch; Spanish-ready for fast follow)
 - Full test suite passes (≥80% coverage)
 - OWASP Top 10 developer review documented
-- All runbooks written (including `local-setup.md`)
+- All runbooks written (including `local-setup.md` and `scheduled-jobs.md`)
 - Load test with k6 against local Docker environment
 
 ### Phase B: Cloud Migration
@@ -2756,7 +2965,7 @@ When a report's status changes to `'resolved'` or `'dismissed'`, the reporter re
 
 #### Auto-flag Threshold
 
-When a user receives 3 open reports within 30 days:
+When a user has 3 reports against them in `status IN ('open', 'under_review')` filed within the past 30 days (counted from `user_reports.created_at`, regardless of category — except `'underage'` which is excluded; resolved/dismissed reports do not count):
 1. A `'soft'` ban is automatically issued with `banned_by` set to the system account (`_system` user, UUID `00000000-0000-0000-0000-000000000099`)
 2. `expires_at` is set to `now() + INTERVAL '48 hours'` (temporary hold)
 3. All 3 open reports move to `status = 'under_review'`
@@ -2919,17 +3128,11 @@ CREATE INDEX idx_user_bans_active
 
 #### Additions to Existing Tables
 
-**`users` table:**
-```sql
-ALTER TABLE users ADD COLUMN hashed_email TEXT;
--- SHA-256(lowercase(email)); retained after soft-delete for ban-evasion prevention
-```
+The columns required by the Trust & Safety system are already part of the V1 schema (§7.2):
+- `users.hashed_email` — SHA-256(lowercase(email)); retained after soft-delete for ban-evasion prevention
+- `user_settings.show_trust_score_public` — user preference to display the trust badge on their public profile
 
-**`user_settings` table:**
-```sql
-ALTER TABLE user_settings
-  ADD COLUMN show_trust_score_public BOOLEAN DEFAULT true;
-```
+No `ALTER TABLE` migration is required when introducing this system, because the columns ship in V1. The Trust & Safety **tables** (`trade_ratings`, `user_reports`, `user_bans`) are likewise V1, but their **logic** is gated behind `FEATURE_TRUST_SAFETY` (see §33.11) so the system can launch in a disabled state and be enabled when ready.
 
 ### 33.5 API Endpoints
 
@@ -3205,7 +3408,78 @@ In a new `data/seeds/09_trust_safety.sql` (non-production only), add sample comp
 
 ---
 
-## 34. Next Steps
+## 34. Scheduled Jobs
+
+The system depends on several time-based behaviours (auto-expire, retention, sweeps). All are implemented as **scheduled jobs**:
+
+| Local | Cloud |
+|---|---|
+| `node-cron` running inside the API container | AWS ECS Scheduled Tasks (cheaper than Lambda + EventBridge for cron, identical container) |
+
+Jobs are defined in `apps/backend/src/jobs/` and discovered at startup. Each job logs to `audit_log` with `action = 'scheduled_job_run'` on success and an error metric on failure.
+
+### 34.1 Job Catalog
+
+| Job | Cadence | Description | Owner table(s) |
+|---|---|---|---|
+| `expire-pending-trades` | Daily 02:00 UTC | Marks `pending` trades with no activity for 30 days as `expired` | `trade_requests` |
+| `expire-accepted-trades` | Daily 02:15 UTC | Marks `accepted` trades whose `expires_at` has passed as `expired`; notifies both parties | `trade_requests` |
+| `purge-trade-messages` | Weekly Sun 03:00 | Deletes `trade_messages` 90 days after the trade closed | `trade_messages` |
+| `redact-old-reports` | Weekly Sun 03:30 | Sets `user_reports.description = '[redacted]'` for reports `resolved_at < now() - 2 years` | `user_reports` |
+| `expire-soft-bans` | No-op (lazy expiry) | Soft bans with `expires_at` in the past are skipped at lookup time; no scheduled work needed | `user_bans` |
+| `auto-flag-sweep` | Hourly | Re-evaluates the 3-reports-in-30-days threshold for users with new reports since the last run | `user_reports`, `user_bans` |
+| `rating-reminder-email` | Daily 16:00 local | Sends a reminder 24h after a trade `completed` if the user has not yet rated their counterpart | `trade_requests`, `trade_ratings` |
+| `truncate-audit-log-ips` | Daily 04:00 UTC | Truncates IPv4 → /24 and IPv6 → /48 for `audit_log` rows older than 90 days (§23.6) | `audit_log` |
+| `hard-delete-soft-deleted-users` | Daily 04:30 UTC | Anonymises and deletes user data 14 days after `deleted_at` (§23.5) | `users` and dependents |
+| `purge-email-verification-tokens` | Daily 05:00 UTC | Removes expired tokens older than 7 days (orphans from abandoned signups) | `email_verification_tokens` |
+| `purge-old-share-tokens` | Daily 05:15 UTC | Deletes `public_lists` with `expires_at < now()` | `public_lists` |
+| `cache-warm-stickers` | Every 50 minutes | Re-populates `stickers:all` before its 1h TTL expires (defends against stampede on world-cup-event spikes) | Redis only |
+| `dmarc-report-aggregation` | Weekly | Pulls DMARC aggregate reports from S3 inbox and emails the summary to admins | (off-app) |
+| `synthetic-canary-warm-aurora` | Every 4 minutes | Hits `/health/ready` to keep Aurora connection pool warm (§20.6) | (off-app) |
+
+### 34.2 Failure Handling
+
+- Each job runs inside a try/catch with structured error logs (`level=error`, `job_name`, `error_class`, `error_message`).
+- Three consecutive failures of the same job triggers the alert in §20.3.
+- The `scheduled-jobs.md` runbook (§28) describes how to pause a misbehaving job: `UPDATE feature_flags SET enabled = false WHERE key = 'JOB_<name>'` (jobs check this flag before running). This is the primary safety valve — no need to redeploy.
+
+### 34.3 Local Behaviour
+
+Locally, `node-cron` runs in the same Node.js process as the API. Setting `JOBS_MODE=disabled` in `.env.local` (default for `docker compose` to keep dev iteration fast) skips job registration entirely. To test a specific job locally, run `npm run job -- <job_name>` which invokes the job once and exits.
+
+---
+
+## 35. Glossary
+
+For non-technical readers and developers new to the stack:
+
+| Term | Meaning |
+|---|---|
+| **ACU** | Aurora Capacity Unit — the unit of compute Aurora Serverless v2 bills by; ~2 GiB memory + proportional CPU |
+| **ADR** | Architecture Decision Record — a short Markdown doc capturing why a specific technical choice was made |
+| **CASL** | Canada's Anti-Spam Legislation — governs commercial electronic messages, fines up to $10M CAD |
+| **CORS** | Cross-Origin Resource Sharing — browser security model that requires servers to opt-in to cross-origin requests |
+| **CSP** | Content Security Policy — HTTP header that restricts which scripts/styles/images the browser will load |
+| **DKIM** | DomainKeys Identified Mail — cryptographic email signature; proves the message wasn't altered in transit |
+| **DMARC** | Domain-based Message Authentication, Reporting & Conformance — policy that tells receivers what to do if SPF/DKIM fail |
+| **ECR** | Elastic Container Registry — AWS-hosted Docker image registry |
+| **ECS Fargate** | AWS service that runs Docker containers without you managing servers |
+| **JWT** | JSON Web Token — signed, self-contained auth token used for stateless API authentication |
+| **MFA** | Multi-Factor Authentication — usually app-based TOTP codes in addition to password |
+| **PIPEDA** | Personal Information Protection and Electronic Documents Act — Canadian federal privacy law |
+| **PWA** | Progressive Web App — a website installable to a phone home screen with native-like UX |
+| **RDS Proxy** | AWS service that pools database connections to protect Aurora from too many concurrent clients |
+| **RPO / RTO** | Recovery Point Objective (max acceptable data loss) / Recovery Time Objective (max acceptable downtime) |
+| **SES** | Simple Email Service — AWS's transactional email sender |
+| **SPF** | Sender Policy Framework — DNS record listing which servers are allowed to send mail for a domain |
+| **SSE** | Server-Sent Events — one-way HTTP push from server to browser; simpler than WebSockets |
+| **TOTP** | Time-based One-Time Password — the 6-digit codes from Google Authenticator / 1Password |
+| **VAPID** | Voluntary Application Server Identification — keypair-based authentication for Web Push |
+| **WAF** | Web Application Firewall — filters HTTP requests before they reach your application; AWS WAF is the cloud version |
+
+---
+
+## 36. Next Steps
 
 ### Start Today (Before Hiring a Developer)
 
@@ -3240,6 +3514,6 @@ Provide this document as the technical specification. The developer should be ab
 
 ---
 
-*End of StickerSwap 2026 — Production Implementation Plan v4.0*
+*End of StickerSwap 2026 — Production Implementation Plan v5.1*
 
 *This is the single source of truth for the system design. Store as `docs/architecture/overview.md` in the repository. Version this document alongside the codebase.*
