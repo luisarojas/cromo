@@ -1,0 +1,303 @@
+# Local Development
+
+> **Parent document:** [`overview.md`](overview.md#document-map) — this file is the detailed expansion of the local-first development approach (parent §2) and the local-development environment (parent §4).
+
+## 2. Development Approach: Local First, Cloud Second
+
+### 2.1 Is This a Good Approach?
+
+**Yes — absolutely.** Building and running the application locally first is not just acceptable, it is the recommended professional approach. Every experienced development team does this. It is cheaper, faster to iterate, easier to debug, and lets you validate the entire application before spending a single dollar on cloud infrastructure.
+
+The local-first approach means:
+
+- You can see the application working on your own machine before any cloud account is needed
+- Every feature can be built, tested, and corrected in seconds rather than minutes
+- Cloud infrastructure mistakes don't cost money during the learning and building phase
+- The transition to cloud is clean because local and cloud are identical in their use of Docker containers
+
+### 2.2 The Two-Phase Plan
+
+**Phase A — Local Development (build everything, validate it works)**
+
+The entire application runs on your laptop using Docker Compose. No AWS account needed. No domain. No SSL certificates. Just a `docker compose up` command and you have a fully working application at `http://localhost:3000`.
+
+During this phase:
+- All application features are built and tested
+- The database is seeded with the full 2026 World Cup data
+- The complete test suite is written and passes
+- The AI scanning feature is tested with a local mock
+- Performance is validated with a local load test
+
+**Phase B — Cloud Migration (move what works to AWS)**
+
+Once the application is working fully and all tests pass locally, the exact same Docker containers are deployed to AWS. Because Docker packages the application identically regardless of where it runs, the cloud deployment is reliable. You are not rewriting anything — you are moving a proven, tested system to a more powerful and reliable home.
+
+### 2.3 What Changes Between Local and Cloud
+
+| Concern | Local | Cloud (AWS) |
+|---|---|---|
+| Database | PostgreSQL in Docker | Aurora PostgreSQL Serverless v2 |
+| Cache | Redis in Docker | ElastiCache Redis |
+| Auth | Local mock (any email/password works) | AWS Cognito |
+| Email | Mailpit (local inbox at localhost:8025) | AWS SES |
+| File storage | Local filesystem directory | AWS S3 |
+| AI scanning | Returns hardcoded mock result | Anthropic Claude Vision API |
+| Frontend hosting | `localhost:3000` | Vercel |
+| API hosting | `localhost:3001` | AWS ECS Fargate |
+| SSL/TLS | None (HTTP only) | AWS Certificate Manager (HTTPS) |
+| Domain | None | Route 53 + your registered domain |
+| Monitoring | Console logs | CloudWatch + Grafana |
+| Cost | $0 | ~$110–253 USD/month |
+
+Everything else — the codebase, the database schema, the API routes, the frontend, the tests — is **identical** between local and cloud. This is the power of containerisation.
+
+### 2.4 Prerequisites for Local Development
+
+Before a developer can run the application locally, they need:
+
+| Tool | Purpose | Install |
+|---|---|---|
+| **Docker Desktop** | Runs all services in containers | docker.com/products/docker-desktop |
+| **Node.js 22 LTS** | Runs the build tools | nodejs.org |
+| **Git** | Version control | git-scm.com |
+| **VS Code** (recommended) | Code editor | code.visualstudio.com |
+| A terminal (zsh/bash) | Running commands | Built into macOS/Linux |
+
+That is the complete list. No AWS account. No database installation. No Redis installation. Docker handles all of it.
+
+### 2.5 Running the Application Locally — The Developer Experience
+
+Once the repository is cloned and Docker Desktop is running:
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/stickerswap2026.git
+cd stickerswap2026
+
+# Copy the example environment file
+cp .env.example .env.local
+# (no changes needed — defaults work for local)
+
+# Start everything: PostgreSQL, Redis, API, Frontend
+docker compose up
+
+# In a separate terminal, seed the database
+npm run db:seed
+```
+
+After about 30 seconds, the application is available at:
+- **Frontend:** http://localhost:3000
+- **API:** http://localhost:3001
+- **Email inbox (Mailpit):** http://localhost:8025
+- **Redis Commander (cache viewer):** http://localhost:8081
+- **pgAdmin (database viewer):** http://localhost:5050
+
+A developer does not need to understand AWS, Terraform, or cloud concepts to start contributing on day one.
+
+---
+## 4. Local Development Environment
+
+### 4.1 docker-compose.yml
+
+This single file defines the complete local environment. Running `docker compose up` starts every service automatically.
+
+```yaml
+# infrastructure/docker/docker-compose.yml
+version: "3.9"
+
+services:
+
+  # ─── PostgreSQL Database ───────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stickerswap
+      POSTGRES_PASSWORD: localpassword
+      POSTGRES_DB: stickerswap_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../data/migrations:/docker-entrypoint-initdb.d  # auto-runs on first start
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stickerswap"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Redis Cache ───────────────────────────────────────────
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Backend API ───────────────────────────────────────────
+  api:
+    build:
+      context: ../../apps/backend
+      dockerfile: Dockerfile.dev          # uses ts-node for live reload
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://stickerswap:localpassword@db:5432/stickerswap_dev
+      REDIS_URL: redis://cache:6379
+      JWT_SECRET: local-dev-secret-not-for-production
+      AUTH_MODE: local                    # bypasses Cognito locally
+      CLAUDE_API_KEY: mock               # returns mock scan results locally
+      S3_MODE: local                      # saves files to ./uploads/ locally
+      PORT: 3001
+    volumes:
+      - ../../apps/backend/src:/app/src   # live code reload
+      - local_uploads:/app/uploads        # local file storage mock
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+  # ─── Frontend ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../../apps/frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_ENV: development
+    volumes:
+      - ../../apps/frontend/src:/app/src  # live code reload
+    depends_on:
+      - api
+
+  # ─── Mailpit (local email catcher) ─────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"   # web UI
+      - "1025:1025"   # SMTP port
+
+  # ─── Redis Commander (cache browser) ───────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:cache:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - cache
+
+  # ─── pgAdmin (database browser) ────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  local_uploads:
+```
+
+### 4.2 Environment Variables (.env.example)
+
+```bash
+# .env.example — copy to .env.local for local development
+# All values shown are safe defaults for local use only
+
+# Application
+NODE_ENV=development
+APP_VERSION=0.0.0-local
+PORT=3001
+
+# Database
+DATABASE_URL=postgres://stickerswap:localpassword@localhost:5432/stickerswap_dev
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Auth (set to 'local' to bypass Cognito locally)
+AUTH_MODE=local
+JWT_SECRET=local-dev-secret-change-this-in-all-real-environments
+
+# AWS Cognito (not needed in local mode)
+COGNITO_USER_POOL_ID=
+COGNITO_CLIENT_ID=
+COGNITO_REGION=ca-central-1
+
+# AI Scanning (set to 'mock' locally to skip Claude API calls)
+CLAUDE_API_KEY=mock
+CLAUDE_API_MODE=mock
+
+# File Storage (set to 'local' to save files to disk)
+S3_MODE=local
+S3_BUCKET_NAME=
+AWS_REGION=ca-central-1
+
+# Email (points to Mailpit locally — no real emails sent)
+EMAIL_PROVIDER=mailpit
+SMTP_HOST=localhost
+SMTP_PORT=1025
+EMAIL_FROM=noreply@stickerswap.local
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_ENV=development
+```
+
+### 4.3 Database Migrations & First-Run Setup
+
+Drizzle ORM migration files in `apps/backend/src/db/migrations/` are applied by running `npm run db:migrate`. The API server applies pending migrations automatically on startup in all environments. The migration files are committed to git — every developer and every cloud environment runs the same numbered migrations in order.
+
+```bash
+# After docker compose up, seed the database with World Cup data:
+npm run db:seed
+
+# To reset the local database entirely (wipes all data):
+npm run db:reset && npm run db:seed
+
+# To generate a migration after changing the schema:
+npm run db:generate
+
+# To run pending migrations manually:
+npm run db:migrate
+```
+
+### 4.4 Development Workflow
+
+```bash
+# Start all services
+docker compose up
+
+# In a second terminal — run tests in watch mode (re-runs on file save)
+npm run test:watch
+
+# In a third terminal — optional: run the type checker in watch mode
+npm run typecheck:watch
+
+# Stop everything
+docker compose down
+
+# Stop and wipe all data (fresh start)
+docker compose down -v
+```
+
+Live reload is configured for both the frontend (Next.js fast refresh) and the backend (ts-node-dev). Saving a file reflects the change in the browser within 1–2 seconds.
+
