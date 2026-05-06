@@ -1,0 +1,16 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Install dependencies first (layer cache)
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Copy config files (source is mounted via docker-compose volume at runtime)
+COPY next.config.ts tsconfig.json tailwind.config.ts postcss.config.js ./
+COPY public/ ./public/
+COPY src/ ./src/
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]

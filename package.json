@@ -1,0 +1,29 @@
+{
+  "name": "stickfolio",
+  "version": "0.0.0-local",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "test:watch": "turbo test:watch",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "db:migrate": "pnpm --filter @stickfolio/backend db:migrate",
+    "db:generate": "pnpm --filter @stickfolio/backend db:generate",
+    "db:seed": "bash scripts/seed-database.sh",
+    "db:reset": "pnpm --filter @stickfolio/backend db:reset && bash scripts/seed-database.sh",
+    "db:studio": "pnpm --filter @stickfolio/backend db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
+  }
+}
