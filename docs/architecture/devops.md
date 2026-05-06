@@ -73,7 +73,8 @@ stickfolio/
 │   └── migrations/                   # Drizzle-generated SQL migration files
 │       └── 0001_initial.sql
 │
-├── data/
+├── scripts/
+│   ├── seed-database.sh              # Master seed script — runs all seeds in order
 │   └── seeds/                        # Seed data scripts
 │       ├── 01_teams.sql
 │       ├── 02_intro_stickers.sql
@@ -81,7 +82,8 @@ stickfolio/
 │       ├── 04_museum_stickers.sql
 │       ├── 05_variants.sql
 │       ├── 06_feature_flags.sql
-│       └── 07_test_users.sql
+│       ├── 07_test_users.sql
+│       └── 09_trust_safety.sql
 │
 ├── docs/
 │   ├── architecture/
