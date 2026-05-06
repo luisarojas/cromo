@@ -75,6 +75,8 @@ stickfolio/
 │
 ├── scripts/
 │   ├── seed-database.sh              # Master seed script — runs all seeds in order
+│   ├── anonymise-dump.sh
+│   ├── load-test.sh
 │   └── seeds/                        # Seed data scripts
 │       ├── 01_teams.sql
 │       ├── 02_intro_stickers.sql
@@ -95,11 +97,6 @@ stickfolio/
 │   │       └── 0003-vercel-frontend-ecs-backend.md
 │   ├── api/v1/                       # OpenAPI spec
 │   └── runbooks/
-│
-├── scripts/
-│   ├── seed-database.sh
-│   ├── anonymise-dump.sh
-│   └── load-test.sh
 │
 ├── .env.example
 ├── .gitignore

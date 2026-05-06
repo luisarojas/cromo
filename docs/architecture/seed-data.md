@@ -12,6 +12,7 @@ The seed data covers:
 3. All sticker variants (13 variant types per applicable sticker)
 4. Initial feature flags
 5. Development test users (local/dev only — never in production)
+6. Trust & Safety sample data for the moderation UI (local/dev only — never in production)
 
 ## 2. Seed Script Architecture
 
@@ -29,7 +30,7 @@ scripts/
     09_trust_safety.sql     # DEV/LOCAL ONLY — sample ratings/reports for admin UI
 ```
 
-The master script checks the `NODE_ENV` environment variable. If it is `production`, it refuses to run seed file 07 (test users). Feature flags (file 06) are required in every environment, so they are not gated. This is a safety guard.
+The master script checks the `NODE_ENV` environment variable. If it is `production`, it refuses to run seed files 07 and 09 (test users and trust & safety sample data). Feature flags (file 06) are required in every environment, so they are not gated. This is a safety guard.
 
 ```bash
 #!/bin/bash
@@ -189,15 +190,11 @@ ON CONFLICT (album_code) DO UPDATE SET
 
 ## 5. Seed File 03: Team Stickers (Excerpt — Full File)
 
-> **⚠️ CRITICAL NOTE FOR DEVELOPER:** This section shows only 2 of 48 teams as examples. The complete `03_team_stickers.sql` file with all 960 records (48 teams × 20 stickers each) **must be compiled before any database work begins**. This is a data task, not a coding task.
->
-> **How to compile the full checklist:**
-> 1. Visit https://www.checklistinsider.com/2026-panini-fifa-world-cup-sticker for the complete numbered list
-> 2. Cross-reference with https://fandom.com/wiki/2026_FIFA_World_Cup_(Panini) for player details
-> 3. Sticker `number` values (0–980) must be assigned sequentially in album order — do not use `NULL`
+> **Note:** This section shows only 2 of 48 teams as examples. The complete `03_team_stickers.sql` file with all 960 records (48 teams × 20 stickers each) is in the repository. Sources used to compile it:
+> 1. https://www.checklistinsider.com/2026-panini-fifa-world-cup-sticker — complete numbered checklist
+> 2. https://fandom.com/wiki/2026_FIFA_World_Cup_(Panini) — player details cross-reference
+> 3. Sticker `number` values (1–980) are assigned sequentially in album order
 > 4. The `album_code` (e.g., `MEX1`, `CAN3`) is the stable identifier used by the AI scan feature
->
-> The album launched April 29/30, 2026. The complete checklist is available from the sources above.
 
 This is the largest seed file. Each team contributes 20 stickers. Below is the complete structure shown for two teams (Mexico and South Africa) to demonstrate the pattern. The full file in the repository covers all 48 teams × 20 stickers = 960 records.
 
@@ -484,7 +481,41 @@ ON CONFLICT (user_id, sticker_variant_id) DO NOTHING;
 
 The `_system` pseudo-user (UUID `…000099`) is used as the actor for automated moderation actions (overview.md § 25.1, § 33).
 
-## 10. Data Maintenance: Handling Panini Corrections
+## 10. Seed File 09: Trust & Safety Sample Data (Non-Production Only)
+
+```sql
+-- scripts/seeds/09_trust_safety.sql
+-- DEV AND LOCAL ONLY — never runs in production (see seed-database.sh)
+-- Sample data for testing the trust & safety / moderation admin UI
+-- Depends on 07_test_users.sql having run first
+
+-- Sample completed and cancelled trades
+INSERT INTO trade_requests (id, requester_id, recipient_id, status, accepted_at, completed_at)
+VALUES
+  ('a0000000-...001', '<alice-id>', '<bob-id>',     'completed', now() - INTERVAL '10 days', now() - INTERVAL '8 days'),
+  ('a0000000-...002', '<alice-id>', '<charlie-id>', 'completed', now() - INTERVAL '5 days',  now() - INTERVAL '3 days'),
+  ('a0000000-...003', '<bob-id>',   '<charlie-id>', 'cancelled', now() - INTERVAL '7 days',  NULL)
+ON CONFLICT (id) DO NOTHING;
+
+-- Trade ratings for the completed trades
+INSERT INTO trade_ratings (trade_id, rater_id, rated_user_id, is_positive, comment)
+VALUES ...
+ON CONFLICT (trade_id, rater_id) DO NOTHING;
+
+-- User reports (one resolved by admin, one still open)
+INSERT INTO user_reports (id, reporter_id, reported_user_id, trade_id, category, description, status, ...)
+VALUES ...
+ON CONFLICT (id) DO NOTHING;
+
+-- Soft ban for Charlie — links to the resolved report
+INSERT INTO user_bans (id, user_id, ban_type, reason, report_id, banned_by, expires_at)
+VALUES (...)
+ON CONFLICT (id) DO NOTHING;
+```
+
+This file seeds enough state to exercise every panel of the moderation admin UI: trade history, ratings, open and resolved reports, and an active ban. All records use the hardcoded UUIDs from `07_test_users.sql`.
+
+## 11. Data Maintenance: Handling Panini Corrections
 
 Panini occasionally corrects player names or sticker details after release. When this happens:
 
@@ -503,7 +534,7 @@ WHERE album_code = 'USA10';
 
 The admin interface allows the same correction without a migration for urgent fixes in production.
 
-## 11. How to Verify the Seed Ran Correctly
+## 12. How to Verify the Seed Ran Correctly
 
 After running `npm run db:seed`, verify with these queries in pgAdmin (`localhost:5050`) or any SQL client:
 
