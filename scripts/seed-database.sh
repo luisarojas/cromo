@@ -25,6 +25,12 @@ echo "✓ Sticker variants generated"
 psql "$DATABASE_URL" -f scripts/seeds/06_feature_flags.sql
 echo "✓ Feature flags seeded"
 
+# 08_coca_cola_stickers.sql is reserved but not run until the official
+# Panini Coca-Cola sticker list is confirmed and the file is populated.
+# Uncomment the two lines below once 08_coca_cola_stickers.sql has real data.
+# psql "$DATABASE_URL" -f scripts/seeds/08_coca_cola_stickers.sql
+# echo "✓ Coca-Cola stickers seeded"
+
 if [ "$NODE_ENV" != "production" ]; then
   psql "$DATABASE_URL" -f scripts/seeds/07_test_users.sql
   echo "✓ Test users seeded (non-production only)"
