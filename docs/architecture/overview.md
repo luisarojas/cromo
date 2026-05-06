@@ -1,4 +1,4 @@
-# StickerSwap 2026 — Complete Production Implementation Plan
+# Stickfolio — Complete Production Implementation Plan
 ### A Full-Stack Web Application for the 2026 FIFA World Cup Panini Sticker Collection
 
 > **Plan Version:** 5.2 — Reorganization pass: split monolithic spec into focused domain files for token-efficient access. `overview.md` now retains only cross-cutting context (product, system architecture, phases, cost, tech stack, glossary, next steps); subsystem detail lives in sibling files in this directory.
@@ -53,7 +53,7 @@ Detailed subsystem documentation lives in sibling files. Read this map first; lo
 
 ### 1.1 Product Summary
 
-StickerSwap 2026 is a multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection. It is accessible from any device, designed for Canadian users, and built to production standards from day one — starting locally on your machine.
+Stickfolio is a multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection. It is accessible from any device, designed for Canadian users, and built to production standards from day one — starting locally on your machine.
 
 ### 1.2 The Album
 
@@ -420,6 +420,6 @@ Provide this document as the technical specification. The developer should be ab
 
 ---
 
-*End of StickerSwap 2026 — Production Implementation Plan v5.2*
+*End of Stickfolio — Production Implementation Plan v5.2*
 
 *This is the cross-cutting overview. Subsystem detail lives in sibling files. Store as `docs/architecture/overview.md` in the repository.*

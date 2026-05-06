@@ -446,7 +446,7 @@ INSERT INTO users (id, email, username, display_name, role) VALUES
   ('00000000-0000-0000-0000-000000000003', 'bob@test.local',     'bob',          'Bob',           'user'),
   ('00000000-0000-0000-0000-000000000004', 'charlie@test.local', 'charlie',      'Charlie',       'user'),
   ('00000000-0000-0000-0000-000000000005', 'diana@test.local',   'diana',        'Diana',         'user'),
-  ('00000000-0000-0000-0000-000000000099', 'system@stickerswap.internal', '_system', 'System', 'admin')
+  ('00000000-0000-0000-0000-000000000099', 'system@stickfolio.internal', '_system', 'System', 'admin')
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO user_settings (user_id) VALUES

@@ -64,7 +64,7 @@ The API and frontend send the following headers on every response. Implemented v
 | Header | Value |
 |---|---|
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` (cloud only) |
-| `Content-Security-Policy` | `default-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.stickerswap2026.ca; frame-ancestors 'none'` |
+| `Content-Security-Policy` | `default-src 'self'; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.stickfolio.ca; frame-ancestors 'none'` |
 | `X-Frame-Options` | `DENY` |
 | `X-Content-Type-Options` | `nosniff` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
@@ -81,7 +81,7 @@ Auth cookies (refresh-token cookie issued by the API) are configured as:
 - `SameSite=Lax` — sent on top-level GET navigation, not on cross-site POSTs
 - `Max-Age=2592000` — 30 days; matches refresh-token TTL
 - `Path=/api/v1/auth`
-- `Domain=stickerswap2026.ca` (omitted locally)
+- `Domain=stickfolio.ca` (omitted locally)
 
 Access tokens are short-lived JWTs (15 min TTL) stored in memory by the frontend (Zustand) — never in `localStorage`.
 

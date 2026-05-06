@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This directory contains the production implementation plan for StickerSwap 2026 — a multi-user web application for tracking and trading stickers from the 2026 FIFA World Cup Panini collection.
+This directory contains the production implementation plan for Stickfolio — a multi-user web application for tracking and trading stickers from the 2026 FIFA World Cup Panini collection.
 
 ## Start here
 

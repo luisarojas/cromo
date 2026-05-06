@@ -7,7 +7,7 @@
 ### 14.1 Monorepo Structure
 
 ```
-stickerswap2026/
+stickfolio/
 │
 ├── .github/
 │   ├── workflows/
@@ -122,8 +122,8 @@ The repository README is the single most important document for a new developer.
 ### Run Locally
 
 1. Clone the repo
-   git clone https://github.com/your-org/stickerswap2026.git
-   cd stickerswap2026
+   git clone https://github.com/your-org/stickfolio.git
+   cd stickfolio
 
 2. Install dependencies
    npm install
@@ -202,7 +202,7 @@ Version lives in root `package.json`. All other references are derived:
 package.json  "version": "1.2.4"
      ↓
 Git tag:             v1.2.4
-Docker image tag:    stickerswap2026-api:1.2.4
+Docker image tag:    stickfolio-api:1.2.4
 ENV variable:        APP_VERSION=1.2.4
 /health response:    { "version": "1.2.4" }
 CloudWatch logs:     [version=1.2.4]
@@ -212,9 +212,9 @@ GitHub Release:      v1.2.4
 ### 15.3 Docker Image Tagging
 
 ```bash
-stickerswap2026-api:1.2.4       # exact version — permanent
-stickerswap2026-api:sha-a1b2c3  # git SHA — traceable
-stickerswap2026-api:production  # mutable alias — updated after healthy deploy
+stickfolio-api:1.2.4       # exact version — permanent
+stickfolio-api:sha-a1b2c3  # git SHA — traceable
+stickfolio-api:production  # mutable alias — updated after healthy deploy
 ```
 
 Never deploy `:latest`. Always use a specific version or SHA tag.

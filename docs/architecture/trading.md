@@ -156,7 +156,7 @@ There is no "rollback" of a completed trade — once both inventories have been 
 ## 11.6 Shareable Public Lists
 
 Unique expiring share links generated with cryptographically random tokens:
-`https://stickerswap2026.ca/share/abc123xyz`
+`https://stickfolio.ca/share/abc123xyz`
 
 Privacy options per list: Private (default) | Link-only | Public.
 

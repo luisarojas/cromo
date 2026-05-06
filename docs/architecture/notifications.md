@@ -30,7 +30,7 @@ SES disables sending if bounce rate exceeds 5% or complaint rate exceeds 0.1%. B
 All three are configured at launch:
 - **SPF**: `v=spf1 include:amazonses.com -all` in Route 53
 - **DKIM**: SES-managed CNAMEs added to Route 53 during domain verification
-- **DMARC**: starts at `v=DMARC1; p=quarantine; rua=mailto:dmarc@stickerswap2026.ca; pct=100`. After 30 days of clean reports, tightened to `p=reject`.
+- **DMARC**: starts at `v=DMARC1; p=quarantine; rua=mailto:dmarc@stickfolio.ca; pct=100`. After 30 days of clean reports, tightened to `p=reject`.
 
 DMARC reports are aggregated via a free service (e.g., dmarcian) and reviewed monthly.
 

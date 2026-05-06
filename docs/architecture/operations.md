@@ -54,7 +54,7 @@ Core collection management requires only the API and PostgreSQL.
 
 ## 27. Support & Feedback
 
-- `support@stickerswap2026.ca` — forwarded via SES
+- `support@stickfolio.ca` — forwarded via SES
 - In-app feedback button on every page
 - Public status page on Upptime (GitHub Pages, free)
 - GitHub Issues with templates for bug reports and feature requests
@@ -86,12 +86,12 @@ Stored in `docs/runbooks/`. Required before public launch.
 
 - OWASP ZAP automated scanning in CI
 - OWASP Top 10 developer review documented
-- Responsible disclosure policy at `stickerswap2026.ca/security`
+- Responsible disclosure policy at `stickfolio.ca/security`
 - GitLeaks, Snyk, Trivy active in CI
 
 ### 29.2 Responsible Disclosure Policy
 
-- Contact: `security@stickerswap2026.ca`
+- Contact: `security@stickfolio.ca`
 - Safe harbour for good-faith researchers
 - Acknowledge within 5 business days
 - Hall of Fame with reporter's permission

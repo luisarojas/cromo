@@ -64,5 +64,5 @@ User-generated images (avatars, scan uploads) remain on S3 / local filesystem (Â
 | Environment | Hosting | URL |
 |---|---|---|
 | Local | Next.js dev server | `http://localhost:3000` |
-| Dev / Staging / Production | Vercel | `https://stickerswap2026.ca` |
+| Dev / Staging / Production | Vercel | `https://stickfolio.ca` |
 
