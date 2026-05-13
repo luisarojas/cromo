@@ -78,7 +78,7 @@ export default function StickerCard({
       <span
         className={`inline-block self-start rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${typeColor}`}
       >
-        {sticker.sticker_type.replace('_', ' ')}
+        {(sticker.sticker_type ?? '').replace('_', ' ')}
       </span>
 
       {/* Action buttons — shown on hover */}

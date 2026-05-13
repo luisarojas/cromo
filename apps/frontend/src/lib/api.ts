@@ -68,8 +68,11 @@ export interface DuplicateItem {
   number: number;
   album_code: string;
   player_name: string | null;
+  sticker_type: string;
+  is_foil: boolean;
   team_name: string | null;
   fifa_code: string | null;
+  group_name: string | null;
 }
 
 export interface CollectionStats {

@@ -62,8 +62,11 @@ export interface DuplicateItem {
   number: number;
   album_code: string;
   player_name: string | null;
+  sticker_type: string;
+  is_foil: boolean;
   team_name: string | null;
   fifa_code: string | null;
+  group_name: string | null;
 }
 
 export interface CollectionStats {
@@ -293,8 +296,11 @@ export async function getDuplicates(
             s.number,
             s.album_code,
             s.player_name,
+            s.sticker_type,
+            s.is_foil,
             t.name AS team_name,
-            t.fifa_code
+            t.fifa_code,
+            t.group_name
      FROM user_stickers us
      JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
      JOIN stickers s ON sv.sticker_id = s.id
