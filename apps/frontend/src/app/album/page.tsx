@@ -219,17 +219,17 @@ export default function AlbumPage() {
 
     // Client-side filters
     return base.filter((s) => {
-      if (filters.group && s.group_name !== filters.group) return false;
+      if (filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
       if (
         filters.team &&
         !s.team_name?.toLowerCase().includes(filters.team.toLowerCase()) &&
         !s.fifa_code?.toLowerCase().includes(filters.team.toLowerCase())
       )
         return false;
-      if (filters.type && s.sticker_type !== filters.type) return false;
-      if (filters.variant) {
+      if (filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
+      if (filters.variant?.length) {
         const perSticker = ownedMap.get(s.album_code);
-        if (!perSticker || !perSticker.has(filters.variant)) return false;
+        if (!perSticker || !filters.variant.some((v) => perSticker.has(v))) return false;
       }
       if (
         filters.search &&
