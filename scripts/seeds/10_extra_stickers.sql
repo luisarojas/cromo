@@ -1,0 +1,38 @@
+-- scripts/seeds/10_extra_stickers.sql
+-- 20 "Extra Sticker" inserts — world's biggest stars (e.g. Messi, Mbappe, Yamal)
+--
+-- These are NOT album stickers — they have no slot in the main album.
+-- Each player exists in 4 rarities: Base, Bronze, Silver, Gold.
+-- Modelled as sticker_type = 'extra', with variant_type in
+--   (extra_base, extra_bronze, extra_silver, extra_gold).
+-- No parallel color variants; no foil flag (is_foil = false).
+--
+-- STATUS: PENDING — official Panini Extra Sticker checklist not yet confirmed.
+-- Sticker numbering follows Coca-Cola (CC1–CC12 at 981+); Extra stickers
+-- start at 993+ (or the next available block once CC count is finalised).
+-- Album codes will follow Panini's official designation (e.g. EX1–EX20).
+-- Confirm player list and codes from paninitrade.com/checklist before populating.
+--
+-- ──────────────────────────────────────────────────────────
+-- TODO: Replace with confirmed Panini Extra Sticker checklist
+-- ──────────────────────────────────────────────────────────
+
+-- INSERT INTO stickers (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+-- VALUES
+--   (993, 'EX1',  (SELECT id FROM teams WHERE fifa_code = 'ARG'), 'Lionel Messi',    'FWD', 'extra', false),
+--   (994, 'EX2',  (SELECT id FROM teams WHERE fifa_code = 'FRA'), 'Kylian Mbappe',   'FWD', 'extra', false),
+--   (995, 'EX3',  (SELECT id FROM teams WHERE fifa_code = 'ESP'), 'Lamine Yamal',    'FWD', 'extra', false)
+--   -- ... additional rows per official checklist (20 total)
+-- ON CONFLICT (album_code) DO UPDATE SET
+--   player_name  = EXCLUDED.player_name,
+--   position     = EXCLUDED.position,
+--   sticker_type = EXCLUDED.sticker_type,
+--   is_foil      = EXCLUDED.is_foil;
+
+-- After inserting sticker records, add all 4 rarity variants for each:
+-- INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
+-- SELECT id, unnest(ARRAY['extra_base', 'extra_bronze', 'extra_silver', 'extra_gold']),
+--            unnest(ARRAY[1, 2, 3, 4]), 'retail'
+-- FROM stickers
+-- WHERE sticker_type = 'extra'
+-- ON CONFLICT (sticker_id, variant_type) DO NOTHING;

@@ -24,12 +24,9 @@ SELECT id, 'orange_amazon', 7, 'amazon_exclusive'
 FROM stickers WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
--- Step 4: Panini iCollect Crumple variants — non-foil only
+-- Step 4: Panini iCollect Gold Flood Crumple — non-foil only
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, unnest(ARRAY[
-  'gold_crumple', 'blue_crumple', 'red_crumple',
-  'purple_crumple', 'green_crumple', 'black_crumple_1of1'
-]), unnest(ARRAY[8, 9, 10, 11, 12, 13]), 'panini_online'
+SELECT id, 'gold_crumple', 8, 'panini_online'
 FROM stickers WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 

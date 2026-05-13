@@ -38,6 +38,12 @@ echo "✓ Feature flags seeded"
 # run_seed scripts/seeds/08_coca_cola_stickers.sql
 # echo "✓ Coca-Cola stickers seeded"
 
+# 10_extra_stickers.sql is reserved but not run until the official
+# Panini Extra Sticker checklist (20 players) is confirmed and the file is populated.
+# Uncomment the two lines below once 10_extra_stickers.sql has real data.
+# run_seed scripts/seeds/10_extra_stickers.sql
+# echo "✓ Extra stickers seeded (20 players × 4 rarities)"
+
 if [ "$NODE_ENV" != "production" ]; then
   run_seed scripts/seeds/07_test_users.sql
   echo "✓ Test users seeded (non-production only)"

@@ -12,12 +12,11 @@ export const VARIANT_META: Record<string, VariantMeta> = {
   green:               { label: 'Green parallel',      short: 'Green', swatch: 'bg-green-500' },
   black_1of1:          { label: 'Black 1/1',           short: 'Black 1/1', swatch: 'bg-black' },
   orange_amazon:       { label: 'Orange (Amazon)',     short: 'Orange',swatch: 'bg-orange-500' },
-  gold_crumple:        { label: 'Gold crumple',        short: 'Gold',  swatch: 'bg-yellow-400' },
-  blue_crumple:        { label: 'Blue crumple',        short: 'Blue ◊',swatch: 'bg-blue-400' },
-  red_crumple:         { label: 'Red crumple',         short: 'Red ◊', swatch: 'bg-red-400' },
-  purple_crumple:      { label: 'Purple crumple',      short: 'Purple ◊', swatch: 'bg-purple-400' },
-  green_crumple:       { label: 'Green crumple',       short: 'Green ◊',  swatch: 'bg-green-400' },
-  black_crumple_1of1:  { label: 'Black crumple 1/1',   short: 'Black ◊ 1/1', swatch: 'bg-gray-900' },
+  gold_crumple:        { label: 'Gold Flood Crumple',  short: 'Crumple', swatch: 'bg-yellow-400' },
+  extra_base:          { label: 'Extra — Base',        short: 'EX Base',   swatch: 'bg-white border-gray-400' },
+  extra_bronze:        { label: 'Extra — Bronze',      short: 'EX Bronze', swatch: 'bg-amber-600' },
+  extra_silver:        { label: 'Extra — Silver',      short: 'EX Silver', swatch: 'bg-slate-400' },
+  extra_gold:          { label: 'Extra — Gold',        short: 'EX Gold',   swatch: 'bg-yellow-500' },
 };
 
 export const ALL_VARIANT_TYPES = Object.keys(VARIANT_META);
