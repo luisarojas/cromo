@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
 import { VARIANT_META, variantLabel, variantSwatch } from './variantMeta';
+import {
+  getTeamPages,
+  formatPageSpread,
+  COCA_COLA_LOCATION,
+  EDITION_LABELS,
+} from '@/lib/albumPages';
+import { usePreferencesStore } from '@/store/preferences';
 
 export interface OwnedVariantEntry {
   variantId: string;
@@ -36,6 +43,19 @@ export default function VariantPopover({
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const albumEdition = usePreferencesStore((s) => s.albumEdition);
+
+  const pageLocation = (() => {
+    if (sticker.sticker_type === 'coca_cola') {
+      const loc = COCA_COLA_LOCATION[albumEdition];
+      return loc.type === 'numbered'
+        ? formatPageSpread(loc.pages)
+        : loc.description;
+    }
+    const spread = getTeamPages(sticker.team_name, albumEdition);
+    return spread ? formatPageSpread(spread) : null;
+  })();
 
   // Close on outside click / Esc
   useEffect(() => {
@@ -114,17 +134,27 @@ export default function VariantPopover({
       style={{ top, left, width: POPOVER_WIDTH }}
     >
       <div className="flex items-center justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-gray-800">
             {sticker.album_code}
           </div>
           <div className="text-xs text-gray-500 truncate">
             {sticker.player_name ?? sticker.team_name ?? '—'}
           </div>
+          {pageLocation && (
+            <div className="mt-1 flex items-center gap-1">
+              <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 tabular-nums">
+                {pageLocation}
+              </span>
+              <span className="text-[10px] text-gray-400">
+                {EDITION_LABELS[albumEdition]}
+              </span>
+            </div>
+          )}
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-700 text-lg leading-none px-1"
+          className="text-gray-400 hover:text-gray-700 text-lg leading-none px-1 shrink-0 ml-2"
           aria-label="Close"
         >
           ×

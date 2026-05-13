@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
+import { ALL_EDITIONS, EDITION_LABELS } from '@/lib/albumPages';
 import {
   updateUsernameApi,
   updateEmailApi,
@@ -336,9 +337,32 @@ function DeleteAccountSection() {
 function AlbumSettingsTab() {
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
   const setDuplicatesCountAllVariants = usePreferencesStore((s) => s.setDuplicatesCountAllVariants);
+  const albumEdition = usePreferencesStore((s) => s.albumEdition);
+  const setAlbumEdition = usePreferencesStore((s) => s.setAlbumEdition);
 
   return (
     <div className="flex flex-col gap-6">
+      <SectionCard
+        title="Album Edition"
+        description="Select your Panini album version so sticker locations are shown correctly."
+      >
+        <div className="flex flex-col gap-2">
+          {ALL_EDITIONS.map((edition) => (
+            <label key={edition} className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="albumEdition"
+                value={edition}
+                checked={albumEdition === edition}
+                onChange={() => setAlbumEdition(edition)}
+                className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-400"
+              />
+              <span className="text-sm text-gray-800">{EDITION_LABELS[edition]}</span>
+            </label>
+          ))}
+        </div>
+      </SectionCard>
+
       <SectionCard
         title="Duplicates"
         description="Control how duplicate stickers are counted in your collection."
