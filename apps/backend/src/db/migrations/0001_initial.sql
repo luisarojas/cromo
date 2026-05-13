@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS user_settings (
   email_marketing BOOLEAN DEFAULT false,
   marketing_consent_at TIMESTAMPTZ,
   marketing_consent_version TEXT,
-  show_trust_score_public BOOLEAN DEFAULT true
+  show_trust_score_public BOOLEAN DEFAULT true,
+  album_edition TEXT NOT NULL DEFAULT 'north_america'
+    CHECK (album_edition IN ('north_america', 'international', 'swiss_gold', 'south_america')),
+  duplicates_count_all_variants BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS consent_records (
