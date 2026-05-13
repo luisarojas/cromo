@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import FilterBar, { type FilterState } from './components/FilterBar';
 import { variantLabel } from './components/variantMeta';
+import { EDITION_LABELS } from '@/lib/albumPages';
 import StatsBar from './components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from './components/StickerGrid';
 import type { OwnedVariantEntry } from './components/VariantPopover';
@@ -62,6 +63,7 @@ export default function AlbumPage() {
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
+  const albumEdition = usePreferencesStore((s) => s.albumEdition);
 
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
@@ -407,12 +409,17 @@ export default function AlbumPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-gray-800">
-          Album{' '}
-          <span className="text-base font-normal text-gray-400">
-            — {user?.displayName ?? `@${user?.username}`}
-          </span>
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">
+            Album{' '}
+            <span className="text-base font-normal text-gray-400">
+              — {user?.displayName ?? `@${user?.username}`}
+            </span>
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {EDITION_LABELS[albumEdition]} Edition
+          </p>
+        </div>
 
         {error && (
           <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
