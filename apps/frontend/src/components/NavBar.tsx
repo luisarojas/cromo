@@ -57,7 +57,7 @@ export default function NavBar() {
           {user ? (
             <>
               <span className="text-gray-500">
-                {user.displayName ?? user.username}
+                {user.displayName ?? `@${user.username}`}
               </span>
               <button
                 onClick={handleLogout}

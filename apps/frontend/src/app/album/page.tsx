@@ -312,7 +312,7 @@ export default function AlbumPage() {
         <h1 className="text-2xl font-bold text-gray-800">
           Album{' '}
           <span className="text-base font-normal text-gray-400">
-            — {user?.displayName ?? user?.username}
+            — {user?.displayName ?? `@${user?.username}`}
           </span>
         </h1>
 

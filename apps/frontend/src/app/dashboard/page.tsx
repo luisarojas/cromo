@@ -59,7 +59,7 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-400 mt-1">
           Logged in as{' '}
           <span className="font-medium text-gray-600">
-            {user?.displayName ?? user?.username}
+            {user?.displayName ?? `@${user?.username}`}
           </span>
           {user?.emailVerifiedAt === null && (
             <span className="ml-2 text-amber-500">
