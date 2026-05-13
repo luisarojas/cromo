@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Sticker } from '@/lib/api';
 import { addSticker, patchSticker } from '@/lib/api';
@@ -25,7 +25,6 @@ interface Props {
 }
 
 const COLS = 4;
-const ROW_HEIGHT = 192; // px — taller now that we render variant chips
 
 interface PopoverState {
   sticker: Sticker;
@@ -49,9 +48,18 @@ export default function StickerGrid({
   const virtualizer = useVirtualizer({
     count: rows,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => 160,
     overscan: 5,
+    measureElement: (el) => el?.getBoundingClientRect().height ?? 160,
   });
+
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el || !popover) return;
+    const close = () => setPopover(null);
+    el.addEventListener('scroll', close, { passive: true });
+    return () => el.removeEventListener('scroll', close);
+  }, [popover]);
 
   const handleOpenPopover = useCallback(
     (sticker: Sticker, anchor: HTMLElement) => {
@@ -132,6 +140,8 @@ export default function StickerGrid({
             return (
               <div
                 key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,

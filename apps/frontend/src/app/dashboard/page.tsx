@@ -56,17 +56,11 @@ export default function DashboardPage() {
     <div className="max-w-3xl mx-auto px-4 py-10">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
-        <p className="text-sm text-gray-400 mt-1">
-          Logged in as{' '}
-          <span className="font-medium text-gray-600">
-            {user?.displayName ?? `@${user?.username}`}
-          </span>
-          {user?.emailVerifiedAt === null && (
-            <span className="ml-2 text-amber-500">
-              — Email not verified. Check your inbox.
-            </span>
-          )}
-        </p>
+        {user?.emailVerifiedAt === null && (
+          <p className="text-sm text-amber-500 mt-1">
+            Email not verified. Check your inbox.
+          </p>
+        )}
       </div>
 
       {error && (
