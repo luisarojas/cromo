@@ -5,13 +5,13 @@
 -- In local mode, auth is bypassed; passwords are irrelevant.
 -- In dev cloud, Cognito accounts are created separately with these UUIDs mapped.
 
-INSERT INTO users (id, email, username, display_name, role) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'admin@test.local',            'admin_user', 'Admin User', 'admin'),
-  ('00000000-0000-0000-0000-000000000002', 'alice@test.local',            'alice',      'Alice',      'user'),
-  ('00000000-0000-0000-0000-000000000003', 'bob@test.local',              'bob',        'Bob',        'user'),
-  ('00000000-0000-0000-0000-000000000004', 'charlie@test.local',          'charlie',    'Charlie',    'user'),
-  ('00000000-0000-0000-0000-000000000005', 'diana@test.local',            'diana',      'Diana',      'user'),
-  ('00000000-0000-0000-0000-000000000099', 'system@stickfolio.internal',  '_system',    'System',     'admin')
+INSERT INTO users (id, email, username, display_name, role, email_verified_at) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'admin@test.local',            'admin_user', 'Admin User', 'admin', now()),
+  ('00000000-0000-0000-0000-000000000002', 'alice@test.local',            'alice',      'Alice',      'user',  now()),
+  ('00000000-0000-0000-0000-000000000003', 'bob@test.local',              'bob',        'Bob',        'user',  now()),
+  ('00000000-0000-0000-0000-000000000004', 'charlie@test.local',          'charlie',    'Charlie',    'user',  now()),
+  ('00000000-0000-0000-0000-000000000005', 'diana@test.local',            'diana',      'Diana',      'user',  now()),
+  ('00000000-0000-0000-0000-000000000099', 'system@stickfolio.internal',  '_system',    'System',     'admin', now())
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO user_settings (user_id) VALUES
