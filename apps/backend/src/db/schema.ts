@@ -47,6 +47,8 @@ export const userSettings = pgTable('user_settings', {
   marketingConsentAt: timestamp('marketing_consent_at', { withTimezone: true }),
   marketingConsentVersion: text('marketing_consent_version'),
   showTrustScorePublic: boolean('show_trust_score_public').default(true),
+  albumEdition: text('album_edition').notNull().default('north_america'),
+  duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(false),
 });
 
 // ─── consent_records ──────────────────────────────────────────────────────────

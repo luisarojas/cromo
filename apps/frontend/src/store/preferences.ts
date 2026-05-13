@@ -1,22 +1,29 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { AlbumEdition } from '@/lib/albumPages';
 
 interface PreferencesState {
   duplicatesCountAllVariants: boolean;
-  setDuplicatesCountAllVariants: (value: boolean) => void;
   albumEdition: AlbumEdition;
+  loaded: boolean;
+
+  setFromServer: (prefs: { duplicatesCountAllVariants: boolean; albumEdition: AlbumEdition }) => void;
+  setDuplicatesCountAllVariants: (value: boolean) => void;
   setAlbumEdition: (edition: AlbumEdition) => void;
+  reset: () => void;
 }
 
-export const usePreferencesStore = create<PreferencesState>()(
-  persist(
-    (set) => ({
-      duplicatesCountAllVariants: false,
-      setDuplicatesCountAllVariants: (value) => set({ duplicatesCountAllVariants: value }),
-      albumEdition: 'north_america',
-      setAlbumEdition: (edition) => set({ albumEdition: edition }),
-    }),
-    { name: 'stickfolio-preferences' },
-  ),
-);
+const DEFAULTS = {
+  duplicatesCountAllVariants: false,
+  albumEdition: 'north_america' as AlbumEdition,
+};
+
+export const usePreferencesStore = create<PreferencesState>((set) => ({
+  ...DEFAULTS,
+  loaded: false,
+
+  setFromServer: (prefs) =>
+    set({ duplicatesCountAllVariants: prefs.duplicatesCountAllVariants, albumEdition: prefs.albumEdition as AlbumEdition, loaded: true }),
+  setDuplicatesCountAllVariants: (value) => set({ duplicatesCountAllVariants: value }),
+  setAlbumEdition: (edition) => set({ albumEdition: edition }),
+  reset: () => set({ ...DEFAULTS, loaded: false }),
+}));

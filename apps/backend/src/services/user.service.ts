@@ -112,6 +112,63 @@ export async function updatePassword(db: Pool, userId: string): Promise<void> {
   );
 }
 
+// ─── Preferences ─────────────────────────────────────────────────────────────
+
+export interface UserPreferences {
+  albumEdition: string;
+  duplicatesCountAllVariants: boolean;
+}
+
+export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
+  const result = await db.query<{
+    album_edition: string;
+    duplicates_count_all_variants: boolean;
+  }>(
+    `SELECT album_edition, duplicates_count_all_variants
+     FROM user_settings WHERE user_id = $1`,
+    [userId]
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    return { albumEdition: 'north_america', duplicatesCountAllVariants: false };
+  }
+
+  const row = result.rows[0]!;
+  return {
+    albumEdition: row.album_edition,
+    duplicatesCountAllVariants: row.duplicates_count_all_variants,
+  };
+}
+
+export async function updatePreferences(
+  db: Pool,
+  userId: string,
+  patch: Partial<UserPreferences>
+): Promise<UserPreferences> {
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  let i = 1;
+
+  if (patch.albumEdition !== undefined) {
+    sets.push(`album_edition = $${i++}`);
+    values.push(patch.albumEdition);
+  }
+  if (patch.duplicatesCountAllVariants !== undefined) {
+    sets.push(`duplicates_count_all_variants = $${i++}`);
+    values.push(patch.duplicatesCountAllVariants);
+  }
+
+  if (sets.length === 0) return getPreferences(db, userId);
+
+  values.push(userId);
+  await db.query(
+    `UPDATE user_settings SET ${sets.join(', ')} WHERE user_id = $${i}`,
+    values
+  );
+
+  return getPreferences(db, userId);
+}
+
 export async function deleteAccount(db: Pool, userId: string): Promise<void> {
   const result = await db.query(
     `UPDATE users SET deleted_at = now(), updated_at = now()

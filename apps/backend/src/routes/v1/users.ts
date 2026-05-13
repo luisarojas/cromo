@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import * as userService from '../../services/user.service.js';
 
+const VALID_EDITIONS = ['north_america', 'international', 'swiss_gold', 'south_america'] as const;
+
+const PatchPreferencesBody = z.object({
+  albumEdition: z.enum(VALID_EDITIONS).optional(),
+  duplicatesCountAllVariants: z.boolean().optional(),
+});
+
 const UpdateUsernameBody = z.object({
   username: z
     .string()
@@ -22,6 +29,87 @@ const UpdatePasswordBody = z.object({
 
 export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
   const prefix = '/api/v1/users';
+
+  /**
+   * GET /api/v1/users/me/preferences
+   */
+  fastify.get(
+    `${prefix}/me/preferences`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Users'],
+        summary: 'Get user album preferences',
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              albumEdition: { type: 'string' },
+              duplicatesCountAllVariants: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const prefs = await userService.getPreferences(fastify.db, request.userId!);
+        return reply.status(200).send(prefs);
+      } catch (err) {
+        const e = err as Error;
+        return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: e.message });
+      }
+    }
+  );
+
+  /**
+   * PATCH /api/v1/users/me/preferences
+   */
+  fastify.patch(
+    `${prefix}/me/preferences`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Users'],
+        summary: 'Update user album preferences',
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: 'object',
+          properties: {
+            albumEdition: { type: 'string', enum: VALID_EDITIONS },
+            duplicatesCountAllVariants: { type: 'boolean' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              albumEdition: { type: 'string' },
+              duplicatesCountAllVariants: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = PatchPreferencesBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join('; '),
+        });
+      }
+      try {
+        const prefs = await userService.updatePreferences(fastify.db, request.userId!, parsed.data);
+        return reply.status(200).send(prefs);
+      } catch (err) {
+        const e = err as Error;
+        return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: e.message });
+      }
+    }
+  );
 
   /**
    * PATCH /api/v1/users/me/username

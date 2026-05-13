@@ -1,3 +1,5 @@
+import type { AlbumEdition } from './albumPages';
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -406,6 +408,30 @@ export async function deleteSticker(
   return apiFetch<void>(
     `/api/v1/users/${userId}/stickers/${variantId}`,
     { method: 'DELETE' },
+    token,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// User preferences endpoints
+// ---------------------------------------------------------------------------
+
+export interface UserPreferences {
+  albumEdition: AlbumEdition;
+  duplicatesCountAllVariants: boolean;
+}
+
+export async function fetchUserPreferences(token: string): Promise<UserPreferences> {
+  return apiFetch<UserPreferences>('/api/v1/users/me/preferences', {}, token);
+}
+
+export async function patchUserPreferences(
+  patch: Partial<UserPreferences>,
+  token: string,
+): Promise<UserPreferences> {
+  return apiFetch<UserPreferences>(
+    '/api/v1/users/me/preferences',
+    { method: 'PATCH', body: JSON.stringify(patch) },
     token,
   );
 }

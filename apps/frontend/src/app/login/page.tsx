@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { loginApi } from '@/lib/api';
+import { loginApi, fetchUserPreferences } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { usePreferencesStore } from '@/store/preferences';
 
 const TEST_USERS = [
   { email: 'alice@test.local', label: 'Alice', description: 'Partial collection (1–200)' },
@@ -17,6 +18,7 @@ const TEST_USERS = [
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
+  const setFromServer = usePreferencesStore((s) => s.setFromServer);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +36,12 @@ export default function LoginPage() {
     try {
       const { accessToken, user } = await loginApi(loginEmail, loginPassword);
       setAuth(accessToken, user);
+      try {
+        const prefs = await fetchUserPreferences(accessToken);
+        setFromServer(prefs);
+      } catch {
+        setFromServer({ duplicatesCountAllVariants: false, albumEdition: 'north_america' });
+      }
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
-import { ALL_EDITIONS, EDITION_LABELS } from '@/lib/albumPages';
+import { ALL_EDITIONS, EDITION_LABELS, type AlbumEdition } from '@/lib/albumPages';
+import { patchUserPreferences } from '@/lib/api';
 import {
   updateUsernameApi,
   updateEmailApi,
@@ -264,6 +265,7 @@ function ChangePasswordSection() {
 function DeleteAccountSection() {
   const token = useAuthStore((s) => s.token);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const resetPreferences = usePreferencesStore((s) => s.reset);
   const router = useRouter();
 
   const [confirming, setConfirming] = useState(false);
@@ -278,6 +280,7 @@ function DeleteAccountSection() {
       await deleteAccountApi(token);
       await logoutApi();
       clearAuth();
+      resetPreferences();
       router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete account.');
@@ -335,13 +338,37 @@ function DeleteAccountSection() {
 // ─── Album tab ────────────────────────────────────────────────────────────────
 
 function AlbumSettingsTab() {
+  const token = useAuthStore((s) => s.token);
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
   const setDuplicatesCountAllVariants = usePreferencesStore((s) => s.setDuplicatesCountAllVariants);
   const albumEdition = usePreferencesStore((s) => s.albumEdition);
   const setAlbumEdition = usePreferencesStore((s) => s.setAlbumEdition);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function savePreference(patch: { albumEdition?: AlbumEdition; duplicatesCountAllVariants?: boolean }) {
+    if (!token) return;
+    setSaveError(null);
+    try {
+      await patchUserPreferences(patch, token);
+    } catch {
+      setSaveError('Failed to save preference. Please try again.');
+    }
+  }
+
+  async function handleEditionChange(edition: AlbumEdition) {
+    setAlbumEdition(edition);
+    await savePreference({ albumEdition: edition });
+  }
+
+  async function handleDuplicatesChange(value: boolean) {
+    setDuplicatesCountAllVariants(value);
+    await savePreference({ duplicatesCountAllVariants: value });
+  }
 
   return (
     <div className="flex flex-col gap-6">
+      {saveError && <StatusMessage type="error" message={saveError} />}
+
       <SectionCard
         title="Album Edition"
         description="Select your Panini album version so sticker locations are shown correctly."
@@ -354,7 +381,7 @@ function AlbumSettingsTab() {
                 name="albumEdition"
                 value={edition}
                 checked={albumEdition === edition}
-                onChange={() => setAlbumEdition(edition)}
+                onChange={() => handleEditionChange(edition)}
                 className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-400"
               />
               <span className="text-sm text-gray-800">{EDITION_LABELS[edition]}</span>
@@ -371,7 +398,7 @@ function AlbumSettingsTab() {
           <input
             type="checkbox"
             checked={duplicatesCountAllVariants}
-            onChange={(e) => setDuplicatesCountAllVariants(e.target.checked)}
+            onChange={(e) => handleDuplicatesChange(e.target.checked)}
             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
           />
           <div className="flex flex-col gap-0.5">

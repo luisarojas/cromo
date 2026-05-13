@@ -3,16 +3,19 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
+import { usePreferencesStore } from '@/store/preferences';
 import { logoutApi } from '@/lib/api';
 
 export default function NavBar() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const resetPreferences = usePreferencesStore((s) => s.reset);
 
   async function handleLogout() {
     await logoutApi();
     clearAuth();
+    resetPreferences();
     router.push('/login');
   }
 

@@ -2,16 +2,26 @@
 
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/auth';
-import { refreshApi } from '@/lib/api';
+import { usePreferencesStore } from '@/store/preferences';
+import { refreshApi, fetchUserPreferences } from '@/lib/api';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const setAuth = useAuthStore((s) => s.setAuth);
   const setHydrated = useAuthStore((s) => s.setHydrated);
+  const setFromServer = usePreferencesStore((s) => s.setFromServer);
 
   useEffect(() => {
     refreshApi()
-      .then((data) => {
-        if (data) setAuth(data.accessToken, data.user);
+      .then(async (data) => {
+        if (data) {
+          setAuth(data.accessToken, data.user);
+          try {
+            const prefs = await fetchUserPreferences(data.accessToken);
+            setFromServer(prefs);
+          } catch {
+            setFromServer({ duplicatesCountAllVariants: false, albumEdition: 'north_america' });
+          }
+        }
       })
       .finally(() => setHydrated());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
