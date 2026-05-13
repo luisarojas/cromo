@@ -89,6 +89,65 @@ export async function resendVerificationApi(email: string): Promise<void> {
   });
 }
 
+export async function updateUsernameApi(
+  username: string,
+  token: string,
+): Promise<{ username: string }> {
+  const res = await fetch(`${BASE_URL}/api/v1/users/me/username`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ username }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message ?? 'Failed to update username');
+  }
+  return res.json() as Promise<{ username: string }>;
+}
+
+export async function updateEmailApi(
+  email: string,
+  token: string,
+): Promise<{ email: string }> {
+  const res = await fetch(`${BASE_URL}/api/v1/users/me/email`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message ?? 'Failed to update email');
+  }
+  return res.json() as Promise<{ email: string }>;
+}
+
+export async function updatePasswordApi(
+  currentPassword: string,
+  newPassword: string,
+  token: string,
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/users/me/password`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message ?? 'Failed to update password');
+  }
+}
+
+export async function deleteAccountApi(token: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/v1/users/me`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message ?? 'Failed to delete account');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

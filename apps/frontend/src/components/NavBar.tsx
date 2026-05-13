@@ -56,9 +56,12 @@ export default function NavBar() {
         <div className="ml-auto flex items-center gap-3 text-sm">
           {user ? (
             <>
-              <span className="text-gray-500">
+              <Link
+                href="/settings"
+                className="text-gray-500 hover:text-gray-800 transition-colors"
+              >
                 {user.displayName ?? `@${user.username}`}
-              </span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="text-gray-500 hover:text-gray-800 transition-colors"
