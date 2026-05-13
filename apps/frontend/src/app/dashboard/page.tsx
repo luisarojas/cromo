@@ -1,26 +1,34 @@
 'use client';
 
-// TODO: replace with real auth context in Phase B.
-// Currently shows Alice's (local dev demo user) stats.
-
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { fetchStats, getLocalDevToken, type CollectionStats } from '@/lib/api';
-
-const DEMO_USER_ID = '00000000-0000-0000-0000-000000000002'; // Alice
+import { fetchStats, type CollectionStats } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+
   const [stats, setStats] = useState<CollectionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!hydrated) return;
+    if (!token || !user) {
+      router.replace('/login');
+      return;
+    }
+
     let cancelled = false;
 
     async function load() {
+      if (!token || !user) return;
       try {
-        const tok = await getLocalDevToken();
-        const data = await fetchStats(DEMO_USER_ID, tok);
+        const data = await fetchStats(user.id, token);
         if (!cancelled) setStats(data);
       } catch (err) {
         if (!cancelled)
@@ -34,7 +42,15 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hydrated, token, user, router]);
+
+  if (!hydrated || (!token && hydrated)) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+        Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
@@ -42,12 +58,17 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
         <p className="text-sm text-gray-400 mt-1">
           Logged in as{' '}
-          <span className="font-medium text-gray-600">Alice</span>{' '}
-          <span className="text-gray-300">(local dev — Phase B will use real auth)</span>
+          <span className="font-medium text-gray-600">
+            {user?.displayName ?? user?.username}
+          </span>
+          {user?.emailVerifiedAt === null && (
+            <span className="ml-2 text-amber-500">
+              — Email not verified. Check your inbox.
+            </span>
+          )}
         </p>
       </div>
 
-      {/* Stats summary */}
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-6">
           {error}
@@ -100,7 +121,6 @@ export default function DashboardPage() {
             ))}
       </div>
 
-      {/* Progress */}
       {stats && !loading && (
         <div className="mb-8">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -116,7 +136,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Quick links */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link
           href="/album"
@@ -131,19 +150,21 @@ export default function DashboardPage() {
             </div>
           </div>
         </Link>
-        <Link
-          href="/admin/stickers"
-          className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 hover:bg-gray-50 transition-colors group"
-        >
-          <div>
-            <div className="font-semibold text-gray-700 group-hover:underline">
-              Admin — Stickers
+        {user?.role === 'admin' && (
+          <Link
+            href="/admin/stickers"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 hover:bg-gray-50 transition-colors group"
+          >
+            <div>
+              <div className="font-semibold text-gray-700 group-hover:underline">
+                Admin — Stickers
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                Correct player names, positions and metadata
+              </div>
             </div>
-            <div className="text-xs text-gray-400 mt-0.5">
-              Correct player names, positions and metadata
-            </div>
-          </div>
-        </Link>
+          </Link>
+        )}
       </div>
     </div>
   );

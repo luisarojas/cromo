@@ -1,31 +1,23 @@
 'use client';
 
-// TODO: replace with real auth context in Phase B
-// Local dev uses Alice's hardcoded user ID.
-// The token below is a placeholder — in production this comes from the auth session.
-
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   fetchStickers,
   fetchStats,
   fetchCollection,
   fetchMissing,
   fetchDuplicates,
-  getLocalDevToken,
   type Sticker,
   type CollectionStats,
   type MissingItem,
   type DuplicateItem,
 } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 import FilterBar, { type FilterState } from './components/FilterBar';
 import StatsBar from './components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from './components/StickerGrid';
 import type { OwnedVariantEntry } from './components/VariantPopover';
-
-// ---------------------------------------------------------------------------
-// Local dev constants — replace with real auth in Phase B
-// ---------------------------------------------------------------------------
-const DEMO_USER_ID = '00000000-0000-0000-0000-000000000002'; // Alice
 
 type Tab = 'all' | 'have' | 'missing' | 'duplicates';
 
@@ -54,7 +46,11 @@ async function fetchAllStickers(
 }
 
 export default function AlbumPage() {
-  const [token, setToken] = useState<string>('');
+  const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
   const [ownedMap, setOwnedMap] = useState<OwnedMap>(new Map());
@@ -69,9 +65,9 @@ export default function AlbumPage() {
   // ---------------------------------------------------------------------------
   // Load collection — paginates by variant row, so we walk pages
   // ---------------------------------------------------------------------------
-  const loadCollection = useCallback(async (tok: string) => {
+  const loadCollection = useCallback(async (tok: string, userId: string) => {
     try {
-      const statsData = await fetchStats(DEMO_USER_ID, tok);
+      const statsData = await fetchStats(userId, tok);
       setStats(statsData);
 
       // Walk all collection pages so multi-variant owners are fully captured.
@@ -80,7 +76,7 @@ export default function AlbumPage() {
       // Safety cap — variants can exceed sticker count, so allow generous walk.
       for (let i = 0; i < 50; i++) {
         const page = await fetchCollection(
-          DEMO_USER_ID,
+          userId,
           { limit: 1000, cursor: cursor ?? undefined },
           tok,
         );
@@ -106,20 +102,25 @@ export default function AlbumPage() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Initial load
+  // Initial load — redirects to /login if not authenticated
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    if (!hydrated) return;
+    if (!token || !user) {
+      router.replace('/login');
+      return;
+    }
+
     let cancelled = false;
 
     async function init() {
+      if (!token || !user) return;
       setLoading(true);
       setError(null);
       try {
-        const tok = await getLocalDevToken();
-        if (!cancelled) setToken(tok);
         const [allStickers] = await Promise.all([
           fetchAllStickers({}),
-          loadCollection(tok),
+          loadCollection(token, user.id),
         ]);
         if (!cancelled) {
           setStickers(allStickers);
@@ -137,24 +138,26 @@ export default function AlbumPage() {
     return () => {
       cancelled = true;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hydrated, token, user, router, loadCollection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Load missing/duplicates when those tabs are active
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (tab === 'missing' && missingItems.length === 0 && token) {
-      fetchMissing(DEMO_USER_ID, { limit: 200 }, token)
+    if (!token || !user) return;
+
+    if (tab === 'missing' && missingItems.length === 0) {
+      fetchMissing(user.id, { limit: 200 }, token)
         .then((r) => setMissingItems(r.items))
         .catch((err) => console.error('Failed to load missing', err));
     }
 
-    if (tab === 'duplicates' && duplicateItems.length === 0 && token) {
-      fetchDuplicates(DEMO_USER_ID, { limit: 200 }, token)
+    if (tab === 'duplicates' && duplicateItems.length === 0) {
+      fetchDuplicates(user.id, { limit: 200 }, token)
         .then((r) => setDuplicateItems(r.items))
         .catch((err) => console.error('Failed to load duplicates', err));
     }
-  }, [tab, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, token, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Derived totals from ownedMap (across all variants)
@@ -248,10 +251,10 @@ export default function AlbumPage() {
   // Mutation handlers
   // ---------------------------------------------------------------------------
   const handleCollectionChange = useCallback(async () => {
-    if (token) await loadCollection(token);
+    if (token && user) await loadCollection(token, user.id);
     setMissingItems([]);
     setDuplicateItems([]);
-  }, [loadCollection, token]);
+  }, [loadCollection, token, user]);
 
   const handleOptimisticAdjust = useCallback(
     (
@@ -295,13 +298,21 @@ export default function AlbumPage() {
     { id: 'duplicates', label: 'Duplicates' },
   ];
 
+  if (!hydrated || (!token && hydrated)) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+        Loading…
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-gray-800">
           Album{' '}
           <span className="text-base font-normal text-gray-400">
-            — Alice (local dev)
+            — {user?.displayName ?? user?.username}
           </span>
         </h1>
 
@@ -363,8 +374,8 @@ export default function AlbumPage() {
           <StickerGrid
             stickers={displayedStickers}
             ownedMap={ownedMap}
-            userId={DEMO_USER_ID}
-            token={token}
+            userId={user!.id}
+            token={token!}
             onCollectionChange={handleCollectionChange}
             onOptimisticAdjust={handleOptimisticAdjust}
           />

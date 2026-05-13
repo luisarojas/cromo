@@ -22,7 +22,7 @@ export async function sendVerificationEmail(
   username: string,
   token: string
 ): Promise<void> {
-  const verifyUrl = `${process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/api/v1/auth/verify-email?token=${token}`;
+  const verifyUrl = `${env.FRONTEND_URL}/verify-email?token=${token}`;
 
   await getTransporter().sendMail({
     from: env.EMAIL_FROM,

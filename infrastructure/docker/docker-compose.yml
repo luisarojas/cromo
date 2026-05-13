@@ -51,6 +51,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
       EMAIL_FROM: noreply@stickfolio.local
+      FRONTEND_URL: http://localhost:3000
       PORT: "3001"
     volumes:
       - ../../apps/backend/src:/app/src

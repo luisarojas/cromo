@@ -1,15 +1,13 @@
 'use client';
 
-// TODO: replace with real auth context in Phase B.
-// Admin access is currently ungated — real role check comes from the auth session.
-
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   fetchStickers,
   patchAdminSticker,
-  getLocalDevToken,
   type Sticker,
 } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 
 // ---------------------------------------------------------------------------
 // Inline edit form
@@ -131,7 +129,11 @@ function EditRow({
 // ---------------------------------------------------------------------------
 
 export default function AdminStickersPage() {
-  const [token, setToken] = useState('');
+  const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,16 +142,24 @@ export default function AdminStickersPage() {
 
   // Load stickers
   useEffect(() => {
+    if (!hydrated) return;
+    if (!token || !user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.role !== 'admin') {
+      router.replace('/dashboard');
+      return;
+    }
+
     let cancelled = false;
 
     async function load() {
+      if (!token) return;
       setLoading(true);
       setError(null);
       try {
-        const tok = await getLocalDevToken();
-        if (!cancelled) setToken(tok);
-        // Fetch first batch — enough for admin table; increase if needed
-        const result = await fetchStickers({ limit: 200 }, tok);
+        const result = await fetchStickers({ limit: 200 }, token);
         if (!cancelled) setStickers(result.items);
       } catch (err) {
         if (!cancelled)
@@ -165,7 +175,7 @@ export default function AdminStickersPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hydrated, token, user, router]);
 
   const handleSave = useCallback(
     async (id: string, form: EditForm) => {
@@ -175,7 +185,7 @@ export default function AdminStickersPage() {
       if (form.notes) body.notes = form.notes;
       if (form.albumPage) body.albumPage = parseInt(form.albumPage, 10);
 
-      const updated = await patchAdminSticker(id, body, token || undefined);
+      const updated = await patchAdminSticker(id, body, token ?? undefined);
 
       setStickers((prev) =>
         prev.map((s) => (s.id === id ? { ...s, ...updated } : s)),
@@ -196,6 +206,14 @@ export default function AdminStickersPage() {
     );
   });
 
+  if (!hydrated || (!token && hydrated)) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+        Loading…
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -203,9 +221,6 @@ export default function AdminStickersPage() {
           <h1 className="text-2xl font-bold text-gray-800">
             Admin — Sticker Corrections
           </h1>
-          <span className="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 bg-white">
-            Access controlled in Phase B
-          </span>
         </div>
 
         {/* Search */}
