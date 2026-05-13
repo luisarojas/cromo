@@ -1,29 +1,36 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Sticker } from '@/lib/api';
 import { addSticker, patchSticker } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
+import VariantPopover, { type OwnedVariantEntry } from './VariantPopover';
 
-interface OwnedEntry {
-  quantity: number;
-  variantId: string;
-}
+export type OwnedVariantMap = Map<string, OwnedVariantEntry>; // variantType -> entry
 
 interface Props {
   stickers: Sticker[];
-  ownedMap: Map<string, OwnedEntry>;
+  ownedMap: Map<string, OwnedVariantMap>; // album_code -> variantType -> entry
   userId: string;
   token: string;
   onCollectionChange: () => void;
-  onOptimisticRemove: (albumCode: string) => void;
-  onOptimisticRestore: (albumCode: string, entry: OwnedEntry) => void;
+  onOptimisticAdjust: (
+    albumCode: string,
+    variantType: string,
+    variantId: string,
+    delta: number,
+  ) => void;
 }
 
 const COLS = 4;
-const ROW_HEIGHT = 148; // px — approximate card height + gap
+const ROW_HEIGHT = 192; // px — taller now that we render variant chips
+
+interface PopoverState {
+  sticker: Sticker;
+  rect: DOMRect;
+}
 
 export default function StickerGrid({
   stickers,
@@ -31,11 +38,11 @@ export default function StickerGrid({
   userId,
   token,
   onCollectionChange,
-  onOptimisticRemove,
-  onOptimisticRestore,
+  onOptimisticAdjust,
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
+  const [popover, setPopover] = useState<PopoverState | null>(null);
 
   const rows = Math.ceil(stickers.length / COLS);
 
@@ -46,39 +53,55 @@ export default function StickerGrid({
     overscan: 5,
   });
 
-  const handleAdd = useCallback(
-    async (sticker: Sticker) => {
-      const variantId = sticker.base_variant_id;
-      if (!variantId) {
-        console.warn('No base_variant_id for sticker', sticker.album_code, '— Redis cache may be stale. Restart the API container to clear it.');
-        return;
+  const handleOpenPopover = useCallback(
+    (sticker: Sticker, anchor: HTMLElement) => {
+      setPopover({ sticker, rect: anchor.getBoundingClientRect() });
+    },
+    [],
+  );
+
+  const handleAdjust = useCallback(
+    async (
+      sticker: Sticker,
+      variantId: string,
+      variantType: string,
+      delta: 1 | -1,
+    ) => {
+      const current =
+        ownedMap.get(sticker.album_code)?.get(variantType)?.quantity ?? 0;
+      const next = current + delta;
+      // Optimistic update
+      onOptimisticAdjust(sticker.album_code, variantType, variantId, delta);
+      try {
+        if (delta > 0 && current === 0) {
+          await addSticker(userId, variantId, 1, token || undefined);
+        } else {
+          await patchSticker(userId, variantId, Math.max(0, next), token || undefined);
+        }
+        onCollectionChange();
+      } catch (err) {
+        console.error('Failed to adjust sticker', err);
+        addToast('Failed to update sticker. Please try again.');
+        // Rollback by inverting the delta
+        onOptimisticAdjust(sticker.album_code, variantType, variantId, -delta);
       }
+    },
+    [userId, token, ownedMap, onCollectionChange, onOptimisticAdjust, addToast],
+  );
+
+  const handleAddNew = useCallback(
+    async (sticker: Sticker, variantId: string, variantType: string) => {
+      onOptimisticAdjust(sticker.album_code, variantType, variantId, 1);
       try {
         await addSticker(userId, variantId, 1, token || undefined);
         onCollectionChange();
       } catch (err) {
-        console.error('Failed to add sticker', err);
-        addToast('Failed to add sticker. Please try again.');
+        console.error('Failed to add variant', err);
+        addToast('Failed to add variant. Please try again.');
+        onOptimisticAdjust(sticker.album_code, variantType, variantId, -1);
       }
     },
-    [userId, token, onCollectionChange, addToast],
-  );
-
-  const handleRemove = useCallback(
-    async (sticker: Sticker) => {
-      const entry = ownedMap.get(sticker.album_code);
-      if (!entry) return;
-      onOptimisticRemove(sticker.album_code);
-      try {
-        await patchSticker(userId, entry.variantId, entry.quantity - 1, token || undefined);
-        onCollectionChange();
-      } catch (err) {
-        console.error('Failed to remove sticker', err);
-        addToast('Failed to remove sticker. Please try again.');
-        onOptimisticRestore(sticker.album_code, entry);
-      }
-    },
-    [userId, token, ownedMap, onCollectionChange, onOptimisticRemove, onOptimisticRestore, addToast],
+    [userId, token, onCollectionChange, onOptimisticAdjust, addToast],
   );
 
   if (stickers.length === 0) {
@@ -90,57 +113,75 @@ export default function StickerGrid({
   }
 
   return (
-    <div
-      ref={parentRef}
-      className="overflow-y-auto rounded-xl border border-gray-200"
-      style={{ height: '70vh' }}
-    >
-      {/* Total height container for virtual scrolling */}
+    <>
       <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          position: 'relative',
-        }}
+        ref={parentRef}
+        className="overflow-y-auto rounded-xl border border-gray-200"
+        style={{ height: '70vh' }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const startIdx = virtualRow.index * COLS;
-          const rowStickers = stickers.slice(startIdx, startIdx + COLS);
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            position: 'relative',
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const startIdx = virtualRow.index * COLS;
+            const rowStickers = stickers.slice(startIdx, startIdx + COLS);
 
-          return (
-            <div
-              key={virtualRow.key}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-2 py-1">
-                {rowStickers.map((sticker) => {
-                  const entry = ownedMap.get(sticker.album_code);
-                  return (
-                    <StickerCard
-                      key={sticker.album_code}
-                      sticker={sticker}
-                      owned={!!entry}
-                      quantity={entry?.quantity}
-                      onAdd={() => handleAdd(sticker)}
-                      onRemove={() => handleRemove(sticker)}
-                    />
-                  );
-                })}
-                {/* Fill empty cells in the last row */}
-                {rowStickers.length < COLS &&
-                  [...Array(COLS - rowStickers.length)].map((_, i) => (
-                    <div key={`empty-${i}`} />
-                  ))}
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-2 py-1">
+                  {rowStickers.map((sticker) => {
+                    const ownedVariants = ownedMap.get(sticker.album_code);
+                    return (
+                      <StickerCard
+                        key={sticker.album_code}
+                        sticker={sticker}
+                        ownedVariants={ownedVariants}
+                        onOpenPopover={(anchor) =>
+                          handleOpenPopover(sticker, anchor)
+                        }
+                      />
+                    );
+                  })}
+                  {rowStickers.length < COLS &&
+                    [...Array(COLS - rowStickers.length)].map((_, i) => (
+                      <div key={`empty-${i}`} />
+                    ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {popover && (
+        <VariantPopover
+          sticker={popover.sticker}
+          ownedVariants={
+            ownedMap.get(popover.sticker.album_code) ?? new Map()
+          }
+          anchorRect={popover.rect}
+          token={token}
+          onClose={() => setPopover(null)}
+          onAdjust={(variantId, variantType, delta) =>
+            handleAdjust(popover.sticker, variantId, variantType, delta)
+          }
+          onAddNew={(variantId, variantType) =>
+            handleAddNew(popover.sticker, variantId, variantType)
+          }
+        />
+      )}
+    </>
   );
 }

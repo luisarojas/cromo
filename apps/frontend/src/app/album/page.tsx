@@ -19,21 +19,18 @@ import {
 } from '@/lib/api';
 import FilterBar, { type FilterState } from './components/FilterBar';
 import StatsBar from './components/StatsBar';
-import StickerGrid from './components/StickerGrid';
+import StickerGrid, { type OwnedVariantMap } from './components/StickerGrid';
+import type { OwnedVariantEntry } from './components/VariantPopover';
 
 // ---------------------------------------------------------------------------
 // Local dev constants — replace with real auth in Phase B
 // ---------------------------------------------------------------------------
 const DEMO_USER_ID = '00000000-0000-0000-0000-000000000002'; // Alice
 
-// ---------------------------------------------------------------------------
-// Tab type
-// ---------------------------------------------------------------------------
 type Tab = 'all' | 'have' | 'missing' | 'duplicates';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// album_code -> Map<variantType, entry>
+type OwnedMap = Map<string, OwnedVariantMap>;
 
 /** Fetch ALL pages of stickers up to maxItems, looping cursor. */
 async function fetchAllStickers(
@@ -56,17 +53,11 @@ async function fetchAllStickers(
   return all;
 }
 
-// ---------------------------------------------------------------------------
-// Page component
-// ---------------------------------------------------------------------------
-
 export default function AlbumPage() {
   const [token, setToken] = useState<string>('');
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
-  const [ownedMap, setOwnedMap] = useState<
-    Map<string, { quantity: number; variantId: string }>
-  >(new Map());
+  const [ownedMap, setOwnedMap] = useState<OwnedMap>(new Map());
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const [duplicateItems, setDuplicateItems] = useState<DuplicateItem[]>([]);
 
@@ -76,25 +67,38 @@ export default function AlbumPage() {
   const [error, setError] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
-  // Load collection (stats + owned map) — called on initial load and after mutations
+  // Load collection — paginates by variant row, so we walk pages
   // ---------------------------------------------------------------------------
   const loadCollection = useCallback(async (tok: string) => {
     try {
-      const [statsData, collectionData] = await Promise.all([
-        fetchStats(DEMO_USER_ID, tok),
-        fetchCollection(DEMO_USER_ID, { limit: 1000 }, tok),
-      ]);
-
+      const statsData = await fetchStats(DEMO_USER_ID, tok);
       setStats(statsData);
 
-      // Build ownedMap keyed by album_code
-      const map = new Map<string, { quantity: number; variantId: string }>();
-      for (const item of collectionData.items) {
-        map.set(item.album_code, {
-          quantity: item.quantity,
-          variantId: item.sticker_variant_id,
-        });
+      // Walk all collection pages so multi-variant owners are fully captured.
+      const map: OwnedMap = new Map();
+      let cursor: number | null | undefined = undefined;
+      // Safety cap — variants can exceed sticker count, so allow generous walk.
+      for (let i = 0; i < 50; i++) {
+        const page = await fetchCollection(
+          DEMO_USER_ID,
+          { limit: 1000, cursor: cursor ?? undefined },
+          tok,
+        );
+        for (const item of page.items) {
+          let perSticker = map.get(item.album_code);
+          if (!perSticker) {
+            perSticker = new Map<string, OwnedVariantEntry>();
+            map.set(item.album_code, perSticker);
+          }
+          perSticker.set(item.variant_type, {
+            variantId: item.sticker_variant_id,
+            quantity: item.quantity,
+          });
+        }
+        if (!page.nextCursor || page.items.length === 0) break;
+        cursor = page.nextCursor;
       }
+
       setOwnedMap(map);
     } catch (err) {
       console.error('Failed to load collection', err);
@@ -153,21 +157,25 @@ export default function AlbumPage() {
   }, [tab, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
-  // Derive real owned totals from ownedMap for tab badges
+  // Derived totals from ownedMap (across all variants)
   // ---------------------------------------------------------------------------
-  const totalOwnedQuantity = useMemo(
-    () => Array.from(ownedMap.values()).reduce((sum, e) => sum + e.quantity, 0),
-    [ownedMap],
-  );
+  const totalOwnedQuantity = useMemo(() => {
+    let sum = 0;
+    for (const perSticker of ownedMap.values()) {
+      for (const entry of perSticker.values()) sum += entry.quantity;
+    }
+    return sum;
+  }, [ownedMap]);
 
-  const totalExtraCopies = useMemo(
-    () =>
-      Array.from(ownedMap.values()).reduce(
-        (sum, e) => (e.quantity > 1 ? sum + (e.quantity - 1) : sum),
-        0,
-      ),
-    [ownedMap],
-  );
+  const totalExtraCopies = useMemo(() => {
+    let sum = 0;
+    for (const perSticker of ownedMap.values()) {
+      for (const entry of perSticker.values()) {
+        if (entry.quantity > 1) sum += entry.quantity - 1;
+      }
+    }
+    return sum;
+  }, [ownedMap]);
 
   // ---------------------------------------------------------------------------
   // Derive displayed stickers from active tab + filters
@@ -180,33 +188,36 @@ export default function AlbumPage() {
     } else if (tab === 'have') {
       base = stickers.filter((s) => ownedMap.has(s.album_code));
     } else if (tab === 'missing') {
-      // Use missingItems if loaded, otherwise filter locally
       if (missingItems.length > 0) {
-        // Normalise: MissingItem has variant_id (the base variant UUID).
-        // Map it to base_variant_id so StickerGrid.handleAdd can use it.
-        base = missingItems.map((m) => ({
-          ...m,
-          base_variant_id: m.variant_id,
-        })) as unknown as Sticker[];
+        base = missingItems;
       } else {
         base = stickers.filter((s) => !ownedMap.has(s.album_code));
       }
     } else {
-      // duplicates: stickers where quantity > 1
+      // duplicates: any sticker with at least one variant qty > 1
       if (duplicateItems.length > 0) {
-        base = duplicateItems.map((d) => ({
-          ...d,
-          base_variant_id: d.sticker_variant_id,
-        })) as unknown as Sticker[];
+        // Collapse duplicate rows to unique stickers (popover handles per-variant)
+        const seen = new Set<string>();
+        base = [];
+        for (const d of duplicateItems) {
+          if (seen.has(d.album_code)) continue;
+          seen.add(d.album_code);
+          // Merge into the sticker list if we have the full Sticker; otherwise cast.
+          const match = stickers.find((s) => s.album_code === d.album_code);
+          if (match) base.push(match);
+          else base.push(d as unknown as Sticker);
+        }
       } else {
         base = stickers.filter((s) => {
-          const entry = ownedMap.get(s.album_code);
-          return entry && entry.quantity > 1;
+          const perSticker = ownedMap.get(s.album_code);
+          if (!perSticker) return false;
+          for (const e of perSticker.values()) if (e.quantity > 1) return true;
+          return false;
         });
       }
     }
 
-    // Apply client-side filters
+    // Client-side filters
     return base.filter((s) => {
       if (filters.group && s.group_name !== filters.group) return false;
       if (
@@ -216,6 +227,10 @@ export default function AlbumPage() {
       )
         return false;
       if (filters.type && s.sticker_type !== filters.type) return false;
+      if (filters.variant) {
+        const perSticker = ownedMap.get(s.album_code);
+        if (!perSticker || !perSticker.has(filters.variant)) return false;
+      }
       if (
         filters.search &&
         !s.player_name
@@ -230,7 +245,7 @@ export default function AlbumPage() {
   }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems]);
 
   // ---------------------------------------------------------------------------
-  // Handle collection mutation (add/remove sticker)
+  // Mutation handlers
   // ---------------------------------------------------------------------------
   const handleCollectionChange = useCallback(async () => {
     if (token) await loadCollection(token);
@@ -238,25 +253,31 @@ export default function AlbumPage() {
     setDuplicateItems([]);
   }, [loadCollection, token]);
 
-  const handleOptimisticRemove = useCallback((albumCode: string) => {
-    setOwnedMap((prev) => {
-      const next = new Map(prev);
-      const entry = next.get(albumCode);
-      if (!entry) return prev;
-      if (entry.quantity <= 1) {
-        next.delete(albumCode);
-      } else {
-        next.set(albumCode, { ...entry, quantity: entry.quantity - 1 });
-      }
-      return next;
-    });
-  }, []);
-
-  const handleOptimisticRestore = useCallback(
-    (albumCode: string, entry: { quantity: number; variantId: string }) => {
+  const handleOptimisticAdjust = useCallback(
+    (
+      albumCode: string,
+      variantType: string,
+      variantId: string,
+      delta: number,
+    ) => {
       setOwnedMap((prev) => {
         const next = new Map(prev);
-        next.set(albumCode, entry);
+        const perSticker = new Map(next.get(albumCode) ?? []);
+        const current = perSticker.get(variantType);
+        const newQty = (current?.quantity ?? 0) + delta;
+        if (newQty <= 0) {
+          perSticker.delete(variantType);
+        } else {
+          perSticker.set(variantType, {
+            variantId: current?.variantId ?? variantId,
+            quantity: newQty,
+          });
+        }
+        if (perSticker.size === 0) {
+          next.delete(albumCode);
+        } else {
+          next.set(albumCode, perSticker);
+        }
         return next;
       });
     },
@@ -290,13 +311,10 @@ export default function AlbumPage() {
           </div>
         )}
 
-        {/* Stats */}
         <StatsBar stats={stats} loading={loading} />
 
-        {/* Filters */}
         <FilterBar filters={filters} onChange={setFilters} />
 
-        {/* Tabs */}
         <div className="flex gap-1 border-b border-gray-200">
           {TABS.map(({ id, label }) => (
             <button
@@ -337,7 +355,6 @@ export default function AlbumPage() {
           ))}
         </div>
 
-        {/* Grid */}
         {loading ? (
           <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
             Loading stickers…
@@ -349,8 +366,7 @@ export default function AlbumPage() {
             userId={DEMO_USER_ID}
             token={token}
             onCollectionChange={handleCollectionChange}
-            onOptimisticRemove={handleOptimisticRemove}
-            onOptimisticRestore={handleOptimisticRestore}
+            onOptimisticAdjust={handleOptimisticAdjust}
           />
         )}
       </div>

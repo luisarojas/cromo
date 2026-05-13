@@ -56,8 +56,16 @@ export interface CollectionItem extends Sticker {
   quantity: number;
 }
 
-export interface MissingItem extends Sticker {
-  variant_id: string;
+// MissingItem is now sticker-shaped (a sticker the user owns zero variants of).
+// base_variant_id is included for the default "+ Add" action.
+export type MissingItem = Sticker;
+
+export interface StickerVariant {
+  id: string;
+  sticker_id: string;
+  variant_type: string;
+  rarity_rank: number;
+  availability: string;
 }
 
 export interface DuplicateItem {
@@ -165,6 +173,18 @@ export async function fetchStickerByAlbumCode(
   token?: string,
 ): Promise<Sticker> {
   return apiFetch<Sticker>(`/api/v1/stickers/${albumCode}`, {}, token);
+}
+
+export async function fetchStickerVariants(
+  albumCode: string,
+  token?: string,
+): Promise<StickerVariant[]> {
+  const { items } = await apiFetch<{ items: StickerVariant[] }>(
+    `/api/v1/stickers/${albumCode}/variants`,
+    {},
+    token,
+  );
+  return items;
 }
 
 // ---------------------------------------------------------------------------

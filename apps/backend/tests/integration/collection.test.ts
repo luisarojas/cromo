@@ -149,7 +149,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { variant_id: string; album_code: string }[];
+        items: { id: string; album_code: string; base_variant_id: string | null }[];
         total: number;
       }>();
 

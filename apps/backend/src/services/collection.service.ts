@@ -39,18 +39,19 @@ export interface CollectionItem {
 }
 
 export interface MissingItem {
-  variant_id: string;
   id: string;
   number: number;
   album_code: string;
   player_name: string | null;
   position: string | null;
   sticker_type: string;
+  is_foil: boolean;
   album_page: number | null;
   notes: string | null;
   team_name: string | null;
   fifa_code: string | null;
   group_name: string | null;
+  base_variant_id: string | null;
 }
 
 export interface DuplicateItem {
@@ -214,25 +215,34 @@ export async function getMissing(
 
   const { team, group, cursor } = filters;
 
+  // "Missing" = the user owns ZERO variants of this sticker.
+  // Filter via NOT EXISTS over user_stickers joined back through sticker_variants.
   const { rows: items } = await db.query<MissingItem>(
-    `SELECT sv.id AS variant_id,
-            s.id,
+    `SELECT s.id,
             s.number,
             s.album_code,
             s.player_name,
             s.position,
             s.sticker_type,
+            s.is_foil,
             s.album_page,
             s.notes,
             t.name AS team_name,
             t.fifa_code,
-            t.group_name
-     FROM sticker_variants sv
-     JOIN stickers s ON sv.sticker_id = s.id
+            t.group_name,
+            base_sv.id AS base_variant_id
+     FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
-     LEFT JOIN user_stickers us ON us.sticker_variant_id = sv.id AND us.user_id = $1
-     WHERE sv.variant_type = 'base'
-       AND (us.id IS NULL OR us.quantity = 0)
+     LEFT JOIN sticker_variants base_sv
+       ON base_sv.sticker_id = s.id AND base_sv.variant_type = 'base'
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM user_stickers us
+       JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
+       WHERE sv.sticker_id = s.id
+         AND us.user_id = $1
+         AND us.quantity > 0
+     )
        AND ($2::text IS NULL OR t.fifa_code = $2)
        AND ($3::text IS NULL OR t.group_name = $3)
        AND ($4::int IS NULL OR s.number > $4)
@@ -247,12 +257,16 @@ export async function getMissing(
 
   const { rows: countRows } = await db.query<{ count: string }>(
     `SELECT COUNT(*) AS count
-     FROM sticker_variants sv
-     JOIN stickers s ON sv.sticker_id = s.id
+     FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
-     LEFT JOIN user_stickers us ON us.sticker_variant_id = sv.id AND us.user_id = $1
-     WHERE sv.variant_type = 'base'
-       AND (us.id IS NULL OR us.quantity = 0)
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM user_stickers us
+       JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
+       WHERE sv.sticker_id = s.id
+         AND us.user_id = $1
+         AND us.quantity > 0
+     )
        AND ($2::text IS NULL OR t.fifa_code = $2)
        AND ($3::text IS NULL OR t.group_name = $3)`,
     [userId, team ?? null, group ?? null]
@@ -352,20 +366,23 @@ export async function getStats(
     return JSON.parse(cached) as CollectionStats;
   }
 
+  // total      — number of stickers in the album (one row per sticker).
+  // owned      — number of stickers where the user owns AT LEAST ONE variant.
+  // duplicates — number of user_stickers rows with quantity > 1 (per-variant).
   const { rows } = await db.query<{
     total: string;
     owned: string;
     duplicates: string;
   }>(
     `SELECT
-       (SELECT COUNT(*) FROM sticker_variants sv2
-        JOIN stickers s2 ON sv2.sticker_id = s2.id
-        WHERE sv2.variant_type = 'base') AS total,
-       COUNT(DISTINCT us.sticker_variant_id) AS owned,
-       SUM(CASE WHEN us.quantity > 1 THEN 1 ELSE 0 END) AS duplicates
-     FROM user_stickers us
-     WHERE us.user_id = $1
-       AND us.quantity > 0`,
+       (SELECT COUNT(*) FROM stickers) AS total,
+       (SELECT COUNT(DISTINCT sv.sticker_id)
+        FROM user_stickers us
+        JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
+        WHERE us.user_id = $1 AND us.quantity > 0) AS owned,
+       (SELECT COUNT(*)
+        FROM user_stickers us
+        WHERE us.user_id = $1 AND us.quantity > 1) AS duplicates`,
     [userId]
   );
 

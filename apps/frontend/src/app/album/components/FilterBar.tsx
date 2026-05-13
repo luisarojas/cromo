@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback } from 'react';
+import { ALL_VARIANT_TYPES, variantLabel } from './variantMeta';
 
 export interface FilterState {
   group?: string;
   team?: string;
   type?: string;
+  variant?: string;
   search?: string;
 }
 
@@ -22,6 +24,7 @@ const TYPES = [
   { value: 'team_photo', label: 'Team Photo' },
   { value: 'intro', label: 'Intro' },
   { value: 'museum', label: 'Museum' },
+  { value: 'coca_cola', label: 'Coca-Cola' },
 ];
 
 export default function FilterBar({ filters, onChange }: Props) {
