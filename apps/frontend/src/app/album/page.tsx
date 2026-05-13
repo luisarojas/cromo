@@ -14,12 +14,23 @@ import {
   type DuplicateItem,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { usePreferencesStore } from '@/store/preferences';
 import FilterBar, { type FilterState } from './components/FilterBar';
+import { variantLabel } from './components/variantMeta';
 import StatsBar from './components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from './components/StickerGrid';
 import type { OwnedVariantEntry } from './components/VariantPopover';
 
 type Tab = 'all' | 'have' | 'missing' | 'duplicates';
+
+const TYPE_LABELS: Record<string, string> = {
+  player: 'Player',
+  badge: 'Badge',
+  team_photo: 'Team Photo',
+  intro: 'Intro',
+  museum: 'Museum',
+  coca_cola: 'Coca-Cola',
+};
 
 // album_code -> Map<variantType, entry>
 type OwnedMap = Map<string, OwnedVariantMap>;
@@ -50,6 +61,7 @@ export default function AlbumPage() {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
+  const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
 
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
@@ -162,6 +174,81 @@ export default function AlbumPage() {
   // ---------------------------------------------------------------------------
   // Derived totals from ownedMap (across all variants)
   // ---------------------------------------------------------------------------
+  // Stickers scoped to the active tab, used as the base for dynamic filter options.
+  const tabBase = useMemo(() => {
+    if (tab === 'all') return stickers;
+    if (tab === 'have') return stickers.filter((s) => ownedMap.has(s.album_code));
+    if (tab === 'missing') return stickers.filter((s) => !ownedMap.has(s.album_code));
+    return stickers.filter((s) => {
+      const p = ownedMap.get(s.album_code);
+      if (!p) return false;
+      if (duplicatesCountAllVariants) {
+        let total = 0;
+        for (const e of p.values()) total += e.quantity;
+        return total > 1;
+      }
+      for (const e of p.values()) if (e.quantity > 1) return true;
+      return false;
+    });
+  }, [stickers, tab, ownedMap, duplicatesCountAllVariants]);
+
+  // For each filter dimension, compute available options by applying all *other* active filters.
+  const filterOptions = useMemo(() => {
+    const filterExcept = (exclude: keyof FilterState): Sticker[] =>
+      tabBase.filter((s) => {
+        if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
+        if (
+          exclude !== 'team' &&
+          filters.team?.length &&
+          !filters.team.includes(s.team_name ?? '') &&
+          !filters.team.includes(s.fifa_code ?? '')
+        ) return false;
+        if (exclude !== 'type' && filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
+        if (exclude !== 'variant' && filters.variant?.length) {
+          const p = ownedMap.get(s.album_code);
+          if (!p || !filters.variant.some((v) => p.has(v))) return false;
+        }
+        if (exclude !== 'search' && filters.search) {
+          const q = filters.search.toLowerCase();
+          if (
+            !s.player_name?.toLowerCase().includes(q) &&
+            !s.album_code.toLowerCase().includes(q) &&
+            !s.team_name?.toLowerCase().includes(q)
+          ) return false;
+        }
+        return true;
+      });
+
+    const groupSet = new Set(filterExcept('group').map((s) => s.group_name).filter(Boolean) as string[]);
+    const groupOptions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
+      .filter((g) => groupSet.has(g))
+      .map((g) => ({ value: g, label: `Group ${g}` }));
+
+    const teamSeen = new Set<string>();
+    const teamOptions: { value: string; label: string }[] = [];
+    for (const s of filterExcept('team')) {
+      if (s.team_name && !teamSeen.has(s.team_name)) {
+        teamSeen.add(s.team_name);
+        teamOptions.push({ value: s.team_name, label: s.team_name });
+      }
+    }
+    teamOptions.sort((a, b) => a.label.localeCompare(b.label));
+
+    const typeSet = new Set(filterExcept('type').map((s) => s.sticker_type).filter(Boolean));
+    const typeOptions = Object.entries(TYPE_LABELS)
+      .filter(([v]) => typeSet.has(v))
+      .map(([value, label]) => ({ value, label }));
+
+    const variantSet = new Set<string>();
+    for (const s of filterExcept('variant')) {
+      const p = ownedMap.get(s.album_code);
+      if (p) for (const vt of p.keys()) variantSet.add(vt);
+    }
+    const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
+
+    return { groupOptions, teamOptions, typeOptions, variantOptions };
+  }, [tabBase, filters, ownedMap]);
+
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
     for (const perSticker of ownedMap.values()) {
@@ -173,12 +260,18 @@ export default function AlbumPage() {
   const totalExtraCopies = useMemo(() => {
     let sum = 0;
     for (const perSticker of ownedMap.values()) {
-      for (const entry of perSticker.values()) {
-        if (entry.quantity > 1) sum += entry.quantity - 1;
+      if (duplicatesCountAllVariants) {
+        let total = 0;
+        for (const entry of perSticker.values()) total += entry.quantity;
+        if (total > 1) sum += total - 1;
+      } else {
+        for (const entry of perSticker.values()) {
+          if (entry.quantity > 1) sum += entry.quantity - 1;
+        }
       }
     }
     return sum;
-  }, [ownedMap]);
+  }, [ownedMap, duplicatesCountAllVariants]);
 
   // ---------------------------------------------------------------------------
   // Derive displayed stickers from active tab + filters
@@ -214,6 +307,11 @@ export default function AlbumPage() {
         base = stickers.filter((s) => {
           const perSticker = ownedMap.get(s.album_code);
           if (!perSticker) return false;
+          if (duplicatesCountAllVariants) {
+            let total = 0;
+            for (const e of perSticker.values()) total += e.quantity;
+            return total > 1;
+          }
           for (const e of perSticker.values()) if (e.quantity > 1) return true;
           return false;
         });
@@ -224,9 +322,9 @@ export default function AlbumPage() {
     return base.filter((s) => {
       if (filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
       if (
-        filters.team &&
-        !s.team_name?.toLowerCase().includes(filters.team.toLowerCase()) &&
-        !s.fifa_code?.toLowerCase().includes(filters.team.toLowerCase())
+        filters.team?.length &&
+        !filters.team.includes(s.team_name ?? '') &&
+        !filters.team.includes(s.fifa_code ?? '')
       )
         return false;
       if (filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
@@ -245,7 +343,7 @@ export default function AlbumPage() {
         return false;
       return true;
     });
-  }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems]);
+  }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants]);
 
   // ---------------------------------------------------------------------------
   // Mutation handlers
@@ -324,7 +422,14 @@ export default function AlbumPage() {
 
         <StatsBar stats={stats} loading={loading} />
 
-        <FilterBar filters={filters} onChange={setFilters} />
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          groupOptions={filterOptions.groupOptions}
+          teamOptions={filterOptions.teamOptions}
+          typeOptions={filterOptions.typeOptions}
+          variantOptions={filterOptions.variantOptions}
+        />
 
         <div className="flex gap-1 border-b border-gray-200">
           {TABS.map(({ id, label }) => (

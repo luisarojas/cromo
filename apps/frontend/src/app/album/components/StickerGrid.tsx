@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useState, useEffect } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Sticker } from '@/lib/api';
 import { addSticker, patchSticker } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
@@ -39,26 +39,25 @@ export default function StickerGrid({
   onCollectionChange,
   onOptimisticAdjust,
 }: Props) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
   const rows = Math.ceil(stickers.length / COLS);
 
-  const virtualizer = useVirtualizer({
+  const virtualizer = useWindowVirtualizer({
     count: rows,
-    getScrollElement: () => parentRef.current,
     estimateSize: () => 160,
     overscan: 5,
     measureElement: (el) => el?.getBoundingClientRect().height ?? 160,
+    scrollMargin: listRef.current?.offsetTop ?? 0,
   });
 
   useEffect(() => {
-    const el = parentRef.current;
-    if (!el || !popover) return;
+    if (!popover) return;
     const close = () => setPopover(null);
-    el.addEventListener('scroll', close, { passive: true });
-    return () => el.removeEventListener('scroll', close);
+    window.addEventListener('scroll', close, { passive: true });
+    return () => window.removeEventListener('scroll', close);
   }, [popover]);
 
   const handleOpenPopover = useCallback(
@@ -78,7 +77,6 @@ export default function StickerGrid({
       const current =
         ownedMap.get(sticker.album_code)?.get(variantType)?.quantity ?? 0;
       const next = current + delta;
-      // Optimistic update
       onOptimisticAdjust(sticker.album_code, variantType, variantId, delta);
       try {
         if (delta > 0 && current === 0) {
@@ -90,7 +88,6 @@ export default function StickerGrid({
       } catch (err) {
         console.error('Failed to adjust sticker', err);
         addToast('Failed to update sticker. Please try again.');
-        // Rollback by inverting the delta
         onOptimisticAdjust(sticker.album_code, variantType, variantId, -delta);
       }
     },
@@ -123,56 +120,51 @@ export default function StickerGrid({
   return (
     <>
       <div
-        ref={parentRef}
-        className="overflow-y-auto rounded-xl border border-gray-200"
-        style={{ height: '70vh' }}
+        ref={listRef}
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          position: 'relative',
+        }}
       >
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            position: 'relative',
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const startIdx = virtualRow.index * COLS;
-            const rowStickers = stickers.slice(startIdx, startIdx + COLS);
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const startIdx = virtualRow.index * COLS;
+          const rowStickers = stickers.slice(startIdx, startIdx + COLS);
 
-            return (
-              <div
-                key={virtualRow.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-2 py-1">
-                  {rowStickers.map((sticker) => {
-                    const ownedVariants = ownedMap.get(sticker.album_code);
-                    return (
-                      <StickerCard
-                        key={sticker.album_code}
-                        sticker={sticker}
-                        ownedVariants={ownedVariants}
-                        onOpenPopover={(anchor) =>
-                          handleOpenPopover(sticker, anchor)
-                        }
-                      />
-                    );
-                  })}
-                  {rowStickers.length < COLS &&
-                    [...Array(COLS - rowStickers.length)].map((_, i) => (
-                      <div key={`empty-${i}`} />
-                    ))}
-                </div>
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+              }}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-1">
+                {rowStickers.map((sticker) => {
+                  const ownedVariants = ownedMap.get(sticker.album_code);
+                  return (
+                    <StickerCard
+                      key={sticker.album_code}
+                      sticker={sticker}
+                      ownedVariants={ownedVariants}
+                      onOpenPopover={(anchor) =>
+                        handleOpenPopover(sticker, anchor)
+                      }
+                    />
+                  );
+                })}
+                {rowStickers.length < COLS &&
+                  [...Array(COLS - rowStickers.length)].map((_, i) => (
+                    <div key={`empty-${i}`} />
+                  ))}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
 
       {popover && (

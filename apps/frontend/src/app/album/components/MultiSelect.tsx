@@ -14,6 +14,7 @@ interface Props {
   value: string[];
   onChange: (value: string[]) => void;
   placeholder?: string;
+  searchable?: boolean;
 }
 
 export default function MultiSelect({
@@ -23,17 +24,30 @@ export default function MultiSelect({
   value,
   onChange,
   placeholder = 'All',
+  searchable = true,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
     };
     document.addEventListener('mousedown', handleDown);
     return () => document.removeEventListener('mousedown', handleDown);
   }, []);
+
+  useEffect(() => {
+    if (open && searchable) {
+      setTimeout(() => searchRef.current?.focus(), 0);
+    }
+    if (!open) setSearch('');
+  }, [open, searchable]);
 
   const toggle = (v: string) => {
     if (value.includes(v)) {
@@ -42,6 +56,16 @@ export default function MultiSelect({
       onChange([...value, v]);
     }
   };
+
+  const filteredOptions = (search
+    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options
+  ).slice().sort((a, b) => {
+    const aChecked = value.includes(a.value);
+    const bChecked = value.includes(b.value);
+    if (aChecked === bChecked) return 0;
+    return aChecked ? -1 : 1;
+  });
 
   const buttonLabel =
     value.length === 0
@@ -80,21 +104,46 @@ export default function MultiSelect({
           </svg>
         </button>
         {open && (
-          <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-56 overflow-y-auto">
-            {options.map((opt) => (
-              <label
-                key={opt.value}
-                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
-              >
-                <input
-                  type="checkbox"
-                  checked={value.includes(opt.value)}
-                  onChange={() => toggle(opt.value)}
-                  className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
-                />
-                {opt.label}
-              </label>
-            ))}
+          <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-64 flex flex-col">
+            <div className="px-2 py-1.5 border-b border-gray-100 shrink-0 flex items-center gap-2">
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+              {value.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onChange([])}
+                  className="shrink-0 text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <div className="overflow-y-auto">
+              {filteredOptions.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-gray-400">No results</div>
+              ) : (
+                filteredOptions.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={value.includes(opt.value)}
+                      onChange={() => toggle(opt.value)}
+                      className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                    />
+                    {opt.label}
+                  </label>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>

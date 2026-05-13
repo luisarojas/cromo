@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
+import { usePreferencesStore } from '@/store/preferences';
 import {
   updateUsernameApi,
   updateEmailApi,
@@ -13,10 +14,13 @@ import {
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-      <h2 className="text-base font-semibold text-gray-900 mb-4">{title}</h2>
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-gray-500">{description}</p>}
+      </div>
       {children}
     </div>
   );
@@ -77,7 +81,7 @@ function ChangeUsernameSection() {
   }
 
   return (
-    <SectionCard title="Change Username">
+    <SectionCard title="Username">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700" htmlFor="username">
@@ -137,7 +141,7 @@ function ChangeEmailSection() {
   }
 
   return (
-    <SectionCard title="Change Email">
+    <SectionCard title="Email Address">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700" htmlFor="email">
@@ -197,7 +201,7 @@ function ChangePasswordSection() {
   }
 
   return (
-    <SectionCard title="Change Password">
+    <SectionCard title="Password">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700" htmlFor="currentPassword">
@@ -327,12 +331,68 @@ function DeleteAccountSection() {
   );
 }
 
+// ─── Album tab ────────────────────────────────────────────────────────────────
+
+function AlbumSettingsTab() {
+  const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
+  const setDuplicatesCountAllVariants = usePreferencesStore((s) => s.setDuplicatesCountAllVariants);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <SectionCard
+        title="Duplicates"
+        description="Control how duplicate stickers are counted in your collection."
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={duplicatesCountAllVariants}
+            onChange={(e) => setDuplicatesCountAllVariants(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-gray-800">
+              Count all copies as duplicates, regardless of variant
+            </span>
+            <span className="text-xs text-gray-500">
+              When enabled, owning the same sticker in different variants (e.g. base + foil)
+              counts as a duplicate. When disabled, only multiple copies of the same variant
+              are considered duplicates.
+            </span>
+          </div>
+        </label>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ─── Account tab ──────────────────────────────────────────────────────────────
+
+function AccountSettingsTab() {
+  return (
+    <div className="flex flex-col gap-6">
+      <ChangeUsernameSection />
+      <ChangeEmailSection />
+      <ChangePasswordSection />
+      <DeleteAccountSection />
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
+type SettingsTab = 'account' | 'album';
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'account', label: 'Account' },
+  { id: 'album', label: 'Album' },
+];
 
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
   if (hydrated && !user) {
     router.push('/login');
@@ -341,16 +401,29 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-xl mx-auto flex flex-col gap-6">
+      <div className="max-w-2xl mx-auto flex flex-col gap-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage your account details.</p>
         </div>
 
-        <ChangeUsernameSection />
-        <ChangeEmailSection />
-        <ChangePasswordSection />
-        <DeleteAccountSection />
+        <div className="flex gap-1 border-b border-gray-200">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === id
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'account' && <AccountSettingsTab />}
+        {activeTab === 'album' && <AlbumSettingsTab />}
       </div>
     </div>
   );
