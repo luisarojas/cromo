@@ -90,7 +90,7 @@ CREATE TABLE stickers (
   sticker_type  TEXT NOT NULL,
   -- 'intro'|'badge'|'team_photo'|'player'|'museum'|'coca_cola_special'
   is_foil       BOOLEAN NOT NULL DEFAULT false,
-  album_page    INT,
+  album_page    INT,  -- NOT USED: page numbers vary by regional edition; reserved for future use
   notes         TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()

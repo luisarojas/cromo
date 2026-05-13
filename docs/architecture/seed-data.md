@@ -334,6 +334,8 @@ ON CONFLICT (album_code) DO UPDATE SET
   position    = EXCLUDED.position;
 ```
 
+> **Note on `album_page`:** The `album_page` field is **not used** and should be ignored. Page numbers vary depending on the regional edition of the album purchased, making them unreliable as a stable data point. Displaying sticker page numbers is a feature that may be added in a future release once a reliable approach is determined.
+
 > **Important note on sequential numbers:** The exact sequential integer numbers (1–980) for stickers beyond the confirmed checklist entries are derived from album page order. The developer should assign these sequentially when loading the complete data. The `album_code` (e.g., `MEX1`) is the stable identifier; the `number` is just a display convenience. The `album_code` is what the AI scan uses for identification.
 
 ## 6. Seed File 04: FIFA Museum Stickers
