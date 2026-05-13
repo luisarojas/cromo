@@ -93,11 +93,11 @@ function hashFilters(filters: object): string {
     .digest('hex');
 }
 
-async function invalidateUserCaches(redis: Redis, userId: string): Promise<void> {
+export async function invalidateUserCaches(redis: Redis, userId: string): Promise<void> {
   const patterns = [
     `user:${userId}:collection:*`,
     `user:${userId}:missing:*`,
-    `user:${userId}:summary`,
+    `user:${userId}:summary:*`,
     `user:${userId}:duplicates:*`,
   ];
 
@@ -112,18 +112,19 @@ async function invalidateUserCaches(redis: Redis, userId: string): Promise<void>
 // ─── Service functions ────────────────────────────────────────────────────────
 
 /**
- * getCollection — paginated list of stickers the user owns.
- * Cached per (userId + filters) for 5 minutes.
+ * getCollection — paginated list of stickers owned in a specific album.
+ * Cached per (albumId + filters) for 5 minutes.
  */
 export async function getCollection(
   db: Pool,
   redis: Redis,
   userId: string,
+  albumId: string,
   filters: CollectionFilters
 ): Promise<PaginatedResult<CollectionItem>> {
   const limit = Math.min(filters.limit ?? 50, 1000);
   const normalised = { ...filters, limit };
-  const cacheKey = `user:${userId}:collection:${hashFilters(normalised)}`;
+  const cacheKey = `user:${userId}:collection:${albumId}:${hashFilters(normalised)}`;
 
   const cached = await redis.get(cacheKey);
   if (cached) {
@@ -152,7 +153,7 @@ export async function getCollection(
      JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
      JOIN stickers s ON sv.sticker_id = s.id
      LEFT JOIN teams t ON s.team_id = t.id
-     WHERE us.user_id = $1
+     WHERE us.album_id = $1
        AND us.quantity > 0
        AND ($2::text IS NULL OR t.fifa_code = $2)
        AND ($3::text IS NULL OR t.group_name = $3)
@@ -161,12 +162,12 @@ export async function getCollection(
        AND ($6::int IS NULL OR s.number > $6)
      ORDER BY s.number
      LIMIT $7`,
-    [userId, team ?? null, group ?? null, type ?? null, variant ?? null, cursor ?? null, limit + 1]
+    [albumId, team ?? null, group ?? null, type ?? null, variant ?? null, cursor ?? null, limit + 1]
   );
 
   const hasMore = items.length > limit;
   const pageItems = hasMore ? items.slice(0, limit) : items;
-  const nextCursor = hasMore ? pageItems[pageItems.length - 1].number : null;
+  const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
 
   const { rows: countRows } = await db.query<{ count: string }>(
     `SELECT COUNT(*) AS count
@@ -174,13 +175,13 @@ export async function getCollection(
      JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
      JOIN stickers s ON sv.sticker_id = s.id
      LEFT JOIN teams t ON s.team_id = t.id
-     WHERE us.user_id = $1
+     WHERE us.album_id = $1
        AND us.quantity > 0
        AND ($2::text IS NULL OR t.fifa_code = $2)
        AND ($3::text IS NULL OR t.group_name = $3)
        AND ($4::text IS NULL OR s.sticker_type = $4)
        AND ($5::text IS NULL OR sv.variant_type = $5)`,
-    [userId, team ?? null, group ?? null, type ?? null, variant ?? null]
+    [albumId, team ?? null, group ?? null, type ?? null, variant ?? null]
   );
 
   const result: PaginatedResult<CollectionItem> = {
@@ -195,18 +196,19 @@ export async function getCollection(
 }
 
 /**
- * getMissing — paginated list of base stickers NOT in the user's collection.
- * Cached per (userId + filters) for 5 minutes.
+ * getMissing — paginated list of stickers NOT in the specified album.
+ * Cached per (albumId + filters) for 5 minutes.
  */
 export async function getMissing(
   db: Pool,
   redis: Redis,
   userId: string,
+  albumId: string,
   filters: MissingFilters
 ): Promise<PaginatedResult<MissingItem>> {
   const limit = Math.min(filters.limit ?? 50, 1000);
   const normalised = { ...filters, limit };
-  const cacheKey = `user:${userId}:missing:${hashFilters(normalised)}`;
+  const cacheKey = `user:${userId}:missing:${albumId}:${hashFilters(normalised)}`;
 
   const cached = await redis.get(cacheKey);
   if (cached) {
@@ -215,8 +217,6 @@ export async function getMissing(
 
   const { team, group, cursor } = filters;
 
-  // "Missing" = the user owns ZERO variants of this sticker.
-  // Filter via NOT EXISTS over user_stickers joined back through sticker_variants.
   const { rows: items } = await db.query<MissingItem>(
     `SELECT s.id,
             s.number,
@@ -240,7 +240,7 @@ export async function getMissing(
        FROM user_stickers us
        JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
        WHERE sv.sticker_id = s.id
-         AND us.user_id = $1
+         AND us.album_id = $1
          AND us.quantity > 0
      )
        AND ($2::text IS NULL OR t.fifa_code = $2)
@@ -248,12 +248,12 @@ export async function getMissing(
        AND ($4::int IS NULL OR s.number > $4)
      ORDER BY s.number
      LIMIT $5`,
-    [userId, team ?? null, group ?? null, cursor ?? null, limit + 1]
+    [albumId, team ?? null, group ?? null, cursor ?? null, limit + 1]
   );
 
   const hasMore = items.length > limit;
   const pageItems = hasMore ? items.slice(0, limit) : items;
-  const nextCursor = hasMore ? pageItems[pageItems.length - 1].number : null;
+  const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
 
   const { rows: countRows } = await db.query<{ count: string }>(
     `SELECT COUNT(*) AS count
@@ -264,12 +264,12 @@ export async function getMissing(
        FROM user_stickers us
        JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
        WHERE sv.sticker_id = s.id
-         AND us.user_id = $1
+         AND us.album_id = $1
          AND us.quantity > 0
      )
        AND ($2::text IS NULL OR t.fifa_code = $2)
        AND ($3::text IS NULL OR t.group_name = $3)`,
-    [userId, team ?? null, group ?? null]
+    [albumId, team ?? null, group ?? null]
   );
 
   const result: PaginatedResult<MissingItem> = {
@@ -284,18 +284,19 @@ export async function getMissing(
 }
 
 /**
- * getDuplicates — stickers in the user's collection with quantity > 1.
+ * getDuplicates — stickers in the album with quantity > 1.
  * Cached for 5 minutes.
  */
 export async function getDuplicates(
   db: Pool,
   redis: Redis,
   userId: string,
+  albumId: string,
   cursor?: number,
   limit = 50
 ): Promise<PaginatedResult<DuplicateItem>> {
   const pageSize = Math.min(limit, 1000);
-  const cacheKey = `user:${userId}:duplicates:${cursor ?? 0}:${pageSize}`;
+  const cacheKey = `user:${userId}:duplicates:${albumId}:${cursor ?? 0}:${pageSize}`;
 
   const cached = await redis.get(cacheKey);
   if (cached) {
@@ -320,23 +321,21 @@ export async function getDuplicates(
      JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
      JOIN stickers s ON sv.sticker_id = s.id
      LEFT JOIN teams t ON s.team_id = t.id
-     WHERE us.user_id = $1
+     WHERE us.album_id = $1
        AND us.quantity > 1
        AND ($2::int IS NULL OR s.number > $2)
      ORDER BY s.number
      LIMIT $3`,
-    [userId, cursor ?? null, pageSize + 1]
+    [albumId, cursor ?? null, pageSize + 1]
   );
 
   const hasMore = items.length > pageSize;
   const pageItems = hasMore ? items.slice(0, pageSize) : items;
-  const nextCursor = hasMore ? pageItems[pageItems.length - 1].number : null;
+  const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
 
   const { rows: countRows } = await db.query<{ count: string }>(
-    `SELECT COUNT(*) AS count
-     FROM user_stickers us
-     WHERE us.user_id = $1 AND us.quantity > 1`,
-    [userId]
+    `SELECT COUNT(*) AS count FROM user_stickers us WHERE us.album_id = $1 AND us.quantity > 1`,
+    [albumId]
   );
 
   const result: PaginatedResult<DuplicateItem> = {
@@ -351,24 +350,22 @@ export async function getDuplicates(
 }
 
 /**
- * getStats — completion statistics for a user's collection.
+ * getStats — completion statistics for a specific album.
  * Cached for 5 minutes.
  */
 export async function getStats(
   db: Pool,
   redis: Redis,
-  userId: string
+  userId: string,
+  albumId: string
 ): Promise<CollectionStats> {
-  const cacheKey = `user:${userId}:summary`;
+  const cacheKey = `user:${userId}:summary:${albumId}`;
 
   const cached = await redis.get(cacheKey);
   if (cached) {
     return JSON.parse(cached) as CollectionStats;
   }
 
-  // total      — number of stickers in the album (one row per sticker).
-  // owned      — number of stickers where the user owns AT LEAST ONE variant.
-  // duplicates — number of user_stickers rows with quantity > 1 (per-variant).
   const { rows } = await db.query<{
     total: string;
     owned: string;
@@ -379,11 +376,11 @@ export async function getStats(
        (SELECT COUNT(DISTINCT sv.sticker_id)
         FROM user_stickers us
         JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
-        WHERE us.user_id = $1 AND us.quantity > 0) AS owned,
+        WHERE us.album_id = $1 AND us.quantity > 0) AS owned,
        (SELECT COUNT(*)
         FROM user_stickers us
-        WHERE us.user_id = $1 AND us.quantity > 1) AS duplicates`,
-    [userId]
+        WHERE us.album_id = $1 AND us.quantity > 1) AS duplicates`,
+    [albumId]
   );
 
   const row = rows[0];
@@ -401,50 +398,52 @@ export async function getStats(
 }
 
 /**
- * addSticker — upsert a sticker variant into the user's collection.
+ * addSticker — upsert a sticker variant into an album.
  * Invalidates all user caches.
  */
 export async function addSticker(
   db: Pool,
   redis: Redis,
   userId: string,
+  albumId: string,
   variantId: string,
   quantity = 1
 ): Promise<void> {
   await db.query(
-    `INSERT INTO user_stickers (user_id, sticker_variant_id, quantity)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (user_id, sticker_variant_id)
+    `INSERT INTO user_stickers (user_id, album_id, sticker_variant_id, quantity)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (album_id, sticker_variant_id)
      DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
                    updated_at = NOW()`,
-    [userId, variantId, quantity]
+    [userId, albumId, variantId, quantity]
   );
 
   await invalidateUserCaches(redis, userId);
 }
 
 /**
- * updateSticker — set an exact quantity for a sticker variant.
- * If quantity is 0, the record is deleted. Invalidates user caches.
+ * updateSticker — set exact quantity for a sticker variant in an album.
+ * If quantity is 0, the record is deleted.
  */
 export async function updateSticker(
   db: Pool,
   redis: Redis,
   userId: string,
+  albumId: string,
   variantId: string,
   quantity: number
 ): Promise<void> {
   if (quantity <= 0) {
     await db.query(
-      `DELETE FROM user_stickers WHERE user_id = $1 AND sticker_variant_id = $2`,
-      [userId, variantId]
+      `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+      [albumId, variantId]
     );
   } else {
     await db.query(
       `UPDATE user_stickers
        SET quantity = $3, updated_at = NOW()
-       WHERE user_id = $1 AND sticker_variant_id = $2`,
-      [userId, variantId, quantity]
+       WHERE album_id = $1 AND sticker_variant_id = $2`,
+      [albumId, variantId, quantity]
     );
   }
 
@@ -452,18 +451,18 @@ export async function updateSticker(
 }
 
 /**
- * removeSticker — delete a sticker variant from the user's collection entirely.
- * Invalidates user caches.
+ * removeSticker — delete a sticker variant from an album entirely.
  */
 export async function removeSticker(
   db: Pool,
   redis: Redis,
   userId: string,
+  albumId: string,
   variantId: string
 ): Promise<void> {
   await db.query(
-    `DELETE FROM user_stickers WHERE user_id = $1 AND sticker_variant_id = $2`,
-    [userId, variantId]
+    `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+    [albumId, variantId]
   );
 
   await invalidateUserCaches(redis, userId);

@@ -3,7 +3,7 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Sticker } from '@/lib/api';
-import { addSticker, patchSticker } from '@/lib/api';
+import { addSticker, patchSticker, moveSticker } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
 import VariantPopover, { type OwnedVariantEntry } from './VariantPopover';
@@ -14,6 +14,7 @@ interface Props {
   stickers: Sticker[];
   ownedMap: Map<string, OwnedVariantMap>; // album_code -> variantType -> entry
   userId: string;
+  albumId: string;
   token: string;
   onCollectionChange: () => void;
   onOptimisticAdjust: (
@@ -22,6 +23,10 @@ interface Props {
     variantId: string,
     delta: number,
   ) => void;
+  // album_code -> Set of other album IDs that are missing this sticker
+  crossAlbumNeeded?: Map<string, string[]>;
+  // album_code -> Set of other album IDs that have extras of this sticker
+  crossAlbumAvailable?: Map<string, string[]>;
 }
 
 const COLS = 4;
@@ -35,9 +40,12 @@ export default function StickerGrid({
   stickers,
   ownedMap,
   userId,
+  albumId,
   token,
   onCollectionChange,
   onOptimisticAdjust,
+  crossAlbumNeeded,
+  crossAlbumAvailable,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
@@ -80,9 +88,9 @@ export default function StickerGrid({
       onOptimisticAdjust(sticker.album_code, variantType, variantId, delta);
       try {
         if (delta > 0 && current === 0) {
-          await addSticker(userId, variantId, 1, token || undefined);
+          await addSticker(userId, variantId, 1, token || undefined, albumId);
         } else {
-          await patchSticker(userId, variantId, Math.max(0, next), token || undefined);
+          await patchSticker(userId, variantId, Math.max(0, next), token || undefined, albumId);
         }
         onCollectionChange();
       } catch (err) {
@@ -91,14 +99,14 @@ export default function StickerGrid({
         onOptimisticAdjust(sticker.album_code, variantType, variantId, -delta);
       }
     },
-    [userId, token, ownedMap, onCollectionChange, onOptimisticAdjust, addToast],
+    [userId, albumId, token, ownedMap, onCollectionChange, onOptimisticAdjust, addToast],
   );
 
   const handleAddNew = useCallback(
     async (sticker: Sticker, variantId: string, variantType: string) => {
       onOptimisticAdjust(sticker.album_code, variantType, variantId, 1);
       try {
-        await addSticker(userId, variantId, 1, token || undefined);
+        await addSticker(userId, variantId, 1, token || undefined, albumId);
         onCollectionChange();
       } catch (err) {
         console.error('Failed to add variant', err);
@@ -106,7 +114,20 @@ export default function StickerGrid({
         onOptimisticAdjust(sticker.album_code, variantType, variantId, -1);
       }
     },
-    [userId, token, onCollectionChange, onOptimisticAdjust, addToast],
+    [userId, token, albumId, onCollectionChange, onOptimisticAdjust, addToast],
+  );
+
+  const handleMove = useCallback(
+    async (variantId: string, targetAlbumId: string, quantity: number) => {
+      try {
+        await moveSticker(userId, albumId, variantId, targetAlbumId, quantity, token);
+        onCollectionChange();
+      } catch (err) {
+        console.error('Failed to move sticker', err);
+        addToast('Failed to move sticker. Please try again.');
+      }
+    },
+    [userId, albumId, token, onCollectionChange, addToast],
   );
 
   if (stickers.length === 0) {
@@ -151,6 +172,8 @@ export default function StickerGrid({
                       key={sticker.album_code}
                       sticker={sticker}
                       ownedVariants={ownedVariants}
+                      crossAlbumNeededBy={crossAlbumNeeded?.get(sticker.album_code)}
+                      crossAlbumAvailableIn={crossAlbumAvailable?.get(sticker.album_code)}
                       onOpenPopover={(anchor) =>
                         handleOpenPopover(sticker, anchor)
                       }
@@ -174,6 +197,7 @@ export default function StickerGrid({
             ownedMap.get(popover.sticker.album_code) ?? new Map()
           }
           anchorRect={popover.rect}
+          albumId={albumId}
           token={token}
           onClose={() => setPopover(null)}
           onAdjust={(variantId, variantType, delta) =>
@@ -182,6 +206,7 @@ export default function StickerGrid({
           onAddNew={(variantId, variantType) =>
             handleAddNew(popover.sticker, variantId, variantType)
           }
+          onMove={handleMove}
         />
       )}
     </>

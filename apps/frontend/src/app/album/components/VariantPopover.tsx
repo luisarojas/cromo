@@ -11,6 +11,8 @@ import {
   EDITION_LABELS,
 } from '@/lib/albumPages';
 import { usePreferencesStore } from '@/store/preferences';
+import { useAlbumsStore } from '@/store/albums';
+import { albumDisplayName } from '@/lib/api';
 
 export interface OwnedVariantEntry {
   variantId: string;
@@ -21,10 +23,12 @@ interface Props {
   sticker: Sticker;
   ownedVariants: Map<string, OwnedVariantEntry>; // keyed by variant_type
   anchorRect: DOMRect;
+  albumId: string;
   token: string;
   onClose: () => void;
   onAdjust: (variantId: string, variantType: string, delta: 1 | -1) => Promise<void>;
   onAddNew: (variantId: string, variantType: string) => Promise<void>;
+  onMove: (variantId: string, targetAlbumId: string, quantity: number) => Promise<void>;
 }
 
 const POPOVER_WIDTH = 280;
@@ -33,18 +37,26 @@ export default function VariantPopover({
   sticker,
   ownedVariants,
   anchorRect,
+  albumId,
   token,
   onClose,
   onAdjust,
   onAddNew,
+  onMove,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [allVariants, setAllVariants] = useState<StickerVariant[] | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [showAddPicker, setShowAddPicker] = useState(false);
+  const [showMovePicker, setShowMovePicker] = useState(false);
+  const [moveVariantId, setMoveVariantId] = useState<string | null>(null);
+  const [moveTargetAlbumId, setMoveTargetAlbumId] = useState<string>('');
+  const [moveQuantity, setMoveQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
 
   const albumEdition = usePreferencesStore((s) => s.albumEdition);
+  const albums = useAlbumsStore((s) => s.albums);
+  const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {
     if (sticker.sticker_type === 'coca_cola') {
@@ -116,6 +128,25 @@ export default function VariantPopover({
     try {
       await onAddNew(variantId, variantType);
       setShowAddPicker(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openMovePicker(variantId: string) {
+    setMoveVariantId(variantId);
+    setMoveTargetAlbumId(otherAlbums[0]?.id ?? '');
+    setMoveQuantity(1);
+    setShowMovePicker(true);
+  }
+
+  async function handleMove() {
+    if (!moveVariantId || !moveTargetAlbumId || busy) return;
+    setBusy(true);
+    try {
+      await onMove(moveVariantId, moveTargetAlbumId, moveQuantity);
+      setShowMovePicker(false);
+      setMoveVariantId(null);
     } finally {
       setBusy(false);
     }
@@ -211,6 +242,83 @@ export default function VariantPopover({
       )}
 
       <div className="h-px bg-gray-100" />
+
+      {/* Move to another album */}
+      {otherAlbums.length > 0 && ownedEntries.length > 0 && (
+        <>
+          {!showMovePicker ? (
+            <button
+              onClick={() => openMovePicker(ownedEntries[0]![1].variantId)}
+              className="text-xs font-medium text-violet-600 hover:text-violet-700 self-start"
+            >
+              ↗ Move to another album
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-medium text-gray-700">Move sticker</div>
+
+              {ownedEntries.length > 1 && (
+                <select
+                  value={moveVariantId ?? ''}
+                  onChange={(e) => setMoveVariantId(e.target.value)}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                >
+                  {ownedEntries.map(([vt, entry]) => (
+                    <option key={entry.variantId} value={entry.variantId}>
+                      {variantLabel(vt)} (×{entry.quantity})
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 shrink-0">To</label>
+                <select
+                  value={moveTargetAlbumId}
+                  onChange={(e) => setMoveTargetAlbumId(e.target.value)}
+                  className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                >
+                  {otherAlbums.map((a) => (
+                    <option key={a.id} value={a.id}>{albumDisplayName(a)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 shrink-0">Qty</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={
+                    ownedEntries.find(([, e]) => e.variantId === moveVariantId)?.[1].quantity ?? 1
+                  }
+                  value={moveQuantity}
+                  onChange={(e) => setMoveQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleMove}
+                  disabled={busy || !moveTargetAlbumId}
+                  className="flex-1 rounded-md bg-violet-600 text-white text-xs font-medium py-1.5 hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {busy ? 'Moving…' : 'Move'}
+                </button>
+                <button
+                  onClick={() => setShowMovePicker(false)}
+                  disabled={busy}
+                  className="px-3 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="h-px bg-gray-100" />
+        </>
+      )}
 
       {/* Add other variant */}
       {!showAddPicker ? (

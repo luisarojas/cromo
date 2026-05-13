@@ -97,6 +97,13 @@ export async function register(
       [userId]
     );
 
+    // Create default album
+    await client.query(
+      `INSERT INTO user_albums (user_id, album_type_key, edition, is_default)
+       VALUES ($1, 'fifa_world_cup_2026', 'north_america', true)`,
+      [userId]
+    );
+
     // Create verification token
     const token = generateToken();
     await client.query(

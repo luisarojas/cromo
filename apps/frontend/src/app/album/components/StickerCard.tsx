@@ -7,6 +7,10 @@ import type { OwnedVariantEntry } from './VariantPopover';
 interface Props {
   sticker: Sticker;
   ownedVariants?: Map<string, OwnedVariantEntry>;
+  // album names that are missing this sticker (need it)
+  crossAlbumNeededBy?: string[];
+  // album names that have extras of this sticker (can give)
+  crossAlbumAvailableIn?: string[];
   onOpenPopover: (anchor: HTMLElement) => void;
 }
 
@@ -22,6 +26,8 @@ const TYPE_COLORS: Record<string, string> = {
 export default function StickerCard({
   sticker,
   ownedVariants,
+  crossAlbumNeededBy,
+  crossAlbumAvailableIn,
   onOpenPopover,
 }: Props) {
   const typeColor =
@@ -105,6 +111,30 @@ export default function StickerCard({
           ))}
         </div>
       )}
+
+      {/* Cross-album indicators */}
+      {(crossAlbumNeededBy?.length || crossAlbumAvailableIn?.length) ? (
+        <div className="mt-1.5 flex gap-1 flex-wrap">
+          {crossAlbumNeededBy?.map((name) => (
+            <span
+              key={`need-${name}`}
+              title={`"${name}" needs this sticker`}
+              className="inline-block rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold px-1.5 py-0.5 leading-none"
+            >
+              ↓ {name}
+            </span>
+          ))}
+          {crossAlbumAvailableIn?.map((name) => (
+            <span
+              key={`avail-${name}`}
+              title={`"${name}" has extra copies`}
+              className="inline-block rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-semibold px-1.5 py-0.5 leading-none"
+            >
+              ↑ {name}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {/* Action hint */}
       <div className="mt-2 text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">

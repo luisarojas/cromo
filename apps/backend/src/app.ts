@@ -17,6 +17,7 @@ import { stickersRoutes } from './routes/v1/stickers.js';
 import { collectionRoutes } from './routes/v1/collection.js';
 import { adminRoutes } from './routes/v1/admin.js';
 import { usersRoutes } from './routes/v1/users.js';
+import { albumsRoutes } from './routes/v1/albums.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -75,6 +76,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(collectionRoutes);
   await fastify.register(adminRoutes);
   await fastify.register(usersRoutes);
+  await fastify.register(albumsRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   fastify.setErrorHandler<FastifyError>((error, _request, reply) => {

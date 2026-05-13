@@ -87,17 +87,33 @@ CREATE TABLE IF NOT EXISTS sticker_variants (
   UNIQUE (sticker_id, variant_type)
 );
 
+CREATE TABLE IF NOT EXISTS user_albums (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  album_type_key TEXT NOT NULL DEFAULT 'fifa_world_cup_2026',
+  alias TEXT,
+  edition TEXT NOT NULL DEFAULT 'north_america'
+    CHECK (edition IN ('north_america', 'international', 'swiss_gold', 'south_america')),
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT user_albums_alias_length CHECK (alias IS NULL OR (char_length(alias) BETWEEN 1 AND 100))
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_albums_user_id ON user_albums(user_id);
+
 CREATE TABLE IF NOT EXISTS user_stickers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
+  album_id UUID NOT NULL REFERENCES user_albums(id) ON DELETE CASCADE,
   sticker_variant_id UUID NOT NULL REFERENCES sticker_variants(id),
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity >= 0),
   acquired_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_id, sticker_variant_id)
+  UNIQUE (album_id, sticker_variant_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_stickers_duplicates ON user_stickers(user_id) WHERE quantity > 1;
+CREATE INDEX IF NOT EXISTS idx_user_stickers_duplicates ON user_stickers(album_id) WHERE quantity > 1;
 
 CREATE TABLE IF NOT EXISTS trade_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

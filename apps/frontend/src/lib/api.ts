@@ -314,6 +314,7 @@ export async function fetchStickerVariants(
 export async function fetchCollection(
   userId: string,
   params?: {
+    albumId?: string;
     team?: string;
     group?: string;
     type?: string;
@@ -334,9 +335,11 @@ export async function fetchCollection(
 export async function fetchStats(
   userId: string,
   token?: string,
+  albumId?: string,
 ): Promise<CollectionStats> {
+  const qs = albumId ? `?albumId=${encodeURIComponent(albumId)}` : '';
   return apiFetch<CollectionStats>(
-    `/api/v1/users/${userId}/collection/stats`,
+    `/api/v1/users/${userId}/collection/stats${qs}`,
     {},
     token,
   );
@@ -344,7 +347,7 @@ export async function fetchStats(
 
 export async function fetchMissing(
   userId: string,
-  params?: { team?: string; group?: string; cursor?: number; limit?: number },
+  params?: { albumId?: string; team?: string; group?: string; cursor?: number; limit?: number },
   token?: string,
 ): Promise<PagedResult<MissingItem>> {
   const qs = toQueryString(params ?? {});
@@ -357,7 +360,7 @@ export async function fetchMissing(
 
 export async function fetchDuplicates(
   userId: string,
-  params?: { cursor?: number; limit?: number },
+  params?: { albumId?: string; cursor?: number; limit?: number },
   token?: string,
 ): Promise<PagedResult<DuplicateItem>> {
   const qs = toQueryString(params ?? {});
@@ -368,17 +371,105 @@ export async function fetchDuplicates(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Album endpoints
+// ---------------------------------------------------------------------------
+
+export interface UserAlbum {
+  id: string;
+  user_id: string;
+  album_type_key: string;
+  alias: string | null;
+  edition: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const ALBUM_TYPE_LABELS: Record<string, string> = {
+  fifa_world_cup_2026: 'FIFA World Cup 2026™ Official Sticker Collection',
+};
+
+export function albumDisplayName(album: UserAlbum): string {
+  return album.alias ?? ALBUM_TYPE_LABELS[album.album_type_key] ?? album.album_type_key;
+}
+
+export async function fetchUserAlbums(
+  userId: string,
+  token: string,
+): Promise<UserAlbum[]> {
+  const { items } = await apiFetch<{ items: UserAlbum[] }>(
+    `/api/v1/users/${userId}/albums`,
+    {},
+    token,
+  );
+  return items;
+}
+
+export async function createUserAlbum(
+  userId: string,
+  body: { alias?: string | null; edition?: string },
+  token: string,
+): Promise<UserAlbum> {
+  return apiFetch<UserAlbum>(
+    `/api/v1/users/${userId}/albums`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function updateUserAlbum(
+  userId: string,
+  albumId: string,
+  patch: { alias?: string | null; edition?: string },
+  token: string,
+): Promise<UserAlbum> {
+  return apiFetch<UserAlbum>(
+    `/api/v1/users/${userId}/albums/${albumId}`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+    token,
+  );
+}
+
+export async function deleteUserAlbum(
+  userId: string,
+  albumId: string,
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/albums/${albumId}`,
+    { method: 'DELETE' },
+    token,
+  );
+}
+
+export async function moveSticker(
+  userId: string,
+  sourceAlbumId: string,
+  variantId: string,
+  targetAlbumId: string,
+  quantity: number,
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/albums/${sourceAlbumId}/stickers/${variantId}/move`,
+    { method: 'POST', body: JSON.stringify({ targetAlbumId, quantity }) },
+    token,
+  );
+}
+
 export async function addSticker(
   userId: string,
   variantId: string,
   quantity?: number,
   token?: string,
+  albumId?: string,
 ): Promise<CollectionItem> {
   return apiFetch<CollectionItem>(
     `/api/v1/users/${userId}/stickers`,
     {
       method: 'POST',
-      body: JSON.stringify({ variantId, quantity }),
+      body: JSON.stringify({ variantId, quantity, albumId }),
     },
     token,
   );
@@ -389,9 +480,11 @@ export async function patchSticker(
   variantId: string,
   quantity: number,
   token?: string,
+  albumId?: string,
 ): Promise<CollectionItem> {
+  const qs = albumId ? `?albumId=${encodeURIComponent(albumId)}` : '';
   return apiFetch<CollectionItem>(
-    `/api/v1/users/${userId}/stickers/${variantId}`,
+    `/api/v1/users/${userId}/stickers/${variantId}${qs}`,
     {
       method: 'PATCH',
       body: JSON.stringify({ quantity }),
@@ -404,9 +497,11 @@ export async function deleteSticker(
   userId: string,
   variantId: string,
   token?: string,
+  albumId?: string,
 ): Promise<void> {
+  const qs = albumId ? `?albumId=${encodeURIComponent(albumId)}` : '';
   return apiFetch<void>(
-    `/api/v1/users/${userId}/stickers/${variantId}`,
+    `/api/v1/users/${userId}/stickers/${variantId}${qs}`,
     { method: 'DELETE' },
     token,
   );

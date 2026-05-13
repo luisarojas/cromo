@@ -34,6 +34,23 @@ export const users = pgTable('users', {
   roleCheck: check('users_role_check', sql`${table.role} IN ('user', 'admin')`),
 }));
 
+// ─── user_albums ──────────────────────────────────────────────────────────────
+
+export const userAlbums = pgTable('user_albums', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  albumTypeKey: text('album_type_key').notNull().default('fifa_world_cup_2026'),
+  alias: text('alias'),
+  edition: text('edition').notNull().default('north_america'),
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  userIdIdx: index('idx_user_albums_user_id').on(table.userId),
+  editionCheck: check('user_albums_edition_check', sql`${table.edition} IN ('north_america', 'international', 'swiss_gold', 'south_america')`),
+  aliasLengthCheck: check('user_albums_alias_length', sql`${table.alias} IS NULL OR (char_length(${table.alias}) BETWEEN 1 AND 100)`),
+}));
+
 // ─── user_settings ────────────────────────────────────────────────────────────
 
 export const userSettings = pgTable('user_settings', {
@@ -127,16 +144,17 @@ export const stickerVariants = pgTable('sticker_variants', {
 export const userStickers = pgTable('user_stickers', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid('user_id').notNull().references(() => users.id),
+  albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
   stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
   quantity: integer('quantity').notNull().default(1),
   acquiredAt: timestamp('acquired_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
-  userVariantUnique: uniqueIndex('user_stickers_user_id_sticker_variant_id_unique').on(
-    table.userId,
+  albumVariantUnique: uniqueIndex('user_stickers_album_id_sticker_variant_id_unique').on(
+    table.albumId,
     table.stickerVariantId
   ),
-  duplicatesIdx: index('idx_user_stickers_duplicates').on(table.userId).where(sql`quantity > 1`),
+  duplicatesIdx: index('idx_user_stickers_duplicates').on(table.albumId).where(sql`quantity > 1`),
   quantityCheck: check('user_stickers_quantity_check', sql`${table.quantity} >= 0`),
 }));
 
@@ -307,6 +325,8 @@ export const userBans = pgTable('user_bans', {
 // ─── Type exports ─────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
+export type UserAlbum = typeof userAlbums.$inferSelect;
+export type NewUserAlbum = typeof userAlbums.$inferInsert;
 export type NewUser = typeof users.$inferInsert;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type NewUserSettings = typeof userSettings.$inferInsert;
