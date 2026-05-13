@@ -93,10 +93,11 @@ export interface PagedResult<T> {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function buildHeaders(token?: string): HeadersInit {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+function buildHeaders(token?: string, hasBody = false): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (hasBody) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -108,10 +109,11 @@ async function apiFetch<T>(
   options: RequestInit = {},
   token?: string,
 ): Promise<T> {
+  const hasBody = options.body !== undefined;
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
-      ...buildHeaders(token),
+      ...buildHeaders(token, hasBody),
       ...(options.headers ?? {}),
     },
   });

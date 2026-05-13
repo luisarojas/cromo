@@ -95,8 +95,9 @@ function hashFilters(filters: object): string {
 async function invalidateUserCaches(redis: Redis, userId: string): Promise<void> {
   const patterns = [
     `user:${userId}:collection:*`,
+    `user:${userId}:missing:*`,
     `user:${userId}:summary`,
-    `user:${userId}:duplicates`,
+    `user:${userId}:duplicates:*`,
   ];
 
   for (const pattern of patterns) {
@@ -119,7 +120,7 @@ export async function getCollection(
   userId: string,
   filters: CollectionFilters
 ): Promise<PaginatedResult<CollectionItem>> {
-  const limit = Math.min(filters.limit ?? 50, 200);
+  const limit = Math.min(filters.limit ?? 50, 1000);
   const normalised = { ...filters, limit };
   const cacheKey = `user:${userId}:collection:${hashFilters(normalised)}`;
 
@@ -202,7 +203,7 @@ export async function getMissing(
   userId: string,
   filters: MissingFilters
 ): Promise<PaginatedResult<MissingItem>> {
-  const limit = Math.min(filters.limit ?? 50, 200);
+  const limit = Math.min(filters.limit ?? 50, 1000);
   const normalised = { ...filters, limit };
   const cacheKey = `user:${userId}:missing:${hashFilters(normalised)}`;
 
@@ -279,7 +280,7 @@ export async function getDuplicates(
   cursor?: number,
   limit = 50
 ): Promise<PaginatedResult<DuplicateItem>> {
-  const pageSize = Math.min(limit, 200);
+  const pageSize = Math.min(limit, 1000);
   const cacheKey = `user:${userId}:duplicates:${cursor ?? 0}:${pageSize}`;
 
   const cached = await redis.get(cacheKey);

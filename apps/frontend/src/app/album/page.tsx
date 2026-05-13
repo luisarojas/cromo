@@ -82,7 +82,7 @@ export default function AlbumPage() {
     try {
       const [statsData, collectionData] = await Promise.all([
         fetchStats(DEMO_USER_ID, tok),
-        fetchCollection(DEMO_USER_ID, { limit: 200 }, tok),
+        fetchCollection(DEMO_USER_ID, { limit: 1000 }, tok),
       ]);
 
       setStats(statsData);
@@ -165,14 +165,22 @@ export default function AlbumPage() {
     } else if (tab === 'missing') {
       // Use missingItems if loaded, otherwise filter locally
       if (missingItems.length > 0) {
-        base = missingItems as unknown as Sticker[];
+        // Normalise: MissingItem has variant_id (the base variant UUID).
+        // Map it to base_variant_id so StickerGrid.handleAdd can use it.
+        base = missingItems.map((m) => ({
+          ...m,
+          base_variant_id: m.variant_id,
+        })) as unknown as Sticker[];
       } else {
         base = stickers.filter((s) => !ownedMap.has(s.album_code));
       }
     } else {
       // duplicates: stickers where quantity > 1
       if (duplicateItems.length > 0) {
-        base = duplicateItems as unknown as Sticker[];
+        base = duplicateItems.map((d) => ({
+          ...d,
+          base_variant_id: d.sticker_variant_id,
+        })) as unknown as Sticker[];
       } else {
         base = stickers.filter((s) => {
           const entry = ownedMap.get(s.album_code);
@@ -212,6 +220,31 @@ export default function AlbumPage() {
     setMissingItems([]);
     setDuplicateItems([]);
   }, [loadCollection, token]);
+
+  const handleOptimisticRemove = useCallback((albumCode: string) => {
+    setOwnedMap((prev) => {
+      const next = new Map(prev);
+      const entry = next.get(albumCode);
+      if (!entry) return prev;
+      if (entry.quantity <= 1) {
+        next.delete(albumCode);
+      } else {
+        next.set(albumCode, { ...entry, quantity: entry.quantity - 1 });
+      }
+      return next;
+    });
+  }, []);
+
+  const handleOptimisticRestore = useCallback(
+    (albumCode: string, entry: { quantity: number; variantId: string }) => {
+      setOwnedMap((prev) => {
+        const next = new Map(prev);
+        next.set(albumCode, entry);
+        return next;
+      });
+    },
+    [],
+  );
 
   // ---------------------------------------------------------------------------
   // Render
@@ -295,6 +328,8 @@ export default function AlbumPage() {
             userId={DEMO_USER_ID}
             token={token}
             onCollectionChange={handleCollectionChange}
+            onOptimisticRemove={handleOptimisticRemove}
+            onOptimisticRestore={handleOptimisticRestore}
           />
         )}
       </div>

@@ -83,7 +83,7 @@ export default function StickerCard({
 
       {/* Action buttons — shown on hover */}
       <div className="mt-2 flex gap-1">
-        {owned ? (
+        {owned && (
           <button
             onClick={onRemove}
             className="flex-1 rounded bg-red-100 text-red-600 text-xs py-0.5 font-medium hover:bg-red-200 transition-colors opacity-0 group-hover:opacity-100"
@@ -91,15 +91,14 @@ export default function StickerCard({
           >
             Remove
           </button>
-        ) : (
-          <button
-            onClick={onAdd}
-            className="flex-1 rounded bg-blue-100 text-blue-600 text-xs py-0.5 font-medium hover:bg-blue-200 transition-colors opacity-0 group-hover:opacity-100"
-            title="Add to collection"
-          >
-            + Add
-          </button>
         )}
+        <button
+          onClick={onAdd}
+          className="flex-1 rounded bg-blue-100 text-blue-600 text-xs py-0.5 font-medium hover:bg-blue-200 transition-colors opacity-0 group-hover:opacity-100"
+          title="Add to collection"
+        >
+          + Add
+        </button>
       </div>
     </div>
   );

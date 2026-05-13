@@ -45,7 +45,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
             type:    { type: 'string' },
             variant: { type: 'string' },
             cursor:  { type: 'integer' },
-            limit:   { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            limit:   { type: 'integer', minimum: 1, maximum: 1000, default: 50 },
           },
         },
         response: {
@@ -177,7 +177,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
             team:   { type: 'string' },
             group:  { type: 'string' },
             cursor: { type: 'integer' },
-            limit:  { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            limit:  { type: 'integer', minimum: 1, maximum: 1000, default: 50 },
           },
         },
         response: {
@@ -255,7 +255,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
           type: 'object',
           properties: {
             cursor: { type: 'integer' },
-            limit:  { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            limit:  { type: 'integer', minimum: 1, maximum: 1000, default: 50 },
           },
         },
         response: {

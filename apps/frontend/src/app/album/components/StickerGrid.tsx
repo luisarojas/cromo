@@ -3,7 +3,8 @@
 import { useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Sticker } from '@/lib/api';
-import { addSticker, deleteSticker } from '@/lib/api';
+import { addSticker, patchSticker } from '@/lib/api';
+import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
 
 interface OwnedEntry {
@@ -17,6 +18,8 @@ interface Props {
   userId: string;
   token: string;
   onCollectionChange: () => void;
+  onOptimisticRemove: (albumCode: string) => void;
+  onOptimisticRestore: (albumCode: string, entry: OwnedEntry) => void;
 }
 
 const COLS = 4;
@@ -28,8 +31,11 @@ export default function StickerGrid({
   userId,
   token,
   onCollectionChange,
+  onOptimisticRemove,
+  onOptimisticRestore,
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const { addToast } = useToast();
 
   const rows = Math.ceil(stickers.length / COLS);
 
@@ -42,29 +48,37 @@ export default function StickerGrid({
 
   const handleAdd = useCallback(
     async (sticker: Sticker) => {
-      if (!sticker.base_variant_id) return;
+      const variantId = sticker.base_variant_id;
+      if (!variantId) {
+        console.warn('No base_variant_id for sticker', sticker.album_code, '— Redis cache may be stale. Restart the API container to clear it.');
+        return;
+      }
       try {
-        await addSticker(userId, sticker.base_variant_id, 1, token || undefined);
+        await addSticker(userId, variantId, 1, token || undefined);
         onCollectionChange();
       } catch (err) {
         console.error('Failed to add sticker', err);
+        addToast('Failed to add sticker. Please try again.');
       }
     },
-    [userId, token, onCollectionChange],
+    [userId, token, onCollectionChange, addToast],
   );
 
   const handleRemove = useCallback(
     async (sticker: Sticker) => {
       const entry = ownedMap.get(sticker.album_code);
       if (!entry) return;
+      onOptimisticRemove(sticker.album_code);
       try {
-        await deleteSticker(userId, entry.variantId, token || undefined);
+        await patchSticker(userId, entry.variantId, entry.quantity - 1, token || undefined);
         onCollectionChange();
       } catch (err) {
         console.error('Failed to remove sticker', err);
+        addToast('Failed to remove sticker. Please try again.');
+        onOptimisticRestore(sticker.album_code, entry);
       }
     },
-    [userId, token, ownedMap, onCollectionChange],
+    [userId, token, ownedMap, onCollectionChange, onOptimisticRemove, onOptimisticRestore, addToast],
   );
 
   if (stickers.length === 0) {

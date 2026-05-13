@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { ToastProvider } from '@/components/ToastProvider';
 
 export const metadata: Metadata = {
   title: 'Stickfolio',
@@ -55,9 +56,11 @@ export default function RootLayout({
         </nav>
 
         {/* Main content wrapped in ErrorBoundary */}
-        <ErrorBoundary>
-          <main>{children}</main>
-        </ErrorBoundary>
+        <ToastProvider>
+          <ErrorBoundary>
+            <main>{children}</main>
+          </ErrorBoundary>
+        </ToastProvider>
       </body>
     </html>
   );
