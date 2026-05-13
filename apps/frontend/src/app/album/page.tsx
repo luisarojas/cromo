@@ -153,6 +153,23 @@ export default function AlbumPage() {
   }, [tab, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
+  // Derive real owned totals from ownedMap for tab badges
+  // ---------------------------------------------------------------------------
+  const totalOwnedQuantity = useMemo(
+    () => Array.from(ownedMap.values()).reduce((sum, e) => sum + e.quantity, 0),
+    [ownedMap],
+  );
+
+  const totalExtraCopies = useMemo(
+    () =>
+      Array.from(ownedMap.values()).reduce(
+        (sum, e) => (e.quantity > 1 ? sum + (e.quantity - 1) : sum),
+        0,
+      ),
+    [ownedMap],
+  );
+
+  // ---------------------------------------------------------------------------
   // Derive displayed stickers from active tab + filters
   // ---------------------------------------------------------------------------
   const displayedStickers = useMemo<Sticker[]>(() => {
@@ -299,7 +316,9 @@ export default function AlbumPage() {
               )}
               {id === 'have' && stats && (
                 <span className="ml-1.5 text-xs text-gray-400">
-                  ({stats.owned})
+                  {totalOwnedQuantity > stats.owned
+                    ? `(${stats.owned} / ${totalOwnedQuantity})`
+                    : `(${stats.owned})`}
                 </span>
               )}
               {id === 'missing' && stats && (
@@ -309,7 +328,9 @@ export default function AlbumPage() {
               )}
               {id === 'duplicates' && stats && (
                 <span className="ml-1.5 text-xs text-gray-400">
-                  ({stats.duplicates})
+                  {totalExtraCopies > 0
+                    ? `(${stats.duplicates} / +${totalExtraCopies})`
+                    : `(${stats.duplicates})`}
                 </span>
               )}
             </button>
