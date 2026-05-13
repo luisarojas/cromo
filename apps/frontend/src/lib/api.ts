@@ -2,6 +2,35 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // ---------------------------------------------------------------------------
+// Local dev auth
+// TODO Phase B: replace with real Cognito/session token
+// ---------------------------------------------------------------------------
+
+let _devTokenCache: string | null = null;
+let _devTokenPromise: Promise<string> | null = null;
+
+export async function getLocalDevToken(): Promise<string> {
+  if (_devTokenCache) return _devTokenCache;
+  // Deduplicate concurrent calls — only one login request in flight at a time
+  if (!_devTokenPromise) {
+    _devTokenPromise = (async () => {
+      const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'alice@test.local', password: 'local-dev' }),
+      });
+      if (!res.ok) throw new Error('Local dev login failed');
+      const data = (await res.json()) as { accessToken: string };
+      _devTokenCache = data.accessToken;
+      return _devTokenCache;
+    })().finally(() => {
+      _devTokenPromise = null;
+    });
+  }
+  return _devTokenPromise;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 

@@ -7,13 +7,9 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   fetchStickers,
   patchAdminSticker,
+  getLocalDevToken,
   type Sticker,
 } from '@/lib/api';
-
-// ---------------------------------------------------------------------------
-// Local dev constant — replace with real auth token in Phase B
-// ---------------------------------------------------------------------------
-const ADMIN_TOKEN = ''; // placeholder; the backend will enforce admin role
 
 // ---------------------------------------------------------------------------
 // Inline edit form
@@ -135,6 +131,7 @@ function EditRow({
 // ---------------------------------------------------------------------------
 
 export default function AdminStickersPage() {
+  const [token, setToken] = useState('');
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,11 +146,10 @@ export default function AdminStickersPage() {
       setLoading(true);
       setError(null);
       try {
+        const tok = await getLocalDevToken();
+        if (!cancelled) setToken(tok);
         // Fetch first batch — enough for admin table; increase if needed
-        const result = await fetchStickers(
-          { limit: 200 },
-          ADMIN_TOKEN || undefined,
-        );
+        const result = await fetchStickers({ limit: 200 }, tok);
         if (!cancelled) setStickers(result.items);
       } catch (err) {
         if (!cancelled)
@@ -179,14 +175,14 @@ export default function AdminStickersPage() {
       if (form.notes) body.notes = form.notes;
       if (form.albumPage) body.albumPage = parseInt(form.albumPage, 10);
 
-      const updated = await patchAdminSticker(id, body, ADMIN_TOKEN || undefined);
+      const updated = await patchAdminSticker(id, body, token || undefined);
 
       setStickers((prev) =>
         prev.map((s) => (s.id === id ? { ...s, ...updated } : s)),
       );
       setEditingId(null);
     },
-    [],
+    [token],
   );
 
   // Filter stickers by search

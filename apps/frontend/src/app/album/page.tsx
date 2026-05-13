@@ -11,6 +11,7 @@ import {
   fetchCollection,
   fetchMissing,
   fetchDuplicates,
+  getLocalDevToken,
   type Sticker,
   type CollectionStats,
   type MissingItem,
@@ -24,7 +25,6 @@ import StickerGrid from './components/StickerGrid';
 // Local dev constants — replace with real auth in Phase B
 // ---------------------------------------------------------------------------
 const DEMO_USER_ID = '00000000-0000-0000-0000-000000000002'; // Alice
-const DEMO_TOKEN = ''; // No auth required for local dev; pass empty string
 
 // ---------------------------------------------------------------------------
 // Tab type
@@ -46,7 +46,7 @@ async function fetchAllStickers(
   while (all.length < maxItems) {
     const result = await fetchStickers(
       { ...params, cursor: cursor ?? undefined, limit: 200 },
-      DEMO_TOKEN || undefined,
+      undefined,
     );
     all.push(...result.items);
     if (!result.nextCursor || result.items.length === 0) break;
@@ -61,6 +61,7 @@ async function fetchAllStickers(
 // ---------------------------------------------------------------------------
 
 export default function AlbumPage() {
+  const [token, setToken] = useState<string>('');
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
   const [ownedMap, setOwnedMap] = useState<
@@ -77,18 +78,11 @@ export default function AlbumPage() {
   // ---------------------------------------------------------------------------
   // Load collection (stats + owned map) — called on initial load and after mutations
   // ---------------------------------------------------------------------------
-  const loadCollection = useCallback(async () => {
+  const loadCollection = useCallback(async (tok: string) => {
     try {
       const [statsData, collectionData] = await Promise.all([
-        fetchStats(DEMO_USER_ID, DEMO_TOKEN || undefined),
-        fetchAllStickers({}, 1200).then(() =>
-          // Fetch all collection items
-          fetchCollection(
-            DEMO_USER_ID,
-            { limit: 200 },
-            DEMO_TOKEN || undefined,
-          ),
-        ),
+        fetchStats(DEMO_USER_ID, tok),
+        fetchCollection(DEMO_USER_ID, { limit: 200 }, tok),
       ]);
 
       setStats(statsData);
@@ -117,9 +111,11 @@ export default function AlbumPage() {
       setLoading(true);
       setError(null);
       try {
+        const tok = await getLocalDevToken();
+        if (!cancelled) setToken(tok);
         const [allStickers] = await Promise.all([
           fetchAllStickers({}),
-          loadCollection(),
+          loadCollection(tok),
         ]);
         if (!cancelled) {
           setStickers(allStickers);
@@ -143,38 +139,18 @@ export default function AlbumPage() {
   // Load missing/duplicates when those tabs are active
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (tab === 'missing' && missingItems.length === 0) {
-      const loadMissing = async () => {
-        try {
-          const result = await fetchMissing(
-            DEMO_USER_ID,
-            { limit: 200 },
-            DEMO_TOKEN || undefined,
-          );
-          setMissingItems(result.items);
-        } catch (err) {
-          console.error('Failed to load missing', err);
-        }
-      };
-      loadMissing();
+    if (tab === 'missing' && missingItems.length === 0 && token) {
+      fetchMissing(DEMO_USER_ID, { limit: 200 }, token)
+        .then((r) => setMissingItems(r.items))
+        .catch((err) => console.error('Failed to load missing', err));
     }
 
-    if (tab === 'duplicates' && duplicateItems.length === 0) {
-      const loadDuplicates = async () => {
-        try {
-          const result = await fetchDuplicates(
-            DEMO_USER_ID,
-            { limit: 200 },
-            DEMO_TOKEN || undefined,
-          );
-          setDuplicateItems(result.items);
-        } catch (err) {
-          console.error('Failed to load duplicates', err);
-        }
-      };
-      loadDuplicates();
+    if (tab === 'duplicates' && duplicateItems.length === 0 && token) {
+      fetchDuplicates(DEMO_USER_ID, { limit: 200 }, token)
+        .then((r) => setDuplicateItems(r.items))
+        .catch((err) => console.error('Failed to load duplicates', err));
     }
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Derive displayed stickers from active tab + filters
@@ -232,11 +208,10 @@ export default function AlbumPage() {
   // Handle collection mutation (add/remove sticker)
   // ---------------------------------------------------------------------------
   const handleCollectionChange = useCallback(async () => {
-    await loadCollection();
-    // Reset missing/duplicates so they reload when tabs are visited
+    if (token) await loadCollection(token);
     setMissingItems([]);
     setDuplicateItems([]);
-  }, [loadCollection]);
+  }, [loadCollection, token]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -318,7 +293,7 @@ export default function AlbumPage() {
             stickers={displayedStickers}
             ownedMap={ownedMap}
             userId={DEMO_USER_ID}
-            token={DEMO_TOKEN}
+            token={token}
             onCollectionChange={handleCollectionChange}
           />
         )}

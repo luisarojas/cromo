@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { fetchStats, type CollectionStats } from '@/lib/api';
+import { fetchStats, getLocalDevToken, type CollectionStats } from '@/lib/api';
 
 const DEMO_USER_ID = '00000000-0000-0000-0000-000000000002'; // Alice
 
@@ -19,7 +19,8 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const data = await fetchStats(DEMO_USER_ID);
+        const tok = await getLocalDevToken();
+        const data = await fetchStats(DEMO_USER_ID, tok);
         if (!cancelled) setStats(data);
       } catch (err) {
         if (!cancelled)
