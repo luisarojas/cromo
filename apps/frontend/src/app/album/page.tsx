@@ -1,0 +1,328 @@
+'use client';
+
+// TODO: replace with real auth context in Phase B
+// Local dev uses Alice's hardcoded user ID.
+// The token below is a placeholder — in production this comes from the auth session.
+
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import {
+  fetchStickers,
+  fetchStats,
+  fetchCollection,
+  fetchMissing,
+  fetchDuplicates,
+  type Sticker,
+  type CollectionStats,
+  type MissingItem,
+  type DuplicateItem,
+} from '@/lib/api';
+import FilterBar, { type FilterState } from './components/FilterBar';
+import StatsBar from './components/StatsBar';
+import StickerGrid from './components/StickerGrid';
+
+// ---------------------------------------------------------------------------
+// Local dev constants — replace with real auth in Phase B
+// ---------------------------------------------------------------------------
+const DEMO_USER_ID = '00000000-0000-0000-0000-000000000002'; // Alice
+const DEMO_TOKEN = ''; // No auth required for local dev; pass empty string
+
+// ---------------------------------------------------------------------------
+// Tab type
+// ---------------------------------------------------------------------------
+type Tab = 'all' | 'have' | 'missing' | 'duplicates';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Fetch ALL pages of stickers up to maxItems, looping cursor. */
+async function fetchAllStickers(
+  params: Omit<Parameters<typeof fetchStickers>[0], 'cursor' | 'limit'>,
+  maxItems = 1200,
+): Promise<Sticker[]> {
+  const all: Sticker[] = [];
+  let cursor: number | null | undefined = undefined;
+
+  while (all.length < maxItems) {
+    const result = await fetchStickers(
+      { ...params, cursor: cursor ?? undefined, limit: 200 },
+      DEMO_TOKEN || undefined,
+    );
+    all.push(...result.items);
+    if (!result.nextCursor || result.items.length === 0) break;
+    cursor = result.nextCursor;
+  }
+
+  return all;
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
+
+export default function AlbumPage() {
+  const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [stats, setStats] = useState<CollectionStats | null>(null);
+  const [ownedMap, setOwnedMap] = useState<
+    Map<string, { quantity: number; variantId: string }>
+  >(new Map());
+  const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
+  const [duplicateItems, setDuplicateItems] = useState<DuplicateItem[]>([]);
+
+  const [tab, setTab] = useState<Tab>('all');
+  const [filters, setFilters] = useState<FilterState>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Load collection (stats + owned map) — called on initial load and after mutations
+  // ---------------------------------------------------------------------------
+  const loadCollection = useCallback(async () => {
+    try {
+      const [statsData, collectionData] = await Promise.all([
+        fetchStats(DEMO_USER_ID, DEMO_TOKEN || undefined),
+        fetchAllStickers({}, 1200).then(() =>
+          // Fetch all collection items
+          fetchCollection(
+            DEMO_USER_ID,
+            { limit: 200 },
+            DEMO_TOKEN || undefined,
+          ),
+        ),
+      ]);
+
+      setStats(statsData);
+
+      // Build ownedMap keyed by album_code
+      const map = new Map<string, { quantity: number; variantId: string }>();
+      for (const item of collectionData.items) {
+        map.set(item.album_code, {
+          quantity: item.quantity,
+          variantId: item.sticker_variant_id,
+        });
+      }
+      setOwnedMap(map);
+    } catch (err) {
+      console.error('Failed to load collection', err);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Initial load
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [allStickers] = await Promise.all([
+          fetchAllStickers({}),
+          loadCollection(),
+        ]);
+        if (!cancelled) {
+          setStickers(allStickers);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load data');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------------------------------------------------------------------------
+  // Load missing/duplicates when those tabs are active
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (tab === 'missing' && missingItems.length === 0) {
+      const loadMissing = async () => {
+        try {
+          const result = await fetchMissing(
+            DEMO_USER_ID,
+            { limit: 200 },
+            DEMO_TOKEN || undefined,
+          );
+          setMissingItems(result.items);
+        } catch (err) {
+          console.error('Failed to load missing', err);
+        }
+      };
+      loadMissing();
+    }
+
+    if (tab === 'duplicates' && duplicateItems.length === 0) {
+      const loadDuplicates = async () => {
+        try {
+          const result = await fetchDuplicates(
+            DEMO_USER_ID,
+            { limit: 200 },
+            DEMO_TOKEN || undefined,
+          );
+          setDuplicateItems(result.items);
+        } catch (err) {
+          console.error('Failed to load duplicates', err);
+        }
+      };
+      loadDuplicates();
+    }
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------------------------------------------------------------------------
+  // Derive displayed stickers from active tab + filters
+  // ---------------------------------------------------------------------------
+  const displayedStickers = useMemo<Sticker[]>(() => {
+    let base: Sticker[];
+
+    if (tab === 'all') {
+      base = stickers;
+    } else if (tab === 'have') {
+      base = stickers.filter((s) => ownedMap.has(s.album_code));
+    } else if (tab === 'missing') {
+      // Use missingItems if loaded, otherwise filter locally
+      if (missingItems.length > 0) {
+        base = missingItems as unknown as Sticker[];
+      } else {
+        base = stickers.filter((s) => !ownedMap.has(s.album_code));
+      }
+    } else {
+      // duplicates: stickers where quantity > 1
+      if (duplicateItems.length > 0) {
+        base = duplicateItems as unknown as Sticker[];
+      } else {
+        base = stickers.filter((s) => {
+          const entry = ownedMap.get(s.album_code);
+          return entry && entry.quantity > 1;
+        });
+      }
+    }
+
+    // Apply client-side filters
+    return base.filter((s) => {
+      if (filters.group && s.group_name !== filters.group) return false;
+      if (
+        filters.team &&
+        !s.team_name?.toLowerCase().includes(filters.team.toLowerCase()) &&
+        !s.fifa_code?.toLowerCase().includes(filters.team.toLowerCase())
+      )
+        return false;
+      if (filters.type && s.sticker_type !== filters.type) return false;
+      if (
+        filters.search &&
+        !s.player_name
+          ?.toLowerCase()
+          .includes(filters.search.toLowerCase()) &&
+        !s.album_code.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !s.team_name?.toLowerCase().includes(filters.search.toLowerCase())
+      )
+        return false;
+      return true;
+    });
+  }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems]);
+
+  // ---------------------------------------------------------------------------
+  // Handle collection mutation (add/remove sticker)
+  // ---------------------------------------------------------------------------
+  const handleCollectionChange = useCallback(async () => {
+    await loadCollection();
+    // Reset missing/duplicates so they reload when tabs are visited
+    setMissingItems([]);
+    setDuplicateItems([]);
+  }, [loadCollection]);
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'all', label: 'All Stickers' },
+    { id: 'have', label: 'Have' },
+    { id: 'missing', label: 'Missing' },
+    { id: 'duplicates', label: 'Duplicates' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4">
+        <h1 className="text-2xl font-bold text-gray-800">
+          Album{' '}
+          <span className="text-base font-normal text-gray-400">
+            — Alice (local dev)
+          </span>
+        </h1>
+
+        {error && (
+          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* Stats */}
+        <StatsBar stats={stats} loading={loading} />
+
+        {/* Filters */}
+        <FilterBar filters={filters} onChange={setFilters} />
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-gray-200">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                tab === id
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {label}
+              {id === 'all' && !loading && stickers.length > 0 && (
+                <span className="ml-1.5 text-xs text-gray-400">
+                  ({stickers.length})
+                </span>
+              )}
+              {id === 'have' && stats && (
+                <span className="ml-1.5 text-xs text-gray-400">
+                  ({stats.owned})
+                </span>
+              )}
+              {id === 'missing' && stats && (
+                <span className="ml-1.5 text-xs text-gray-400">
+                  ({stats.missing})
+                </span>
+              )}
+              {id === 'duplicates' && stats && (
+                <span className="ml-1.5 text-xs text-gray-400">
+                  ({stats.duplicates})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Grid */}
+        {loading ? (
+          <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+            Loading stickers…
+          </div>
+        ) : (
+          <StickerGrid
+            stickers={displayedStickers}
+            ownedMap={ownedMap}
+            userId={DEMO_USER_ID}
+            token={DEMO_TOKEN}
+            onCollectionChange={handleCollectionChange}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

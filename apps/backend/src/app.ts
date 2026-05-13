@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyError } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyRateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 
 import { env } from './env.js';
 import { corsPlugin } from './plugins/cors.js';
@@ -12,6 +13,9 @@ import { redisPluginWrapped } from './plugins/redis.js';
 import { healthRoutes } from './routes/v1/health.js';
 import { versionRoutes } from './routes/v1/version.js';
 import { authRoutes } from './routes/v1/auth.js';
+import { stickersRoutes } from './routes/v1/stickers.js';
+import { collectionRoutes } from './routes/v1/collection.js';
+import { adminRoutes } from './routes/v1/admin.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -39,6 +43,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     secret: env.JWT_SECRET, // Signs cookies for integrity
   });
 
+  // ── Multipart (file uploads) ──────────────────────────────────────────────
+  await fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
+
   // ── Rate limiting ─────────────────────────────────────────────────────────
   await fastify.register(fastifyRateLimit, {
     max: env.RATE_LIMIT_MAX,
@@ -63,6 +70,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(healthRoutes);
   await fastify.register(versionRoutes);
   await fastify.register(authRoutes);
+  await fastify.register(stickersRoutes);
+  await fastify.register(collectionRoutes);
+  await fastify.register(adminRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   fastify.setErrorHandler<FastifyError>((error, _request, reply) => {
