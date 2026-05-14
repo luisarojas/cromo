@@ -1,6 +1,7 @@
 'use client';
 
 import type { Sticker } from '@/lib/api';
+import { flagUrl } from '@/lib/flags';
 import { variantRarity, variantShort, variantSwatch } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
 
@@ -83,9 +84,22 @@ export default function StickerCard({
         {sticker.player_name ?? sticker.team_name ?? '—'}
       </div>
 
-      {sticker.team_name && sticker.player_name && (
-        <div className="text-[10px] text-gray-500 truncate leading-tight mb-1">
-          {sticker.fifa_code ?? sticker.team_name}
+      {sticker.fifa_code && (
+        <div className="flex items-center gap-1 mb-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={flagUrl(sticker.fifa_code) ?? undefined}
+            alt={sticker.fifa_code}
+            width={20}
+            height={14}
+            className="rounded-[2px] object-cover flex-shrink-0"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
+          {sticker.player_name && (
+            <span className="text-[10px] text-gray-500 truncate leading-tight">
+              {sticker.fifa_code}
+            </span>
+          )}
         </div>
       )}
 
