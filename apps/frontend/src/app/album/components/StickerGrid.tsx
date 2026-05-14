@@ -7,7 +7,6 @@ import { addSticker, patchSticker, moveSticker } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
 import VariantPopover, { type OwnedVariantEntry } from './VariantPopover';
-
 export type OwnedVariantMap = Map<string, OwnedVariantEntry>; // variantType -> entry
 
 interface Props {

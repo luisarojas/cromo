@@ -7,7 +7,6 @@ import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './vari
 import {
   formatPageSpread,
   COCA_COLA_LOCATION,
-  EDITION_LABELS,
   type AlbumEdition,
 } from '@/lib/albumPages';
 import { useAlbumsStore } from '@/store/albums';
@@ -210,12 +209,9 @@ export default function VariantPopover({
             {sticker.player_name ?? sticker.team_name ?? '—'}
           </div>
           {pageLocation && (
-            <div className="mt-1 flex items-center gap-1">
+            <div className="mt-1">
               <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 tabular-nums">
                 {pageLocation}
-              </span>
-              <span className="text-[10px] text-gray-400">
-                {EDITION_LABELS[albumEdition]}
               </span>
             </div>
           )}
@@ -234,7 +230,7 @@ export default function VariantPopover({
       {/* Owned variants */}
       {!showMovePicker && !showMoveFromPicker && (ownedEntries.length === 0 ? (
         <div className="text-xs text-gray-500 italic py-1">
-          You don&apos;t own any variants of this sticker yet.
+          Not in your collection yet.
         </div>
       ) : (
         <ul className="flex flex-col gap-1.5">
