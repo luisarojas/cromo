@@ -16,6 +16,7 @@ import {
   deleteUserAlbum,
   setDefaultUserAlbum,
   albumDisplayName,
+  ALBUM_TYPE_LABELS,
   type Sticker,
   type CollectionStats,
   type MissingItem,
@@ -510,6 +511,11 @@ export default function AlbumDetailPage() {
               </h1>
               {activeAlbum && (
                 <p className="text-sm text-gray-500 mt-0.5">
+                  {activeAlbum.alias && (
+                    <span className="mr-1.5">
+                      {ALBUM_TYPE_LABELS[activeAlbum.album_type_key] ?? activeAlbum.album_type_key} ·
+                    </span>
+                  )}
                   {EDITION_LABELS[activeAlbum.edition as AlbumEdition] ?? activeAlbum.edition} Edition
                   {activeAlbum.is_default && (
                     <span className="ml-2 inline-flex items-center gap-1 text-amber-500">

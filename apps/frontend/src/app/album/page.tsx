@@ -11,6 +11,7 @@ import {
   deleteUserAlbum,
   setDefaultUserAlbum,
   albumDisplayName,
+  ALBUM_TYPE_LABELS,
   type UserAlbum,
   type CollectionStats,
 } from '@/lib/api';
@@ -219,6 +220,11 @@ export default function AlbumsPage() {
                         <h2 className="font-semibold text-gray-800 truncate leading-snug">
                           {albumDisplayName(album)}
                         </h2>
+                        {album.alias && (
+                          <p className="text-[11px] text-gray-400 truncate mt-0.5 leading-snug">
+                            {ALBUM_TYPE_LABELS[album.album_type_key] ?? album.album_type_key}
+                          </p>
+                        )}
                         <span className={`inline-block mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
                           {EDITION_LABELS[album.edition as AlbumEdition] ?? album.edition}
                         </span>
