@@ -247,6 +247,33 @@ function StickersSection({ token }: { token: string }) {
 // Users section
 // ---------------------------------------------------------------------------
 
+type SortCol = 'username' | 'email' | 'role' | 'status' | 'joined';
+type SortDir = 'asc' | 'desc';
+
+function SortableHeader({
+  col,
+  label,
+  sortCol,
+  sortDir,
+  onClick,
+}: {
+  col: SortCol;
+  label: string;
+  sortCol: SortCol;
+  sortDir: SortDir;
+  onClick: (col: SortCol) => void;
+}) {
+  const active = sortCol === col;
+  return (
+    <th
+      className={`px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide cursor-pointer select-none transition-colors ${active ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'}`}
+      onClick={() => onClick(col)}
+    >
+      {label}
+    </th>
+  );
+}
+
 function StatusBadge({ user }: { user: AdminUser }) {
   if (user.deleted_at) {
     return (
@@ -350,6 +377,8 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
   const [searchInput, setSearchInput] = useState('');
   const [banningId, setBanningId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [sortCol, setSortCol] = useState<SortCol>('username');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -373,8 +402,31 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
     setSearch(searchInput);
   };
 
-  const handleRoleToggle = async (user: AdminUser) => {
-    const newRole = user.role === 'admin' ? 'user' : 'admin';
+  const handleSortClick = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
+  const statusOrder = (u: AdminUser) => (u.deleted_at ? 2 : u.is_banned ? 1 : 0);
+
+  const sorted = [...users].sort((a, b) => {
+    let cmp = 0;
+    switch (sortCol) {
+      case 'username': cmp = a.username.localeCompare(b.username); break;
+      case 'email': cmp = a.email.localeCompare(b.email); break;
+      case 'role': cmp = a.role.localeCompare(b.role); break;
+      case 'status': cmp = statusOrder(a) - statusOrder(b); break;
+      case 'joined': cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const handleRoleChange = async (user: AdminUser, newRole: 'admin' | 'user') => {
+    if (newRole === user.role) return;
     const label = newRole === 'admin' ? 'promote to admin' : 'demote to user';
     if (!window.confirm(`${label} "${user.username}"?`)) return;
     setActionError(null);
@@ -464,21 +516,21 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Username</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Email</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Role</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Joined</th>
+                  <SortableHeader col="username" label="Username" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
+                  <SortableHeader col="email" label="Email" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
+                  <SortableHeader col="role" label="Role" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
+                  <SortableHeader col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
+                  <SortableHeader col="joined" label="Joined" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
                   <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {users.length === 0 && (
+                {sorted.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-8 text-center text-gray-400">No users found.</td>
                   </tr>
                 )}
-                {users.map((user) => (
+                {sorted.map((user) => (
                   <Fragment key={user.id}>
                     <tr
                       className={`hover:bg-gray-50 transition-colors ${user.deleted_at ? 'opacity-50' : ''}`}
@@ -490,7 +542,20 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                         )}
                       </td>
                       <td className="px-4 py-2 text-gray-500">{user.email}</td>
-                      <td className="px-4 py-2"><RoleBadge role={user.role} /></td>
+                      <td className="px-4 py-2">
+                        {user.id === currentUserId || user.deleted_at ? (
+                          <RoleBadge role={user.role} />
+                        ) : (
+                          <select
+                            value={user.role}
+                            onChange={(e) => handleRoleChange(user, e.target.value as 'admin' | 'user')}
+                            className="text-xs rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                          >
+                            <option value="user">user</option>
+                            <option value="admin">admin</option>
+                          </select>
+                        )}
+                      </td>
                       <td className="px-4 py-2"><StatusBadge user={user} /></td>
                       <td className="px-4 py-2 text-gray-400 text-xs">
                         {new Date(user.created_at).toLocaleDateString()}
@@ -500,12 +565,6 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                           <span className="text-xs text-gray-300">—</span>
                         ) : (
                           <div className="flex gap-1.5 flex-wrap">
-                            <button
-                              onClick={() => handleRoleToggle(user)}
-                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"
-                            >
-                              {user.role === 'admin' ? 'Demote' : 'Promote'}
-                            </button>
                             {user.is_banned ? (
                               <button
                                 onClick={() => handleUnban(user)}
