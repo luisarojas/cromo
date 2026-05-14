@@ -167,12 +167,15 @@ export default function StickerGrid({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-1">
                 {rowStickers.map((sticker) => {
                   const ownedVariants = ownedMap.get(sticker.album_code);
+                  const totalQuantity = ownedVariants
+                    ? Array.from(ownedVariants.values()).reduce((sum, e) => sum + e.quantity, 0)
+                    : 0;
                   return (
                     <StickerCard
                       key={sticker.album_code}
                       sticker={sticker}
                       ownedVariants={ownedVariants}
-                      crossAlbumNeededBy={crossAlbumNeeded?.get(sticker.album_code)}
+                      crossAlbumNeededBy={totalQuantity > 1 ? crossAlbumNeeded?.get(sticker.album_code) : undefined}
                       crossAlbumAvailableIn={crossAlbumAvailable?.get(sticker.album_code)}
                       onOpenPopover={(anchor) =>
                         handleOpenPopover(sticker, anchor)

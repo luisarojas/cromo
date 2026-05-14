@@ -69,6 +69,23 @@ export default function VariantPopover({
     return spread ? formatPageSpread(spread) : null;
   })();
 
+  // Fetch all variants on mount so we can hide the "Add another variant" button
+  // immediately when the user already owns every available variant.
+  useEffect(() => {
+    async function load() {
+      setLoadingVariants(true);
+      try {
+        const items = await fetchStickerVariants(sticker.album_code, token);
+        setAllVariants(items);
+      } catch (err) {
+        console.error('Failed to fetch variants', err);
+      } finally {
+        setLoadingVariants(false);
+      }
+    }
+    load();
+  }, [sticker.album_code, token]);
+
   // Close on outside click / Esc
   useEffect(() => {
     const handleDown = (e: MouseEvent) => {
@@ -98,18 +115,8 @@ export default function VariantPopover({
 
   const ownedEntries = Array.from(ownedVariants.entries()); // [variantType, entry]
 
-  async function openAddPicker() {
+  function openAddPicker() {
     setShowAddPicker(true);
-    if (allVariants !== null) return;
-    setLoadingVariants(true);
-    try {
-      const items = await fetchStickerVariants(sticker.album_code, token);
-      setAllVariants(items);
-    } catch (err) {
-      console.error('Failed to fetch variants', err);
-    } finally {
-      setLoadingVariants(false);
-    }
   }
 
   async function handleAdjust(variantId: string, variantType: string, delta: 1 | -1) {
@@ -321,10 +328,12 @@ export default function VariantPopover({
       )}
 
       {/* Add other variant */}
-      {!showAddPicker ? (
+      {!showAddPicker && !loadingVariants && unownedVariants.length === 0 ? null :
+      !showAddPicker ? (
         <button
           onClick={openAddPicker}
           className="text-xs font-medium text-blue-600 hover:text-blue-700 self-start"
+          disabled={loadingVariants}
         >
           + Add other variant
         </button>

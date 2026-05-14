@@ -403,7 +403,7 @@ type SettingsTab = 'account' | 'album';
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'account', label: 'Account' },
-  { id: 'album', label: 'Album' },
+  { id: 'album', label: 'Albums' },
 ];
 
 export default function SettingsPage() {
