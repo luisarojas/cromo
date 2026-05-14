@@ -29,6 +29,8 @@ interface Props {
   onAdjust: (variantId: string, variantType: string, delta: 1 | -1) => Promise<void>;
   onAddNew: (variantId: string, variantType: string) => Promise<void>;
   onMove: (variantId: string, targetAlbumId: string, quantity: number) => Promise<void>;
+  onMoveFrom: (variantId: string, sourceAlbumId: string, quantity: number) => Promise<void>;
+  albumsWithSticker?: Array<{ id: string; name: string }>;
 }
 
 const POPOVER_WIDTH = 280;
@@ -43,6 +45,8 @@ export default function VariantPopover({
   onAdjust,
   onAddNew,
   onMove,
+  onMoveFrom,
+  albumsWithSticker,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [allVariants, setAllVariants] = useState<StickerVariant[] | null>(null);
@@ -53,6 +57,10 @@ export default function VariantPopover({
   const [moveTargetAlbumId, setMoveTargetAlbumId] = useState<string>('');
   const [moveQuantity, setMoveQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [showMoveFromPicker, setShowMoveFromPicker] = useState(false);
+  const [moveFromSourceAlbumId, setMoveFromSourceAlbumId] = useState<string>('');
+  const [moveFromVariantId, setMoveFromVariantId] = useState<string>('');
+  const [moveFromQuantity, setMoveFromQuantity] = useState(1);
 
   const albums = useAlbumsStore((s) => s.albums);
   const albumEdition = (albums.find((a) => a.id === albumId)?.edition ?? 'north_america') as AlbumEdition;
@@ -103,11 +111,16 @@ export default function VariantPopover({
     };
   }, [onClose]);
 
-  // Position the popover near the anchor, clamped to the viewport
-  const top = Math.min(
-    anchorRect.bottom + 6,
-    window.innerHeight - 8,
-  );
+  // Position the popover near the anchor, flipping above when space below is tight
+  const spaceBelow = window.innerHeight - anchorRect.bottom - 14;
+  const spaceAbove = anchorRect.top - 14;
+  const showAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+  const maxPopoverHeight = Math.max(showAbove ? spaceAbove : spaceBelow, 150);
+
+  const posStyle = showAbove
+    ? { bottom: window.innerHeight - anchorRect.top + 6, top: 'auto' as const }
+    : { top: anchorRect.bottom + 6, bottom: 'auto' as const };
+
   const left = Math.min(
     Math.max(8, anchorRect.left),
     window.innerWidth - POPOVER_WIDTH - 8,
@@ -159,6 +172,24 @@ export default function VariantPopover({
     }
   }
 
+  function openMoveFromPicker() {
+    setMoveFromSourceAlbumId(albumsWithSticker?.[0]?.id ?? '');
+    setMoveFromVariantId(allVariants?.[0]?.id ?? '');
+    setMoveFromQuantity(1);
+    setShowMoveFromPicker(true);
+  }
+
+  async function handleMoveFrom() {
+    if (!moveFromVariantId || !moveFromSourceAlbumId || busy) return;
+    setBusy(true);
+    try {
+      await onMoveFrom(moveFromVariantId, moveFromSourceAlbumId, moveFromQuantity);
+      setShowMoveFromPicker(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const unownedVariants = (allVariants ?? []).filter(
     (v) => !ownedVariants.has(v.variant_type),
   );
@@ -168,8 +199,8 @@ export default function VariantPopover({
       ref={ref}
       role="dialog"
       aria-label={`Manage variants for sticker ${sticker.album_code}`}
-      className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl p-3 flex flex-col gap-2"
-      style={{ top, left, width: POPOVER_WIDTH }}
+      className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl p-3 flex flex-col gap-2 overflow-y-auto"
+      style={{ ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }}
     >
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
@@ -202,7 +233,7 @@ export default function VariantPopover({
       <div className="h-px bg-gray-100" />
 
       {/* Owned variants */}
-      {ownedEntries.length === 0 ? (
+      {!showMovePicker && !showMoveFromPicker && (ownedEntries.length === 0 ? (
         <div className="text-xs text-gray-500 italic py-1">
           You don&apos;t own any variants of this sticker yet.
         </div>
@@ -246,23 +277,16 @@ export default function VariantPopover({
             </li>
           ))}
         </ul>
-      )}
+      ))}
 
-      <div className="h-px bg-gray-100" />
+      {!showMovePicker && !showMoveFromPicker && <div className="h-px bg-gray-100" />}
 
-      {/* Move to another album */}
-      {otherAlbums.length > 0 && ownedEntries.length > 0 && (
+      {/* Move to / from another album */}
+      {otherAlbums.length > 0 && (ownedEntries.length > 0 || (albumsWithSticker && albumsWithSticker.length > 0)) && (
         <>
-          {!showMovePicker ? (
-            <button
-              onClick={() => openMovePicker(ownedEntries[0]![1].variantId)}
-              className="text-xs font-medium text-violet-600 hover:text-violet-700 self-start"
-            >
-              ↗ Move to another album
-            </button>
-          ) : (
+          {showMovePicker ? (
             <div className="flex flex-col gap-2">
-              <div className="text-xs font-medium text-gray-700">Move sticker</div>
+              <div className="text-xs font-medium text-gray-700">Move to another album</div>
 
               {ownedEntries.length > 1 && (
                 <select
@@ -321,6 +345,85 @@ export default function VariantPopover({
                   Cancel
                 </button>
               </div>
+            </div>
+          ) : showMoveFromPicker ? (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-medium text-gray-700">Move from another album</div>
+
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 shrink-0">From</label>
+                <select
+                  value={moveFromSourceAlbumId}
+                  onChange={(e) => setMoveFromSourceAlbumId(e.target.value)}
+                  className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                >
+                  {(albumsWithSticker ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {allVariants && allVariants.length > 1 && (
+                <select
+                  value={moveFromVariantId}
+                  onChange={(e) => setMoveFromVariantId(e.target.value)}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                >
+                  {allVariants.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {variantLabel(v.variant_type)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              <div className="flex gap-2 items-center">
+                <label className="text-xs text-gray-500 shrink-0">Qty</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={moveFromQuantity}
+                  onChange={(e) => setMoveFromQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleMoveFrom}
+                  disabled={busy || !moveFromSourceAlbumId || !moveFromVariantId}
+                  className="flex-1 rounded-md bg-violet-600 text-white text-xs font-medium py-1.5 hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {busy ? 'Moving…' : 'Move'}
+                </button>
+                <button
+                  onClick={() => setShowMoveFromPicker(false)}
+                  disabled={busy}
+                  className="px-3 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {ownedEntries.length > 0 && (
+                <button
+                  onClick={() => openMovePicker(ownedEntries[0]![1].variantId)}
+                  className="text-xs font-medium text-violet-600 hover:text-violet-700 self-start"
+                >
+                  ↗ Move to another album
+                </button>
+              )}
+              {albumsWithSticker && albumsWithSticker.length > 0 && (
+                <button
+                  onClick={openMoveFromPicker}
+                  disabled={loadingVariants}
+                  className="text-xs font-medium text-violet-600 hover:text-violet-700 self-start disabled:opacity-50"
+                >
+                  ↙ Move from another album
+                </button>
+              )}
             </div>
           )}
           <div className="h-px bg-gray-100" />

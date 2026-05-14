@@ -259,6 +259,22 @@ export default function AlbumDetailPage() {
     return map;
   }, [albumSummaries, albumId, albums]);
 
+  const crossAlbumHasSticker = useMemo<Map<string, Array<{ id: string; name: string }>>>(() => {
+    if (albumSummaries.length === 0) return new Map();
+    const map = new Map<string, Array<{ id: string; name: string }>>();
+    for (const summary of albumSummaries) {
+      if (summary.album_id === albumId) continue;
+      const album = albums.find((a) => a.id === summary.album_id);
+      if (!album) continue;
+      const name = albumDisplayName(album);
+      for (const albumCode of summary.owned_album_codes) {
+        if (!map.has(albumCode)) map.set(albumCode, []);
+        map.get(albumCode)!.push({ id: summary.album_id, name });
+      }
+    }
+    return map;
+  }, [albumSummaries, albumId, albums]);
+
   // ---------------------------------------------------------------------------
   // Derived totals
   // ---------------------------------------------------------------------------
@@ -636,6 +652,7 @@ export default function AlbumDetailPage() {
             onOptimisticAdjust={handleOptimisticAdjust}
             crossAlbumNeeded={crossAlbumNeeded}
             crossAlbumAvailable={crossAlbumAvailable}
+            crossAlbumHasSticker={crossAlbumHasSticker}
           />
         ) : null}
       </div>

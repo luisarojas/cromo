@@ -27,6 +27,8 @@ interface Props {
   crossAlbumNeeded?: Map<string, string[]>;
   // album_code -> Set of other album IDs that have extras of this sticker
   crossAlbumAvailable?: Map<string, string[]>;
+  // album_code -> albums that own this sticker (used for move-from picker)
+  crossAlbumHasSticker?: Map<string, Array<{ id: string; name: string }>>;
 }
 
 const COLS = 4;
@@ -46,8 +48,10 @@ export default function StickerGrid({
   onOptimisticAdjust,
   crossAlbumNeeded,
   crossAlbumAvailable,
+  crossAlbumHasSticker,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
+  const popoverAnchorRef = useRef<HTMLElement | null>(null);
   const { addToast } = useToast();
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
@@ -61,15 +65,24 @@ export default function StickerGrid({
     scrollMargin: listRef.current?.offsetTop ?? 0,
   });
 
+  // Keep popover anchored to its tile while the user scrolls
+  const isPopoverOpen = popover !== null;
   useEffect(() => {
-    if (!popover) return;
-    const close = () => setPopover(null);
-    window.addEventListener('scroll', close, { passive: true });
-    return () => window.removeEventListener('scroll', close);
-  }, [popover]);
+    if (!isPopoverOpen) return;
+    const update = () => {
+      if (popoverAnchorRef.current) {
+        setPopover((prev) =>
+          prev ? { ...prev, rect: popoverAnchorRef.current!.getBoundingClientRect() } : null,
+        );
+      }
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, [isPopoverOpen]);
 
   const handleOpenPopover = useCallback(
     (sticker: Sticker, anchor: HTMLElement) => {
+      popoverAnchorRef.current = anchor;
       setPopover({ sticker, rect: anchor.getBoundingClientRect() });
     },
     [],
@@ -124,6 +137,19 @@ export default function StickerGrid({
         onCollectionChange({ reloadSummaries: true });
       } catch (err) {
         console.error('Failed to move sticker', err);
+        addToast('Failed to move sticker. Please try again.');
+      }
+    },
+    [userId, albumId, token, onCollectionChange, addToast],
+  );
+
+  const handleMoveFrom = useCallback(
+    async (variantId: string, sourceAlbumId: string, quantity: number) => {
+      try {
+        await moveSticker(userId, sourceAlbumId, variantId, albumId, quantity, token);
+        onCollectionChange({ reloadSummaries: true });
+      } catch (err) {
+        console.error('Failed to move sticker from other album', err);
         addToast('Failed to move sticker. Please try again.');
       }
     },
@@ -210,6 +236,8 @@ export default function StickerGrid({
             handleAddNew(popover.sticker, variantId, variantType)
           }
           onMove={handleMove}
+          onMoveFrom={handleMoveFrom}
+          albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.album_code)}
         />
       )}
     </>
