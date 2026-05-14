@@ -28,6 +28,7 @@ export interface StickerRow {
   group_name: string | null;
   base_variant_id: string | null;
   team_pages: Record<string, [number, number]> | null;
+  sticker_pages: Record<string, { page_start: number | null; page_end: number | null; description: string | null }> | null;
 }
 
 export interface StickerVariantRow {
@@ -81,7 +82,9 @@ export async function listStickers(
             t.name AS team_name, t.fifa_code, t.group_name,
             sv.id AS base_variant_id,
             (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
-             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages
+             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages,
+            (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
+             FROM sticker_album_pages sap WHERE sap.sticker_id = s.id) AS sticker_pages
      FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
      LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'
@@ -135,7 +138,9 @@ export async function getStickerByAlbumCode(
             t.name AS team_name, t.fifa_code, t.group_name,
             sv.id AS base_variant_id,
             (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
-             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages
+             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages,
+            (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
+             FROM sticker_album_pages sap WHERE sap.sticker_id = s.id) AS sticker_pages
      FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
      LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'

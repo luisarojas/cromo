@@ -163,6 +163,20 @@ export const stickers = pgTable('stickers', {
   numberCheck: check('stickers_number_check', sql`${table.number} BETWEEN 0 AND 9999`),
 }));
 
+// ─── sticker_album_pages ──────────────────────────────────────────────────────
+
+export const stickerAlbumPages = pgTable('sticker_album_pages', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  stickerId: uuid('sticker_id').notNull().references(() => stickers.id, { onDelete: 'cascade' }),
+  edition: text('edition').notNull(),
+  pageStart: integer('page_start'),
+  pageEnd: integer('page_end'),
+  description: text('description'),
+}, (table) => ({
+  stickerEditionUnique: unique('sticker_album_pages_sticker_id_edition_unique').on(table.stickerId, table.edition),
+  stickerIdIdx: index('idx_sticker_album_pages_sticker_id').on(table.stickerId),
+}));
+
 // ─── team_album_pages ─────────────────────────────────────────────────────────
 
 export const teamAlbumPages = pgTable('team_album_pages', {
@@ -403,6 +417,7 @@ export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect
 export type NewEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type Team = typeof teams.$inferSelect;
+export type StickerAlbumPage = typeof stickerAlbumPages.$inferSelect;
 export type TeamAlbumPage = typeof teamAlbumPages.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
 export type StickerVariant = typeof stickerVariants.$inferSelect;

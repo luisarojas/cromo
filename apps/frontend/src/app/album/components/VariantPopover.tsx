@@ -6,7 +6,6 @@ import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/a
 import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import {
   formatPageSpread,
-  COCA_COLA_LOCATION,
   type AlbumEdition,
 } from '@/lib/albumPages';
 import { useAlbumsStore } from '@/store/albums';
@@ -65,11 +64,12 @@ export default function VariantPopover({
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {
-    if (sticker.sticker_type === 'coca_cola_special') {
-      const loc = COCA_COLA_LOCATION[albumEdition];
-      return loc.type === 'numbered'
-        ? formatPageSpread(loc.pages)
-        : loc.description;
+    const sp = sticker.sticker_pages?.[albumEdition];
+    if (sp) {
+      if (sp.page_start !== null && sp.page_end !== null) {
+        return formatPageSpread([sp.page_start, sp.page_end]);
+      }
+      return sp.description ?? null;
     }
     const pages = sticker.team_pages?.[albumEdition];
     return pages ? formatPageSpread(pages as [number, number]) : null;

@@ -167,6 +167,7 @@ export interface Sticker {
   group_name: string | null;
   base_variant_id: string | null;
   team_pages: Partial<Record<AlbumEdition, [number, number]>> | null;
+  sticker_pages: Partial<Record<AlbumEdition, { page_start: number | null; page_end: number | null; description: string | null }>> | null;
 }
 
 export interface CollectionItem extends Sticker {
@@ -273,8 +274,9 @@ function toQueryString(
 // Sticker catalog — with localStorage cache (24h TTL, version-keyed)
 // ---------------------------------------------------------------------------
 
-const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v3';
-const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v6';
+// const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const STICKER_CACHE_TTL_MS = 0;
 
 export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
   if (typeof window !== 'undefined') {

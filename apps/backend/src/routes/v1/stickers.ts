@@ -50,6 +50,17 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
                     group_name:       { type: 'string', nullable: true },
                     base_variant_id:  { type: 'string', nullable: true },
                     team_pages:       { type: 'object', nullable: true, additionalProperties: { type: 'array', items: { type: 'integer' } } },
+                    sticker_pages:    {
+                      type: 'object', nullable: true,
+                      additionalProperties: {
+                        type: 'object',
+                        properties: {
+                          page_start:  { type: 'integer', nullable: true },
+                          page_end:    { type: 'integer', nullable: true },
+                          description: { type: 'string', nullable: true },
+                        },
+                      },
+                    },
                   },
                 },
               },

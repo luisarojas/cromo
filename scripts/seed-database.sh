@@ -44,6 +44,12 @@ echo "✓ Host city stickers seeded (HC1–HC16)"
 run_seed scripts/seeds/12_swiss_legend_stickers.sql
 echo "✓ Swiss Legend stickers seeded (L1–L10, Swiss Gold edition)"
 
+run_seed scripts/seeds/13_team_album_pages.sql
+echo "✓ Team album pages seeded"
+
+run_seed scripts/seeds/14_sticker_album_pages.sql
+echo "✓ Sticker album pages seeded (CC, FWC/intro)"
+
 if [ "$NODE_ENV" != "production" ]; then
   run_seed scripts/seeds/07_test_users.sql
   echo "✓ Test users seeded (non-production only)"
