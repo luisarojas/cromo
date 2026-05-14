@@ -5,6 +5,264 @@ import { verifyToken } from '../../middleware/auth.js';
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
+  // ─── User management ────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/v1/admin/users
+   * Admin only — list all users with ban status.
+   */
+  fastify.get(
+    '/api/v1/admin/users',
+    { preHandler: [verifyToken] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.userRole !== 'admin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
+      }
+
+      const { search, page, limit } = request.query as {
+        search?: string;
+        page?: string;
+        limit?: string;
+      };
+
+      const pageNum = Math.max(1, parseInt(page ?? '1', 10));
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10)));
+      const offset = (pageNum - 1) * limitNum;
+      const searchParam = search ? `%${search}%` : null;
+
+      try {
+        const { rows } = await fastify.db.query<{
+          id: string;
+          username: string;
+          email: string;
+          role: string;
+          created_at: string;
+          deleted_at: string | null;
+          is_banned: boolean;
+        }>(
+          `SELECT
+             u.id, u.username, u.email, u.role, u.created_at, u.deleted_at,
+             EXISTS(
+               SELECT 1 FROM user_bans b
+               WHERE b.user_id = u.id
+                 AND b.lifted_at IS NULL
+                 AND (b.expires_at IS NULL OR b.expires_at > NOW())
+             ) AS is_banned
+           FROM users u
+           WHERE ($1::text IS NULL OR u.username ILIKE $1 OR u.email ILIKE $1)
+           ORDER BY u.created_at DESC
+           LIMIT $2 OFFSET $3`,
+          [searchParam, limitNum, offset],
+        );
+
+        const { rows: countRows } = await fastify.db.query<{ count: string }>(
+          `SELECT COUNT(*) AS count FROM users u
+           WHERE ($1::text IS NULL OR u.username ILIKE $1 OR u.email ILIKE $1)`,
+          [searchParam],
+        );
+
+        return reply.status(200).send({
+          items: rows,
+          total: parseInt(countRows[0].count, 10),
+          page: pageNum,
+          limit: limitNum,
+        });
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      }
+    },
+  );
+
+  /**
+   * PATCH /api/v1/admin/users/:id/role
+   * Admin only — change a user's role.
+   */
+  fastify.patch(
+    '/api/v1/admin/users/:id/role',
+    { preHandler: [verifyToken] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.userRole !== 'admin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
+      }
+
+      const { id } = request.params as { id: string };
+      const { role } = request.body as { role: string };
+
+      if (id === request.userId) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot change your own role.' });
+      }
+
+      if (!['user', 'admin'].includes(role)) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Role must be "user" or "admin".' });
+      }
+
+      try {
+        const { rows } = await fastify.db.query<{ id: string; username: string; role: string }>(
+          `UPDATE users SET role = $1, updated_at = NOW()
+           WHERE id = $2 AND deleted_at IS NULL
+           RETURNING id, username, role`,
+          [role, id],
+        );
+
+        if (rows.length === 0) {
+          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+        }
+
+        await fastify.db.query(
+          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_role_changed', $2::jsonb)`,
+          [request.userId, JSON.stringify({ target_user_id: id, new_role: role })],
+        );
+
+        return reply.status(200).send(rows[0]);
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/admin/users/:id/ban
+   * Admin only — ban a user.
+   */
+  fastify.post(
+    '/api/v1/admin/users/:id/ban',
+    { preHandler: [verifyToken] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.userRole !== 'admin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
+      }
+
+      const { id } = request.params as { id: string };
+      const { reason, banType } = request.body as { reason: string; banType?: string };
+
+      if (id === request.userId) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot ban yourself.' });
+      }
+
+      if (!reason || reason.length < 5) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Reason must be at least 5 characters.' });
+      }
+
+      const resolvedBanType = ['soft', 'hard'].includes(banType ?? '') ? banType : 'soft';
+
+      try {
+        const { rows: userRows } = await fastify.db.query<{ id: string }>(
+          `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+          [id],
+        );
+        if (userRows.length === 0) {
+          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+        }
+
+        const { rows } = await fastify.db.query<{ id: string }>(
+          `INSERT INTO user_bans (user_id, ban_type, reason, banned_by)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id`,
+          [id, resolvedBanType, reason, request.userId],
+        );
+
+        await fastify.db.query(
+          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_banned', $2::jsonb)`,
+          [request.userId, JSON.stringify({ target_user_id: id, ban_id: rows[0].id, ban_type: resolvedBanType })],
+        );
+
+        return reply.status(201).send({ id: rows[0].id, userId: id });
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      }
+    },
+  );
+
+  /**
+   * DELETE /api/v1/admin/users/:id/ban
+   * Admin only — lift the active ban on a user.
+   */
+  fastify.delete(
+    '/api/v1/admin/users/:id/ban',
+    { preHandler: [verifyToken] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.userRole !== 'admin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
+      }
+
+      const { id } = request.params as { id: string };
+      const { liftReason } = (request.body as { liftReason?: string }) ?? {};
+
+      try {
+        const { rowCount } = await fastify.db.query(
+          `UPDATE user_bans
+           SET lifted_at = NOW(), lifted_by = $1, lift_reason = $2
+           WHERE user_id = $3
+             AND lifted_at IS NULL
+             AND (expires_at IS NULL OR expires_at > NOW())`,
+          [request.userId, liftReason ?? null, id],
+        );
+
+        if (!rowCount || rowCount === 0) {
+          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No active ban found for this user.' });
+        }
+
+        await fastify.db.query(
+          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_unbanned', $2::jsonb)`,
+          [request.userId, JSON.stringify({ target_user_id: id })],
+        );
+
+        return reply.status(204).send();
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      }
+    },
+  );
+
+  /**
+   * DELETE /api/v1/admin/users/:id
+   * Admin only — soft-delete a user account.
+   */
+  fastify.delete(
+    '/api/v1/admin/users/:id',
+    { preHandler: [verifyToken] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (request.userRole !== 'admin') {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
+      }
+
+      const { id } = request.params as { id: string };
+
+      if (id === request.userId) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete your own account.' });
+      }
+
+      try {
+        const { rows } = await fastify.db.query<{ id: string }>(
+          `UPDATE users SET deleted_at = NOW(), updated_at = NOW()
+           WHERE id = $1 AND deleted_at IS NULL
+           RETURNING id`,
+          [id],
+        );
+
+        if (rows.length === 0) {
+          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+        }
+
+        await fastify.db.query(
+          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_deleted', $2::jsonb)`,
+          [request.userId, JSON.stringify({ target_user_id: id })],
+        );
+
+        return reply.status(204).send();
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      }
+    },
+  );
+
+  // ─── Sticker management ─────────────────────────────────────────────────────
+
   /**
    * PATCH /api/v1/admin/stickers/:id
    * Admin only — partial update of sticker metadata. Writes to audit_log.
