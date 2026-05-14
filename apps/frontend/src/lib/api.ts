@@ -273,7 +273,7 @@ function toQueryString(
 // Sticker catalog — with localStorage cache (24h TTL, version-keyed)
 // ---------------------------------------------------------------------------
 
-const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v1';
+const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v2';
 const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
