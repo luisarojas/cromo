@@ -74,6 +74,7 @@ Non-breaking changes (new optional fields) are added within the same version. Br
 
 ```
 Authentication
+  GET    /api/v1/auth/me                    # get current user from JWT
   POST   /api/v1/auth/register
   POST   /api/v1/auth/verify-email          # confirm email from link
   POST   /api/v1/auth/resend-verification   # re-send verification email
@@ -88,13 +89,33 @@ Sticker Master List
   GET    /api/v1/stickers/:albumCode        # look up by album code (e.g. MEX1, FWC3)
   GET    /api/v1/stickers/:albumCode/variants
 
+User Albums
+  GET    /api/v1/users/:userId/albums               # list user's albums
+  GET    /api/v1/users/:userId/albums/summary       # summary stats across all albums
+  POST   /api/v1/users/:userId/albums               # create a new album
+  GET    /api/v1/users/:userId/albums/:albumId      # get a specific album
+  PATCH  /api/v1/users/:userId/albums/:albumId      # update album alias/settings
+  DELETE /api/v1/users/:userId/albums/:albumId      # delete album
+  PATCH  /api/v1/users/:userId/albums/:albumId/set-default    # set as default album
+  PATCH  /api/v1/users/:userId/albums/:albumId/stickers/:variantId/move  # move sticker between albums
+
 User Collection
-  GET    /api/v1/users/:id/collection       # ?team=BRA&type=player&variant=base&cursor=...
-  GET    /api/v1/users/:id/missing          # ?team=BRA&group=K&cursor=...
-  GET    /api/v1/users/:id/duplicates       # ?cursor=...
-  POST   /api/v1/users/:id/stickers
-  PATCH  /api/v1/users/:id/stickers/:variantId
-  DELETE /api/v1/users/:id/stickers/:variantId
+  GET    /api/v1/users/:userId/collection           # ?team=BRA&type=player&variant=base&cursor=...
+  GET    /api/v1/users/:userId/collection/stats     # completion %, counts by team/type
+  GET    /api/v1/users/:userId/missing              # ?team=BRA&group=K&cursor=...
+  GET    /api/v1/users/:userId/duplicates           # ?cursor=...
+  POST   /api/v1/users/:userId/stickers             # add sticker to collection
+  PATCH  /api/v1/users/:userId/stickers/:variantId  # update quantity
+  DELETE /api/v1/users/:userId/stickers/:variantId  # remove sticker
+  POST   /api/v1/users/:userId/avatar               # multipart upload; stores to /avatars/ locally or S3
+
+User Account
+  GET    /api/v1/users/me/preferences       # album display preferences
+  PATCH  /api/v1/users/me/preferences       # update preferences
+  PATCH  /api/v1/users/me/username          # change username
+  PATCH  /api/v1/users/me/email             # change email
+  PATCH  /api/v1/users/me/password          # change password
+  DELETE /api/v1/users/me                   # soft-delete account
 
 Trading
   GET    /api/v1/trade/matches/:userId
@@ -124,17 +145,18 @@ Sharing
 Profile & Settings
   GET    /api/v1/users/:id/public
   PATCH  /api/v1/users/:id/profile
-  POST   /api/v1/users/:id/avatar           # multipart upload; stores to /avatars/ in S3
-  GET    /api/v1/users/:id/settings
-  PATCH  /api/v1/users/:id/settings
 
 AI Scanning
   POST   /api/v1/scan/identify              # multipart upload; temp file stored to /scans/ in S3, deleted within 24h
   POST   /api/v1/scan/batch
 
 Admin
-  POST   /api/v1/admin/stickers
-  PATCH  /api/v1/admin/stickers/:id
+  GET    /api/v1/admin/users                # list all users with ban status
+  PATCH  /api/v1/admin/users/:id/role       # change user role
+  POST   /api/v1/admin/users/:id/ban        # issue a ban
+  DELETE /api/v1/admin/users/:id/ban        # lift a ban
+  DELETE /api/v1/admin/users/:id            # hard-delete user
+  PATCH  /api/v1/admin/stickers/:id         # correct sticker data
 
 System
   GET    /health
@@ -202,4 +224,3 @@ When `CLAUDE_API_KEY` is a real Anthropic API key:
 ### 10.3 Graceful Degradation
 
 If the Claude API is unavailable (in any environment), the scan endpoint returns a `503` with a user-friendly message. The rest of the application continues working fully.
-

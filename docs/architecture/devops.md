@@ -41,7 +41,6 @@ stickfolio/
 │       ├── src/
 │       │   ├── routes/v1/            # API route handlers
 │       │   ├── services/             # Business logic
-│       │   ├── repositories/         # Database queries
 │       │   ├── middleware/           # Auth, rate limiting
 │       │   ├── plugins/              # Redis, DB plugins
 │       │   └── server.ts
@@ -85,7 +84,13 @@ stickfolio/
 │       ├── 05_variants.sql
 │       ├── 06_feature_flags.sql
 │       ├── 07_test_users.sql
-│       └── 09_trust_safety.sql
+│       ├── 08_coca_cola_stickers.sql
+│       ├── 09_trust_safety.sql
+│       ├── 10_extra_stickers.sql
+│       ├── 11_host_city_stickers.sql
+│       ├── 12_swiss_legend_stickers.sql
+│       ├── 13_team_album_pages.sql
+│       └── 14_sticker_album_pages.sql
 │
 ├── docs/
 │   ├── architecture/
@@ -125,7 +130,7 @@ The repository README is the single most important document for a new developer.
    cd stickfolio
 
 2. Install dependencies
-   npm install
+   pnpm install
 
 3. Set up environment
    cp .env.example .env.local
@@ -134,7 +139,7 @@ The repository README is the single most important document for a new developer.
    docker compose -f infrastructure/docker/docker-compose.yml up -d
 
 5. Run migrations and seed data
-   npm run db:migrate && npm run db:seed
+   pnpm db:migrate && pnpm db:seed
 
 6. Open the app
    Frontend:        http://localhost:3000
@@ -237,10 +242,10 @@ GET /api/v1/version
 During Phase A (local development), there is no CI/CD pipeline. Developers run tests locally:
 
 ```bash
-npm run test           # run all tests once
-npm run test:watch     # run tests on file change
-npm run lint           # check code style
-npm run typecheck      # TypeScript validation
+pnpm test           # run all tests once
+pnpm test:watch     # run tests on file change
+pnpm lint           # check code style
+pnpm typecheck      # TypeScript validation
 ```
 
 CI/CD is set up at the start of Phase B when the first cloud environment is provisioned.

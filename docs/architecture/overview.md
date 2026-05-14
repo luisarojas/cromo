@@ -208,16 +208,19 @@ A production-ready system: never loses data, recovers automatically from failure
 - OpenAPI docs available at `http://localhost:3001/docs`
 - Local auth mock working — all 5 test users can log in (pre-verified, no email step)
 - Email verification flow working end-to-end via Mailpit
-- `npm run test` runs and passes (with minimal initial test coverage)
+- `pnpm test` runs and passes (with minimal initial test coverage)
 
 **A2 — Core Collection Features (Weeks 5–8)**
 - All collection API endpoints working with filtering and pagination
-- Album view UI (all 980 sticker slots, filterable by team/group/type/status)
-- Virtual scrolling on the album grid (renders 980 items without performance issues)
+- Multiple albums per user with gallery UI, per-album routes, and edition selection
+- Album view UI (all sticker slots, filterable by team/group/type/variant/status/page range)
+- Per-album sticker visibility settings (Coca-Cola, Extra, Museum sticker toggles)
 - Have / missing / duplicates views
-- Collection completion percentage
+- Collection stats and completion percentage
 - Avatar upload working
-- Admin interface for sticker corrections
+- Admin interface for user management and sticker corrections
+- Coca-Cola, Extra Sticker, Host City, and Swiss Legends sticker series added
+- Team album page data stored in database (migrations 0002–0005)
 - React Error Boundary implemented
 - Unit and integration tests for all collection operations
 
@@ -408,8 +411,8 @@ Provide this document as the technical specification. The developer should be ab
 | Milestone | Success Criteria |
 |---|---|
 | Pre-development | All 960 team sticker records compiled with sequential numbers — `03_team_stickers.sql` is complete |
-| End of Phase A1 | `docker compose up && npm run db:seed` works. 48 teams and 980 stickers in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
-| End of Phase A2 | All 980 stickers visible in album UI with filtering. Can add/remove/mark duplicates. Avatar upload working. Test suite ≥ 60% coverage. |
+| End of Phase A1 | `docker compose up && pnpm db:seed` works. 48 teams and 980 stickers in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
+| End of Phase A2 | All stickers visible in album UI with filtering. Can add/remove/mark duplicates. Multiple albums per user. Avatar upload working. Test suite ≥ 60% coverage. |
 | End of Phase A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
 | End of Phase A4 | Mock AI scan adds a sticker to Alice's collection. Real Claude API works in dev cloud. |
 | End of Phase A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. PWA installable on mobile. |

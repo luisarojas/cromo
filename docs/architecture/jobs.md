@@ -39,7 +39,7 @@ Jobs are defined in `apps/backend/src/jobs/` and discovered at startup. Each job
 
 ### 34.3 Local Behaviour
 
-Locally, `node-cron` runs in the same Node.js process as the API. Setting `JOBS_MODE=disabled` in `.env.local` (default for `docker compose` to keep dev iteration fast) skips job registration entirely. To test a specific job locally, run `npm run job -- <job_name>` which invokes the job once and exits.
+Locally, `node-cron` runs in the same Node.js process as the API. Setting `JOBS_MODE=disabled` in `.env.local` (default for `docker compose` to keep dev iteration fast) skips job registration entirely. To test a specific job locally, run `pnpm job -- <job_name>` which invokes the job once and exits.
 
 ## 35. Asynchronous Job Queue
 

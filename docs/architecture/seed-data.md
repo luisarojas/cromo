@@ -27,46 +27,16 @@ scripts/
     05_variants.sql         # generates all variant records per sticker
     06_feature_flags.sql    # initial feature flag state
     07_test_users.sql       # DEV/LOCAL ONLY — test accounts
+    08_coca_cola_stickers.sql  # Coca-Cola bottle sticker series
     09_trust_safety.sql     # DEV/LOCAL ONLY — sample ratings/reports for admin UI
+    10_extra_stickers.sql   # Panini Extra Sticker inserts (foil set)
+    11_host_city_stickers.sql  # Host city sticker pages
+    12_swiss_legend_stickers.sql  # Swiss Legends special sticker series
+    13_team_album_pages.sql    # Team-level album page assignments
+    14_sticker_album_pages.sql # Per-sticker album page assignments
 ```
 
 The master script checks the `NODE_ENV` environment variable. If it is `production`, it refuses to run seed files 07 and 09 (test users and trust & safety sample data). Feature flags (file 06) are required in every environment, so they are not gated. This is a safety guard.
-
-```bash
-#!/bin/bash
-# scripts/seed-database.sh
-
-set -e  # exit on any error
-
-echo "▶ Running database seeds..."
-
-psql "$DATABASE_URL" -f scripts/seeds/01_teams.sql
-echo "✓ Teams seeded (48 teams)"
-
-psql "$DATABASE_URL" -f scripts/seeds/02_intro_stickers.sql
-echo "✓ Introduction stickers seeded"
-
-psql "$DATABASE_URL" -f scripts/seeds/03_team_stickers.sql
-echo "✓ Team stickers seeded (960 stickers)"
-
-psql "$DATABASE_URL" -f scripts/seeds/04_museum_stickers.sql
-echo "✓ FIFA Museum stickers seeded"
-
-psql "$DATABASE_URL" -f scripts/seeds/05_variants.sql
-echo "✓ Sticker variants generated"
-
-psql "$DATABASE_URL" -f scripts/seeds/06_feature_flags.sql
-echo "✓ Feature flags seeded"
-
-if [ "$NODE_ENV" != "production" ]; then
-  psql "$DATABASE_URL" -f scripts/seeds/07_test_users.sql
-  echo "✓ Test users seeded (non-production only)"
-  psql "$DATABASE_URL" -f scripts/seeds/09_trust_safety.sql
-  echo "✓ Trust & Safety sample data seeded (non-production only)"
-fi
-
-echo "✅ All seeds complete."
-```
 
 All seed scripts use `INSERT ... ON CONFLICT DO UPDATE` (upsert), making them safe to re-run. Running the seed twice produces the same result.
 
@@ -421,7 +391,8 @@ VALUES
   ('FEATURE_BATCH_SCANNING',     false, 0,   'Scan multiple stickers from one photo'),
   ('FEATURE_TRADE_MESSAGING',    false, 0,   'In-app messaging within trade requests (SSE-backed)'),
   ('FEATURE_PUBLIC_LEADERBOARD', false, 0,   'Public leaderboard of top collectors'),
-  ('FEATURE_COCA_COLA_STICKERS', false, 0,   'Coca-Cola bottle sticker section in album'),
+  ('FEATURE_COCA_COLA_STICKERS', true,  100, 'Coca-Cola bottle sticker section in album'),
+  ('FEATURE_EXTRA_STICKERS',     true,  100, 'Panini Extra Sticker inserts — 20-player foil set (4 rarities)'),
   ('FEATURE_TRUST_SAFETY',       false, 0,   'Post-trade ratings, user reporting, and moderation system'),
   ('FEATURE_WEB_PUSH',           false, 0,   'Web push notifications for installed PWA'),
   ('MAINTENANCE_MODE',           false, 0,   'Redirect all users to maintenance page')
@@ -538,7 +509,7 @@ The admin interface allows the same correction without a migration for urgent fi
 
 ## 12. How to Verify the Seed Ran Correctly
 
-After running `npm run db:seed`, verify with these queries in pgAdmin (`localhost:5050`) or any SQL client:
+After running `pnpm db:seed`, verify with these queries in pgAdmin (`localhost:5050`) or any SQL client:
 
 ```sql
 -- Should return 48

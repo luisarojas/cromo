@@ -34,8 +34,12 @@ Built with i18n routing from day one using Next.js's built-in support. Launch or
 | Route | Description |
 |---|---|
 | `/` | Landing page, login / sign-up |
+| `/login` | Login page |
+| `/register` | Registration page |
+| `/verify-email` | Email verification confirmation |
 | `/dashboard` | Collection overview — completion %, recent activity |
-| `/album` | Visual grid of all 980 sticker slots, filterable |
+| `/album` | User's album list |
+| `/album/[albumId]` | Visual grid of all sticker slots for a specific album, filterable by team/group/type/variant/status |
 | `/have` | Stickers owned |
 | `/missing` | Stickers needed |
 | `/duplicates` | Stickers available to trade |

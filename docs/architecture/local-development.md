@@ -82,7 +82,7 @@ cp .env.example .env.local
 docker compose up
 
 # In a separate terminal, seed the database
-npm run db:seed
+pnpm db:seed
 ```
 
 After about 30 seconds, the application is available at:
@@ -264,20 +264,20 @@ NEXT_PUBLIC_ENV=development
 
 ### 4.3 Database Migrations & First-Run Setup
 
-Drizzle ORM migration files in `apps/backend/src/db/migrations/` are applied by running `npm run db:migrate`. The API server applies pending migrations automatically on startup in all environments. The migration files are committed to git — every developer and every cloud environment runs the same numbered migrations in order.
+Drizzle ORM migration files in `apps/backend/src/db/migrations/` are applied by running `pnpm db:migrate`. The API server applies pending migrations automatically on startup in all environments. The migration files are committed to git — every developer and every cloud environment runs the same numbered migrations in order.
 
 ```bash
 # After docker compose up, seed the database with World Cup data:
-npm run db:seed
+pnpm db:seed
 
 # To reset the local database entirely (wipes all data):
-npm run db:reset && npm run db:seed
+pnpm db:reset && pnpm db:seed
 
 # To generate a migration after changing the schema:
-npm run db:generate
+pnpm db:generate
 
 # To run pending migrations manually:
-npm run db:migrate
+pnpm db:migrate
 ```
 
 ### 4.4 Development Workflow
@@ -287,10 +287,10 @@ npm run db:migrate
 docker compose up
 
 # In a second terminal — run tests in watch mode (re-runs on file save)
-npm run test:watch
+pnpm test:watch
 
 # In a third terminal — optional: run the type checker in watch mode
-npm run typecheck:watch
+pnpm typecheck:watch
 
 # Stop everything
 docker compose down

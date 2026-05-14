@@ -60,7 +60,10 @@ UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_AI_SCANNING';
 | `FEATURE_BATCH_SCANNING` | false | Enable after individual scan is stable |
 | `FEATURE_TRADE_MESSAGING` | false | Enable after trade matching is validated |
 | `FEATURE_PUBLIC_LEADERBOARD` | false | Privacy-sensitive |
-| `FEATURE_COCA_COLA_STICKERS` | false | Enable when sticker list confirmed |
+| `FEATURE_COCA_COLA_STICKERS` | true | Coca-Cola bottle sticker section in album |
+| `FEATURE_EXTRA_STICKERS` | true | Panini Extra Sticker inserts — 20-player foil set |
+| `FEATURE_TRUST_SAFETY` | false | Post-trade ratings, user reporting, and moderation system |
+| `FEATURE_WEB_PUSH` | false | Web push notifications for installed PWA |
 | `MAINTENANCE_MODE` | false | Redirect to maintenance page |
 
 ## 19. Cloud Infrastructure (AWS)

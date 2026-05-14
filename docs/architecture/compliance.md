@@ -36,7 +36,7 @@ Full details in Section 33: Trust & Safety.
 
 ### 23.4 Age Gate Implementation
 
-Registration collects `birth_year` only (data minimisation — full DOB is not needed). The frontend displays a year picker. The backend rejects any year that would make the user under 13 at registration time with `403 Forbidden` and a generic message ("You must be at least 13 to use this service"). `birth_year` is stored on `users` and is included in data exports but never displayed publicly.
+Registration enforces a minimum age of 13. The backend rejects requests that would register a user under 13 with `403 Forbidden` and a generic message ("You must be at least 13 to use this service"). Age verification is enforced at the API layer without storing date of birth (data minimisation).
 
 Quebec users (Law 25) under 14 cannot consent on their own behalf for non-essential data processing; the consent UI is gated to 14+ for the analytics/marketing checkboxes. (Functional account creation is allowed at 13+ federally.)
 
