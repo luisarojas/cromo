@@ -6,8 +6,11 @@
 --       The actual album uses 1–9.
 
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, sticker_type, is_foil)
-VALUES
+  (album_type_id, number, album_code, team_id, player_name, sticker_type, is_foil)
+SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+  s.number, s.album_code, s.team_id::UUID, s.player_name, s.sticker_type, s.is_foil
+FROM (VALUES
   (1, '00',   NULL, 'Panini Logo - We Are Panini',                  'intro', true),
   (2, 'FWC1', NULL, 'FIFA World Cup 2026 Official Emblem',           'intro', true),
   (3, 'FWC2', NULL, 'FIFA World Cup 2026 Official Emblem (Variant)', 'intro', true),
@@ -17,7 +20,8 @@ VALUES
   (7, 'FWC6', NULL, 'Canada — Host Country',                        'intro', true),
   (8, 'FWC7', NULL, 'Mexico — Host Country',                        'intro', true),
   (9, 'FWC8', NULL, 'United States — Host Country',                 'intro', true)
-ON CONFLICT (album_code) DO UPDATE SET
+) AS s(number, album_code, team_id, player_name, sticker_type, is_foil)
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   sticker_type = EXCLUDED.sticker_type,
   is_foil      = EXCLUDED.is_foil;

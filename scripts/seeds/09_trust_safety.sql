@@ -9,25 +9,25 @@
 INSERT INTO trade_requests (id, requester_id, recipient_id, status, accepted_at, completed_at)
 VALUES
   (
-    'a0000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000002',  -- Alice
-    '00000000-0000-0000-0000-000000000003',  -- Bob
+    'a0000000-0000-0000-0000-000000000001'::UUID,
+    '00000000-0000-0000-0000-000000000002'::UUID,  -- Alice
+    '00000000-0000-0000-0000-000000000003'::UUID,  -- Bob
     'completed',
     now() - INTERVAL '10 days',
     now() - INTERVAL '8 days'
   ),
   (
-    'a0000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000002',  -- Alice
-    '00000000-0000-0000-0000-000000000004',  -- Charlie
+    'a0000000-0000-0000-0000-000000000002'::UUID,
+    '00000000-0000-0000-0000-000000000002'::UUID,  -- Alice
+    '00000000-0000-0000-0000-000000000004'::UUID,  -- Charlie
     'completed',
     now() - INTERVAL '5 days',
     now() - INTERVAL '3 days'
   ),
   (
-    'a0000000-0000-0000-0000-000000000003',
-    '00000000-0000-0000-0000-000000000003',  -- Bob
-    '00000000-0000-0000-0000-000000000004',  -- Charlie
+    'a0000000-0000-0000-0000-000000000003'::UUID,
+    '00000000-0000-0000-0000-000000000003'::UUID,  -- Bob
+    '00000000-0000-0000-0000-000000000004'::UUID,  -- Charlie
     'cancelled',
     now() - INTERVAL '7 days',
     NULL
@@ -40,27 +40,27 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO trade_ratings (trade_id, rater_id, rated_user_id, is_positive, comment)
 VALUES
   -- Alice rates Bob (positive)
-  ('a0000000-0000-0000-0000-000000000001',
-   '00000000-0000-0000-0000-000000000002',
-   '00000000-0000-0000-0000-000000000003',
+  ('a0000000-0000-0000-0000-000000000001'::UUID,
+   '00000000-0000-0000-0000-000000000002'::UUID,
+   '00000000-0000-0000-0000-000000000003'::UUID,
    true, 'Quick and easy trade, Bob was great!'),
 
   -- Bob rates Alice (positive)
-  ('a0000000-0000-0000-0000-000000000001',
-   '00000000-0000-0000-0000-000000000003',
-   '00000000-0000-0000-0000-000000000002',
+  ('a0000000-0000-0000-0000-000000000001'::UUID,
+   '00000000-0000-0000-0000-000000000003'::UUID,
+   '00000000-0000-0000-0000-000000000002'::UUID,
    true, 'Friendly and reliable, would trade again.'),
 
   -- Alice rates Charlie (negative)
-  ('a0000000-0000-0000-0000-000000000002',
-   '00000000-0000-0000-0000-000000000002',
-   '00000000-0000-0000-0000-000000000004',
+  ('a0000000-0000-0000-0000-000000000002'::UUID,
+   '00000000-0000-0000-0000-000000000002'::UUID,
+   '00000000-0000-0000-0000-000000000004'::UUID,
    false, 'Agreed to meet but did not show up initially.'),
 
   -- Charlie rates Alice (positive)
-  ('a0000000-0000-0000-0000-000000000002',
-   '00000000-0000-0000-0000-000000000004',
-   '00000000-0000-0000-0000-000000000002',
+  ('a0000000-0000-0000-0000-000000000002'::UUID,
+   '00000000-0000-0000-0000-000000000004'::UUID,
+   '00000000-0000-0000-0000-000000000002'::UUID,
    true, 'Trade eventually completed fine.')
 ON CONFLICT (trade_id, rater_id) DO NOTHING;
 
@@ -73,22 +73,22 @@ INSERT INTO user_reports
 VALUES
   -- Bob reports Charlie (no_show — resolved by admin)
   (
-    'b0000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000003',  -- Bob
-    '00000000-0000-0000-0000-000000000004',  -- Charlie
-    'a0000000-0000-0000-0000-000000000003',  -- cancelled trade
+    'b0000000-0000-0000-0000-000000000001'::UUID,
+    '00000000-0000-0000-0000-000000000003'::UUID,  -- Bob
+    '00000000-0000-0000-0000-000000000004'::UUID,  -- Charlie
+    'a0000000-0000-0000-0000-000000000003'::UUID,  -- cancelled trade
     'no_show',
     'Charlie accepted the trade and then went silent for 5 days. No response to messages.',
     'resolved',
-    '00000000-0000-0000-0000-000000000001',  -- admin
+    '00000000-0000-0000-0000-000000000001'::UUID,  -- admin
     now() - INTERVAL '2 days',
     'Issued a warning. First offence — no further action at this time.'
   ),
   -- Diana reports Charlie (spam — still open)
   (
-    'b0000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000005',  -- Diana
-    '00000000-0000-0000-0000-000000000004',  -- Charlie
+    'b0000000-0000-0000-0000-000000000002'::UUID,
+    '00000000-0000-0000-0000-000000000005'::UUID,  -- Diana
+    '00000000-0000-0000-0000-000000000004'::UUID,  -- Charlie
     NULL,
     'spam',
     'Received multiple unsolicited trade requests from this user in quick succession despite declining.',
@@ -103,12 +103,12 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO user_bans (id, user_id, ban_type, reason, report_id, banned_by, expires_at)
 VALUES
   (
-    'c0000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000004',  -- Charlie
+    'c0000000-0000-0000-0000-000000000001'::UUID,
+    '00000000-0000-0000-0000-000000000004'::UUID,  -- Charlie
     'soft',
     'Two reports within 7 days (no_show, spam). Temporarily restricted from initiating new trades.',
-    'b0000000-0000-0000-0000-000000000001',  -- linked to the resolved report
-    '00000000-0000-0000-0000-000000000001',  -- banned by admin
+    'b0000000-0000-0000-0000-000000000001'::UUID,  -- linked to the resolved report
+    '00000000-0000-0000-0000-000000000001'::UUID,  -- banned by admin
     now() + INTERVAL '7 days'
   )
 ON CONFLICT (id) DO NOTHING;

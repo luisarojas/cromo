@@ -9,8 +9,9 @@
 -- GROUP A — MEXICO (stickers 10–29, MEX1–MEX20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'MEX'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -36,7 +37,7 @@ FROM (VALUES
   (  28, 'MEX19', 'Roberto Alvarado', 'Roberto Alvarado', 'FWD', 'player', false),
   (  29, 'MEX20', 'Cesar Huerta', 'Cesar Huerta', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -45,8 +46,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP A — SOUTH AFRICA (stickers 30–49, RSA1–RSA20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'RSA'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -72,7 +74,7 @@ FROM (VALUES
   (  48, 'RSA19', 'Mohau Nkota', 'Mohau Nkota', 'FWD', 'player', false),
   (  49, 'RSA20', 'Oswin Appollis', 'Oswin Appollis', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -81,8 +83,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP A — SOUTH KOREA (stickers 50–69, KOR1–KOR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'KOR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -108,7 +111,7 @@ FROM (VALUES
   (  68, 'KOR19', 'Hee-chan Hwang', 'Hee-chan Hwang', 'FWD', 'player', false),
   (  69, 'KOR20', 'Hyeon-Gyu Oh', 'Hyeon-Gyu Oh', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -117,8 +120,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP A — CZECH REPUBLIC (stickers 70–89, CZE1–CZE20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CZE'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -144,7 +148,7 @@ FROM (VALUES
   (  88, 'CZE19', 'Adam Hlozek', 'Adam Hlozek', 'FWD', 'player', false),
   (  89, 'CZE20', 'Patrik Schick', 'Patrik Schick', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -153,8 +157,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP B — CANADA (stickers 90–109, CAN1–CAN20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CAN'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -180,7 +185,7 @@ FROM (VALUES
   ( 108, 'CAN19', 'Cyle Larin', 'Cyle Larin', 'FWD', 'player', false),
   ( 109, 'CAN20', 'Jonathan David', 'Jonathan David', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -189,8 +194,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP B — BOSNIA & HERZEGOVINA (stickers 110–129, BIH1–BIH20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'BIH'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -216,7 +222,7 @@ FROM (VALUES
   ( 128, 'BIH19', 'Samed Bazdar', 'Samed Bazdar', 'FWD', 'player', false),
   ( 129, 'BIH20', 'Haris Tabakovic', 'Haris Tabakovic', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -225,8 +231,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP B — QATAR (stickers 130–149, QAT1–QAT20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'QAT'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -252,7 +259,7 @@ FROM (VALUES
   ( 148, 'QAT19', 'Ahmed Al Ganehi', 'Ahmed Al Ganehi', 'FWD', 'player', false),
   ( 149, 'QAT20', 'Almoez Ali', 'Almoez Ali', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -261,8 +268,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP B — SWITZERLAND (stickers 150–169, SUI1–SUI20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'SUI'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -288,7 +296,7 @@ FROM (VALUES
   ( 168, 'SUI19', 'Dan Ndoye', 'Dan Ndoye', 'FWD', 'player', false),
   ( 169, 'SUI20', 'Zeki Amdouni', 'Zeki Amdouni', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -297,8 +305,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP K — BRAZIL (stickers 170–189, BRA1–BRA20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'BRA'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -324,7 +333,7 @@ FROM (VALUES
   ( 188, 'BRA19', 'Raphinha', 'Raphinha', 'FWD', 'player', false),
   ( 189, 'BRA20', 'Estévão', 'Estévão', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -333,8 +342,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP K — MOROCCO (stickers 190–209, MAR1–MAR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'MAR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -360,7 +370,7 @@ FROM (VALUES
   ( 208, 'MAR19', 'Brahim Diaz', 'Brahim Diaz', 'MID', 'player', false),
   ( 209, 'MAR20', 'Ayoub El Kaabi', 'Ayoub El Kaabi', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -369,8 +379,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP G — HAITI (stickers 210–229, HAI1–HAI20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'HAI'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -396,7 +407,7 @@ FROM (VALUES
   ( 228, 'HAI19', 'Louicius Deedson', 'Louicius Deedson', 'FWD', 'player', false),
   ( 229, 'HAI20', 'Frantzdy Pierrot', 'Frantzdy Pierrot', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -405,8 +416,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP F — SCOTLAND (stickers 230–249, SCO1–SCO20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'SCO'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -432,7 +444,7 @@ FROM (VALUES
   ( 248, 'SCO19', 'Che Adams', 'Che Adams', 'FWD', 'player', false),
   ( 249, 'SCO20', 'Ben Gannon-Doak', 'Ben Gannon-Doak', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -441,8 +453,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP D — USA (stickers 250–269, USA1–USA20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'USA'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -468,7 +481,7 @@ FROM (VALUES
   ( 268, 'USA19', 'Haji Wright', 'Haji Wright', 'FWD', 'player', false),
   ( 269, 'USA20', 'Folarin Balogun', 'Folarin Balogun', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -477,8 +490,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP D — PARAGUAY (stickers 270–289, PAR1–PAR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'PAR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -504,7 +518,7 @@ FROM (VALUES
   ( 288, 'PAR19', 'Angel Romero', 'Angel Romero', 'FWD', 'player', false),
   ( 289, 'PAR20', 'Antonio Sanabria', 'Antonio Sanabria', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -513,8 +527,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP D — AUSTRALIA (stickers 290–309, AUS1–AUS20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'AUS'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -540,7 +555,7 @@ FROM (VALUES
   ( 308, 'AUS19', 'Nestory Irankunda', 'Nestory Irankunda', 'FWD', 'player', false),
   ( 309, 'AUS20', 'Mohamed Touré', 'Mohamed Touré', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -549,8 +564,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP D — TÜRKIYE (stickers 310–329, TUR1–TUR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'TUR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -576,7 +592,7 @@ FROM (VALUES
   ( 328, 'TUR19', 'Kerem Akturkoglu', 'Kerem Akturkoglu', 'FWD', 'player', false),
   ( 329, 'TUR20', 'Kenan Yildiz', 'Kenan Yildiz', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -585,8 +601,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP F — GERMANY (stickers 330–349, GER1–GER20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'GER'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -612,7 +629,7 @@ FROM (VALUES
   ( 348, 'GER19', 'Karim Adeyemi', 'Karim Adeyemi', 'FWD', 'player', false),
   ( 349, 'GER20', 'Nick Woltemade', 'Nick Woltemade', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -621,8 +638,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP F — CURAÇAO (stickers 350–369, CUW1–CUW20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CUW'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -648,7 +666,7 @@ FROM (VALUES
   ( 368, 'CUW19', 'Gervane Kastaneer', 'Gervane Kastaneer', 'FWD', 'player', false),
   ( 369, 'CUW20', 'Sontje Hansen', 'Sontje Hansen', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -657,8 +675,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP E — IVORY COAST (stickers 370–389, CIV1–CIV20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CIV'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -684,7 +703,7 @@ FROM (VALUES
   ( 388, 'CIV19', 'Evann Guessand', 'Evann Guessand', 'FWD', 'player', false),
   ( 389, 'CIV20', 'Oumar Diakite', 'Oumar Diakite', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -693,8 +712,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP E — ECUADOR (stickers 390–409, ECU1–ECU20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'ECU'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -720,7 +740,7 @@ FROM (VALUES
   ( 408, 'ECU19', 'Kevin Rodriguez', 'Kevin Rodriguez', 'FWD', 'player', false),
   ( 409, 'ECU20', 'Enner Valencia', 'Enner Valencia', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -729,8 +749,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP J — NETHERLANDS (stickers 410–429, NED1–NED20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'NED'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -756,7 +777,7 @@ FROM (VALUES
   ( 428, 'NED19', 'Wout Weghorst', 'Wout Weghorst', 'FWD', 'player', false),
   ( 429, 'NED20', 'Cody Gakpo', 'Cody Gakpo', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -765,8 +786,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP C — JAPAN (stickers 430–449, JPN1–JPN20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'JPN'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -792,7 +814,7 @@ FROM (VALUES
   ( 448, 'JPN19', 'Koki Ogawa', 'Koki Ogawa', 'FWD', 'player', false),
   ( 449, 'JPN20', 'Ayase Ueda', 'Ayase Ueda', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -801,8 +823,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP E — SWEDEN (stickers 450–469, SWE1–SWE20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'SWE'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -828,7 +851,7 @@ FROM (VALUES
   ( 468, 'SWE19', 'Alexander Isak', 'Alexander Isak', 'FWD', 'player', false),
   ( 469, 'SWE20', 'Viktor Gyökeres', 'Viktor Gyökeres', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -837,8 +860,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP J — TUNISIA (stickers 470–489, TUN1–TUN20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'TUN'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -864,7 +888,7 @@ FROM (VALUES
   ( 488, 'TUN19', 'Sayfallah Ltaief', 'Sayfallah Ltaief', 'FWD', 'player', false),
   ( 489, 'TUN20', 'Naim Sliti', 'Naim Sliti', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -873,8 +897,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP G — BELGIUM (stickers 490–509, BEL1–BEL20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'BEL'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -900,7 +925,7 @@ FROM (VALUES
   ( 508, 'BEL19', 'Loïs Openda', 'Loïs Openda', 'FWD', 'player', false),
   ( 509, 'BEL20', 'Romelu Lukaku', 'Romelu Lukaku', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -909,8 +934,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP G — EGYPT (stickers 510–529, EGY1–EGY20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'EGY'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -936,7 +962,7 @@ FROM (VALUES
   ( 528, 'EGY19', 'Trezeguet', 'Trezeguet', 'FWD', 'player', false),
   ( 529, 'EGY20', 'Omar Marmoush', 'Omar Marmoush', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -945,8 +971,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP F — IRAN (stickers 530–549, IRN1–IRN20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'IRN'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -972,7 +999,7 @@ FROM (VALUES
   ( 548, 'IRN19', 'Alireza Jahanbakhsh', 'Alireza Jahanbakhsh', 'FWD', 'player', false),
   ( 549, 'IRN20', 'Ali Gholizadeh', 'Ali Gholizadeh', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -981,8 +1008,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP C — NEW ZEALAND (stickers 550–569, NZL1–NZL20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'NZL'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1008,7 +1036,7 @@ FROM (VALUES
   ( 568, 'NZL19', 'Callum McCowatt', 'Callum McCowatt', 'FWD', 'player', false),
   ( 569, 'NZL20', 'Kosta Barbarouses', 'Kosta Barbarouses', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1017,8 +1045,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP C — SPAIN (stickers 570–589, ESP1–ESP20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'ESP'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1044,7 +1073,7 @@ FROM (VALUES
   ( 588, 'ESP19', 'Álvaro Morata', 'Álvaro Morata', 'FWD', 'player', false),
   ( 589, 'ESP20', 'Mikel Oyarzabal', 'Mikel Oyarzabal', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1053,8 +1082,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP L — CAPE VERDE (stickers 590–609, CPV1–CPV20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CPV'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1080,7 +1110,7 @@ FROM (VALUES
   ( 608, 'CPV19', 'Willy Semedo', 'Willy Semedo', 'FWD', 'player', false),
   ( 609, 'CPV20', 'Bebe', 'Bebe', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1089,8 +1119,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP K — SAUDI ARABIA (stickers 610–629, KSA1–KSA20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'KSA'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1116,7 +1147,7 @@ FROM (VALUES
   ( 628, 'KSA19', 'Saleh Alshehri', 'Saleh Alshehri', 'FWD', 'player', false),
   ( 629, 'KSA20', 'Abdullah Al-Hamdan', 'Abdullah Al-Hamdan', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1125,8 +1156,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP L — URUGUAY (stickers 630–649, URU1–URU20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'URU'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1152,7 +1184,7 @@ FROM (VALUES
   ( 648, 'URU19', 'Rodrigo Aguirre', 'Rodrigo Aguirre', 'FWD', 'player', false),
   ( 649, 'URU20', 'Facundo Pellistri', 'Facundo Pellistri', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1161,8 +1193,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP I — FRANCE (stickers 650–669, FRA1–FRA20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'FRA'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1188,7 +1221,7 @@ FROM (VALUES
   ( 668, 'FRA19', 'Hugo Ekitike', 'Hugo Ekitike', 'FWD', 'player', false),
   ( 669, 'FRA20', 'Kylian Mbappe', 'Kylian Mbappe', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1197,8 +1230,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP I — SENEGAL (stickers 670–689, SEN1–SEN20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'SEN'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1224,7 +1258,7 @@ FROM (VALUES
   ( 688, 'SEN19', 'Nicolas Jackson', 'Nicolas Jackson', 'FWD', 'player', false),
   ( 689, 'SEN20', 'Krepin Diatta', 'Krepin Diatta', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1233,8 +1267,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP I — IRAQ (stickers 690–709, IRQ1–IRQ20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'IRQ'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1260,7 +1295,7 @@ FROM (VALUES
   ( 708, 'IRQ19', 'Aymen Hussein', 'Aymen Hussein', 'FWD', 'player', false),
   ( 709, 'IRQ20', 'Mohanad Ali', 'Mohanad Ali', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1269,8 +1304,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP I — NORWAY (stickers 710–729, NOR1–NOR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'NOR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1296,7 +1332,7 @@ FROM (VALUES
   ( 728, 'NOR19', 'Antonio Nusa', 'Antonio Nusa', 'FWD', 'player', false),
   ( 729, 'NOR20', 'Oscar Bobb', 'Oscar Bobb', 'MID', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1305,8 +1341,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP E — ARGENTINA (stickers 730–749, ARG1–ARG20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'ARG'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1332,7 +1369,7 @@ FROM (VALUES
   ( 748, 'ARG19', 'Julian Alvarez', 'Julian Alvarez', 'FWD', 'player', false),
   ( 749, 'ARG20', 'Giuliano Simeone', 'Giuliano Simeone', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1341,8 +1378,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP C — ALGERIA (stickers 750–769, ALG1–ALG20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'ALG'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1368,7 +1406,7 @@ FROM (VALUES
   ( 768, 'ALG19', 'Baghdad Bounedjah', 'Baghdad Bounedjah', 'FWD', 'player', false),
   ( 769, 'ALG20', 'Mohammed Amoura', 'Mohammed Amoura', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1377,8 +1415,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP L — AUSTRIA (stickers 770–789, AUT1–AUT20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'AUT'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1404,7 +1443,7 @@ FROM (VALUES
   ( 788, 'AUT19', 'Michael Gregoritsch', 'Michael Gregoritsch', 'FWD', 'player', false),
   ( 789, 'AUT20', 'Marko Arnautović', 'Marko Arnautović', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1413,8 +1452,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP G — JORDAN (stickers 790–809, JOR1–JOR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'JOR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1440,7 +1480,7 @@ FROM (VALUES
   ( 808, 'JOR19', 'Mohammad Abu Zrayq', 'Mohammad Abu Zrayq', 'FWD', 'player', false),
   ( 809, 'JOR20', 'Ibrahim Sabra', 'Ibrahim Sabra', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1449,8 +1489,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP H — PORTUGAL (stickers 810–829, POR1–POR20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'POR'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1476,7 +1517,7 @@ FROM (VALUES
   ( 828, 'POR19', 'Pedro Neto', 'Pedro Neto', 'FWD', 'player', false),
   ( 829, 'POR20', 'Rafael Leão', 'Rafael Leão', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1485,8 +1526,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP H — CONGO DR (stickers 830–849, COD1–COD20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CGO'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1512,7 +1554,7 @@ FROM (VALUES
   ( 848, 'COD19', 'Cédric Bakambu', 'Cédric Bakambu', 'FWD', 'player', false),
   ( 849, 'COD20', 'Nathanaël Mbuku', 'Nathanaël Mbuku', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1521,8 +1563,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP H — UZBEKISTAN (stickers 850–869, UZB1–UZB20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'UZB'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1548,7 +1591,7 @@ FROM (VALUES
   ( 868, 'UZB19', 'Igor Sergeev', 'Igor Sergeev', 'FWD', 'player', false),
   ( 869, 'UZB20', 'Abbosbek Fayzullaev', 'Abbosbek Fayzullaev', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1557,8 +1600,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP H — COLOMBIA (stickers 870–889, COL1–COL20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'COL'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1584,7 +1628,7 @@ FROM (VALUES
   ( 888, 'COL19', 'Luis Suarez', 'Luis Suarez', 'FWD', 'player', false),
   ( 889, 'COL20', 'Luis Diaz', 'Luis Diaz', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1593,8 +1637,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP J — ENGLAND (stickers 890–909, ENG1–ENG20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'ENG'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1620,7 +1665,7 @@ FROM (VALUES
   ( 908, 'ENG19', 'Marcus Rashford', 'Marcus Rashford', 'FWD', 'player', false),
   ( 909, 'ENG20', 'Ollie Watkins', 'Ollie Watkins', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1629,8 +1674,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP K — CROATIA (stickers 910–929, CRO1–CRO20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'CRO'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1656,7 +1702,7 @@ FROM (VALUES
   ( 928, 'CRO19', 'Andrej Kramarić', 'Andrej Kramarić', 'FWD', 'player', false),
   ( 929, 'CRO20', 'Franjo Ivanovic', 'Franjo Ivanovic', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1665,8 +1711,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP J — GHANA (stickers 930–949, GHA1–GHA20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'GHA'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1692,7 +1739,7 @@ FROM (VALUES
   ( 948, 'GHA19', 'Osman Bukari', 'Osman Bukari', 'FWD', 'player', false),
   ( 949, 'GHA20', 'Antoine Semenyo', 'Antoine Semenyo', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1701,8 +1748,9 @@ ON CONFLICT (album_code) DO UPDATE SET
 -- GROUP L — PANAMA (stickers 950–969, PAN1–PAN20)
 -- ─────────────────────────────────────────────────────────
 INSERT INTO stickers
-  (number, album_code, team_id, player_name, position, sticker_type, is_foil)
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
 SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
   (SELECT id FROM teams WHERE fifa_code = 'PAN'),
   s.player_name, s.position, s.sticker_type, s.is_foil
@@ -1728,7 +1776,7 @@ FROM (VALUES
   ( 968, 'PAN19', 'Jose Luiz Rodriguez', 'Jose Luiz Rodriguez', 'MID', 'player', false),
   ( 969, 'PAN20', 'Alberto Quintero', 'Alberto Quintero', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;

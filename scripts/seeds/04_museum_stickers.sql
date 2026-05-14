@@ -6,8 +6,11 @@
 -- NOTE: seed-data.md documented these as MUS1–MUS11 (provisional pre-release).
 --       The actual album uses FWC9–FWC19.
 
-INSERT INTO stickers (number, album_code, team_id, player_name, sticker_type, is_foil)
-VALUES
+INSERT INTO stickers (album_type_id, number, album_code, team_id, player_name, sticker_type, is_foil)
+SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+  s.number, s.album_code, s.team_id::UUID, s.player_name, s.sticker_type, s.is_foil
+FROM (VALUES
   (970, 'FWC9',  NULL, 'FIFA World Cup Champion — Italy 1934',        'museum', true),
   (971, 'FWC10', NULL, 'FIFA World Cup Champion — Uruguay 1950',      'museum', true),
   (972, 'FWC11', NULL, 'FIFA World Cup Champion — West Germany 1954', 'museum', true),
@@ -19,5 +22,6 @@ VALUES
   (978, 'FWC17', NULL, 'FIFA World Cup Champion — Italy 2006',        'museum', true),
   (979, 'FWC18', NULL, 'FIFA World Cup Champion — Germany 2014',      'museum', true),
   (980, 'FWC19', NULL, 'FIFA World Cup Champion — Argentina 2022',    'museum', true)
-ON CONFLICT (album_code) DO UPDATE SET
+) AS s(number, album_code, team_id, player_name, sticker_type, is_foil)
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name = EXCLUDED.player_name;

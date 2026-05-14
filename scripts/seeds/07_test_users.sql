@@ -31,7 +31,7 @@ WITH album_ids AS (
      WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'north_america') AS edition_id
 )
 SELECT
-  id, user_id, type_id, edition_id, true
+  id::UUID, user_id::UUID, type_id, edition_id, true
 FROM (
   VALUES
     ('00000000-0000-0000-0001-000000000001', '00000000-0000-0000-0000-000000000001'),
@@ -45,7 +45,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Give Alice a partial collection (first 200 base stickers, every 7th is a duplicate)
 INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
 SELECT
-  '00000000-0000-0000-0001-000000000002',
+  '00000000-0000-0000-0001-000000000002'::UUID,
   sv.id,
   CASE WHEN ROW_NUMBER() OVER () % 7 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
@@ -58,7 +58,7 @@ ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 -- Overlap with Alice in 150–200 range enables trade match testing
 INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
 SELECT
-  '00000000-0000-0000-0001-000000000003',
+  '00000000-0000-0000-0001-000000000003'::UUID,
   sv.id,
   CASE WHEN ROW_NUMBER() OVER () % 5 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
