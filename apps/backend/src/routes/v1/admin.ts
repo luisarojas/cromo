@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { verifyToken } from '../../middleware/auth.js';
+import { verifyToken, requireRole } from '../../middleware/auth.js';
+
+const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -13,12 +15,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
    */
   fastify.get(
     '/api/v1/admin/users',
-    { preHandler: [verifyToken] },
+    adminOnly,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      if (request.userRole !== 'admin') {
-        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
-      }
-
       const { search, page, limit } = request.query as {
         search?: string;
         page?: string;
@@ -28,7 +26,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const pageNum = Math.max(1, parseInt(page ?? '1', 10));
       const limitNum = Math.min(100, Math.max(1, parseInt(limit ?? '20', 10)));
       const offset = (pageNum - 1) * limitNum;
-      const searchParam = search ? `%${search}%` : null;
+      const trimmedSearch = search?.slice(0, 100);
+      const searchParam = trimmedSearch ? `%${trimmedSearch}%` : null;
 
       try {
         const { rows } = await fastify.db.query<{
@@ -80,12 +79,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
    */
   fastify.patch(
     '/api/v1/admin/users/:id/role',
-    { preHandler: [verifyToken] },
+    adminOnly,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      if (request.userRole !== 'admin') {
-        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
-      }
-
       const { id } = request.params as { id: string };
       const { role } = request.body as { role: string };
 
@@ -128,12 +123,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
    */
   fastify.post(
     '/api/v1/admin/users/:id/ban',
-    { preHandler: [verifyToken] },
+    adminOnly,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      if (request.userRole !== 'admin') {
-        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
-      }
-
       const { id } = request.params as { id: string };
       const { reason, banType } = request.body as { reason: string; banType?: string };
 
@@ -141,8 +132,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot ban yourself.' });
       }
 
-      if (!reason || reason.length < 5) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Reason must be at least 5 characters.' });
+      if (!reason || reason.length < 5 || reason.length > 500) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Reason must be between 5 and 500 characters.' });
       }
 
       const resolvedBanType = ['soft', 'hard'].includes(banType ?? '') ? banType : 'soft';
@@ -182,14 +173,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
    */
   fastify.delete(
     '/api/v1/admin/users/:id/ban',
-    { preHandler: [verifyToken] },
+    adminOnly,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      if (request.userRole !== 'admin') {
-        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
-      }
-
       const { id } = request.params as { id: string };
       const { liftReason } = (request.body as { liftReason?: string }) ?? {};
+
+      if (liftReason && liftReason.length > 500) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Lift reason must be 500 characters or fewer.' });
+      }
 
       try {
         const { rowCount } = await fastify.db.query(
@@ -224,12 +215,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
    */
   fastify.delete(
     '/api/v1/admin/users/:id',
-    { preHandler: [verifyToken] },
+    adminOnly,
     async (request: FastifyRequest, reply: FastifyReply) => {
-      if (request.userRole !== 'admin') {
-        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Administrators only.' });
-      }
-
       const { id } = request.params as { id: string };
 
       if (id === request.userId) {
@@ -270,7 +257,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.patch(
     '/api/v1/admin/stickers/:id',
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, requireRole('admin')],
       schema: {
         tags: ['Admin'],
         summary: 'Partially update sticker metadata (admin only)',
@@ -324,15 +311,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      // Admin-only guard
-      if (request.userRole !== 'admin') {
-        return reply.status(403).send({
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'This endpoint is restricted to administrators.',
-        });
-      }
-
       const { id } = request.params as { id: string };
       const body = request.body as {
         playerName?: string | null;

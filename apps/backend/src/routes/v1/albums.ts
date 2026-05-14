@@ -18,8 +18,10 @@ const albumShape = {
     user_id:          { type: 'string' },
     album_type_id:    { type: 'string' },
     album_type_key:   { type: 'string' },
+    album_type_name:  { type: 'string' },
     album_edition_id: { type: 'string' },
     edition:          { type: 'string' },
+    edition_name:     { type: 'string' },
     alias:            { type: 'string', nullable: true },
     is_default:       { type: 'boolean' },
     settings:         albumSettingsShape,
@@ -304,6 +306,64 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.db, fastify.redis, userId, albumId, targetAlbumId, variantId, quantity
       );
       return reply.status(204).send();
+    }
+  );
+
+  /**
+   * GET /api/v1/album-types/:typeKey/editions
+   * Public — returns the ordered list of editions for an album type.
+   */
+  fastify.get(
+    '/api/v1/album-types/:typeKey/editions',
+    {
+      schema: {
+        tags: ['Albums'],
+        summary: 'List editions for an album type',
+        params: {
+          type: 'object',
+          required: ['typeKey'],
+          properties: { typeKey: { type: 'string', maxLength: 64 } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    key:  { type: 'string' },
+                    name: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { typeKey } = request.params as { typeKey: string };
+      const cacheKey = `album_editions:${typeKey}`;
+      const cached = await fastify.redis.get(cacheKey);
+      if (cached) return reply.status(200).send({ items: JSON.parse(cached) });
+
+      const { rows } = await fastify.db.query<{ key: string; name: string }>(
+        `SELECT ae.key, ae.name
+         FROM album_editions ae
+         JOIN album_types at ON at.id = ae.album_type_id
+         WHERE at.key = $1
+         ORDER BY ae.created_at ASC`,
+        [typeKey],
+      );
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album type not found.' });
+      }
+
+      await fastify.redis.set(cacheKey, JSON.stringify(rows), 'EX', 86400);
+      return reply.status(200).send({ items: rows });
     }
   );
 }

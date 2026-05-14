@@ -34,6 +34,8 @@ export const users = pgTable('users', {
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => ({
   roleCheck: check('users_role_check', sql`${table.role} IN ('user', 'admin')`),
+  usernameLengthCheck: check('users_username_length', sql`char_length(${table.username}) BETWEEN 3 AND 30`),
+  displayNameLengthCheck: check('users_display_name_length', sql`${table.displayName} IS NULL OR char_length(${table.displayName}) BETWEEN 1 AND 100`),
 }));
 
 // ─── album_types ──────────────────────────────────────────────────────────────
@@ -149,7 +151,6 @@ export const teams = pgTable('teams', {
   fifaCode: text('fifa_code').unique().notNull(),
   name: text('name').notNull(),
   groupName: text('group_name').notNull(),
-  flagUrl: text('flag_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 });
 
@@ -225,7 +226,7 @@ export const userStickers = pgTable('user_stickers', {
   albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
   stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
   quantity: integer('quantity').notNull().default(1),
-  acquiredAt: timestamp('acquired_at', { withTimezone: true }).notNull().default(sql`now()`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
   albumVariantUnique: uniqueIndex('user_stickers_album_id_sticker_variant_id_unique').on(

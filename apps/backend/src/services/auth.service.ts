@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import crypto from 'node:crypto';
 import { env } from '../env.js';
+import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY } from '../constants.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from './email.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
 
@@ -102,13 +103,13 @@ export async function register(
       `INSERT INTO user_albums (user_id, album_type_id, album_edition_id, is_default)
        VALUES (
          $1,
-         (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+         (SELECT id FROM album_types WHERE key = $2),
          (SELECT ae.id FROM album_editions ae
           JOIN album_types at ON at.id = ae.album_type_id
-          WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'north_america'),
+          WHERE at.key = $2 AND ae.key = $3),
          true
        )`,
-      [userId]
+      [userId, DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY]
     );
 
     // Create verification token

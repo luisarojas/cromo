@@ -2,11 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { EDITION_LABELS } from '@/lib/albumPages';
-import type { AlbumEdition } from '@/lib/albumPages';
-import type { AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
-
-const EDITIONS: AlbumEdition[] = ['north_america', 'international', 'swiss_gold', 'south_america'];
+import type { AlbumEditionOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
   include_all_stickers: true,
@@ -17,9 +13,10 @@ const DEFAULT_SETTINGS: AlbumSettings = {
 interface Props {
   mode: 'create' | 'edit';
   album?: UserAlbum;
-  defaultEdition?: AlbumEdition;
+  editions: AlbumEditionOption[];
+  defaultEdition?: string;
   allStickers?: Sticker[];
-  onConfirm: (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => Promise<void>;
+  onConfirm: (data: { alias: string | null; edition: string; settings: AlbumSettings }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
 }
@@ -27,15 +24,17 @@ interface Props {
 export default function AlbumFormModal({
   mode,
   album,
-  defaultEdition = 'north_america',
+  editions,
+  defaultEdition,
   allStickers,
   onConfirm,
   onDelete,
   onClose,
 }: Props) {
+  const firstEditionKey = editions[0]?.key ?? '';
   const [alias, setAlias] = useState(album?.alias ?? '');
-  const [edition, setEdition] = useState<AlbumEdition>(
-    (album?.edition as AlbumEdition | undefined) ?? defaultEdition
+  const [edition, setEdition] = useState<string>(
+    album?.edition ?? defaultEdition ?? firstEditionKey
   );
   const [settings, setSettings] = useState<AlbumSettings>(
     album?.settings ?? DEFAULT_SETTINGS
@@ -149,11 +148,11 @@ export default function AlbumFormModal({
             <select
               id="album-edition"
               value={edition}
-              onChange={(e) => setEdition(e.target.value as AlbumEdition)}
+              onChange={(e) => setEdition(e.target.value)}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
             >
-              {EDITIONS.map((e) => (
-                <option key={e} value={e}>{EDITION_LABELS[e]}</option>
+              {editions.map((e) => (
+                <option key={e.key} value={e.key}>{e.name}</option>
               ))}
             </select>
           </div>

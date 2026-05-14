@@ -1,4 +1,9 @@
 import type { Redis } from 'ioredis';
+import crypto from 'node:crypto';
+
+export function hashFilters(filters: object): string {
+  return crypto.createHash('md5').update(JSON.stringify(filters)).digest('hex');
+}
 
 async function scanAndDelete(redis: Redis, pattern: string): Promise<void> {
   let cursor = '0';

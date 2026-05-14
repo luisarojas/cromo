@@ -4,10 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
 import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
-import {
-  formatPageSpread,
-  type AlbumEdition,
-} from '@/lib/albumPages';
+import { formatPageSpread } from '@/lib/albumPages';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
 
@@ -60,7 +57,7 @@ export default function VariantPopover({
   const [moveFromQuantity, setMoveFromQuantity] = useState(1);
 
   const albums = useAlbumsStore((s) => s.albums);
-  const albumEdition = (albums.find((a) => a.id === albumId)?.edition ?? 'north_america') as AlbumEdition;
+  const albumEdition = albums.find((a) => a.id === albumId)?.edition ?? 'north_america';
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {

@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
-import crypto from 'node:crypto';
+import { hashFilters } from './cache.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,15 +43,6 @@ export interface PaginatedResult<T> {
   items: T[];
   nextCursor: number | null;
   total: number;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function hashFilters(filters: object): string {
-  return crypto
-    .createHash('md5')
-    .update(JSON.stringify(filters))
-    .digest('hex');
 }
 
 // ─── Service functions ────────────────────────────────────────────────────────

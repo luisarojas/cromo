@@ -19,10 +19,10 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
         querystring: {
           type: 'object',
           properties: {
-            team:   { type: 'string', description: 'FIFA code of the team (e.g. ARG)' },
-            group:  { type: 'string', description: 'Group letter (A-L)' },
-            type:   { type: 'string', description: 'Sticker type (e.g. base, legend)' },
-            search: { type: 'string', description: 'Player name search (case-insensitive)' },
+            team:   { type: 'string', maxLength: 8,  description: 'FIFA code of the team (e.g. ARG)' },
+            group:  { type: 'string', maxLength: 2,  description: 'Group letter (A-L)' },
+            type:   { type: 'string', maxLength: 32, description: 'Sticker type (e.g. base, legend)' },
+            search: { type: 'string', maxLength: 50, description: 'Player name search (case-insensitive)' },
             cursor: { type: 'integer', description: 'Last sticker number seen (cursor)' },
             limit:  { type: 'integer', minimum: 1, maximum: 200, default: 50 },
           },

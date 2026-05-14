@@ -11,12 +11,14 @@ import {
   fetchDuplicates,
   fetchUserAlbums,
   fetchAlbumSummaries,
+  fetchAlbumEditions,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
   setDefaultUserAlbum,
   albumDisplayName,
-  ALBUM_TYPE_LABELS,
+  DEFAULT_ALBUM_TYPE_KEY,
+  type AlbumEditionOption,
   type AlbumSettings,
   type Sticker,
   type CollectionStats,
@@ -30,8 +32,6 @@ import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import FilterBar, { type FilterState } from '../components/FilterBar';
 import { variantLabel } from '../components/variantMeta';
-import { EDITION_LABELS } from '@/lib/albumPages';
-import type { AlbumEdition } from '@/lib/albumPages';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import AlbumFormModal from '../components/AlbumFormModal';
@@ -121,6 +121,7 @@ export default function AlbumDetailPage() {
   const [filters, setFilters] = useState<FilterState>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editions, setEditions] = useState<AlbumEditionOption[]>([]);
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -200,14 +201,16 @@ export default function AlbumDetailPage() {
       setDuplicateItems([]);
 
       try {
-        const [allStickers, userAlbums] = await Promise.all([
+        const [allStickers, userAlbums, editionList] = await Promise.all([
           fetchAllStickersCached(tok),
           fetchUserAlbums(usr.id, tok),
+          fetchAlbumEditions(DEFAULT_ALBUM_TYPE_KEY),
         ]);
 
         if (cancelled) return;
         setStickers(allStickers);
         setAlbums(userAlbums);
+        setEditions(editionList);
 
         const album = userAlbums.find((a) => a.id === albumId);
         if (!album) {
@@ -315,7 +318,7 @@ export default function AlbumDetailPage() {
   const settingsFilteredStickers = useMemo<Sticker[]>(() => {
     const albumSettings = activeAlbum?.settings;
     if (!albumSettings) return stickers;
-    const edition = activeAlbum.edition as AlbumEdition;
+    const edition = activeAlbum.edition;
     return stickers.filter((s) => {
       if (s.sticker_type === 'coca_cola_special') return albumSettings.include_coca_cola;
       const hasPage =
@@ -338,7 +341,7 @@ export default function AlbumDetailPage() {
   }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
 
   const filterOptions = useMemo(() => {
-    const edition = activeAlbum?.edition as AlbumEdition | undefined;
+    const edition = activeAlbum?.edition;
 
     const stickerPageRange = (s: Sticker): [number, number] | null => {
       if (!edition) return null;
@@ -481,7 +484,7 @@ export default function AlbumDetailPage() {
       }
     }
 
-    const edition = activeAlbum?.edition as AlbumEdition | undefined;
+    const edition = activeAlbum?.edition;
 
     return base.filter((s) => {
       if (filters.favouritesOnly && !favouriteSet.has(s.album_code)) return false;
@@ -551,7 +554,7 @@ export default function AlbumDetailPage() {
   );
 
   const handleAddAlbum = useCallback(
-    async (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => {
+    async (data: { alias: string | null; edition: string; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
@@ -563,7 +566,7 @@ export default function AlbumDetailPage() {
   );
 
   const handleSaveAlbum = useCallback(
-    async (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => {
+    async (data: { alias: string | null; edition: string; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
@@ -640,10 +643,10 @@ export default function AlbumDetailPage() {
                   <p className="text-sm text-gray-500 mt-0.5">
                     {activeAlbum.alias && (
                       <span className="mr-1.5">
-                        {ALBUM_TYPE_LABELS[activeAlbum.album_type_key] ?? activeAlbum.album_type_key} ·
+                        {activeAlbum.album_type_name} ·
                       </span>
                     )}
-                    {EDITION_LABELS[activeAlbum.edition as AlbumEdition] ?? activeAlbum.edition} Edition
+                    {activeAlbum.edition_name} Edition
                     {activeAlbum.is_default && (
                       <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
                         <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -794,6 +797,7 @@ export default function AlbumDetailPage() {
       {showAddModal && (
         <AlbumFormModal
           mode="create"
+          editions={editions}
           allStickers={stickers}
           onConfirm={handleAddAlbum}
           onClose={() => setShowAddModal(false)}
@@ -804,6 +808,7 @@ export default function AlbumDetailPage() {
         <AlbumFormModal
           mode="edit"
           album={editingAlbum}
+          editions={editions}
           allStickers={stickers}
           onConfirm={handleSaveAlbum}
           onDelete={handleDeleteAlbum}

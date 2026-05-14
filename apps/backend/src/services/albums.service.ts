@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY } from '../constants.js';
 import { invalidateUserCaches } from './cache.js';
 
 const MAX_ALBUMS_PER_USER = 10;
@@ -15,8 +16,10 @@ export interface UserAlbum {
   user_id: string;
   album_type_id: string;
   album_type_key: string;
+  album_type_name: string;
   album_edition_id: string;
   edition: string;        // edition key, e.g. 'north_america'
+  edition_name: string;
   alias: string | null;
   is_default: boolean;
   settings: AlbumSettings;
@@ -33,8 +36,9 @@ export interface AlbumSummary {
 // ─── Service functions ────────────────────────────────────────────────────────
 
 const ALBUM_SELECT = `
-  SELECT ua.id, ua.user_id, ua.album_type_id, at.key AS album_type_key,
-         ua.album_edition_id, ae.key AS edition,
+  SELECT ua.id, ua.user_id, ua.album_type_id,
+         at.key AS album_type_key, at.name AS album_type_name,
+         ua.album_edition_id, ae.key AS edition, ae.name AS edition_name,
          ua.alias, ua.is_default, ua.settings, ua.created_at, ua.updated_at
   FROM user_albums ua
   JOIN album_types at ON at.id = ua.album_type_id
@@ -105,7 +109,7 @@ export async function createAlbum(
     throw err;
   }
 
-  const editionKey = input.edition ?? 'north_america';
+  const editionKey = input.edition ?? DEFAULT_ALBUM_EDITION_KEY;
   const alias = input.alias ?? null;
   const settings = input.settings ? JSON.stringify(input.settings) : null;
 
@@ -114,10 +118,10 @@ export async function createAlbum(
        INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default, settings)
        VALUES (
          $1,
-         (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+         (SELECT id FROM album_types WHERE key = $5),
          (SELECT ae.id FROM album_editions ae
           JOIN album_types at ON at.id = ae.album_type_id
-          WHERE at.key = 'fifa_world_cup_2026' AND ae.key = $2),
+          WHERE at.key = $5 AND ae.key = $2),
          $3,
          false,
          COALESCE($4::jsonb, '{"include_all_stickers":true,"include_coca_cola":true,"include_non_album_museum":true}'::jsonb)
@@ -125,7 +129,7 @@ export async function createAlbum(
        RETURNING *
      )
      ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-    [userId, editionKey, alias, settings]
+    [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY]
   );
   return rows[0]!;
 }
@@ -133,23 +137,23 @@ export async function createAlbum(
 export async function createDefaultAlbum(
   db: Pool,
   userId: string,
-  editionKey = 'north_america'
+  editionKey: string = DEFAULT_ALBUM_EDITION_KEY
 ): Promise<UserAlbum> {
   const { rows } = await db.query<UserAlbum>(
     `WITH ins AS (
        INSERT INTO user_albums (user_id, album_type_id, album_edition_id, is_default)
        VALUES (
          $1,
-         (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+         (SELECT id FROM album_types WHERE key = $3),
          (SELECT ae.id FROM album_editions ae
           JOIN album_types at ON at.id = ae.album_type_id
-          WHERE at.key = 'fifa_world_cup_2026' AND ae.key = $2),
+          WHERE at.key = $3 AND ae.key = $2),
          true
        )
        RETURNING *
      )
      ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-    [userId, editionKey]
+    [userId, editionKey, DEFAULT_ALBUM_TYPE_KEY]
   );
   return rows[0]!;
 }

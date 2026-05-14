@@ -1,4 +1,4 @@
-import type { AlbumEdition } from './albumPages';
+export const DEFAULT_ALBUM_TYPE_KEY = 'fifa_world_cup_2026';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -182,8 +182,8 @@ export interface Sticker {
   fifa_code: string | null;
   group_name: string | null;
   base_variant_id: string | null;
-  team_pages: Partial<Record<AlbumEdition, [number, number]>> | null;
-  sticker_pages: Partial<Record<AlbumEdition, { page_start: number | null; page_end: number | null; description: string | null }>> | null;
+  team_pages: Record<string, [number, number]> | null;
+  sticker_pages: Record<string, { page_start: number | null; page_end: number | null; description: string | null }> | null;
 }
 
 export interface CollectionItem extends Sticker {
@@ -249,19 +249,34 @@ function buildHeaders(token?: string, hasBody = false): HeadersInit {
   return headers;
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
   token?: string,
 ): Promise<T> {
   const hasBody = options.body !== undefined;
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...buildHeaders(token, hasBody),
-      ...(options.headers ?? {}),
-    },
-  });
+
+  // If the caller already passed a signal, respect it; otherwise apply a default timeout.
+  const signal = options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal,
+      headers: {
+        ...buildHeaders(token, hasBody),
+        ...(options.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new Error(`API timeout after ${DEFAULT_TIMEOUT_MS}ms: ${path}`);
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -427,6 +442,22 @@ export async function fetchDuplicates(
 }
 
 // ---------------------------------------------------------------------------
+// Album editions catalog
+// ---------------------------------------------------------------------------
+
+export interface AlbumEditionOption {
+  key: string;
+  name: string;
+}
+
+export async function fetchAlbumEditions(albumTypeKey: string): Promise<AlbumEditionOption[]> {
+  const { items } = await apiFetch<{ items: AlbumEditionOption[] }>(
+    `/api/v1/album-types/${encodeURIComponent(albumTypeKey)}/editions`,
+  );
+  return items;
+}
+
+// ---------------------------------------------------------------------------
 // Album endpoints
 // ---------------------------------------------------------------------------
 
@@ -441,8 +472,10 @@ export interface UserAlbum {
   user_id: string;
   album_type_id: string;
   album_type_key: string;
+  album_type_name: string;
   album_edition_id: string;
   edition: string;
+  edition_name: string;
   alias: string | null;
   is_default: boolean;
   settings: AlbumSettings;
@@ -450,12 +483,8 @@ export interface UserAlbum {
   updated_at: string;
 }
 
-export const ALBUM_TYPE_LABELS: Record<string, string> = {
-  fifa_world_cup_2026: 'FIFA World Cup 2026™ Official Sticker Collection',
-};
-
 export function albumDisplayName(album: UserAlbum): string {
-  return album.alias ?? ALBUM_TYPE_LABELS[album.album_type_key] ?? album.album_type_key;
+  return album.alias ?? album.album_type_name;
 }
 
 export async function fetchUserAlbums(

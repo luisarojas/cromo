@@ -6,8 +6,10 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
-  username TEXT UNIQUE NOT NULL,
-  display_name TEXT,
+  username TEXT UNIQUE NOT NULL
+    CHECK (char_length(username) BETWEEN 3 AND 30),
+  display_name TEXT
+    CHECK (display_name IS NULL OR char_length(display_name) BETWEEN 1 AND 100),
   avatar_url TEXT,
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
   locale TEXT NOT NULL DEFAULT 'en',
@@ -91,7 +93,6 @@ CREATE TABLE IF NOT EXISTS teams (
   fifa_code TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   group_name TEXT NOT NULL,
-  flag_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -154,7 +155,7 @@ CREATE TABLE IF NOT EXISTS user_stickers (
   album_id UUID NOT NULL REFERENCES user_albums(id) ON DELETE CASCADE,
   sticker_variant_id UUID NOT NULL REFERENCES sticker_variants(id),
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity >= 0),
-  acquired_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (album_id, sticker_variant_id)
 );
@@ -284,17 +285,17 @@ CREATE INDEX IF NOT EXISTS idx_user_bans_user_id ON user_bans(user_id);
 -- ─── Seed: album catalog ──────────────────────────────────────────────────────
 
 INSERT INTO album_types (key, name) VALUES
-  ('fifa_world_cup_2026', 'FIFA World Cup 2026')
+  ('fifa_world_cup_2026', 'FIFA World Cup 2026™ Official Sticker Collection')
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO album_editions (album_type_id, key, name)
 SELECT t.id, e.key, e.name
 FROM album_types t
 CROSS JOIN (VALUES
-  ('north_america', 'North America'),
+  ('north_america', 'North American (Host)'),
   ('international', 'International'),
-  ('swiss_gold', 'Swiss Gold'),
-  ('south_america', 'South America')
+  ('swiss_gold',    'Swiss Gold'),
+  ('south_america', 'South American')
 ) AS e(key, name)
 WHERE t.key = 'fifa_world_cup_2026'
-ON CONFLICT (album_type_id, key) DO NOTHING;
+ON CONFLICT (album_type_id, key) DO UPDATE SET name = EXCLUDED.name;
