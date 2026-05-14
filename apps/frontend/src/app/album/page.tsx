@@ -71,6 +71,11 @@ export default function AlbumsPage() {
         if (cancelled) return;
         setAlbums(userAlbums);
 
+        if (userAlbums.length === 1) {
+          router.replace(`/album/${userAlbums[0].id}`);
+          return;
+        }
+
         const statsEntries = await Promise.all(
           userAlbums.map(async (album) => {
             const stats = await fetchStats(usr.id, tok, album.id);
