@@ -31,7 +31,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
             playerName: { type: 'string', nullable: true },
             position:   { type: 'string', nullable: true },
             notes:      { type: 'string', nullable: true },
-            albumPage:  { type: 'integer', nullable: true },
           },
         },
         response: {
@@ -44,7 +43,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
               player_name:  { type: 'string', nullable: true },
               position:     { type: 'string', nullable: true },
               sticker_type: { type: 'string' },
-              album_page:   { type: 'integer', nullable: true },
               notes:        { type: 'string', nullable: true },
             },
           },
@@ -82,7 +80,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         playerName?: string | null;
         position?: string | null;
         notes?: string | null;
-        albumPage?: number | null;
       };
 
       // Build SET clause dynamically from provided fields
@@ -101,10 +98,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if ('notes' in body) {
         setClauses.push(`notes = $${paramIndex++}`);
         values.push(body.notes ?? null);
-      }
-      if ('albumPage' in body) {
-        setClauses.push(`album_page = $${paramIndex++}`);
-        values.push(body.albumPage ?? null);
       }
 
       if (setClauses.length === 0) {
@@ -126,14 +119,13 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           player_name: string | null;
           position: string | null;
           sticker_type: string;
-          album_page: number | null;
           notes: string | null;
         }>(
           `UPDATE stickers
            SET ${setClauses.join(', ')}
            WHERE id = $${paramIndex}
            RETURNING id, number, album_code, player_name, position,
-                     sticker_type, album_page, notes`,
+                     sticker_type, notes`,
           values
         );
 

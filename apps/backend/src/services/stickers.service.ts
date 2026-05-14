@@ -22,12 +22,12 @@ export interface StickerRow {
   sticker_type: string;
   is_foil: boolean;
   team_id: string | null;
-  album_page: number | null;
   notes: string | null;
   team_name: string | null;
   fifa_code: string | null;
   group_name: string | null;
   base_variant_id: string | null;
+  team_pages: Record<string, [number, number]> | null;
 }
 
 export interface StickerVariantRow {
@@ -77,9 +77,11 @@ export async function listStickers(
 
   const { rows: items } = await db.query<StickerRow>(
     `SELECT s.id, s.number, s.album_code, s.player_name, s.position,
-            s.sticker_type, s.is_foil, s.team_id, s.album_page, s.notes,
+            s.sticker_type, s.is_foil, s.team_id, s.notes,
             t.name AS team_name, t.fifa_code, t.group_name,
-            sv.id AS base_variant_id
+            sv.id AS base_variant_id,
+            (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
+             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages
      FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
      LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'
@@ -129,9 +131,11 @@ export async function getStickerByAlbumCode(
 ): Promise<StickerRow | null> {
   const { rows } = await db.query<StickerRow>(
     `SELECT s.id, s.number, s.album_code, s.player_name, s.position,
-            s.sticker_type, s.is_foil, s.team_id, s.album_page, s.notes,
+            s.sticker_type, s.is_foil, s.team_id, s.notes,
             t.name AS team_name, t.fifa_code, t.group_name,
-            sv.id AS base_variant_id
+            sv.id AS base_variant_id,
+            (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
+             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages
      FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
      LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'

@@ -52,7 +52,6 @@ export interface Sticker {
   position: Position | null
   stickerType: StickerType
   isFoil: boolean
-  albumPage: number | null
   notes: string | null
 }
 

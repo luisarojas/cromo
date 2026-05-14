@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
 import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import {
-  getTeamPages,
   formatPageSpread,
   COCA_COLA_LOCATION,
   EDITION_LABELS,
@@ -73,8 +72,8 @@ export default function VariantPopover({
         ? formatPageSpread(loc.pages)
         : loc.description;
     }
-    const spread = getTeamPages(sticker.team_name, albumEdition);
-    return spread ? formatPageSpread(spread) : null;
+    const pages = sticker.team_pages?.[albumEdition];
+    return pages ? formatPageSpread(pages as [number, number]) : null;
   })();
 
   // Fetch all variants on mount so we can hide the "Add another variant" button

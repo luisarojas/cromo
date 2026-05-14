@@ -165,8 +165,8 @@ export interface Sticker {
   team_name: string | null;
   fifa_code: string | null;
   group_name: string | null;
-  album_page: number | null;
   base_variant_id: string | null;
+  team_pages: Partial<Record<AlbumEdition, [number, number]>> | null;
 }
 
 export interface CollectionItem extends Sticker {
@@ -609,7 +609,6 @@ export async function patchAdminSticker(
     playerName?: string;
     position?: string;
     notes?: string;
-    albumPage?: number;
   },
   token?: string,
 ): Promise<Sticker> {

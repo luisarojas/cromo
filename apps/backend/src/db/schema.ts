@@ -152,7 +152,6 @@ export const stickers = pgTable('stickers', {
   position: text('position'),
   stickerType: text('sticker_type').notNull(),
   isFoil: boolean('is_foil').notNull().default(false),
-  albumPage: integer('album_page'),
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
@@ -162,6 +161,19 @@ export const stickers = pgTable('stickers', {
   albumTypeIdx: index('idx_stickers_album_type_id').on(table.albumTypeId),
   teamIdx: index('idx_stickers_team_id').on(table.teamId),
   numberCheck: check('stickers_number_check', sql`${table.number} BETWEEN 0 AND 9999`),
+}));
+
+// ─── team_album_pages ─────────────────────────────────────────────────────────
+
+export const teamAlbumPages = pgTable('team_album_pages', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  teamId: uuid('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  edition: text('edition').notNull(),
+  pageStart: integer('page_start').notNull(),
+  pageEnd: integer('page_end').notNull(),
+}, (table) => ({
+  teamEditionUnique: unique('team_album_pages_team_id_edition_unique').on(table.teamId, table.edition),
+  teamIdIdx: index('idx_team_album_pages_team_id').on(table.teamId),
 }));
 
 // ─── sticker_variants ─────────────────────────────────────────────────────────
@@ -391,6 +403,7 @@ export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect
 export type NewEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type Team = typeof teams.$inferSelect;
+export type TeamAlbumPage = typeof teamAlbumPages.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
 export type StickerVariant = typeof stickerVariants.$inferSelect;
 export type UserSticker = typeof userStickers.$inferSelect; // ownership via albumId

@@ -17,7 +17,6 @@ interface EditForm {
   playerName: string;
   position: string;
   notes: string;
-  albumPage: string;
 }
 
 function EditRow({
@@ -33,7 +32,6 @@ function EditRow({
     playerName: sticker.player_name ?? '',
     position: sticker.position ?? '',
     notes: '',
-    albumPage: sticker.album_page?.toString() ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +51,7 @@ function EditRow({
 
   return (
     <tr className="bg-blue-50">
-      <td colSpan={7} className="px-4 py-3">
+      <td colSpan={6} className="px-4 py-3">
         <form
           onSubmit={handleSubmit}
           className="flex flex-wrap gap-3 items-end"
@@ -86,17 +84,6 @@ function EditRow({
                 setForm((f) => ({ ...f, notes: e.target.value }))
               }
               className="rounded border border-gray-300 px-2 py-1 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Album page</label>
-            <input
-              type="number"
-              value={form.albumPage}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, albumPage: e.target.value }))
-              }
-              className="rounded border border-gray-300 px-2 py-1 text-sm w-20 focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>
           {error && (
@@ -183,7 +170,6 @@ export default function AdminStickersPage() {
       if (form.playerName) body.playerName = form.playerName;
       if (form.position) body.position = form.position;
       if (form.notes) body.notes = form.notes;
-      if (form.albumPage) body.albumPage = parseInt(form.albumPage, 10);
 
       const updated = await patchAdminSticker(id, body, token ?? undefined);
 
@@ -265,9 +251,6 @@ export default function AdminStickersPage() {
                     Position
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">
-                    Page
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">
                     Actions
                   </th>
                 </tr>
@@ -311,9 +294,6 @@ export default function AdminStickersPage() {
                       </td>
                       <td className="px-4 py-2 text-gray-500 text-xs">
                         {sticker.position ?? '—'}
-                      </td>
-                      <td className="px-4 py-2 text-gray-500 text-xs">
-                        {sticker.album_page ?? '—'}
                       </td>
                       <td className="px-4 py-2">
                         {editingId === sticker.id ? (

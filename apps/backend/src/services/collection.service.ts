@@ -32,11 +32,11 @@ export interface CollectionItem {
   player_name: string | null;
   position: string | null;
   sticker_type: string;
-  album_page: number | null;
   notes: string | null;
   team_name: string | null;
   fifa_code: string | null;
   group_name: string | null;
+  team_pages: Record<string, [number, number]> | null;
 }
 
 export interface MissingItem {
@@ -47,12 +47,12 @@ export interface MissingItem {
   position: string | null;
   sticker_type: string;
   is_foil: boolean;
-  album_page: number | null;
   notes: string | null;
   team_name: string | null;
   fifa_code: string | null;
   group_name: string | null;
   base_variant_id: string | null;
+  team_pages: Record<string, [number, number]> | null;
 }
 
 export interface DuplicateItem {
@@ -131,11 +131,12 @@ export async function getCollection(
             s.player_name,
             s.position,
             s.sticker_type,
-            s.album_page,
             s.notes,
             t.name AS team_name,
             t.fifa_code,
-            t.group_name
+            t.group_name,
+            (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
+             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages
      FROM user_stickers us
      JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
      JOIN stickers s ON sv.sticker_id = s.id
@@ -212,12 +213,13 @@ export async function getMissing(
             s.position,
             s.sticker_type,
             s.is_foil,
-            s.album_page,
             s.notes,
             t.name AS team_name,
             t.fifa_code,
             t.group_name,
-            base_sv.id AS base_variant_id
+            base_sv.id AS base_variant_id,
+            (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
+             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages
      FROM stickers s
      LEFT JOIN teams t ON s.team_id = t.id
      LEFT JOIN sticker_variants base_sv
