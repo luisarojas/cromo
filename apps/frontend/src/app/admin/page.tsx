@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback, Fragment } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, Fragment, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   fetchStickers,
   patchAdminSticker,
@@ -499,31 +499,31 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                         {user.id === currentUserId || user.deleted_at ? (
                           <span className="text-xs text-gray-300">—</span>
                         ) : (
-                          <div className="flex gap-2 flex-wrap">
+                          <div className="flex gap-1.5 flex-wrap">
                             <button
                               onClick={() => handleRoleToggle(user)}
-                              className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-blue-300 text-blue-600 hover:bg-blue-50 transition-colors"
                             >
                               {user.role === 'admin' ? 'Demote' : 'Promote'}
                             </button>
                             {user.is_banned ? (
                               <button
                                 onClick={() => handleUnban(user)}
-                                className="text-xs text-green-600 hover:text-green-800 font-medium"
+                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-green-600 hover:bg-green-50 transition-colors"
                               >
                                 Unban
                               </button>
                             ) : (
                               <button
                                 onClick={() => setBanningId(banningId === user.id ? null : user.id)}
-                                className="text-xs text-amber-600 hover:text-amber-800 font-medium"
+                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-amber-300 text-amber-600 hover:bg-amber-50 transition-colors"
                               >
                                 Ban
                               </button>
                             )}
                             <button
                               onClick={() => handleDelete(user)}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium"
+                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
                             >
                               Delete
                             </button>
@@ -576,13 +576,20 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
 
 type Tab = 'stickers' | 'users';
 
-export default function AdminPage() {
+function AdminPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
 
-  const [activeTab, setActiveTab] = useState<Tab>('stickers');
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<Tab>(tabParam === 'users' ? 'users' : 'stickers');
+
+  const switchTab = (tab: Tab) => {
+    setActiveTab(tab);
+    router.replace(`/admin?tab=${tab}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!hydrated) return;
@@ -612,7 +619,7 @@ export default function AdminPage() {
 
         <div className="flex gap-1 mb-6 border-b border-gray-200">
           <button
-            onClick={() => setActiveTab('stickers')}
+            onClick={() => switchTab('stickers')}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'stickers'
                 ? 'border-blue-600 text-blue-600'
@@ -622,7 +629,7 @@ export default function AdminPage() {
             Stickers
           </button>
           <button
-            onClick={() => setActiveTab('users')}
+            onClick={() => switchTab('users')}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'users'
                 ? 'border-blue-600 text-blue-600'
@@ -637,5 +644,13 @@ export default function AdminPage() {
         {activeTab === 'users' && <UsersSection token={token} currentUserId={user.id} />}
       </div>
     </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense>
+      <AdminPageInner />
+    </Suspense>
   );
 }
