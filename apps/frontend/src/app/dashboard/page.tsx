@@ -144,36 +144,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </Link>
-        {user?.role === 'admin' && (
-          <Link
-            href="/admin/stickers"
-            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 hover:bg-gray-50 transition-colors group"
-          >
-            <div>
-              <div className="font-semibold text-gray-700 group-hover:underline">
-                Admin — Stickers
-              </div>
-              <div className="text-xs text-gray-400 mt-0.5">
-                Correct player names, positions and metadata
-              </div>
-            </div>
-          </Link>
-        )}
-        {user?.role === 'admin' && (
-          <Link
-            href="/admin/users"
-            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 hover:bg-gray-50 transition-colors group"
-          >
-            <div>
-              <div className="font-semibold text-gray-700 group-hover:underline">
-                Admin — Users
-              </div>
-              <div className="text-xs text-gray-400 mt-0.5">
-                Manage roles, bans and accounts
-              </div>
-            </div>
-          </Link>
-        )}
       </div>
     </div>
   );
