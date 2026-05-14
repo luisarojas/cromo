@@ -383,17 +383,39 @@ export default function AlbumDetailPage() {
     return { groupOptions, teamOptions, typeOptions, variantOptions };
   }, [tabBase, filters, ownedMap, activeAlbum]);
 
+  const computedStats = useMemo<CollectionStats | null>(() => {
+    if (loading) return null;
+    const total = settingsFilteredStickers.length;
+    let owned = 0;
+    let duplicates = 0;
+    for (const s of settingsFilteredStickers) {
+      const perSticker = ownedMap.get(s.album_code);
+      if (perSticker) {
+        owned++;
+        if (isDuplicateSticker(perSticker, duplicatesCountAllVariants)) duplicates++;
+      }
+    }
+    const missing = total - owned;
+    const percentage = total > 0 ? (owned / total) * 100 : 0;
+    return { total, owned, missing, duplicates, percentage };
+  }, [loading, settingsFilteredStickers, ownedMap, duplicatesCountAllVariants]);
+
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
-    for (const perSticker of ownedMap.values()) {
-      for (const entry of perSticker.values()) sum += entry.quantity;
+    for (const s of settingsFilteredStickers) {
+      const perSticker = ownedMap.get(s.album_code);
+      if (perSticker) {
+        for (const entry of perSticker.values()) sum += entry.quantity;
+      }
     }
     return sum;
-  }, [ownedMap]);
+  }, [settingsFilteredStickers, ownedMap]);
 
   const totalExtraCopies = useMemo(() => {
     let sum = 0;
-    for (const perSticker of ownedMap.values()) {
+    for (const s of settingsFilteredStickers) {
+      const perSticker = ownedMap.get(s.album_code);
+      if (!perSticker) continue;
       if (duplicatesCountAllVariants) {
         let total = 0;
         for (const entry of perSticker.values()) total += entry.quantity;
@@ -405,7 +427,7 @@ export default function AlbumDetailPage() {
       }
     }
     return sum;
-  }, [ownedMap, duplicatesCountAllVariants]);
+  }, [settingsFilteredStickers, ownedMap, duplicatesCountAllVariants]);
 
   const displayedStickers = useMemo<Sticker[]>(() => {
     let base: Sticker[];
@@ -655,7 +677,7 @@ export default function AlbumDetailPage() {
           </div>
         )}
 
-        <StatsBar stats={stats} loading={loading} />
+        <StatsBar stats={computedStats} loading={loading} />
 
         <FilterBar
           filters={filters}
@@ -681,21 +703,21 @@ export default function AlbumDetailPage() {
               {id === 'all' && !loading && settingsFilteredStickers.length > 0 && (
                 <span className="ml-1.5 text-xs text-gray-400">({settingsFilteredStickers.length})</span>
               )}
-              {id === 'have' && stats && (
+              {id === 'have' && computedStats && (
                 <span className="ml-1.5 text-xs text-gray-400">
-                  {totalOwnedQuantity > stats.owned
-                    ? `(${stats.owned} / ${totalOwnedQuantity})`
-                    : `(${stats.owned})`}
+                  {totalOwnedQuantity > computedStats.owned
+                    ? `(${computedStats.owned} / ${totalOwnedQuantity})`
+                    : `(${computedStats.owned})`}
                 </span>
               )}
-              {id === 'missing' && stats && (
-                <span className="ml-1.5 text-xs text-gray-400">({stats.missing})</span>
+              {id === 'missing' && computedStats && (
+                <span className="ml-1.5 text-xs text-gray-400">({computedStats.missing})</span>
               )}
-              {id === 'duplicates' && stats && (
+              {id === 'duplicates' && computedStats && (
                 <span className="ml-1.5 text-xs text-gray-400">
                   {totalExtraCopies > 0
-                    ? `(${stats.duplicates} / +${totalExtraCopies})`
-                    : `(${stats.duplicates})`}
+                    ? `(${computedStats.duplicates} / +${totalExtraCopies})`
+                    : `(${computedStats.duplicates})`}
                 </span>
               )}
             </button>
