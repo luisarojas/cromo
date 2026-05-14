@@ -104,6 +104,29 @@ export async function updateEmail(
   }
 }
 
+export async function updateDisplayName(
+  db: Pool,
+  userId: string,
+  displayName: string | null
+): Promise<{ displayName: string | null }> {
+  const trimmed = displayName?.trim() || null;
+
+  const result = await db.query<{ display_name: string | null }>(
+    `UPDATE users SET display_name = $1, updated_at = now()
+     WHERE id = $2 AND deleted_at IS NULL
+     RETURNING display_name`,
+    [trimmed, userId]
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    const err = new Error('User not found.') as Error & { statusCode: number };
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return { displayName: result.rows[0]!.display_name };
+}
+
 export async function updatePassword(db: Pool, userId: string): Promise<void> {
   // In local mode passwords are not stored — just audit-log the change.
   await db.query(

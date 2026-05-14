@@ -70,8 +70,11 @@ export default function NavBar() {
             <>
               <Link
                 href="/settings"
-                className="text-gray-500 hover:text-gray-800 transition-colors"
+                className="flex items-center gap-2 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
               >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                  {(user.displayName ?? user.username).charAt(0).toUpperCase()}
+                </span>
                 {user.displayName ?? `@${user.username}`}
               </Link>
               <button

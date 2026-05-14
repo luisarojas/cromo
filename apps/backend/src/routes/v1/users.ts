@@ -24,6 +24,10 @@ const UpdatePasswordBody = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+const UpdateDisplayNameBody = z.object({
+  displayName: z.string().max(100).nullable(),
+});
+
 export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
   const prefix = '/api/v1/users';
 
@@ -146,6 +150,52 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(e.statusCode ?? 500).send({
           statusCode: e.statusCode ?? 500,
           error: e.statusCode === 409 ? 'Conflict' : 'Internal Server Error',
+          message: e.message,
+        });
+      }
+    }
+  );
+
+  /**
+   * PATCH /api/v1/users/me/display-name
+   */
+  fastify.patch(
+    `${prefix}/me/display-name`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Users'],
+        summary: 'Update display name',
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: 'object',
+          properties: { displayName: { type: ['string', 'null'], maxLength: 100 } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { displayName: { type: ['string', 'null'] } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = UpdateDisplayNameBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join('; '),
+        });
+      }
+      try {
+        const result = await userService.updateDisplayName(fastify.db, request.userId!, parsed.data.displayName);
+        return reply.status(200).send(result);
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({
+          statusCode: e.statusCode ?? 500,
+          error: 'Internal Server Error',
           message: e.message,
         });
       }

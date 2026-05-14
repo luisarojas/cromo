@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { patchUserPreferences } from '@/lib/api';
 import {
+  updateDisplayNameApi,
   updateUsernameApi,
   updateEmailApi,
   updatePasswordApi,
@@ -50,6 +51,60 @@ function SubmitButton({ loading, label, loadingLabel }: { loading: boolean; labe
     >
       {loading ? loadingLabel : label}
     </button>
+  );
+}
+
+// ─── Change Display Name ──────────────────────────────────────────────────────
+
+function ChangeDisplayNameSection() {
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
+
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setLoading(true);
+    setStatus(null);
+    try {
+      const { displayName: updated } = await updateDisplayNameApi(displayName.trim() || null, token);
+      updateUser({ displayName: updated });
+      setDisplayName(updated ?? '');
+      setStatus({ type: 'success', message: 'Display name updated.' });
+    } catch (err) {
+      setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update display name.' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <SectionCard title="Display Name" description="Shown in the navbar in place of your username. Leave blank to show your username instead.">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700" htmlFor="displayName">
+            Display name
+          </label>
+          <input
+            id="displayName"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            maxLength={100}
+            placeholder={`e.g. ${user?.username ?? 'Your Name'}`}
+            autoComplete="name"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+          />
+          <p className="text-xs text-gray-400">Up to 100 characters. Leave blank to clear.</p>
+        </div>
+        {status && <StatusMessage type={status.type} message={status.message} />}
+        <SubmitButton loading={loading} label="Save display name" loadingLabel="Saving…" />
+      </form>
+    </SectionCard>
   );
 }
 
@@ -389,6 +444,7 @@ function AlbumSettingsTab() {
 function AccountSettingsTab() {
   return (
     <div className="flex flex-col gap-6">
+      <ChangeDisplayNameSection />
       <ChangeUsernameSection />
       <ChangeEmailSection />
       <ChangePasswordSection />

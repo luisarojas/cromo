@@ -107,6 +107,22 @@ export async function updateUsernameApi(
   return res.json() as Promise<{ username: string }>;
 }
 
+export async function updateDisplayNameApi(
+  displayName: string | null,
+  token: string,
+): Promise<{ displayName: string | null }> {
+  const res = await fetch(`${BASE_URL}/api/v1/users/me/display-name`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ displayName }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message ?? 'Failed to update display name');
+  }
+  return res.json() as Promise<{ displayName: string | null }>;
+}
+
 export async function updateEmailApi(
   email: string,
   token: string,
