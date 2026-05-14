@@ -1,35 +1,36 @@
 -- scripts/seeds/08_coca_cola_stickers.sql
--- Coca-Cola special stickers
---
--- These are NOT variants of existing stickers — they are entirely separate sticker
--- records with sticker_type = 'coca_cola'. Each gets only a single 'base' variant
--- (no parallels). See 05_variants.sql Step 5 note.
---
--- STATUS: PENDING — official Coca-Cola sticker list from Panini not yet confirmed.
--- This file is a placeholder. seed-database.sh will not run it until it is populated.
--- Once the official checklist is available, replace the commented INSERT below with
--- the real data, uncomment it, and add it to seed-database.sh between files 07 and 09.
--- Source: paninitrade.com/checklist (once available)
---
--- Sticker numbering: Coca-Cola stickers follow sticker 980 (FWC19), so they start
--- at 981+. Album codes will follow Panini's official designation (e.g., CC1, CC2, ...).
--- Confirm codes from checklistinsider.com before populating.
+-- Coca-Cola Partnership stickers CC1–CC12
+-- Part of a global marketing campaign; found exclusively behind 500mL/600mL Coca-Cola bottle labels.
+-- Standard paper sticker — not foil. No parallel variants; one base variant per sticker.
 
--- ─────────────────────────────────────────────────────────
--- TODO: Replace with confirmed Panini Coca-Cola sticker data
--- ─────────────────────────────────────────────────────────
+INSERT INTO stickers
+  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
+SELECT
+  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+  s.number, s.album_code,
+  (SELECT id FROM teams WHERE fifa_code = s.team_code),
+  s.player_name, s.position, 'coca_cola_special', false
+FROM (VALUES
+  (981, 'CC1',  'USA', 'Christian Pulisic',  'FWD'),
+  (982, 'CC2',  'CAN', 'Alphonso Davies',    'DEF'),
+  (983, 'CC3',  'MEX', 'Santiago Giménez',   'FWD'),
+  (984, 'CC4',  'ARG', 'Lionel Messi',       'FWD'),
+  (985, 'CC5',  'FRA', 'Kylian Mbappé',      'FWD'),
+  (986, 'CC6',  'ENG', 'Jude Bellingham',    'MID'),
+  (987, 'CC7',  'ESP', 'Lamine Yamal',       'FWD'),
+  (988, 'CC8',  'BRA', 'Vinícius Júnior',    'FWD'),
+  (989, 'CC9',  'GER', 'Jamal Musiala',      'MID'),
+  (990, 'CC10', 'NOR', 'Erling Haaland',     'FWD'),
+  (991, 'CC11', 'KOR', 'Son Heung-min',      'FWD'),
+  (992, 'CC12', 'EGY', 'Mohamed Salah',      'FWD')
+) AS s(number, album_code, team_code, player_name, position)
+ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+  player_name  = EXCLUDED.player_name,
+  position     = EXCLUDED.position;
 
--- INSERT INTO stickers (number, album_code, team_id, player_name, sticker_type, is_foil)
--- VALUES
---   (981, 'CC1', NULL, 'Coca-Cola Sticker — TBD', 'coca_cola', false)
---   -- ... additional rows per official checklist
--- ON CONFLICT (album_code) DO UPDATE SET
---   player_name = EXCLUDED.player_name,
---   is_foil     = EXCLUDED.is_foil;
-
--- After inserting sticker records, add a base variant for each:
--- INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
--- SELECT id, 'base', 1, 'retail'
--- FROM stickers
--- WHERE sticker_type = 'coca_cola'
--- ON CONFLICT (sticker_id, variant_type) DO NOTHING;
+-- Single base variant per CC sticker; acquired via Coca-Cola bottles
+INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
+SELECT id, 'base', 1, 'coca_cola'
+FROM stickers
+WHERE sticker_type = 'coca_cola_special'
+ON CONFLICT (sticker_id, variant_type) DO NOTHING;

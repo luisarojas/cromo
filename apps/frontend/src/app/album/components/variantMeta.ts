@@ -18,6 +18,7 @@ export const VARIANT_META: Record<string, VariantMeta> = {
   extra_bronze:        { label: 'Extra — Bronze',      short: 'EX Bronze', swatch: 'bg-amber-600',             rarity: 'Uncommon' },
   extra_silver:        { label: 'Extra — Silver',      short: 'EX Silver', swatch: 'bg-slate-400',             rarity: 'Rare' },
   extra_gold:          { label: 'Extra — Gold',        short: 'EX Gold',   swatch: 'bg-yellow-500',            rarity: 'Legendary' },
+  swiss_gold:          { label: 'Swiss Gold',          short: 'Swiss',     swatch: 'bg-yellow-300',            rarity: 'Swiss Edition' },
 };
 
 export const ALL_VARIANT_TYPES = Object.keys(VARIANT_META);

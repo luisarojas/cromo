@@ -32,17 +32,17 @@ echo "✓ Sticker variants generated"
 run_seed scripts/seeds/06_feature_flags.sql
 echo "✓ Feature flags seeded"
 
-# 08_coca_cola_stickers.sql is reserved but not run until the official
-# Panini Coca-Cola sticker list is confirmed and the file is populated.
-# Uncomment the two lines below once 08_coca_cola_stickers.sql has real data.
-# run_seed scripts/seeds/08_coca_cola_stickers.sql
-# echo "✓ Coca-Cola stickers seeded"
+run_seed scripts/seeds/08_coca_cola_stickers.sql
+echo "✓ Coca-Cola stickers seeded (CC1–CC12)"
 
-# 10_extra_stickers.sql is reserved but not run until the official
-# Panini Extra Sticker checklist (20 players) is confirmed and the file is populated.
-# Uncomment the two lines below once 10_extra_stickers.sql has real data.
-# run_seed scripts/seeds/10_extra_stickers.sql
-# echo "✓ Extra stickers seeded (20 players × 4 rarities)"
+run_seed scripts/seeds/10_extra_stickers.sql
+echo "✓ Extra stickers seeded (EX1–EX20, 4 rarities each)"
+
+run_seed scripts/seeds/11_host_city_stickers.sql
+echo "✓ Host city stickers seeded (HC1–HC16)"
+
+run_seed scripts/seeds/12_swiss_legend_stickers.sql
+echo "✓ Swiss Legend stickers seeded (L1–L10, Swiss Gold edition)"
 
 if [ "$NODE_ENV" != "production" ]; then
   run_seed scripts/seeds/07_test_users.sql

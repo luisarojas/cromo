@@ -19,6 +19,11 @@ export const VARIANT_RARITY: Record<string, number> = {
   green_crumple: 12,
   black_crumple_1of1: 13,
   coca_cola: 14,
+  extra_base: 15,
+  extra_bronze: 16,
+  extra_silver: 17,
+  extra_gold: 18,
+  swiss_gold: 19,
 }
 
 export const DEFAULT_PAGE_SIZE = 100

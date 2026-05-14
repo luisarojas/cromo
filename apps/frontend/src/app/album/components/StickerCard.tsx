@@ -20,7 +20,8 @@ const TYPE_COLORS: Record<string, string> = {
   team_photo: 'bg-yellow-100 text-yellow-700',
   intro: 'bg-teal-100 text-teal-700',
   museum: 'bg-orange-100 text-orange-700',
-  coca_cola: 'bg-red-100 text-red-700',
+  coca_cola_special: 'bg-red-100 text-red-700',
+  extra: 'bg-pink-100 text-pink-700',
 };
 
 export default function StickerCard({

@@ -32,6 +32,7 @@ export type StickerType =
   | 'player'
   | 'museum'
   | 'coca_cola_special'
+  | 'extra'
 
 export type Position = 'GK' | 'DEF' | 'MID' | 'FWD'
 
@@ -70,12 +71,18 @@ export type VariantType =
   | 'green_crumple'
   | 'black_crumple_1of1'
   | 'coca_cola'
+  | 'extra_base'
+  | 'extra_bronze'
+  | 'extra_silver'
+  | 'extra_gold'
+  | 'swiss_gold'
 
 export type Availability =
   | 'retail'
   | 'amazon_exclusive'
   | 'panini_online'
   | 'coca_cola'
+  | 'swiss_edition'
 
 export interface StickerVariant {
   id: string

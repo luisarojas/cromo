@@ -44,7 +44,8 @@ const TYPE_LABELS: Record<string, string> = {
   team_photo: 'Team Photo',
   intro: 'Intro',
   museum: 'Museum',
-  coca_cola: 'Coca-Cola',
+  coca_cola_special: 'Coca-Cola',
+  extra: 'Extra',
 };
 
 type OwnedMap = Map<string, OwnedVariantMap>;

@@ -66,7 +66,7 @@ export default function VariantPopover({
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {
-    if (sticker.sticker_type === 'coca_cola') {
+    if (sticker.sticker_type === 'coca_cola_special') {
       const loc = COCA_COLA_LOCATION[albumEdition];
       return loc.type === 'numbered'
         ? formatPageSpread(loc.pages)
