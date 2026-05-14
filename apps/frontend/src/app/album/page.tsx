@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   fetchUserAlbums,
-  fetchStats,
+  fetchAllStickersCached,
+  fetchAlbumSummaries,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
   setDefaultUserAlbum,
   albumDisplayName,
   ALBUM_TYPE_LABELS,
+  type AlbumSettings,
+  type Sticker,
   type UserAlbum,
   type CollectionStats,
 } from '@/lib/api';
@@ -20,6 +23,37 @@ import { useAlbumsStore } from '@/store/albums';
 import { EDITION_LABELS } from '@/lib/albumPages';
 import type { AlbumEdition } from '@/lib/albumPages';
 import AlbumFormModal from './components/AlbumFormModal';
+
+function computeAlbumStats(
+  allStickers: Sticker[],
+  album: UserAlbum,
+  ownedCodes: Set<string>,
+  duplicateCodes: Set<string>,
+): CollectionStats {
+  const edition = album.edition as AlbumEdition;
+  const settings = album.settings;
+
+  const filtered = allStickers.filter((s) => {
+    if (s.sticker_type === 'coca_cola_special') return settings.include_coca_cola;
+    const hasPage =
+      (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
+      s.team_pages?.[edition] != null;
+    if (s.sticker_type === 'museum' && !hasPage) return settings.include_non_album_museum;
+    if (hasPage) return true;
+    return settings.include_all_stickers;
+  });
+
+  const total = filtered.length;
+  let owned = 0;
+  let duplicates = 0;
+  for (const s of filtered) {
+    if (ownedCodes.has(s.album_code)) owned++;
+    if (duplicateCodes.has(s.album_code)) duplicates++;
+  }
+  const missing = total - owned;
+  const percentage = total > 0 ? (owned / total) * 100 : 0;
+  return { total, owned, missing, duplicates, percentage };
+}
 
 const MAX_ALBUMS = 10;
 
@@ -42,6 +76,7 @@ export default function AlbumsPage() {
   const removeAlbum = useAlbumsStore((s) => s.removeAlbum);
 
   const [albumStats, setAlbumStats] = useState<Map<string, CollectionStats>>(new Map());
+  const [allStickers, setAllStickers] = useState<Sticker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -68,7 +103,11 @@ export default function AlbumsPage() {
       setLoading(true);
       setError(null);
       try {
-        const userAlbums = await fetchUserAlbums(usr.id, tok);
+        const [userAlbums, allStickers, summaries] = await Promise.all([
+          fetchUserAlbums(usr.id, tok),
+          fetchAllStickersCached(tok),
+          fetchAlbumSummaries(usr.id, tok),
+        ]);
         if (cancelled) return;
         setAlbums(userAlbums);
 
@@ -77,12 +116,14 @@ export default function AlbumsPage() {
           return;
         }
 
-        const statsEntries = await Promise.all(
-          userAlbums.map(async (album) => {
-            const stats = await fetchStats(usr.id, tok, album.id);
-            return [album.id, stats] as const;
-          })
-        );
+        if (!cancelled) setAllStickers(allStickers);
+        const summaryMap = new Map(summaries.map((s) => [s.album_id, s]));
+        const statsEntries = userAlbums.map((album) => {
+          const summary = summaryMap.get(album.id);
+          const ownedCodes = new Set(summary?.owned_album_codes ?? []);
+          const duplicateCodes = new Set(summary?.duplicate_album_codes ?? []);
+          return [album.id, computeAlbumStats(allStickers, album, ownedCodes, duplicateCodes)] as const;
+        });
         if (!cancelled) setAlbumStats(new Map(statsEntries));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load albums');
@@ -97,14 +138,21 @@ export default function AlbumsPage() {
   }, [hydrated, token, user, router]);
 
   const handleAddAlbum = useCallback(
-    async (data: { alias: string | null; edition: AlbumEdition }) => {
+    async (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
       const newAlbum = await createUserAlbum(usr.id, data, tok);
       upsertAlbum(newAlbum);
       try {
-        const stats = await fetchStats(usr.id, tok, newAlbum.id);
+        const [allStickers, summaries] = await Promise.all([
+          fetchAllStickersCached(tok),
+          fetchAlbumSummaries(usr.id, tok),
+        ]);
+        const summary = summaries.find((s) => s.album_id === newAlbum.id);
+        const ownedCodes = new Set(summary?.owned_album_codes ?? []);
+        const duplicateCodes = new Set(summary?.duplicate_album_codes ?? []);
+        const stats = computeAlbumStats(allStickers, newAlbum, ownedCodes, duplicateCodes);
         setAlbumStats((prev) => new Map(prev).set(newAlbum.id, stats));
       } catch {}
     },
@@ -112,12 +160,23 @@ export default function AlbumsPage() {
   );
 
   const handleSaveAlbum = useCallback(
-    async (data: { alias: string | null; edition: AlbumEdition }) => {
+    async (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
       const updated = await updateUserAlbum(usr.id, editingAlbum.id, data, tok);
       upsertAlbum(updated);
+      try {
+        const [allStickers, summaries] = await Promise.all([
+          fetchAllStickersCached(tok),
+          fetchAlbumSummaries(usr.id, tok),
+        ]);
+        const summary = summaries.find((s) => s.album_id === updated.id);
+        const ownedCodes = new Set(summary?.owned_album_codes ?? []);
+        const duplicateCodes = new Set(summary?.duplicate_album_codes ?? []);
+        const stats = computeAlbumStats(allStickers, updated, ownedCodes, duplicateCodes);
+        setAlbumStats((prev) => new Map(prev).set(updated.id, stats));
+      } catch {}
     },
     [editingAlbum, upsertAlbum]
   );
@@ -298,6 +357,7 @@ export default function AlbumsPage() {
       {showAddModal && (
         <AlbumFormModal
           mode="create"
+          allStickers={allStickers}
           onConfirm={handleAddAlbum}
           onClose={() => setShowAddModal(false)}
         />
@@ -307,6 +367,7 @@ export default function AlbumsPage() {
         <AlbumFormModal
           mode="edit"
           album={editingAlbum}
+          allStickers={allStickers}
           onConfirm={handleSaveAlbum}
           onDelete={handleDeleteAlbum}
           onClose={() => setEditingAlbum(null)}

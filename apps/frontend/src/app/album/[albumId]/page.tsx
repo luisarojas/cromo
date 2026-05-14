@@ -294,14 +294,12 @@ export default function AlbumDetailPage() {
     if (!albumSettings) return stickers;
     const edition = activeAlbum.edition as AlbumEdition;
     return stickers.filter((s) => {
+      if (s.sticker_type === 'coca_cola_special') return albumSettings.include_coca_cola;
       const hasPage =
         (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
         s.team_pages?.[edition] != null;
+      if (s.sticker_type === 'museum' && !hasPage) return albumSettings.include_non_album_museum;
       if (hasPage) return true;
-      const isCocaCola = s.sticker_type === 'coca_cola_special';
-      const isMuseum = s.sticker_type === 'museum';
-      if (isCocaCola) return albumSettings.include_coca_cola;
-      if (isMuseum) return albumSettings.include_non_album_museum;
       return albumSettings.include_all_stickers;
     });
   }, [stickers, activeAlbum]);
@@ -613,22 +611,44 @@ export default function AlbumDetailPage() {
                 {activeAlbum ? albumDisplayName(activeAlbum) : 'Album'}
               </h1>
               {activeAlbum && (
-                <p className="text-sm text-gray-500 mt-0.5">
-                  {activeAlbum.alias && (
-                    <span className="mr-1.5">
-                      {ALBUM_TYPE_LABELS[activeAlbum.album_type_key] ?? activeAlbum.album_type_key} ·
-                    </span>
-                  )}
-                  {EDITION_LABELS[activeAlbum.edition as AlbumEdition] ?? activeAlbum.edition} Edition
-                  {activeAlbum.is_default && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
-                      <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                      Default
-                    </span>
-                  )}
-                </p>
+                <>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {activeAlbum.alias && (
+                      <span className="mr-1.5">
+                        {ALBUM_TYPE_LABELS[activeAlbum.album_type_key] ?? activeAlbum.album_type_key} ·
+                      </span>
+                    )}
+                    {EDITION_LABELS[activeAlbum.edition as AlbumEdition] ?? activeAlbum.edition} Edition
+                    {activeAlbum.is_default && (
+                      <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
+                        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        Default
+                      </span>
+                    )}
+                  </p>
+                  {(() => {
+                    const s = activeAlbum.settings;
+                    const chips = [
+                      s.include_coca_cola        && 'Coca-Cola',
+                      s.include_non_album_museum && 'Museum (no album)',
+                      s.include_all_stickers     && 'Unlisted stickers',
+                    ].filter(Boolean) as string[];
+                    return chips.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {chips.map((label) => (
+                          <span
+                            key={label}
+                            className="inline-block text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                </>
               )}
             </div>
           </div>
@@ -747,6 +767,7 @@ export default function AlbumDetailPage() {
       {showAddModal && (
         <AlbumFormModal
           mode="create"
+          allStickers={stickers}
           onConfirm={handleAddAlbum}
           onClose={() => setShowAddModal(false)}
         />
@@ -756,6 +777,7 @@ export default function AlbumDetailPage() {
         <AlbumFormModal
           mode="edit"
           album={editingAlbum}
+          allStickers={stickers}
           onConfirm={handleSaveAlbum}
           onDelete={handleDeleteAlbum}
           onClose={() => setEditingAlbum(null)}

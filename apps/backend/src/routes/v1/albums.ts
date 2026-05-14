@@ -153,8 +153,9 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            alias:   { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
-            edition: { type: 'string' },
+            alias:    { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
+            edition:  { type: 'string' },
+            settings: albumSettingsShape,
           },
         },
         response: { 201: albumShape },
@@ -163,7 +164,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string };
+      const body = request.body as { alias?: string | null; edition?: string; settings?: { include_all_stickers?: boolean; include_coca_cola?: boolean; include_non_album_museum?: boolean } };
       const album = await albumsService.createAlbum(fastify.db, userId, body);
       return reply.status(201).send(album);
     }

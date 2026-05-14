@@ -456,7 +456,7 @@ export async function fetchUserAlbums(
 
 export async function createUserAlbum(
   userId: string,
-  body: { alias?: string | null; edition?: string },
+  body: { alias?: string | null; edition?: string; settings?: AlbumSettings },
   token: string,
 ): Promise<UserAlbum> {
   return apiFetch<UserAlbum>(

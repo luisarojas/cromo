@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { EDITION_LABELS } from '@/lib/albumPages';
 import type { AlbumEdition } from '@/lib/albumPages';
-import type { AlbumSettings, UserAlbum } from '@/lib/api';
+import type { AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
 
 const EDITIONS: AlbumEdition[] = ['north_america', 'international', 'swiss_gold', 'south_america'];
 
@@ -18,6 +18,7 @@ interface Props {
   mode: 'create' | 'edit';
   album?: UserAlbum;
   defaultEdition?: AlbumEdition;
+  allStickers?: Sticker[];
   onConfirm: (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
@@ -27,6 +28,7 @@ export default function AlbumFormModal({
   mode,
   album,
   defaultEdition = 'north_america',
+  allStickers,
   onConfirm,
   onDelete,
   onClose,
@@ -42,6 +44,20 @@ export default function AlbumFormModal({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const stickerCounts = useMemo(() => {
+    if (!allStickers?.length) return null;
+    let coca_cola = 0, non_album_museum = 0, other_no_spot = 0;
+    for (const s of allStickers) {
+      const hasPage =
+        (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
+        s.team_pages?.[edition] != null;
+      if (s.sticker_type === 'coca_cola_special') { coca_cola++; continue; }
+      if (s.sticker_type === 'museum' && !hasPage) { non_album_museum++; continue; }
+      if (!hasPage) other_no_spot++;
+    }
+    return { include_all_stickers: other_no_spot, include_coca_cola: coca_cola, include_non_album_museum: non_album_museum };
+  }, [allStickers, edition]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -142,28 +158,31 @@ export default function AlbumFormModal({
             </select>
           </div>
 
-          {mode === 'edit' && (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium text-gray-600">Sticker visibility</span>
-              {(
-                [
-                  { key: 'include_all_stickers', label: 'Stickers without a spot in my edition' },
-                  { key: 'include_coca_cola', label: 'Coca-Cola stickers' },
-                  { key: 'include_non_album_museum', label: 'Museum stickers not placed in any album' },
-                ] as { key: keyof AlbumSettings; label: string }[]
-              ).map(({ key, label }) => (
-                <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={settings[key]}
-                    onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.checked }))}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
-                  />
-                  <span className="text-sm text-gray-700">{label}</span>
-                </label>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-gray-600">Sticker visibility</span>
+            {(
+              [
+                { key: 'include_all_stickers', label: 'Stickers without a spot in my edition' },
+                { key: 'include_coca_cola', label: 'Coca-Cola stickers' },
+                { key: 'include_non_album_museum', label: 'Museum stickers not placed in any album' },
+              ] as { key: keyof AlbumSettings; label: string }[]
+            ).map(({ key, label }) => (
+              <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={settings[key]}
+                  onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.checked }))}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                />
+                <span className="text-sm text-gray-700">
+                  {label}
+                  {stickerCounts != null && (
+                    <span className="ml-1 text-gray-400">({stickerCounts[key]})</span>
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
 
           {error && (
             <p className="text-xs text-red-600 rounded-lg bg-red-50 px-3 py-2">{error}</p>

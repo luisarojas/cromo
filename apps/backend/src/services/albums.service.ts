@@ -93,7 +93,7 @@ export async function resolveAlbumId(
 export async function createAlbum(
   db: Pool,
   userId: string,
-  input: { alias?: string | null; edition?: string }
+  input: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> }
 ): Promise<UserAlbum> {
   const { rows: countRows } = await db.query<{ count: string }>(
     'SELECT COUNT(*) AS count FROM user_albums WHERE user_id = $1',
@@ -107,10 +107,11 @@ export async function createAlbum(
 
   const editionKey = input.edition ?? 'north_america';
   const alias = input.alias ?? null;
+  const settings = input.settings ? JSON.stringify(input.settings) : null;
 
   const { rows } = await db.query<UserAlbum>(
     `WITH ins AS (
-       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default)
+       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default, settings)
        VALUES (
          $1,
          (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
@@ -118,12 +119,13 @@ export async function createAlbum(
           JOIN album_types at ON at.id = ae.album_type_id
           WHERE at.key = 'fifa_world_cup_2026' AND ae.key = $2),
          $3,
-         false
+         false,
+         COALESCE($4::jsonb, '{"include_all_stickers":true,"include_coca_cola":true,"include_non_album_museum":true}'::jsonb)
        )
        RETURNING *
      )
      ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-    [userId, editionKey, alias]
+    [userId, editionKey, alias, settings]
   );
   return rows[0]!;
 }
