@@ -20,7 +20,7 @@ const mockRedis = {
   get: vi.fn().mockResolvedValue(null),
   set: vi.fn().mockResolvedValue('OK'),
   setex: vi.fn().mockResolvedValue('OK'),
-  keys: vi.fn().mockResolvedValue([]),
+  scan: vi.fn().mockResolvedValue(['0', []]),
   del: vi.fn().mockResolvedValue(0),
 } as unknown as Redis;
 
@@ -28,9 +28,9 @@ const mockRedis = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: cache miss
+  // Default: cache miss, no cached keys
   (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-  (mockRedis.keys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', []]);
 });
 
 // ─── getStats ──────────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ describe('getStats', () => {
       rows: [{ total: '980', owned: '200', duplicates: '15' }],
     });
 
-    const stats = await getStats(mockDb, mockRedis, 'user-1');
+    const stats = await getStats(mockDb, mockRedis, 'user-1', 'album-1');
 
     expect(stats.total).toBe(980);
     expect(stats.owned).toBe(200);
@@ -55,7 +55,7 @@ describe('getStats', () => {
       rows: [{ total: '0', owned: '0', duplicates: '0' }],
     });
 
-    const stats = await getStats(mockDb, mockRedis, 'user-1');
+    const stats = await getStats(mockDb, mockRedis, 'user-1', 'album-1');
 
     expect(stats.total).toBe(0);
     expect(stats.owned).toBe(0);
@@ -67,7 +67,7 @@ describe('getStats', () => {
     const cached = { total: 980, owned: 200, missing: 780, duplicates: 15, percentage: 20.41 };
     (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(JSON.stringify(cached));
 
-    const stats = await getStats(mockDb, mockRedis, 'user-1');
+    const stats = await getStats(mockDb, mockRedis, 'user-1', 'album-1');
 
     expect(stats).toEqual(cached);
     expect(mockDb.query).not.toHaveBeenCalled();
@@ -78,10 +78,10 @@ describe('getStats', () => {
       rows: [{ total: '100', owned: '50', duplicates: '5' }],
     });
 
-    await getStats(mockDb, mockRedis, 'user-1');
+    await getStats(mockDb, mockRedis, 'user-1', 'album-1');
 
     expect(mockRedis.set).toHaveBeenCalledWith(
-      'user:user-1:summary',
+      'user:user-1:summary:album-1',
       expect.any(String),
       'EX',
       300
@@ -92,32 +92,32 @@ describe('getStats', () => {
 // ─── addSticker ────────────────────────────────────────────────────────────────
 
 describe('addSticker', () => {
-  it('calls db.query with the correct userId and variantId', async () => {
+  it('calls db.query with the correct albumId and variantId', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await addSticker(mockDb, mockRedis, 'user-42', 'variant-99');
+    await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/INSERT INTO user_stickers/i);
-    expect(params).toContain('user-42');
+    expect(params).toContain('album-42');
     expect(params).toContain('variant-99');
   });
 
   it('invalidates user caches after insert', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    (mockRedis.keys as ReturnType<typeof vi.fn>).mockResolvedValue(['user:user-42:collection:abc']);
+    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:collection:abc']]);
 
-    await addSticker(mockDb, mockRedis, 'user-42', 'variant-99');
+    await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
-    expect(mockRedis.keys).toHaveBeenCalled();
+    expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 
   it('does not call del when no cache keys exist', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    (mockRedis.keys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', []]);
 
-    await addSticker(mockDb, mockRedis, 'user-42', 'variant-99');
+    await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
     expect(mockRedis.del).not.toHaveBeenCalled();
   });
@@ -125,7 +125,7 @@ describe('addSticker', () => {
   it('uses quantity = 1 by default', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await addSticker(mockDb, mockRedis, 'user-42', 'variant-99');
+    await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
     const [[, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(params).toContain(1);
@@ -135,24 +135,24 @@ describe('addSticker', () => {
 // ─── removeSticker ─────────────────────────────────────────────────────────────
 
 describe('removeSticker', () => {
-  it('calls db.query with userId and variantId in a DELETE statement', async () => {
+  it('calls db.query with albumId and variantId in a DELETE statement', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await removeSticker(mockDb, mockRedis, 'user-42', 'variant-99');
+    await removeSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/DELETE FROM user_stickers/i);
-    expect(params).toContain('user-42');
+    expect(params).toContain('album-42');
     expect(params).toContain('variant-99');
   });
 
   it('invalidates user caches after deletion', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    (mockRedis.keys as ReturnType<typeof vi.fn>).mockResolvedValue(['user:user-42:summary']);
+    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:summary:album-42']]);
 
-    await removeSticker(mockDb, mockRedis, 'user-42', 'variant-99');
+    await removeSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
-    expect(mockRedis.keys).toHaveBeenCalled();
+    expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 });
@@ -163,11 +163,11 @@ describe('updateSticker', () => {
   it('runs an UPDATE query when quantity > 0', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await updateSticker(mockDb, mockRedis, 'user-42', 'variant-99', 3);
+    await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 3);
 
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/UPDATE user_stickers/i);
-    expect(params).toContain('user-42');
+    expect(params).toContain('album-42');
     expect(params).toContain('variant-99');
     expect(params).toContain(3);
   });
@@ -175,18 +175,18 @@ describe('updateSticker', () => {
   it('runs a DELETE query when quantity = 0', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await updateSticker(mockDb, mockRedis, 'user-42', 'variant-99', 0);
+    await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 0);
 
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/DELETE FROM user_stickers/i);
-    expect(params).toContain('user-42');
+    expect(params).toContain('album-42');
     expect(params).toContain('variant-99');
   });
 
   it('runs a DELETE query when quantity < 0', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-    await updateSticker(mockDb, mockRedis, 'user-42', 'variant-99', -1);
+    await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', -1);
 
     const [[sql]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/DELETE FROM user_stickers/i);
@@ -194,11 +194,11 @@ describe('updateSticker', () => {
 
   it('invalidates user caches after update', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    (mockRedis.keys as ReturnType<typeof vi.fn>).mockResolvedValue(['user:user-42:summary']);
+    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:summary:album-42']]);
 
-    await updateSticker(mockDb, mockRedis, 'user-42', 'variant-99', 2);
+    await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 2);
 
-    expect(mockRedis.keys).toHaveBeenCalled();
+    expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 });
