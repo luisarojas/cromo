@@ -57,6 +57,15 @@ export default function NavBar() {
         </div>
 
         <div className="ml-auto flex items-center gap-3 text-sm">
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={() => { localStorage.clear(); window.location.reload(); }}
+              className="rounded px-2 py-1 text-xs font-mono bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 transition-colors"
+              title="Clear localStorage and reload"
+            >
+              clear cache
+            </button>
+          )}
           {user ? (
             <>
               <Link
