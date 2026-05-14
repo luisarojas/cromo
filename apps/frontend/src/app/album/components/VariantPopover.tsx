@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
-import { VARIANT_META, variantLabel, variantSwatch } from './variantMeta';
+import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import {
   getTeamPages,
   formatPageSpread,
@@ -463,7 +463,7 @@ export default function VariantPopover({
                 {VARIANT_META[v.variant_type]?.label ?? v.variant_type}
               </span>
               <span className="text-[10px] text-gray-400">
-                {v.availability}
+                {variantRarity(v.variant_type)}
               </span>
             </button>
           ))}

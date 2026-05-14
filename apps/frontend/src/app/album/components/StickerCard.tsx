@@ -1,7 +1,7 @@
 'use client';
 
 import type { Sticker } from '@/lib/api';
-import { variantShort, variantSwatch } from './variantMeta';
+import { variantRarity, variantShort, variantSwatch } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
 
 interface Props {
@@ -97,7 +97,7 @@ export default function StickerCard({
             <span
               key={variantType}
               className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700"
-              title={variantType}
+              title={variantRarity(variantType)}
             >
               <span
                 className={`inline-block w-2 h-2 rounded-full border border-gray-300 ${variantSwatch(variantType)}`}
