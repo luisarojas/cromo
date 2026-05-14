@@ -121,11 +121,18 @@ export default function AlbumDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const tokenRef = useRef(token);
   const userRef = useRef(user);
   tokenRef.current = token;
   userRef.current = user;
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Data loaders
@@ -674,6 +681,18 @@ export default function AlbumDetailPage() {
           onDelete={handleDeleteAlbum}
           onClose={() => setEditingAlbum(null)}
         />
+      )}
+
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 p-3 rounded-full bg-white border border-gray-200 shadow-md text-gray-500 hover:text-gray-800 hover:shadow-lg transition-all"
+          aria-label="Scroll to top"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
       )}
     </div>
   );
