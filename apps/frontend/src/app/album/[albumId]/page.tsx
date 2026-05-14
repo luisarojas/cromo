@@ -17,6 +17,7 @@ import {
   setDefaultUserAlbum,
   albumDisplayName,
   ALBUM_TYPE_LABELS,
+  type AlbumSettings,
   type Sticker,
   type CollectionStats,
   type MissingItem,
@@ -288,15 +289,32 @@ export default function AlbumDetailPage() {
   // ---------------------------------------------------------------------------
   const activeAlbum = useMemo(() => albums.find((a) => a.id === albumId), [albums, albumId]);
 
-  const tabBase = useMemo(() => {
-    if (tab === 'all') return stickers;
-    if (tab === 'have') return stickers.filter((s) => ownedMap.has(s.album_code));
-    if (tab === 'missing') return stickers.filter((s) => !ownedMap.has(s.album_code));
+  const settingsFilteredStickers = useMemo<Sticker[]>(() => {
+    const albumSettings = activeAlbum?.settings;
+    if (!albumSettings) return stickers;
+    const edition = activeAlbum.edition as AlbumEdition;
     return stickers.filter((s) => {
+      const hasPage =
+        (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
+        s.team_pages?.[edition] != null;
+      if (hasPage) return true;
+      const isCocaCola = s.sticker_type === 'coca_cola_special';
+      const isMuseum = s.sticker_type === 'museum';
+      if (isCocaCola) return albumSettings.include_coca_cola;
+      if (isMuseum) return albumSettings.include_non_album_museum;
+      return albumSettings.include_all_stickers;
+    });
+  }, [stickers, activeAlbum]);
+
+  const tabBase = useMemo(() => {
+    if (tab === 'all') return settingsFilteredStickers;
+    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.album_code));
+    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.album_code));
+    return settingsFilteredStickers.filter((s) => {
       const p = ownedMap.get(s.album_code);
       return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
     });
-  }, [stickers, tab, ownedMap, duplicatesCountAllVariants]);
+  }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
 
   const filterOptions = useMemo(() => {
     const edition = activeAlbum?.edition as AlbumEdition | undefined;
@@ -393,13 +411,13 @@ export default function AlbumDetailPage() {
     let base: Sticker[];
 
     if (tab === 'all') {
-      base = stickers;
+      base = settingsFilteredStickers;
     } else if (tab === 'have') {
-      base = stickers.filter((s) => ownedMap.has(s.album_code));
+      base = settingsFilteredStickers.filter((s) => ownedMap.has(s.album_code));
     } else if (tab === 'missing') {
       base = missingItems.length > 0
-        ? missingItems
-        : stickers.filter((s) => !ownedMap.has(s.album_code));
+        ? missingItems.filter((s) => settingsFilteredStickers.some((sf) => sf.album_code === s.album_code))
+        : settingsFilteredStickers.filter((s) => !ownedMap.has(s.album_code));
     } else {
       if (duplicateItems.length > 0) {
         const seen = new Set<string>();
@@ -407,12 +425,12 @@ export default function AlbumDetailPage() {
         for (const d of duplicateItems) {
           if (seen.has(d.album_code)) continue;
           seen.add(d.album_code);
-          const match = stickers.find((s) => s.album_code === d.album_code);
+          const match = settingsFilteredStickers.find((s) => s.album_code === d.album_code);
           if (match) base.push(match);
           else base.push(d as unknown as Sticker);
         }
       } else {
-        base = stickers.filter((s) => {
+        base = settingsFilteredStickers.filter((s) => {
           const p = ownedMap.get(s.album_code);
           return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
         });
@@ -447,7 +465,7 @@ export default function AlbumDetailPage() {
       }
       return true;
     });
-  }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum]);
+  }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum]);
 
   // ---------------------------------------------------------------------------
   // Mutation handlers
@@ -488,7 +506,7 @@ export default function AlbumDetailPage() {
   );
 
   const handleAddAlbum = useCallback(
-    async (data: { alias: string | null; edition: AlbumEdition }) => {
+    async (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
@@ -500,7 +518,7 @@ export default function AlbumDetailPage() {
   );
 
   const handleSaveAlbum = useCallback(
-    async (data: { alias: string | null; edition: AlbumEdition }) => {
+    async (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
@@ -660,8 +678,8 @@ export default function AlbumDetailPage() {
               }`}
             >
               {label}
-              {id === 'all' && !loading && stickers.length > 0 && (
-                <span className="ml-1.5 text-xs text-gray-400">({stickers.length})</span>
+              {id === 'all' && !loading && settingsFilteredStickers.length > 0 && (
+                <span className="ml-1.5 text-xs text-gray-400">({settingsFilteredStickers.length})</span>
               )}
               {id === 'have' && stats && (
                 <span className="ml-1.5 text-xs text-gray-400">

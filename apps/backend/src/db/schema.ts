@@ -62,6 +62,18 @@ export const albumEditions = pgTable('album_editions', {
 
 // ─── user_albums ──────────────────────────────────────────────────────────────
 
+export interface AlbumSettings {
+  include_all_stickers: boolean;
+  include_coca_cola: boolean;
+  include_non_album_museum: boolean;
+}
+
+const DEFAULT_ALBUM_SETTINGS: AlbumSettings = {
+  include_all_stickers: true,
+  include_coca_cola: true,
+  include_non_album_museum: true,
+};
+
 export const userAlbums = pgTable('user_albums', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -69,6 +81,7 @@ export const userAlbums = pgTable('user_albums', {
   albumEditionId: uuid('album_edition_id').notNull(),
   alias: text('alias'),
   isDefault: boolean('is_default').notNull().default(false),
+  settings: jsonb('settings').$type<AlbumSettings>().notNull().default(DEFAULT_ALBUM_SETTINGS),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({

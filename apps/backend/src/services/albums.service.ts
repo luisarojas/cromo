@@ -4,6 +4,12 @@ import { invalidateUserCaches } from './cache.js';
 
 const MAX_ALBUMS_PER_USER = 10;
 
+export interface AlbumSettings {
+  include_all_stickers: boolean;
+  include_coca_cola: boolean;
+  include_non_album_museum: boolean;
+}
+
 export interface UserAlbum {
   id: string;
   user_id: string;
@@ -13,6 +19,7 @@ export interface UserAlbum {
   edition: string;        // edition key, e.g. 'north_america'
   alias: string | null;
   is_default: boolean;
+  settings: AlbumSettings;
   created_at: string;
   updated_at: string;
 }
@@ -28,7 +35,7 @@ export interface AlbumSummary {
 const ALBUM_SELECT = `
   SELECT ua.id, ua.user_id, ua.album_type_id, at.key AS album_type_key,
          ua.album_edition_id, ae.key AS edition,
-         ua.alias, ua.is_default, ua.created_at, ua.updated_at
+         ua.alias, ua.is_default, ua.settings, ua.created_at, ua.updated_at
   FROM user_albums ua
   JOIN album_types at ON at.id = ua.album_type_id
   JOIN album_editions ae ON ae.id = ua.album_edition_id`;
@@ -149,9 +156,9 @@ export async function updateAlbum(
   db: Pool,
   userId: string,
   albumId: string,
-  patch: { alias?: string | null; edition?: string }
+  patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> }
 ): Promise<UserAlbum | null> {
-  if ('alias' in patch === false && patch.edition === undefined) {
+  if ('alias' in patch === false && patch.edition === undefined && patch.settings === undefined) {
     return getAlbum(db, userId, albumId);
   }
 
@@ -170,6 +177,10 @@ export async function updateAlbum(
          WHERE ae.album_type_id = user_albums.album_type_id AND ae.key = $${values.length}
        )`
     );
+  }
+  if (patch.settings !== undefined) {
+    values.push(JSON.stringify(patch.settings));
+    setClauses.push(`settings = settings || $${values.length}::jsonb`);
   }
 
   const { rows } = await db.query<UserAlbum>(

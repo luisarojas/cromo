@@ -4,15 +4,21 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { EDITION_LABELS } from '@/lib/albumPages';
 import type { AlbumEdition } from '@/lib/albumPages';
-import type { UserAlbum } from '@/lib/api';
+import type { AlbumSettings, UserAlbum } from '@/lib/api';
 
 const EDITIONS: AlbumEdition[] = ['north_america', 'international', 'swiss_gold', 'south_america'];
+
+const DEFAULT_SETTINGS: AlbumSettings = {
+  include_all_stickers: true,
+  include_coca_cola: true,
+  include_non_album_museum: true,
+};
 
 interface Props {
   mode: 'create' | 'edit';
   album?: UserAlbum;
   defaultEdition?: AlbumEdition;
-  onConfirm: (data: { alias: string | null; edition: AlbumEdition }) => Promise<void>;
+  onConfirm: (data: { alias: string | null; edition: AlbumEdition; settings: AlbumSettings }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
 }
@@ -28,6 +34,9 @@ export default function AlbumFormModal({
   const [alias, setAlias] = useState(album?.alias ?? '');
   const [edition, setEdition] = useState<AlbumEdition>(
     (album?.edition as AlbumEdition | undefined) ?? defaultEdition
+  );
+  const [settings, setSettings] = useState<AlbumSettings>(
+    album?.settings ?? DEFAULT_SETTINGS
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +55,7 @@ export default function AlbumFormModal({
     setBusy(true);
     setError(null);
     try {
-      await onConfirm({ alias: alias.trim() || null, edition });
+      await onConfirm({ alias: alias.trim() || null, edition, settings });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save album');
@@ -132,6 +141,29 @@ export default function AlbumFormModal({
               ))}
             </select>
           </div>
+
+          {mode === 'edit' && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-gray-600">Sticker visibility</span>
+              {(
+                [
+                  { key: 'include_all_stickers', label: 'Stickers without a spot in my edition' },
+                  { key: 'include_coca_cola', label: 'Coca-Cola stickers' },
+                  { key: 'include_non_album_museum', label: 'Museum stickers not placed in any album' },
+                ] as { key: keyof AlbumSettings; label: string }[]
+              ).map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={settings[key]}
+                    onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                  />
+                  <span className="text-sm text-gray-700">{label}</span>
+                </label>
+              ))}
+            </div>
+          )}
 
           {error && (
             <p className="text-xs text-red-600 rounded-lg bg-red-50 px-3 py-2">{error}</p>

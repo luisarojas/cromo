@@ -2,6 +2,15 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as albumsService from '../../services/albums.service.js';
 
+const albumSettingsShape = {
+  type: 'object',
+  properties: {
+    include_all_stickers:     { type: 'boolean' },
+    include_coca_cola:        { type: 'boolean' },
+    include_non_album_museum: { type: 'boolean' },
+  },
+} as const;
+
 const albumShape = {
   type: 'object',
   properties: {
@@ -13,6 +22,7 @@ const albumShape = {
     edition:          { type: 'string' },
     alias:            { type: 'string', nullable: true },
     is_default:       { type: 'boolean' },
+    settings:         albumSettingsShape,
     created_at:       { type: 'string' },
     updated_at:       { type: 'string' },
   },
@@ -178,8 +188,9 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            alias:   { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
-            edition: { type: 'string' },
+            alias:    { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
+            edition:  { type: 'string' },
+            settings: albumSettingsShape,
           },
         },
         response: { 200: albumShape },
@@ -188,7 +199,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string };
+      const body = request.body as { alias?: string | null; edition?: string; settings?: { include_all_stickers?: boolean; include_coca_cola?: boolean; include_non_album_museum?: boolean } };
       const album = await albumsService.updateAlbum(fastify.db, userId, albumId, body);
       if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
       return reply.status(200).send(album);

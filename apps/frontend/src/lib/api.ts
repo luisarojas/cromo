@@ -414,6 +414,12 @@ export async function fetchDuplicates(
 // Album endpoints
 // ---------------------------------------------------------------------------
 
+export interface AlbumSettings {
+  include_all_stickers: boolean;
+  include_coca_cola: boolean;
+  include_non_album_museum: boolean;
+}
+
 export interface UserAlbum {
   id: string;
   user_id: string;
@@ -423,6 +429,7 @@ export interface UserAlbum {
   edition: string;
   alias: string | null;
   is_default: boolean;
+  settings: AlbumSettings;
   created_at: string;
   updated_at: string;
 }
@@ -462,7 +469,7 @@ export async function createUserAlbum(
 export async function updateUserAlbum(
   userId: string,
   albumId: string,
-  patch: { alias?: string | null; edition?: string },
+  patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> },
   token: string,
 ): Promise<UserAlbum> {
   return apiFetch<UserAlbum>(
