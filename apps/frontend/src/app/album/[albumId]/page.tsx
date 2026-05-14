@@ -115,6 +115,7 @@ export default function AlbumDetailPage() {
   const [albumSummaries, setAlbumSummaries] = useState<AlbumSummary[]>([]);
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const [duplicateItems, setDuplicateItems] = useState<DuplicateItem[]>([]);
+  const [favouriteSet, setFavouriteSet] = useState<Set<string>>(new Set());
 
   const [tab, setTab] = useState<Tab>('all');
   const [filters, setFilters] = useState<FilterState>({});
@@ -134,6 +135,28 @@ export default function AlbumDetailPage() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Load favourites from localStorage when albumId changes
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`stickfolio:favourites:${albumId}`);
+      setFavouriteSet(stored ? new Set(JSON.parse(stored) as string[]) : new Set());
+    } catch {
+      setFavouriteSet(new Set());
+    }
+  }, [albumId]);
+
+  const handleToggleFavourite = useCallback((albumCode: string) => {
+    setFavouriteSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(albumCode)) next.delete(albumCode);
+      else next.add(albumCode);
+      try {
+        localStorage.setItem(`stickfolio:favourites:${albumId}`, JSON.stringify([...next]));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, [albumId]);
 
   // ---------------------------------------------------------------------------
   // Data loaders
@@ -338,6 +361,7 @@ export default function AlbumDetailPage() {
 
     const filterExcept = (exclude: keyof FilterState): Sticker[] =>
       tabBase.filter((s) => {
+        if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.album_code)) return false;
         if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
         if (exclude !== 'team' && filters.team?.length && !filters.team.includes(s.team_name ?? '') && !filters.team.includes(s.fifa_code ?? '')) return false;
         if (exclude !== 'type' && filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
@@ -379,7 +403,7 @@ export default function AlbumDetailPage() {
     const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
 
     return { groupOptions, teamOptions, typeOptions, variantOptions };
-  }, [tabBase, filters, ownedMap, activeAlbum]);
+  }, [tabBase, filters, ownedMap, activeAlbum, favouriteSet]);
 
   const computedStats = useMemo<CollectionStats | null>(() => {
     if (loading) return null;
@@ -460,6 +484,7 @@ export default function AlbumDetailPage() {
     const edition = activeAlbum?.edition as AlbumEdition | undefined;
 
     return base.filter((s) => {
+      if (filters.favouritesOnly && !favouriteSet.has(s.album_code)) return false;
       if (filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
       if (filters.team?.length && !filters.team.includes(s.team_name ?? '') && !filters.team.includes(s.fifa_code ?? '')) return false;
       if (filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
@@ -485,7 +510,7 @@ export default function AlbumDetailPage() {
       }
       return true;
     });
-  }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum]);
+  }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum, favouriteSet]);
 
   // ---------------------------------------------------------------------------
   // Mutation handlers
@@ -760,6 +785,8 @@ export default function AlbumDetailPage() {
             crossAlbumNeeded={crossAlbumNeeded}
             crossAlbumAvailable={crossAlbumAvailable}
             crossAlbumHasSticker={crossAlbumHasSticker}
+            favouriteSet={favouriteSet}
+            onToggleFavourite={handleToggleFavourite}
           />
         ) : null}
       </div>

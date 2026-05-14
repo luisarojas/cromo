@@ -28,6 +28,8 @@ interface Props {
   crossAlbumAvailable?: Map<string, string[]>;
   // album_code -> albums that own this sticker (used for move-from picker)
   crossAlbumHasSticker?: Map<string, Array<{ id: string; name: string }>>;
+  favouriteSet?: Set<string>;
+  onToggleFavourite?: (albumCode: string) => void;
 }
 
 const COLS = 4;
@@ -48,6 +50,8 @@ export default function StickerGrid({
   crossAlbumNeeded,
   crossAlbumAvailable,
   crossAlbumHasSticker,
+  favouriteSet,
+  onToggleFavourite,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -202,6 +206,8 @@ export default function StickerGrid({
                       ownedVariants={ownedVariants}
                       crossAlbumNeededBy={totalQuantity > 1 ? crossAlbumNeeded?.get(sticker.album_code) : undefined}
                       crossAlbumAvailableIn={crossAlbumAvailable?.get(sticker.album_code)}
+                      isFavourited={favouriteSet?.has(sticker.album_code)}
+                      onToggleFavourite={onToggleFavourite ? () => onToggleFavourite(sticker.album_code) : undefined}
                       onOpenPopover={(anchor) =>
                         handleOpenPopover(sticker, anchor)
                       }

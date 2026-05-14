@@ -11,6 +11,8 @@ interface Props {
   crossAlbumNeededBy?: string[];
   // album names that have extras of this sticker (can give)
   crossAlbumAvailableIn?: string[];
+  isFavourited?: boolean;
+  onToggleFavourite?: () => void;
   onOpenPopover: (anchor: HTMLElement) => void;
 }
 
@@ -29,6 +31,8 @@ export default function StickerCard({
   ownedVariants,
   crossAlbumNeededBy,
   crossAlbumAvailableIn,
+  isFavourited,
+  onToggleFavourite,
   onOpenPopover,
 }: Props) {
   const typeColor =
@@ -141,6 +145,36 @@ export default function StickerCard({
       <div className="mt-2 text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
         {owned ? 'Click to manage variants' : 'Click to add'}
       </div>
+
+      {/* Favourite button */}
+      {onToggleFavourite && (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavourite();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation();
+              onToggleFavourite();
+            }
+          }}
+          className={`absolute bottom-1.5 right-1.5 transition-all cursor-pointer ${
+            isFavourited
+              ? 'text-red-500 opacity-100'
+              : 'text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-400'
+          }`}
+          title={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
+          aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
+          aria-pressed={isFavourited}
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill={isFavourited ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isFavourited ? 0 : 1.5}>
+            <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
+          </svg>
+        </span>
+      )}
     </button>
   );
 }
