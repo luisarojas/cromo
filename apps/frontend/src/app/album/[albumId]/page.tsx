@@ -11,6 +11,7 @@ import {
   fetchDuplicates,
   fetchUserAlbums,
   fetchAlbumSummaries,
+  createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
   setDefaultUserAlbum,
@@ -117,6 +118,7 @@ export default function AlbumDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const tokenRef = useRef(token);
   const userRef = useRef(user);
@@ -419,6 +421,18 @@ export default function AlbumDetailPage() {
     [],
   );
 
+  const handleAddAlbum = useCallback(
+    async (data: { alias: string | null; edition: AlbumEdition }) => {
+      const tok = tokenRef.current;
+      const usr = userRef.current;
+      if (!tok || !usr) throw new Error('Not authenticated');
+      const newAlbum = await createUserAlbum(usr.id, data, tok);
+      upsertAlbum(newAlbum);
+      router.push(`/album/${newAlbum.id}`);
+    },
+    [upsertAlbum, router]
+  );
+
   const handleSaveAlbum = useCallback(
     async (data: { alias: string | null; edition: AlbumEdition }) => {
       const tok = tokenRef.current;
@@ -479,15 +493,17 @@ export default function AlbumDetailPage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3">
-            <Link
-              href="/album"
-              className="mt-1 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
-              aria-label="Back to albums"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-            </Link>
+            {albums.length > 1 && (
+              <Link
+                href="/album"
+                className="mt-1 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+                aria-label="Back to albums"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+              </Link>
+            )}
             <div>
               <h1 className="text-2xl font-bold text-gray-800 leading-tight">
                 {activeAlbum ? albumDisplayName(activeAlbum) : 'Album'}
@@ -531,6 +547,17 @@ export default function AlbumDetailPage() {
                 </svg>
                 Edit
               </button>
+              {albums.length < 10 && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                  New Album
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -606,6 +633,14 @@ export default function AlbumDetailPage() {
           />
         ) : null}
       </div>
+
+      {showAddModal && (
+        <AlbumFormModal
+          mode="create"
+          onConfirm={handleAddAlbum}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
 
       {editingAlbum && (
         <AlbumFormModal
