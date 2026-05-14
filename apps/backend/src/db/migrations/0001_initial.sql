@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id UUID PRIMARY KEY REFERENCES users(id),
-  collection_visibility TEXT DEFAULT 'private',
-  profile_visibility TEXT DEFAULT 'public',
+  collection_visibility TEXT DEFAULT 'private'
+    CHECK (collection_visibility IN ('private', 'friends', 'public')),
+  profile_visibility TEXT DEFAULT 'public'
+    CHECK (profile_visibility IN ('private', 'public')),
   trade_matching_enabled BOOLEAN DEFAULT true,
   email_trade_requests BOOLEAN DEFAULT true,
   email_trade_messages BOOLEAN DEFAULT true,
@@ -29,8 +31,6 @@ CREATE TABLE IF NOT EXISTS user_settings (
   marketing_consent_at TIMESTAMPTZ,
   marketing_consent_version TEXT,
   show_trust_score_public BOOLEAN DEFAULT true,
-  album_edition TEXT NOT NULL DEFAULT 'north_america'
-    CHECK (album_edition IN ('north_america', 'international', 'swiss_gold', 'south_america')),
   duplicates_count_all_variants BOOLEAN NOT NULL DEFAULT false
 );
 
@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS consent_records (
   recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_consent_records_user_id ON consent_records(user_id);
+
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
   token TEXT PRIMARY KEY DEFAULT encode(gen_random_bytes(32), 'hex'),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -53,6 +55,36 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token TEXT PRIMARY KEY DEFAULT encode(gen_random_bytes(32), 'hex'),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '1 hour',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+
+-- ─── Album catalog ────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS album_types (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  key TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS album_editions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  album_type_id UUID NOT NULL REFERENCES album_types(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_album_editions_album_type_key ON album_editions(album_type_id, key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_album_editions_id_album_type_id ON album_editions(id, album_type_id);
+CREATE INDEX IF NOT EXISTS idx_album_editions_album_type_id ON album_editions(album_type_id);
 
 CREATE TABLE IF NOT EXISTS teams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,8 +97,9 @@ CREATE TABLE IF NOT EXISTS teams (
 
 CREATE TABLE IF NOT EXISTS stickers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  number INT UNIQUE NOT NULL CHECK (number BETWEEN 0 AND 9999),
-  album_code TEXT UNIQUE NOT NULL,
+  album_type_id UUID NOT NULL REFERENCES album_types(id),
+  number INT NOT NULL CHECK (number BETWEEN 0 AND 9999),
+  album_code TEXT NOT NULL,
   team_id UUID REFERENCES teams(id),
   player_name TEXT,
   position TEXT,
@@ -75,8 +108,13 @@ CREATE TABLE IF NOT EXISTS stickers (
   album_page INT,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (album_type_id, number),
+  UNIQUE (album_type_id, album_code)
 );
+
+CREATE INDEX IF NOT EXISTS idx_stickers_album_type_id ON stickers(album_type_id);
+CREATE INDEX IF NOT EXISTS idx_stickers_team_id ON stickers(team_id);
 
 CREATE TABLE IF NOT EXISTS sticker_variants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -90,21 +128,29 @@ CREATE TABLE IF NOT EXISTS sticker_variants (
 CREATE TABLE IF NOT EXISTS user_albums (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  album_type_key TEXT NOT NULL DEFAULT 'fifa_world_cup_2026',
+  album_type_id UUID NOT NULL REFERENCES album_types(id),
+  album_edition_id UUID NOT NULL,
   alias TEXT,
-  edition TEXT NOT NULL DEFAULT 'north_america'
-    CHECK (edition IN ('north_america', 'international', 'swiss_gold', 'south_america')),
   is_default BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT user_albums_alias_length CHECK (alias IS NULL OR (char_length(alias) BETWEEN 1 AND 100))
+  CONSTRAINT user_albums_alias_length CHECK (alias IS NULL OR (char_length(alias) BETWEEN 1 AND 100)),
+  -- Composite FK ensures the chosen edition belongs to the chosen album type.
+  CONSTRAINT user_albums_edition_matches_type
+    FOREIGN KEY (album_edition_id, album_type_id)
+    REFERENCES album_editions(id, album_type_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_albums_user_id ON user_albums(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_albums_album_type_id ON user_albums(album_type_id);
+CREATE INDEX IF NOT EXISTS idx_user_albums_album_edition_id ON user_albums(album_edition_id);
+
+-- Enforces at most one default album per user
+CREATE UNIQUE INDEX idx_user_albums_single_default
+  ON user_albums(user_id) WHERE is_default = true;
 
 CREATE TABLE IF NOT EXISTS user_stickers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id),
   album_id UUID NOT NULL REFERENCES user_albums(id) ON DELETE CASCADE,
   sticker_variant_id UUID NOT NULL REFERENCES sticker_variants(id),
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity >= 0),
@@ -114,6 +160,7 @@ CREATE TABLE IF NOT EXISTS user_stickers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_stickers_duplicates ON user_stickers(album_id) WHERE quantity > 1;
+CREATE INDEX IF NOT EXISTS idx_user_stickers_sticker_variant_id ON user_stickers(sticker_variant_id);
 
 CREATE TABLE IF NOT EXISTS trade_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -129,6 +176,9 @@ CREATE TABLE IF NOT EXISTS trade_requests (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_trade_requests_requester_id ON trade_requests(requester_id);
+CREATE INDEX IF NOT EXISTS idx_trade_requests_recipient_id ON trade_requests(recipient_id);
+
 CREATE TABLE IF NOT EXISTS trade_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trade_id UUID NOT NULL REFERENCES trade_requests(id),
@@ -136,6 +186,8 @@ CREATE TABLE IF NOT EXISTS trade_items (
   direction TEXT NOT NULL,
   quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0)
 );
+
+CREATE INDEX IF NOT EXISTS idx_trade_items_trade_id ON trade_items(trade_id);
 
 CREATE TABLE IF NOT EXISTS trade_messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -156,6 +208,8 @@ CREATE TABLE IF NOT EXISTS public_lists (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_public_lists_user_id ON public_lists(user_id);
+
 CREATE TABLE IF NOT EXISTS feature_flags (
   key TEXT PRIMARY KEY,
   enabled BOOLEAN NOT NULL DEFAULT false,
@@ -174,6 +228,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
   occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+
 CREATE TABLE IF NOT EXISTS trade_ratings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trade_id UUID NOT NULL REFERENCES trade_requests(id),
@@ -185,6 +241,10 @@ CREATE TABLE IF NOT EXISTS trade_ratings (
   UNIQUE (trade_id, rater_id),
   CHECK (rater_id <> rated_user_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_trade_ratings_trade_id ON trade_ratings(trade_id);
+CREATE INDEX IF NOT EXISTS idx_trade_ratings_rater_id ON trade_ratings(rater_id);
+CREATE INDEX IF NOT EXISTS idx_trade_ratings_rated_user_id ON trade_ratings(rated_user_id);
 
 CREATE TABLE IF NOT EXISTS user_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -202,6 +262,9 @@ CREATE TABLE IF NOT EXISTS user_reports (
   CHECK (reporter_id <> reported_user_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_user_reports_reporter_id ON user_reports(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_user_reports_reported_user_id ON user_reports(reported_user_id);
+
 CREATE TABLE IF NOT EXISTS user_bans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
@@ -215,3 +278,23 @@ CREATE TABLE IF NOT EXISTS user_bans (
   lift_reason TEXT CHECK (char_length(lift_reason) <= 500),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_user_bans_user_id ON user_bans(user_id);
+
+-- ─── Seed: album catalog ──────────────────────────────────────────────────────
+
+INSERT INTO album_types (key, name) VALUES
+  ('fifa_world_cup_2026', 'FIFA World Cup 2026')
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO album_editions (album_type_id, key, name)
+SELECT t.id, e.key, e.name
+FROM album_types t
+CROSS JOIN (VALUES
+  ('north_america', 'North America'),
+  ('international', 'International'),
+  ('swiss_gold', 'Swiss Gold'),
+  ('south_america', 'South America')
+) AS e(key, name)
+WHERE t.key = 'fifa_world_cup_2026'
+ON CONFLICT (album_type_id, key) DO NOTHING;

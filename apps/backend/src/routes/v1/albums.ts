@@ -1,31 +1,22 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
-import { verifyToken } from '../../middleware/auth.js';
+import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as albumsService from '../../services/albums.service.js';
 
-const VALID_EDITIONS = ['north_america', 'international', 'swiss_gold', 'south_america'] as const;
-
-const CreateAlbumBody = z.object({
-  alias: z.string().min(1).max(100).optional().nullable(),
-  edition: z.enum(VALID_EDITIONS).optional(),
-});
-
-const UpdateAlbumBody = z.object({
-  alias: z.string().min(1).max(100).optional().nullable(),
-  edition: z.enum(VALID_EDITIONS).optional(),
-});
-
-const MoveStickersBody = z.object({
-  targetAlbumId: z.string().uuid(),
-  quantity: z.number().int().min(1),
-});
-
-function assertAccess(request: FastifyRequest, reply: FastifyReply, targetUserId: string): boolean {
-  if (request.userRole === 'admin') return true;
-  if (request.userId === targetUserId) return true;
-  reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You can only access your own albums.' });
-  return false;
-}
+const albumShape = {
+  type: 'object',
+  properties: {
+    id:               { type: 'string' },
+    user_id:          { type: 'string' },
+    album_type_id:    { type: 'string' },
+    album_type_key:   { type: 'string' },
+    album_edition_id: { type: 'string' },
+    edition:          { type: 'string' },
+    alias:            { type: 'string', nullable: true },
+    is_default:       { type: 'boolean' },
+    created_at:       { type: 'string' },
+    updated_at:       { type: 'string' },
+  },
+} as const;
 
 export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
 
@@ -48,20 +39,47 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
         response: {
           200: {
             type: 'object',
+            properties: { items: { type: 'array', items: albumShape } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId } = request.params as { userId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const items = await albumsService.listAlbums(fastify.db, userId);
+      return reply.status(200).send({ items });
+    }
+  );
+
+  /**
+   * GET /api/v1/users/:userId/albums/summary
+   */
+  fastify.get(
+    '/api/v1/users/:userId/albums/summary',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: 'Get owned/duplicate album_code sets for all albums (cross-album indicators)',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId'],
+          properties: { userId: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
             properties: {
               items: {
                 type: 'array',
                 items: {
                   type: 'object',
                   properties: {
-                    id:             { type: 'string' },
-                    user_id:        { type: 'string' },
-                    album_type_key: { type: 'string' },
-                    alias:          { type: 'string', nullable: true },
-                    edition:        { type: 'string' },
-                    is_default:     { type: 'boolean' },
-                    created_at:     { type: 'string' },
-                    updated_at:     { type: 'string' },
+                    album_id:              { type: 'string' },
+                    owned_album_codes:     { type: 'array', items: { type: 'string' } },
+                    duplicate_album_codes: { type: 'array', items: { type: 'string' } },
                   },
                 },
               },
@@ -72,15 +90,37 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const items = await albumsService.getAlbumSummaries(fastify.db, fastify.redis, userId);
+      return reply.status(200).send({ items });
+    }
+  );
 
-      try {
-        const items = await albumsService.listAlbums(fastify.db, userId);
-        return reply.status(200).send({ items });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+  /**
+   * GET /api/v1/users/:userId/albums/:albumId
+   */
+  fastify.get(
+    '/api/v1/users/:userId/albums/:albumId',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: 'Get a single album',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+        response: { 200: albumShape },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const album = await albumsService.getAlbum(fastify.db, userId, albumId);
+      if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
+      return reply.status(200).send(album);
     }
   );
 
@@ -104,27 +144,18 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             alias:   { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
-            edition: { type: 'string', enum: VALID_EDITIONS },
+            edition: { type: 'string' },
           },
         },
+        response: { 201: albumShape },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
-
-      const parsed = CreateAlbumBody.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.issues.map((i) => i.message).join('; ') });
-      }
-
-      try {
-        const album = await albumsService.createAlbum(fastify.db, userId, parsed.data);
-        return reply.status(201).send(album);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const body = request.body as { alias?: string | null; edition?: string };
+      const album = await albumsService.createAlbum(fastify.db, userId, body);
+      return reply.status(201).send(album);
     }
   );
 
@@ -137,42 +168,57 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: [verifyToken],
       schema: {
         tags: ['Albums'],
-        summary: 'Update the alias of an album',
+        summary: 'Update album alias and/or edition',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
           required: ['userId', 'albumId'],
-          properties: {
-            userId:  { type: 'string' },
-            albumId: { type: 'string' },
-          },
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
         },
         body: {
           type: 'object',
           properties: {
             alias:   { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
-            edition: { type: 'string', enum: VALID_EDITIONS },
+            edition: { type: 'string' },
           },
         },
+        response: { 200: albumShape },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const body = request.body as { alias?: string | null; edition?: string };
+      const album = await albumsService.updateAlbum(fastify.db, userId, albumId, body);
+      if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
+      return reply.status(200).send(album);
+    }
+  );
 
-      const parsed = UpdateAlbumBody.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.issues.map((i) => i.message).join('; ') });
-      }
-
-      try {
-        const album = await albumsService.updateAlbum(fastify.db, userId, albumId, parsed.data);
-        if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
-        return reply.status(200).send(album);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+  /**
+   * POST /api/v1/users/:userId/albums/:albumId/set-default
+   */
+  fastify.post(
+    '/api/v1/users/:userId/albums/:albumId/set-default',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: 'Set an album as the default',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+        response: { 200: albumShape },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const album = await albumsService.setDefaultAlbum(fastify.db, userId, albumId);
+      return reply.status(200).send(album);
     }
   );
 
@@ -185,32 +231,21 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: [verifyToken],
       schema: {
         tags: ['Albums'],
-        summary: 'Delete a non-default album (must have no stickers)',
+        summary: 'Delete a non-default album (cascades to its stickers)',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
           required: ['userId', 'albumId'],
-          properties: {
-            userId:  { type: 'string' },
-            albumId: { type: 'string' },
-          },
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
         },
-        response: {
-          204: { type: 'null', description: 'Album deleted' },
-        },
+        response: { 204: { type: 'null', description: 'Album deleted' } },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
-      if (!assertAccess(request, reply, userId)) return;
-
-      try {
-        await albumsService.deleteAlbum(fastify.db, fastify.redis, userId, albumId);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      await albumsService.deleteAlbum(fastify.db, fastify.redis, userId, albumId);
+      return reply.status(204).send();
     }
   );
 
@@ -242,37 +277,21 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
             quantity:      { type: 'integer', minimum: 1 },
           },
         },
-        response: {
-          204: { type: 'null', description: 'Sticker moved successfully' },
-        },
+        response: { 204: { type: 'null', description: 'Sticker moved successfully' } },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId, variantId } = request.params as {
         userId: string; albumId: string; variantId: string;
       };
-      if (!assertAccess(request, reply, userId)) return;
-
-      const parsed = MoveStickersBody.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.issues.map((i) => i.message).join('; ') });
-      }
-
-      try {
-        await albumsService.moveSticker(
-          fastify.db,
-          fastify.redis,
-          userId,
-          albumId,
-          parsed.data.targetAlbumId,
-          variantId,
-          parsed.data.quantity
-        );
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const { targetAlbumId, quantity } = request.body as {
+        targetAlbumId: string; quantity: number;
+      };
+      await albumsService.moveSticker(
+        fastify.db, fastify.redis, userId, albumId, targetAlbumId, variantId, quantity
+      );
+      return reply.status(204).send();
     }
   );
 }

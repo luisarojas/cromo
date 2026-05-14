@@ -9,7 +9,9 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  unique,
   check,
+  foreignKey,
   inet,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -34,21 +36,52 @@ export const users = pgTable('users', {
   roleCheck: check('users_role_check', sql`${table.role} IN ('user', 'admin')`),
 }));
 
+// ─── album_types ──────────────────────────────────────────────────────────────
+
+export const albumTypes = pgTable('album_types', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  key: text('key').unique().notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ─── album_editions ───────────────────────────────────────────────────────────
+
+export const albumEditions = pgTable('album_editions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id, { onDelete: 'cascade' }),
+  key: text('key').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  typeKeyUnique: unique('album_editions_album_type_id_key_unique').on(table.albumTypeId, table.key),
+  // Composite uniqueness so user_albums can FK both columns together.
+  idTypeUnique: unique('album_editions_id_album_type_id_unique').on(table.id, table.albumTypeId),
+  albumTypeIdx: index('idx_album_editions_album_type_id').on(table.albumTypeId),
+}));
+
 // ─── user_albums ──────────────────────────────────────────────────────────────
 
 export const userAlbums = pgTable('user_albums', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  albumTypeKey: text('album_type_key').notNull().default('fifa_world_cup_2026'),
+  albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id),
+  albumEditionId: uuid('album_edition_id').notNull(),
   alias: text('alias'),
-  edition: text('edition').notNull().default('north_america'),
   isDefault: boolean('is_default').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
   userIdIdx: index('idx_user_albums_user_id').on(table.userId),
-  editionCheck: check('user_albums_edition_check', sql`${table.edition} IN ('north_america', 'international', 'swiss_gold', 'south_america')`),
+  albumTypeIdx: index('idx_user_albums_album_type_id').on(table.albumTypeId),
+  albumEditionIdx: index('idx_user_albums_album_edition_id').on(table.albumEditionId),
   aliasLengthCheck: check('user_albums_alias_length', sql`${table.alias} IS NULL OR (char_length(${table.alias}) BETWEEN 1 AND 100)`),
+  // Composite FK ensures the chosen edition belongs to the chosen album type.
+  editionMatchesType: foreignKey({
+    name: 'user_albums_edition_matches_type',
+    columns: [table.albumEditionId, table.albumTypeId],
+    foreignColumns: [albumEditions.id, albumEditions.albumTypeId],
+  }),
 }));
 
 // ─── user_settings ────────────────────────────────────────────────────────────
@@ -64,9 +97,11 @@ export const userSettings = pgTable('user_settings', {
   marketingConsentAt: timestamp('marketing_consent_at', { withTimezone: true }),
   marketingConsentVersion: text('marketing_consent_version'),
   showTrustScorePublic: boolean('show_trust_score_public').default(true),
-  albumEdition: text('album_edition').notNull().default('north_america'),
   duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(false),
-});
+}, (table) => ({
+  collectionVisibilityCheck: check('user_settings_collection_visibility_check', sql`${table.collectionVisibility} IN ('private', 'friends', 'public')`),
+  profileVisibilityCheck: check('user_settings_profile_visibility_check', sql`${table.profileVisibility} IN ('private', 'public')`),
+}));
 
 // ─── consent_records ──────────────────────────────────────────────────────────
 
@@ -109,8 +144,9 @@ export const teams = pgTable('teams', {
 
 export const stickers = pgTable('stickers', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  number: integer('number').unique().notNull(),
-  albumCode: text('album_code').unique().notNull(),
+  albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id),
+  number: integer('number').notNull(),
+  albumCode: text('album_code').notNull(),
   teamId: uuid('team_id').references(() => teams.id),
   playerName: text('player_name'),
   position: text('position'),
@@ -121,6 +157,10 @@ export const stickers = pgTable('stickers', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
+  albumTypeNumberUnique: unique('stickers_album_type_id_number_unique').on(table.albumTypeId, table.number),
+  albumTypeCodeUnique: unique('stickers_album_type_id_album_code_unique').on(table.albumTypeId, table.albumCode),
+  albumTypeIdx: index('idx_stickers_album_type_id').on(table.albumTypeId),
+  teamIdx: index('idx_stickers_team_id').on(table.teamId),
   numberCheck: check('stickers_number_check', sql`${table.number} BETWEEN 0 AND 9999`),
 }));
 
@@ -143,7 +183,6 @@ export const stickerVariants = pgTable('sticker_variants', {
 
 export const userStickers = pgTable('user_stickers', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id),
   albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
   stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
   quantity: integer('quantity').notNull().default(1),
@@ -154,6 +193,7 @@ export const userStickers = pgTable('user_stickers', {
     table.albumId,
     table.stickerVariantId
   ),
+  stickerVariantIdx: index('idx_user_stickers_sticker_variant_id').on(table.stickerVariantId),
   duplicatesIdx: index('idx_user_stickers_duplicates').on(table.albumId).where(sql`quantity > 1`),
   quantityCheck: check('user_stickers_quantity_check', sql`${table.quantity} >= 0`),
 }));
@@ -220,6 +260,19 @@ export const publicLists = pgTable('public_lists', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 });
+
+// ─── password_reset_tokens ────────────────────────────────────────────────────
+
+export const passwordResetTokens = pgTable('password_reset_tokens', {
+  token: text('token').primaryKey().$defaultFn(() => crypto.randomBytes(32).toString('hex')),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull().default(
+    sql`now() + INTERVAL '1 hour'`
+  ),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  userIdIdx: index('idx_password_reset_tokens_user_id').on(table.userId),
+}));
 
 // ─── feature_flags ────────────────────────────────────────────────────────────
 
@@ -325,17 +378,22 @@ export const userBans = pgTable('user_bans', {
 // ─── Type exports ─────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type AlbumType = typeof albumTypes.$inferSelect;
+export type NewAlbumType = typeof albumTypes.$inferInsert;
+export type AlbumEdition = typeof albumEditions.$inferSelect;
+export type NewAlbumEdition = typeof albumEditions.$inferInsert;
 export type UserAlbum = typeof userAlbums.$inferSelect;
 export type NewUserAlbum = typeof userAlbums.$inferInsert;
-export type NewUser = typeof users.$inferInsert;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type NewUserSettings = typeof userSettings.$inferInsert;
 export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
 export type NewEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type Team = typeof teams.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
 export type StickerVariant = typeof stickerVariants.$inferSelect;
-export type UserSticker = typeof userStickers.$inferSelect;
+export type UserSticker = typeof userStickers.$inferSelect; // ownership via albumId
 export type TradeRequest = typeof tradeRequests.$inferSelect;
 export type TradeItem = typeof tradeItems.$inferSelect;
 export type TradeMessage = typeof tradeMessages.$inferSelect;

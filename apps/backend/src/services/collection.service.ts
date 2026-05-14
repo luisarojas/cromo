@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 import crypto from 'node:crypto';
+import { invalidateUserCaches } from './cache.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -93,21 +94,7 @@ function hashFilters(filters: object): string {
     .digest('hex');
 }
 
-export async function invalidateUserCaches(redis: Redis, userId: string): Promise<void> {
-  const patterns = [
-    `user:${userId}:collection:*`,
-    `user:${userId}:missing:*`,
-    `user:${userId}:summary:*`,
-    `user:${userId}:duplicates:*`,
-  ];
-
-  for (const pattern of patterns) {
-    const keys = await redis.keys(pattern);
-    if (keys.length > 0) {
-      await redis.del(...keys);
-    }
-  }
-}
+export { invalidateUserCaches } from './cache.js';
 
 // ─── Service functions ────────────────────────────────────────────────────────
 
@@ -371,15 +358,19 @@ export async function getStats(
     owned: string;
     duplicates: string;
   }>(
-    `SELECT
-       (SELECT COUNT(*) FROM stickers) AS total,
-       (SELECT COUNT(DISTINCT sv.sticker_id)
-        FROM user_stickers us
-        JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
-        WHERE us.album_id = $1 AND us.quantity > 0) AS owned,
-       (SELECT COUNT(*)
-        FROM user_stickers us
-        WHERE us.album_id = $1 AND us.quantity > 1) AS duplicates`,
+    `WITH album_stats AS (
+       SELECT
+         COUNT(DISTINCT sv.sticker_id) FILTER (WHERE us.quantity > 0) AS owned,
+         COUNT(*)                      FILTER (WHERE us.quantity > 1) AS duplicates
+       FROM user_stickers us
+       JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
+       WHERE us.album_id = $1
+     )
+     SELECT
+       (SELECT COUNT(*) FROM stickers)::text AS total,
+       owned::text,
+       duplicates::text
+     FROM album_stats`,
     [albumId]
   );
 
@@ -410,12 +401,12 @@ export async function addSticker(
   quantity = 1
 ): Promise<void> {
   await db.query(
-    `INSERT INTO user_stickers (user_id, album_id, sticker_variant_id, quantity)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+     VALUES ($1, $2, $3)
      ON CONFLICT (album_id, sticker_variant_id)
      DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
                    updated_at = NOW()`,
-    [userId, albumId, variantId, quantity]
+    [albumId, variantId, quantity]
   );
 
   await invalidateUserCaches(redis, userId);

@@ -99,8 +99,15 @@ export async function register(
 
     // Create default album
     await client.query(
-      `INSERT INTO user_albums (user_id, album_type_key, edition, is_default)
-       VALUES ($1, 'fifa_world_cup_2026', 'north_america', true)`,
+      `INSERT INTO user_albums (user_id, album_type_id, album_edition_id, is_default)
+       VALUES (
+         $1,
+         (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+         (SELECT ae.id FROM album_editions ae
+          JOIN album_types at ON at.id = ae.album_type_id
+          WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'north_america'),
+         true
+       )`,
       [userId]
     );
 
@@ -359,77 +366,75 @@ export async function forgotPassword(db: Pool, email: string): Promise<void> {
     [normalizedEmail]
   );
 
-  if ((userResult.rowCount ?? 0) === 0) return; // Silently succeed
+  if ((userResult.rowCount ?? 0) === 0) return;
 
   const user = userResult.rows[0]!;
   const token = generateToken();
-  const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
 
-  // Store token in Redis with TTL
-  // Key: pwd_reset:<token> → userId
-  // We use Redis here to avoid adding a separate DB table for Phase A1.
-  // If Redis is unavailable, fall through gracefully.
+  const client = await db.connect();
   try {
-    const redisKey = `pwd_reset:${token}`;
-    // We store via raw query to db since we may not have the fastify instance here.
-    // Alternative: caller passes redis client. For simplicity, store in DB.
-    await db.query(
-      `INSERT INTO audit_log (user_id, action, metadata)
-       VALUES ($1, 'password_reset_requested', $2)`,
-      [user.id, JSON.stringify({ token, expires_at: expiresAt.toISOString() })]
+    await client.query('BEGIN');
+    await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+    await client.query(
+      'INSERT INTO password_reset_tokens (token, user_id) VALUES ($1, $2)',
+      [token, user.id]
     );
-
-    sendPasswordResetEmail(normalizedEmail, user.username, token).catch((err) => {
-      console.error('[auth] Failed to send password reset email:', err);
-    });
-
-    void redisKey; // suppress unused warning — used in Phase B Redis integration
+    await client.query('COMMIT');
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('[auth] forgotPassword error:', err);
+    return;
+  } finally {
+    client.release();
   }
+
+  sendPasswordResetEmail(normalizedEmail, user.username, token).catch((err) => {
+    console.error('[auth] Failed to send password reset email:', err);
+  });
 }
 
 /**
- * resetPassword — in local mode, this is a no-op (passwords not validated).
- * Logs the action for audit purposes.
+ * resetPassword — validates the reset token and logs the completion.
+ * In local mode passwords are not stored, so we only verify token validity.
  */
 export async function resetPassword(
   db: Pool,
   token: string,
   _newPassword: string
 ): Promise<void> {
-  if (env.AUTH_MODE === 'local') {
-    // In local mode, any password is accepted — just validate the token exists in audit_log
-    const result = await db.query<{ user_id: string }>(
-      `SELECT user_id FROM audit_log
-       WHERE action = 'password_reset_requested'
-         AND metadata->>'token' = $1
-         AND occurred_at > now() - INTERVAL '1 hour'
-       ORDER BY occurred_at DESC
-       LIMIT 1`,
-      [token]
-    );
-
-    if ((result.rowCount ?? 0) === 0) {
-      const err = new Error('Reset token is invalid or has expired.') as Error & {
-        statusCode: number;
-      };
-      err.statusCode = 400;
-      throw err;
-    }
-
-    await db.query(
-      `INSERT INTO audit_log (user_id, action, metadata)
-       VALUES ($1, 'password_reset_completed', $2)`,
-      [result.rows[0]!.user_id, JSON.stringify({ token })]
-    );
-
-    return;
+  if (env.AUTH_MODE !== 'local') {
+    const err = new Error('AUTH_MODE not supported for password reset.') as Error & {
+      statusCode: number;
+    };
+    err.statusCode = 501;
+    throw err;
   }
 
-  const err = new Error('AUTH_MODE not supported for password reset.') as Error & {
-    statusCode: number;
-  };
-  err.statusCode = 501;
-  throw err;
+  const result = await db.query<{ user_id: string; expires_at: Date }>(
+    'SELECT user_id, expires_at FROM password_reset_tokens WHERE token = $1 LIMIT 1',
+    [token]
+  );
+
+  if ((result.rowCount ?? 0) === 0) {
+    const err = new Error('Reset token is invalid or has expired.') as Error & {
+      statusCode: number;
+    };
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const row = result.rows[0]!;
+  if (new Date() > row.expires_at) {
+    const err = new Error('Reset token is invalid or has expired.') as Error & {
+      statusCode: number;
+    };
+    err.statusCode = 400;
+    throw err;
+  }
+
+  await db.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+  await db.query(
+    `INSERT INTO audit_log (user_id, action) VALUES ($1, 'password_reset_completed')`,
+    [row.user_id]
+  );
 }

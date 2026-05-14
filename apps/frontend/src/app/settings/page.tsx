@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
-import { ALL_EDITIONS, EDITION_LABELS, type AlbumEdition } from '@/lib/albumPages';
 import { patchUserPreferences } from '@/lib/api';
 import {
   updateUsernameApi,
@@ -341,54 +340,22 @@ function AlbumSettingsTab() {
   const token = useAuthStore((s) => s.token);
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
   const setDuplicatesCountAllVariants = usePreferencesStore((s) => s.setDuplicatesCountAllVariants);
-  const albumEdition = usePreferencesStore((s) => s.albumEdition);
-  const setAlbumEdition = usePreferencesStore((s) => s.setAlbumEdition);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  async function savePreference(patch: { albumEdition?: AlbumEdition; duplicatesCountAllVariants?: boolean }) {
+  async function handleDuplicatesChange(value: boolean) {
     if (!token) return;
     setSaveError(null);
+    setDuplicatesCountAllVariants(value);
     try {
-      await patchUserPreferences(patch, token);
+      await patchUserPreferences({ duplicatesCountAllVariants: value }, token);
     } catch {
       setSaveError('Failed to save preference. Please try again.');
     }
   }
 
-  async function handleEditionChange(edition: AlbumEdition) {
-    setAlbumEdition(edition);
-    await savePreference({ albumEdition: edition });
-  }
-
-  async function handleDuplicatesChange(value: boolean) {
-    setDuplicatesCountAllVariants(value);
-    await savePreference({ duplicatesCountAllVariants: value });
-  }
-
   return (
     <div className="flex flex-col gap-6">
       {saveError && <StatusMessage type="error" message={saveError} />}
-
-      <SectionCard
-        title="Album Edition"
-        description="Select your Panini album version so sticker locations are shown correctly."
-      >
-        <div className="flex flex-col gap-2">
-          {ALL_EDITIONS.map((edition) => (
-            <label key={edition} className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="albumEdition"
-                value={edition}
-                checked={albumEdition === edition}
-                onChange={() => handleEditionChange(edition)}
-                className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-400"
-              />
-              <span className="text-sm text-gray-800">{EDITION_LABELS[edition]}</span>
-            </label>
-          ))}
-        </div>
-      </SectionCard>
 
       <SectionCard
         title="Duplicates"

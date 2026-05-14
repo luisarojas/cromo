@@ -3,10 +3,7 @@ import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import * as userService from '../../services/user.service.js';
 
-const VALID_EDITIONS = ['north_america', 'international', 'swiss_gold', 'south_america'] as const;
-
 const PatchPreferencesBody = z.object({
-  albumEdition: z.enum(VALID_EDITIONS).optional(),
   duplicatesCountAllVariants: z.boolean().optional(),
 });
 
@@ -45,7 +42,6 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           200: {
             type: 'object',
             properties: {
-              albumEdition: { type: 'string' },
               duplicatesCountAllVariants: { type: 'boolean' },
             },
           },
@@ -77,7 +73,6 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            albumEdition: { type: 'string', enum: VALID_EDITIONS },
             duplicatesCountAllVariants: { type: 'boolean' },
           },
         },
@@ -85,7 +80,6 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           200: {
             type: 'object',
             properties: {
-              albumEdition: { type: 'string' },
               duplicatesCountAllVariants: { type: 'boolean' },
             },
           },

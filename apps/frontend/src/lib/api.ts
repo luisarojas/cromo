@@ -270,6 +270,43 @@ function toQueryString(
 }
 
 // ---------------------------------------------------------------------------
+// Sticker catalog — with localStorage cache (24h TTL, version-keyed)
+// ---------------------------------------------------------------------------
+
+const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v1';
+const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(STICKER_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { data: Sticker[]; fetchedAt: number };
+        if (Date.now() - parsed.fetchedAt < STICKER_CACHE_TTL_MS) return parsed.data;
+      }
+    } catch {}
+  }
+
+  const all: Sticker[] = [];
+  let cursor: number | undefined = undefined;
+  for (let i = 0; i < 50; i++) {
+    const result = await fetchStickers({ cursor, limit: 200 }, token);
+    all.push(...result.items);
+    if (!result.nextCursor || result.items.length === 0) break;
+    cursor = result.nextCursor;
+    if (all.length >= 1200) break;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STICKER_CACHE_KEY, JSON.stringify({ data: all, fetchedAt: Date.now() }));
+    } catch {}
+  }
+
+  return all;
+}
+
+// ---------------------------------------------------------------------------
 // Sticker endpoints
 // ---------------------------------------------------------------------------
 
@@ -378,9 +415,11 @@ export async function fetchDuplicates(
 export interface UserAlbum {
   id: string;
   user_id: string;
+  album_type_id: string;
   album_type_key: string;
-  alias: string | null;
+  album_edition_id: string;
   edition: string;
+  alias: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -441,6 +480,36 @@ export async function deleteUserAlbum(
     { method: 'DELETE' },
     token,
   );
+}
+
+export async function setDefaultUserAlbum(
+  userId: string,
+  albumId: string,
+  token: string,
+): Promise<UserAlbum> {
+  return apiFetch<UserAlbum>(
+    `/api/v1/users/${userId}/albums/${albumId}/set-default`,
+    { method: 'POST' },
+    token,
+  );
+}
+
+export interface AlbumSummary {
+  album_id: string;
+  owned_album_codes: string[];
+  duplicate_album_codes: string[];
+}
+
+export async function fetchAlbumSummaries(
+  userId: string,
+  token: string,
+): Promise<AlbumSummary[]> {
+  const { items } = await apiFetch<{ items: AlbumSummary[] }>(
+    `/api/v1/users/${userId}/albums/summary`,
+    {},
+    token,
+  );
+  return items;
 }
 
 export async function moveSticker(
@@ -512,7 +581,6 @@ export async function deleteSticker(
 // ---------------------------------------------------------------------------
 
 export interface UserPreferences {
-  albumEdition: AlbumEdition;
   duplicatesCountAllVariants: boolean;
 }
 

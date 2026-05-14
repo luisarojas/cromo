@@ -1,40 +1,43 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { invalidateUserCaches } from './cache.js';
+
+const MAX_ALBUMS_PER_USER = 10;
 
 export interface UserAlbum {
   id: string;
   user_id: string;
+  album_type_id: string;
   album_type_key: string;
+  album_edition_id: string;
+  edition: string;        // edition key, e.g. 'north_america'
   alias: string | null;
-  edition: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
 }
 
-// ─── Cache helpers ────────────────────────────────────────────────────────────
-
-async function invalidateUserCaches(redis: Redis, userId: string): Promise<void> {
-  const patterns = [
-    `user:${userId}:collection:*`,
-    `user:${userId}:missing:*`,
-    `user:${userId}:summary:*`,
-    `user:${userId}:duplicates:*`,
-  ];
-  for (const pattern of patterns) {
-    const keys = await redis.keys(pattern);
-    if (keys.length > 0) await redis.del(...keys);
-  }
+export interface AlbumSummary {
+  album_id: string;
+  owned_album_codes: string[];
+  duplicate_album_codes: string[];
 }
 
 // ─── Service functions ────────────────────────────────────────────────────────
 
+const ALBUM_SELECT = `
+  SELECT ua.id, ua.user_id, ua.album_type_id, at.key AS album_type_key,
+         ua.album_edition_id, ae.key AS edition,
+         ua.alias, ua.is_default, ua.created_at, ua.updated_at
+  FROM user_albums ua
+  JOIN album_types at ON at.id = ua.album_type_id
+  JOIN album_editions ae ON ae.id = ua.album_edition_id`;
+
 export async function listAlbums(db: Pool, userId: string): Promise<UserAlbum[]> {
   const { rows } = await db.query<UserAlbum>(
-    `SELECT id, user_id, album_type_key, alias, edition, is_default, created_at, updated_at
-     FROM user_albums
-     WHERE user_id = $1
-     ORDER BY is_default DESC, created_at ASC`,
+    `${ALBUM_SELECT}
+     WHERE ua.user_id = $1
+     ORDER BY ua.is_default DESC, ua.created_at ASC`,
     [userId]
   );
   return rows;
@@ -46,9 +49,8 @@ export async function getAlbum(
   albumId: string
 ): Promise<UserAlbum | null> {
   const { rows } = await db.query<UserAlbum>(
-    `SELECT id, user_id, album_type_key, alias, edition, is_default, created_at, updated_at
-     FROM user_albums
-     WHERE id = $1 AND user_id = $2`,
+    `${ALBUM_SELECT}
+     WHERE ua.id = $1 AND ua.user_id = $2`,
     [albumId, userId]
   );
   return rows[0] ?? null;
@@ -86,14 +88,35 @@ export async function createAlbum(
   userId: string,
   input: { alias?: string | null; edition?: string }
 ): Promise<UserAlbum> {
-  const edition = input.edition ?? 'north_america';
+  const { rows: countRows } = await db.query<{ count: string }>(
+    'SELECT COUNT(*) AS count FROM user_albums WHERE user_id = $1',
+    [userId]
+  );
+  if (parseInt(countRows[0]!.count, 10) >= MAX_ALBUMS_PER_USER) {
+    const err = new Error(`Album limit reached (max ${MAX_ALBUMS_PER_USER}).`) as Error & { statusCode: number };
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const editionKey = input.edition ?? 'north_america';
   const alias = input.alias ?? null;
 
   const { rows } = await db.query<UserAlbum>(
-    `INSERT INTO user_albums (user_id, album_type_key, alias, edition, is_default)
-     VALUES ($1, 'fifa_world_cup_2026', $2, $3, false)
-     RETURNING id, user_id, album_type_key, alias, edition, is_default, created_at, updated_at`,
-    [userId, alias, edition]
+    `WITH ins AS (
+       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default)
+       VALUES (
+         $1,
+         (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+         (SELECT ae.id FROM album_editions ae
+          JOIN album_types at ON at.id = ae.album_type_id
+          WHERE at.key = 'fifa_world_cup_2026' AND ae.key = $2),
+         $3,
+         false
+       )
+       RETURNING *
+     )
+     ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
+    [userId, editionKey, alias]
   );
   return rows[0]!;
 }
@@ -101,13 +124,23 @@ export async function createAlbum(
 export async function createDefaultAlbum(
   db: Pool,
   userId: string,
-  edition = 'north_america'
+  editionKey = 'north_america'
 ): Promise<UserAlbum> {
   const { rows } = await db.query<UserAlbum>(
-    `INSERT INTO user_albums (user_id, album_type_key, edition, is_default)
-     VALUES ($1, 'fifa_world_cup_2026', $2, true)
-     RETURNING id, user_id, album_type_key, alias, edition, is_default, created_at, updated_at`,
-    [userId, edition]
+    `WITH ins AS (
+       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, is_default)
+       VALUES (
+         $1,
+         (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
+         (SELECT ae.id FROM album_editions ae
+          JOIN album_types at ON at.id = ae.album_type_id
+          WHERE at.key = 'fifa_world_cup_2026' AND ae.key = $2),
+         true
+       )
+       RETURNING *
+     )
+     ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
+    [userId, editionKey]
   );
   return rows[0]!;
 }
@@ -118,7 +151,11 @@ export async function updateAlbum(
   albumId: string,
   patch: { alias?: string | null; edition?: string }
 ): Promise<UserAlbum | null> {
-  const setClauses: string[] = [];
+  if ('alias' in patch === false && patch.edition === undefined) {
+    return getAlbum(db, userId, albumId);
+  }
+
+  const setClauses: string[] = ['updated_at = NOW()'];
   const values: unknown[] = [albumId, userId];
 
   if ('alias' in patch) {
@@ -127,19 +164,65 @@ export async function updateAlbum(
   }
   if (patch.edition !== undefined) {
     values.push(patch.edition);
-    setClauses.push(`edition = $${values.length}`);
+    setClauses.push(
+      `album_edition_id = (
+         SELECT ae.id FROM album_editions ae
+         WHERE ae.album_type_id = user_albums.album_type_id AND ae.key = $${values.length}
+       )`
+    );
   }
 
-  if (setClauses.length === 0) return getAlbum(db, userId, albumId);
-
-  setClauses.push('updated_at = NOW()');
-
   const { rows } = await db.query<UserAlbum>(
-    `UPDATE user_albums SET ${setClauses.join(', ')} WHERE id = $1 AND user_id = $2
-     RETURNING id, user_id, album_type_key, alias, edition, is_default, created_at, updated_at`,
+    `WITH upd AS (
+       UPDATE user_albums SET ${setClauses.join(', ')}
+       WHERE id = $1 AND user_id = $2
+       RETURNING *
+     )
+     ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM upd ua')}`,
     values
   );
   return rows[0] ?? null;
+}
+
+export async function setDefaultAlbum(
+  db: Pool,
+  userId: string,
+  albumId: string
+): Promise<UserAlbum> {
+  const { rows: check } = await db.query<{ id: string }>(
+    'SELECT id FROM user_albums WHERE id = $1 AND user_id = $2',
+    [albumId, userId]
+  );
+  if (check.length === 0) {
+    const err = new Error('Album not found.') as Error & { statusCode: number };
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'UPDATE user_albums SET is_default = false, updated_at = NOW() WHERE user_id = $1',
+      [userId]
+    );
+    const { rows } = await client.query<UserAlbum>(
+      `WITH upd AS (
+         UPDATE user_albums SET is_default = true, updated_at = NOW()
+         WHERE id = $1 AND user_id = $2
+         RETURNING *
+       )
+       ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM upd ua')}`,
+      [albumId, userId]
+    );
+    await client.query('COMMIT');
+    return rows[0]!;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function deleteAlbum(
@@ -148,11 +231,8 @@ export async function deleteAlbum(
   userId: string,
   albumId: string
 ): Promise<void> {
-  const { rows } = await db.query<{ is_default: boolean; sticker_count: string }>(
-    `SELECT ua.is_default,
-            (SELECT COUNT(*) FROM user_stickers us WHERE us.album_id = ua.id) AS sticker_count
-     FROM user_albums ua
-     WHERE ua.id = $1 AND ua.user_id = $2`,
+  const { rows } = await db.query<{ is_default: boolean }>(
+    `SELECT is_default FROM user_albums WHERE id = $1 AND user_id = $2`,
     [albumId, userId]
   );
 
@@ -168,16 +248,43 @@ export async function deleteAlbum(
     throw err;
   }
 
-  if (parseInt(rows[0]!.sticker_count, 10) > 0) {
-    const err = new Error(
-      'Cannot delete an album that still contains stickers. Move or remove them first.'
-    ) as Error & { statusCode: number };
-    err.statusCode = 400;
-    throw err;
-  }
-
+  // Cascades to user_stickers via FK ON DELETE CASCADE
   await db.query('DELETE FROM user_albums WHERE id = $1 AND user_id = $2', [albumId, userId]);
   await invalidateUserCaches(redis, userId);
+}
+
+export async function getAlbumSummaries(
+  db: Pool,
+  redis: Redis,
+  userId: string
+): Promise<AlbumSummary[]> {
+  const cacheKey = `user:${userId}:album_summaries`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached) as AlbumSummary[];
+
+  const { rows } = await db.query<AlbumSummary>(
+    `SELECT
+       ua.id AS album_id,
+       COALESCE(
+         array_agg(DISTINCT s.album_code) FILTER (WHERE us.id IS NOT NULL AND us.quantity > 0),
+         '{}'
+       ) AS owned_album_codes,
+       COALESCE(
+         array_agg(DISTINCT s.album_code) FILTER (WHERE us.id IS NOT NULL AND us.quantity > 1),
+         '{}'
+       ) AS duplicate_album_codes
+     FROM user_albums ua
+     LEFT JOIN user_stickers us ON us.album_id = ua.id
+     LEFT JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+     LEFT JOIN stickers s ON s.id = sv.sticker_id
+     WHERE ua.user_id = $1
+     GROUP BY ua.id
+     ORDER BY ua.is_default DESC, ua.created_at ASC`,
+    [userId]
+  );
+
+  await redis.set(cacheKey, JSON.stringify(rows), 'EX', 300);
+  return rows;
 }
 
 export async function moveSticker(
@@ -240,11 +347,11 @@ export async function moveSticker(
     }
 
     await client.query(
-      `INSERT INTO user_stickers (user_id, album_id, sticker_variant_id, quantity)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+       VALUES ($1, $2, $3)
        ON CONFLICT (album_id, sticker_variant_id)
        DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-      [userId, targetAlbumId, variantId, quantity]
+      [targetAlbumId, variantId, quantity]
     );
 
     await client.query('COMMIT');

@@ -9,9 +9,17 @@ interface Props {
   onSelect: (albumId: string) => void;
   onAddAlbum: () => void;
   onEditAlbum: (albumId: string) => void;
+  onSetDefault: (albumId: string) => void;
 }
 
-export default function AlbumSelector({ albums, activeAlbumId, onSelect, onAddAlbum, onEditAlbum }: Props) {
+export default function AlbumSelector({
+  albums,
+  activeAlbumId,
+  onSelect,
+  onAddAlbum,
+  onEditAlbum,
+  onSetDefault,
+}: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -92,6 +100,26 @@ export default function AlbumSelector({ albums, activeAlbumId, onSelect, onAddAl
                   </svg>
                 )}
               </button>
+
+              {/* Set-as-default button (non-default albums only) */}
+              {!album.is_default && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    onSetDefault(album.id);
+                  }}
+                  className="shrink-0 p-2 text-gray-300 hover:text-amber-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded"
+                  aria-label={`Set "${albumDisplayName(album)}" as default`}
+                  title="Set as default"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Edit button */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();

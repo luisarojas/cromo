@@ -1,22 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { verifyToken } from '../../middleware/auth.js';
+import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as collectionService from '../../services/collection.service.js';
 import * as albumsService from '../../services/albums.service.js';
 import { validateImageBuffer, saveAvatar } from '../../services/upload.service.js';
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function assertAccess(request: FastifyRequest, reply: FastifyReply, targetUserId: string): boolean {
-  if (request.userRole === 'admin') return true;
-  if (request.userId === targetUserId) return true;
-
-  reply.status(403).send({
-    statusCode: 403,
-    error: 'Forbidden',
-    message: 'You can only access your own collection.',
-  });
-  return false;
-}
 
 async function resolveAlbum(
   fastify: FastifyInstance,
@@ -35,8 +21,6 @@ async function resolveAlbum(
   }
   return resolved;
 }
-
-// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function collectionRoutes(fastify: FastifyInstance): Promise<void> {
 
@@ -104,7 +88,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const q = request.query as {
         albumId?: string; team?: string; group?: string; type?: string;
@@ -114,15 +98,10 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const albumId = await resolveAlbum(fastify, reply, userId, q.albumId);
       if (!albumId) return;
 
-      try {
-        const result = await collectionService.getCollection(
-          fastify.db, fastify.redis, userId, albumId, q
-        );
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const result = await collectionService.getCollection(
+        fastify.db, fastify.redis, userId, albumId, q
+      );
+      return reply.status(200).send(result);
     }
   );
 
@@ -144,9 +123,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
         },
         querystring: {
           type: 'object',
-          properties: {
-            albumId: { type: 'string' },
-          },
+          properties: { albumId: { type: 'string' } },
         },
         response: {
           200: {
@@ -164,19 +141,14 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const q = request.query as { albumId?: string };
       const albumId = await resolveAlbum(fastify, reply, userId, q.albumId);
       if (!albumId) return;
 
-      try {
-        const stats = await collectionService.getStats(fastify.db, fastify.redis, userId, albumId);
-        return reply.status(200).send(stats);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const stats = await collectionService.getStats(fastify.db, fastify.redis, userId, albumId);
+      return reply.status(200).send(stats);
     }
   );
 
@@ -240,7 +212,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const q = request.query as {
         albumId?: string; team?: string; group?: string; cursor?: number; limit?: number;
@@ -249,15 +221,10 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const albumId = await resolveAlbum(fastify, reply, userId, q.albumId);
       if (!albumId) return;
 
-      try {
-        const result = await collectionService.getMissing(
-          fastify.db, fastify.redis, userId, albumId, q
-        );
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const result = await collectionService.getMissing(
+        fastify.db, fastify.redis, userId, albumId, q
+      );
+      return reply.status(200).send(result);
     }
   );
 
@@ -316,21 +283,16 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const q = request.query as { albumId?: string; cursor?: number; limit?: number };
       const albumId = await resolveAlbum(fastify, reply, userId, q.albumId);
       if (!albumId) return;
 
-      try {
-        const result = await collectionService.getDuplicates(
-          fastify.db, fastify.redis, userId, albumId, q.cursor, q.limit
-        );
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const result = await collectionService.getDuplicates(
+        fastify.db, fastify.redis, userId, albumId, q.cursor, q.limit
+      );
+      return reply.status(200).send(result);
     }
   );
 
@@ -359,14 +321,12 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
             quantity:  { type: 'integer', minimum: 1, default: 1 },
           },
         },
-        response: {
-          204: { type: 'null', description: 'Sticker added successfully' },
-        },
+        response: { 204: { type: 'null', description: 'Sticker added successfully' } },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const { variantId, albumId: bodyAlbumId, quantity } = request.body as {
         variantId: string; albumId?: string; quantity?: number;
@@ -375,15 +335,10 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const albumId = await resolveAlbum(fastify, reply, userId, bodyAlbumId);
       if (!albumId) return;
 
-      try {
-        await collectionService.addSticker(
-          fastify.db, fastify.redis, userId, albumId, variantId, quantity
-        );
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await collectionService.addSticker(
+        fastify.db, fastify.redis, userId, albumId, variantId, quantity
+      );
+      return reply.status(204).send();
     }
   );
 
@@ -408,25 +363,19 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
         },
         querystring: {
           type: 'object',
-          properties: {
-            albumId: { type: 'string' },
-          },
+          properties: { albumId: { type: 'string' } },
         },
         body: {
           type: 'object',
           required: ['quantity'],
-          properties: {
-            quantity: { type: 'integer', minimum: 0 },
-          },
+          properties: { quantity: { type: 'integer', minimum: 0 } },
         },
-        response: {
-          204: { type: 'null', description: 'Sticker updated successfully' },
-        },
+        response: { 204: { type: 'null', description: 'Sticker updated successfully' } },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, variantId } = request.params as { userId: string; variantId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const { albumId: qAlbumId } = request.query as { albumId?: string };
       const { quantity } = request.body as { quantity: number };
@@ -434,15 +383,10 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const albumId = await resolveAlbum(fastify, reply, userId, qAlbumId);
       if (!albumId) return;
 
-      try {
-        await collectionService.updateSticker(
-          fastify.db, fastify.redis, userId, albumId, variantId, quantity
-        );
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await collectionService.updateSticker(
+        fastify.db, fastify.redis, userId, albumId, variantId, quantity
+      );
+      return reply.status(204).send();
     }
   );
 
@@ -467,32 +411,23 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
         },
         querystring: {
           type: 'object',
-          properties: {
-            albumId: { type: 'string' },
-          },
+          properties: { albumId: { type: 'string' } },
         },
-        response: {
-          204: { type: 'null', description: 'Sticker removed successfully' },
-        },
+        response: { 204: { type: 'null', description: 'Sticker removed successfully' } },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, variantId } = request.params as { userId: string; variantId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'collection')) return;
 
       const { albumId: qAlbumId } = request.query as { albumId?: string };
       const albumId = await resolveAlbum(fastify, reply, userId, qAlbumId);
       if (!albumId) return;
 
-      try {
-        await collectionService.removeSticker(
-          fastify.db, fastify.redis, userId, albumId, variantId
-        );
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await collectionService.removeSticker(
+        fastify.db, fastify.redis, userId, albumId, variantId
+      );
+      return reply.status(204).send();
     }
   );
 
@@ -516,33 +451,27 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
         response: {
           200: {
             type: 'object',
-            properties: {
-              avatarUrl: { type: 'string' },
-            },
+            properties: { avatarUrl: { type: 'string' } },
           },
         },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
-      if (!assertAccess(request, reply, userId)) return;
+      if (!assertAccess(request, reply, userId, 'avatar')) return;
 
       try {
         const data = await request.file();
-
         if (!data) {
           return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file uploaded.' });
         }
-
         const buffer = await data.toBuffer();
         await validateImageBuffer(buffer);
         const avatarUrl = await saveAvatar(buffer, userId);
-
         await fastify.db.query(
           `UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`,
           [avatarUrl, userId]
         );
-
         return reply.status(200).send({ avatarUrl });
       } catch (err) {
         const e = err as Error & { statusCode?: number };

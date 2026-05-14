@@ -40,7 +40,7 @@ export default function LoginPage() {
         const prefs = await fetchUserPreferences(accessToken);
         setFromServer(prefs);
       } catch {
-        setFromServer({ duplicatesCountAllVariants: false, albumEdition: 'north_america' });
+        setFromServer({ duplicatesCountAllVariants: false });
       }
       router.push('/dashboard');
     } catch (err) {

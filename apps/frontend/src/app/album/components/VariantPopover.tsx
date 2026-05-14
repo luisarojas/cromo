@@ -9,8 +9,8 @@ import {
   formatPageSpread,
   COCA_COLA_LOCATION,
   EDITION_LABELS,
+  type AlbumEdition,
 } from '@/lib/albumPages';
-import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
 
@@ -54,8 +54,8 @@ export default function VariantPopover({
   const [moveQuantity, setMoveQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
 
-  const albumEdition = usePreferencesStore((s) => s.albumEdition);
   const albums = useAlbumsStore((s) => s.albums);
+  const albumEdition = (albums.find((a) => a.id === albumId)?.edition ?? 'north_america') as AlbumEdition;
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {

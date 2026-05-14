@@ -125,3 +125,23 @@ export function verifyRefreshToken(token: string): JwtPayload {
   }
   return payload;
 }
+
+/**
+ * assertAccess — verifies the caller is either an admin or the target user.
+ * Returns true when access is allowed, false (and sends a 403) when denied.
+ */
+export function assertAccess(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  targetUserId: string,
+  resource = 'this resource'
+): boolean {
+  if (request.userRole === 'admin') return true;
+  if (request.userId === targetUserId) return true;
+  reply.status(403).send({
+    statusCode: 403,
+    error: 'Forbidden',
+    message: `You can only access your own ${resource}.`,
+  });
+  return false;
+}

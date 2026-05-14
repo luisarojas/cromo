@@ -16,7 +16,7 @@ interface Props {
   userId: string;
   albumId: string;
   token: string;
-  onCollectionChange: () => void;
+  onCollectionChange: (options?: { reloadSummaries?: boolean }) => void;
   onOptimisticAdjust: (
     albumCode: string,
     variantType: string,
@@ -121,7 +121,7 @@ export default function StickerGrid({
     async (variantId: string, targetAlbumId: string, quantity: number) => {
       try {
         await moveSticker(userId, albumId, variantId, targetAlbumId, quantity, token);
-        onCollectionChange();
+        onCollectionChange({ reloadSummaries: true });
       } catch (err) {
         console.error('Failed to move sticker', err);
         addToast('Failed to move sticker. Please try again.');

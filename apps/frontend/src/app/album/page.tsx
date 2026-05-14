@@ -1,23 +1,26 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  fetchStickers,
+  fetchAllStickersCached,
   fetchStats,
   fetchCollection,
   fetchMissing,
   fetchDuplicates,
   fetchUserAlbums,
+  fetchAlbumSummaries,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
+  setDefaultUserAlbum,
   albumDisplayName,
   type Sticker,
   type CollectionStats,
   type MissingItem,
   type DuplicateItem,
   type UserAlbum,
+  type AlbumSummary,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
@@ -29,8 +32,7 @@ import type { AlbumEdition } from '@/lib/albumPages';
 import StatsBar from './components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from './components/StickerGrid';
 import AlbumSelector from './components/AlbumSelector';
-import AddAlbumModal from './components/AddAlbumModal';
-import EditAlbumModal from './components/EditAlbumModal';
+import AlbumFormModal from './components/AlbumFormModal';
 import type { OwnedVariantEntry } from './components/VariantPopover';
 
 type Tab = 'all' | 'have' | 'missing' | 'duplicates';
@@ -46,26 +48,6 @@ const TYPE_LABELS: Record<string, string> = {
 
 // album_code -> Map<variantType, entry>
 type OwnedMap = Map<string, OwnedVariantMap>;
-
-async function fetchAllStickers(
-  params: Omit<Parameters<typeof fetchStickers>[0], 'cursor' | 'limit'>,
-  maxItems = 1200,
-): Promise<Sticker[]> {
-  const all: Sticker[] = [];
-  let cursor: number | null | undefined = undefined;
-
-  while (all.length < maxItems) {
-    const result = await fetchStickers(
-      { ...params, cursor: cursor ?? undefined, limit: 200 },
-      undefined,
-    );
-    all.push(...result.items);
-    if (!result.nextCursor || result.items.length === 0) break;
-    cursor = result.nextCursor;
-  }
-
-  return all;
-}
 
 async function loadOwnedMap(
   userId: string,
@@ -97,13 +79,25 @@ async function loadOwnedMap(
   return map;
 }
 
+function isDuplicateSticker(
+  perSticker: OwnedVariantMap,
+  duplicatesCountAllVariants: boolean,
+): boolean {
+  if (duplicatesCountAllVariants) {
+    let total = 0;
+    for (const e of perSticker.values()) total += e.quantity;
+    return total > 1;
+  }
+  for (const e of perSticker.values()) if (e.quantity > 1) return true;
+  return false;
+}
+
 export default function AlbumPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
-  const albumEdition = usePreferencesStore((s) => s.albumEdition);
 
   const albums = useAlbumsStore((s) => s.albums);
   const activeAlbumId = useAlbumsStore((s) => s.activeAlbumId);
@@ -115,11 +109,9 @@ export default function AlbumPage() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [stats, setStats] = useState<CollectionStats | null>(null);
   const [ownedMap, setOwnedMap] = useState<OwnedMap>(new Map());
+  const [albumSummaries, setAlbumSummaries] = useState<AlbumSummary[]>([]);
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const [duplicateItems, setDuplicateItems] = useState<DuplicateItem[]>([]);
-
-  // otherAlbumsOwned: albumId -> OwnedMap (for cross-album indicators)
-  const [otherAlbumsOwned, setOtherAlbumsOwned] = useState<Map<string, OwnedMap>>(new Map());
 
   const [tab, setTab] = useState<Tab>('all');
   const [filters, setFilters] = useState<FilterState>({});
@@ -128,40 +120,28 @@ export default function AlbumPage() {
   const [showAddAlbumModal, setShowAddAlbumModal] = useState(false);
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
 
+  // ── Stable refs so callbacks don't recreate on every render ─────────────────
+  const tokenRef = useRef(token);
+  const userRef = useRef(user);
+  tokenRef.current = token;
+  userRef.current = user;
+
   // ---------------------------------------------------------------------------
-  // Load collection for the active album
+  // Data loaders
   // ---------------------------------------------------------------------------
   const loadCollection = useCallback(async (tok: string, userId: string, albumId: string) => {
-    try {
-      const [statsData, map] = await Promise.all([
-        fetchStats(userId, tok, albumId),
-        loadOwnedMap(userId, albumId, tok),
-      ]);
-      setStats(statsData);
-      setOwnedMap(map);
-    } catch (err) {
-      console.error('Failed to load collection', err);
-    }
+    const [statsData, map] = await Promise.all([
+      fetchStats(userId, tok, albumId),
+      loadOwnedMap(userId, albumId, tok),
+    ]);
+    setStats(statsData);
+    setOwnedMap(map);
   }, []);
 
-  // Load lightweight owned maps for other albums (for cross-album indicators)
-  const loadOtherAlbums = useCallback(
-    async (tok: string, userId: string, currentAlbumId: string, allAlbums: UserAlbum[]) => {
-      const others = allAlbums.filter((a) => a.id !== currentAlbumId);
-      if (others.length === 0) {
-        setOtherAlbumsOwned(new Map());
-        return;
-      }
-      const entries = await Promise.all(
-        others.map(async (a) => {
-          const map = await loadOwnedMap(userId, a.id, tok);
-          return [a.id, map] as const;
-        })
-      );
-      setOtherAlbumsOwned(new Map(entries));
-    },
-    []
-  );
+  const loadSummaries = useCallback(async (tok: string, userId: string) => {
+    const items = await fetchAlbumSummaries(userId, tok);
+    setAlbumSummaries(items);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Initial load
@@ -176,27 +156,28 @@ export default function AlbumPage() {
     let cancelled = false;
 
     async function init() {
-      if (!token || !user) return;
+      const tok = tokenRef.current;
+      const usr = userRef.current;
+      if (!tok || !usr) return;
+
       setLoading(true);
       setError(null);
       try {
         const [allStickers, userAlbums] = await Promise.all([
-          fetchAllStickers({}),
-          fetchUserAlbums(user.id, token),
+          fetchAllStickersCached(tok),
+          fetchUserAlbums(usr.id, tok),
         ]);
 
         if (cancelled) return;
         setStickers(allStickers);
         setAlbums(userAlbums);
 
-        // activeAlbumId is set by setAlbums; read it after
         const defaultAlbum = userAlbums.find((a) => a.is_default) ?? userAlbums[0];
-        const albumId = defaultAlbum?.id;
-        if (albumId) {
-          await loadCollection(token, user.id, albumId);
-          if (!cancelled) {
-            await loadOtherAlbums(token, user.id, albumId, userAlbums);
-          }
+        if (defaultAlbum) {
+          await Promise.all([
+            loadCollection(tok, usr.id, defaultAlbum.id),
+            loadSummaries(tok, usr.id),
+          ]);
         }
       } catch (err) {
         if (!cancelled) {
@@ -209,75 +190,82 @@ export default function AlbumPage() {
 
     init();
     return () => { cancelled = true; };
-  }, [hydrated, token, user, router, loadCollection, loadOtherAlbums, setAlbums]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount/auth change
+  }, [hydrated, token, user, router]);
 
   // ---------------------------------------------------------------------------
-  // Reload when active album changes
+  // Reload when active album changes (album switch only)
   // ---------------------------------------------------------------------------
+  const prevActiveAlbumIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!token || !user || !activeAlbumId || loading) return;
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (!tok || !usr || !activeAlbumId || loading) return;
+    if (activeAlbumId === prevActiveAlbumIdRef.current) return;
+    prevActiveAlbumIdRef.current = activeAlbumId;
+
     setMissingItems([]);
     setDuplicateItems([]);
-    loadCollection(token, user.id, activeAlbumId);
-    loadOtherAlbums(token, user.id, activeAlbumId, albums);
-  }, [activeAlbumId]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadCollection(tok, usr.id, activeAlbumId).catch(console.error);
+  }, [activeAlbumId, loading, loadCollection]);
 
   // ---------------------------------------------------------------------------
   // Load missing/duplicates on demand
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!token || !user || !activeAlbumId) return;
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (!tok || !usr || !activeAlbumId) return;
 
     if (tab === 'missing' && missingItems.length === 0) {
-      fetchMissing(user.id, { albumId: activeAlbumId, limit: 200 }, token)
+      fetchMissing(usr.id, { albumId: activeAlbumId, limit: 200 }, tok)
         .then((r) => setMissingItems(r.items))
         .catch((err) => console.error('Failed to load missing', err));
     }
 
     if (tab === 'duplicates' && duplicateItems.length === 0) {
-      fetchDuplicates(user.id, { albumId: activeAlbumId, limit: 200 }, token)
+      fetchDuplicates(usr.id, { albumId: activeAlbumId, limit: 200 }, tok)
         .then((r) => setDuplicateItems(r.items))
         .catch((err) => console.error('Failed to load duplicates', err));
     }
-  }, [tab, token, user, activeAlbumId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only fire when tab or album changes
+  }, [tab, activeAlbumId]);
 
   // ---------------------------------------------------------------------------
-  // Cross-album indicator maps (computed client-side)
+  // Cross-album indicators derived from summaries (no full album fetches)
   // ---------------------------------------------------------------------------
   const crossAlbumNeeded = useMemo<Map<string, string[]>>(() => {
-    if (otherAlbumsOwned.size === 0) return new Map();
+    if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, string[]>();
-    for (const [albumId, otherMap] of otherAlbumsOwned.entries()) {
-      const album = albums.find((a) => a.id === albumId);
+    for (const summary of albumSummaries) {
+      if (summary.album_id === activeAlbumId) continue;
+      const album = albums.find((a) => a.id === summary.album_id);
       const name = album ? albumDisplayName(album) : 'Another album';
-      // This other album does NOT own a sticker that the active album owns
+      const otherOwned = new Set(summary.owned_album_codes);
       for (const albumCode of ownedMap.keys()) {
-        if (!otherMap.has(albumCode)) {
+        if (!otherOwned.has(albumCode)) {
           if (!map.has(albumCode)) map.set(albumCode, []);
           map.get(albumCode)!.push(name);
         }
       }
     }
     return map;
-  }, [ownedMap, otherAlbumsOwned, albums]);
+  }, [albumSummaries, ownedMap, activeAlbumId, albums]);
 
   const crossAlbumAvailable = useMemo<Map<string, string[]>>(() => {
-    if (otherAlbumsOwned.size === 0) return new Map();
+    if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, string[]>();
-    for (const [albumId, otherMap] of otherAlbumsOwned.entries()) {
-      const album = albums.find((a) => a.id === albumId);
+    for (const summary of albumSummaries) {
+      if (summary.album_id === activeAlbumId) continue;
+      const album = albums.find((a) => a.id === summary.album_id);
       const name = album ? albumDisplayName(album) : 'Another album';
-      for (const [albumCode, perSticker] of otherMap.entries()) {
-        let totalQty = 0;
-        for (const e of perSticker.values()) totalQty += e.quantity;
-        if (totalQty > 1) {
-          if (!map.has(albumCode)) map.set(albumCode, []);
-          map.get(albumCode)!.push(name);
-        }
+      for (const albumCode of summary.duplicate_album_codes) {
+        if (!map.has(albumCode)) map.set(albumCode, []);
+        map.get(albumCode)!.push(name);
       }
     }
     return map;
-  }, [otherAlbumsOwned, albums]);
+  }, [albumSummaries, activeAlbumId, albums]);
 
   // ---------------------------------------------------------------------------
   // Derived totals
@@ -288,14 +276,7 @@ export default function AlbumPage() {
     if (tab === 'missing') return stickers.filter((s) => !ownedMap.has(s.album_code));
     return stickers.filter((s) => {
       const p = ownedMap.get(s.album_code);
-      if (!p) return false;
-      if (duplicatesCountAllVariants) {
-        let total = 0;
-        for (const e of p.values()) total += e.quantity;
-        return total > 1;
-      }
-      for (const e of p.values()) if (e.quantity > 1) return true;
-      return false;
+      return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
     });
   }, [stickers, tab, ownedMap, duplicatesCountAllVariants]);
 
@@ -376,11 +357,9 @@ export default function AlbumPage() {
     } else if (tab === 'have') {
       base = stickers.filter((s) => ownedMap.has(s.album_code));
     } else if (tab === 'missing') {
-      if (missingItems.length > 0) {
-        base = missingItems;
-      } else {
-        base = stickers.filter((s) => !ownedMap.has(s.album_code));
-      }
+      base = missingItems.length > 0
+        ? missingItems
+        : stickers.filter((s) => !ownedMap.has(s.album_code));
     } else {
       if (duplicateItems.length > 0) {
         const seen = new Set<string>();
@@ -394,15 +373,8 @@ export default function AlbumPage() {
         }
       } else {
         base = stickers.filter((s) => {
-          const perSticker = ownedMap.get(s.album_code);
-          if (!perSticker) return false;
-          if (duplicatesCountAllVariants) {
-            let total = 0;
-            for (const e of perSticker.values()) total += e.quantity;
-            return total > 1;
-          }
-          for (const e of perSticker.values()) if (e.quantity > 1) return true;
-          return false;
+          const p = ownedMap.get(s.album_code);
+          return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
         });
       }
     }
@@ -412,8 +384,8 @@ export default function AlbumPage() {
       if (filters.team?.length && !filters.team.includes(s.team_name ?? '') && !filters.team.includes(s.fifa_code ?? '')) return false;
       if (filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
       if (filters.variant?.length) {
-        const perSticker = ownedMap.get(s.album_code);
-        if (!perSticker || !filters.variant.some((v) => perSticker.has(v))) return false;
+        const p = ownedMap.get(s.album_code);
+        if (!p || !filters.variant.some((v) => p.has(v))) return false;
       }
       if (filters.search && !s.player_name?.toLowerCase().includes(filters.search.toLowerCase()) && !s.album_code.toLowerCase().includes(filters.search.toLowerCase()) && !s.team_name?.toLowerCase().includes(filters.search.toLowerCase())) return false;
       return true;
@@ -423,16 +395,17 @@ export default function AlbumPage() {
   // ---------------------------------------------------------------------------
   // Mutation handlers
   // ---------------------------------------------------------------------------
-  const handleCollectionChange = useCallback(async () => {
-    if (token && user && activeAlbumId) {
-      await loadCollection(token, user.id, activeAlbumId);
-      if (albums.length > 1) {
-        await loadOtherAlbums(token, user.id, activeAlbumId, albums);
-      }
+  const handleCollectionChange = useCallback(async (options?: { reloadSummaries?: boolean }) => {
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (tok && usr && activeAlbumId) {
+      const tasks: Promise<unknown>[] = [loadCollection(tok, usr.id, activeAlbumId)];
+      if (options?.reloadSummaries) tasks.push(loadSummaries(tok, usr.id));
+      await Promise.all(tasks);
     }
     setMissingItems([]);
     setDuplicateItems([]);
-  }, [loadCollection, loadOtherAlbums, token, user, activeAlbumId, albums]);
+  }, [activeAlbumId, loadCollection, loadSummaries]);
 
   const handleOptimisticAdjust = useCallback(
     (albumCode: string, variantType: string, variantId: string, delta: number) => {
@@ -449,11 +422,8 @@ export default function AlbumPage() {
             quantity: newQty,
           });
         }
-        if (perSticker.size === 0) {
-          next.delete(albumCode);
-        } else {
-          next.set(albumCode, perSticker);
-        }
+        if (perSticker.size === 0) next.delete(albumCode);
+        else next.set(albumCode, perSticker);
         return next;
       });
     },
@@ -461,12 +431,14 @@ export default function AlbumPage() {
   );
 
   const handleAddAlbum = useCallback(
-    async (alias: string | null, edition: AlbumEdition) => {
-      if (!token || !user) throw new Error('Not authenticated');
-      const newAlbum = await createUserAlbum(user.id, { alias, edition }, token);
+    async (data: { alias: string | null; edition: AlbumEdition }) => {
+      const tok = tokenRef.current;
+      const usr = userRef.current;
+      if (!tok || !usr) throw new Error('Not authenticated');
+      const newAlbum = await createUserAlbum(usr.id, data, tok);
       upsertAlbum(newAlbum);
     },
-    [token, user, upsertAlbum]
+    [upsertAlbum]
   );
 
   const handleSelectAlbum = useCallback(
@@ -488,21 +460,43 @@ export default function AlbumPage() {
   );
 
   const handleSaveAlbum = useCallback(
-    async (patch: { alias: string | null; edition: AlbumEdition }) => {
-      if (!token || !user || !editingAlbum) throw new Error('Not authenticated');
-      const updated = await updateUserAlbum(user.id, editingAlbum.id, patch, token);
+    async (data: { alias: string | null; edition: AlbumEdition }) => {
+      const tok = tokenRef.current;
+      const usr = userRef.current;
+      if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
+      const updated = await updateUserAlbum(usr.id, editingAlbum.id, data, tok);
       upsertAlbum(updated);
     },
-    [token, user, editingAlbum, upsertAlbum]
+    [editingAlbum, upsertAlbum]
   );
 
   const handleDeleteAlbum = useCallback(
     async () => {
-      if (!token || !user || !editingAlbum) throw new Error('Not authenticated');
-      await deleteUserAlbum(user.id, editingAlbum.id, token);
+      const tok = tokenRef.current;
+      const usr = userRef.current;
+      if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
+      await deleteUserAlbum(usr.id, editingAlbum.id, tok);
       removeAlbum(editingAlbum.id);
     },
-    [token, user, editingAlbum, removeAlbum]
+    [editingAlbum, removeAlbum]
+  );
+
+  const handleSetDefault = useCallback(
+    async (albumId: string) => {
+      const tok = tokenRef.current;
+      const usr = userRef.current;
+      if (!tok || !usr) return;
+      try {
+        const updated = await setDefaultUserAlbum(usr.id, albumId, tok);
+        // Refresh full albums list to reflect is_default changes
+        const freshAlbums = await fetchUserAlbums(usr.id, tok);
+        setAlbums(freshAlbums);
+        upsertAlbum(updated);
+      } catch (err) {
+        console.error('Failed to set default album', err);
+      }
+    },
+    [setAlbums, upsertAlbum]
   );
 
   // ---------------------------------------------------------------------------
@@ -539,7 +533,7 @@ export default function AlbumPage() {
             <p className="text-sm text-gray-500 mt-0.5">
               {activeAlbum
                 ? `${EDITION_LABELS[activeAlbum.edition as keyof typeof EDITION_LABELS] ?? activeAlbum.edition} Edition`
-                : `${EDITION_LABELS[albumEdition]} Edition`}
+                : null}
             </p>
           </div>
 
@@ -550,6 +544,7 @@ export default function AlbumPage() {
               onSelect={handleSelectAlbum}
               onAddAlbum={() => setShowAddAlbumModal(true)}
               onEditAlbum={handleEditAlbum}
+              onSetDefault={handleSetDefault}
             />
           )}
         </div>
@@ -627,16 +622,19 @@ export default function AlbumPage() {
       </div>
 
       {showAddAlbumModal && (
-        <AddAlbumModal
+        <AlbumFormModal
+          mode="create"
+          defaultEdition={(activeAlbum?.edition ?? 'north_america') as AlbumEdition}
           onConfirm={handleAddAlbum}
           onClose={() => setShowAddAlbumModal(false)}
         />
       )}
 
       {editingAlbum && (
-        <EditAlbumModal
+        <AlbumFormModal
+          mode="edit"
           album={editingAlbum}
-          onSave={handleSaveAlbum}
+          onConfirm={handleSaveAlbum}
           onDelete={handleDeleteAlbum}
           onClose={() => setEditingAlbum(null)}
         />
