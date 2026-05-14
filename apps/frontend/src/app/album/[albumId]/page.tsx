@@ -286,6 +286,8 @@ export default function AlbumDetailPage() {
   // ---------------------------------------------------------------------------
   // Derived totals
   // ---------------------------------------------------------------------------
+  const activeAlbum = useMemo(() => albums.find((a) => a.id === albumId), [albums, albumId]);
+
   const tabBase = useMemo(() => {
     if (tab === 'all') return stickers;
     if (tab === 'have') return stickers.filter((s) => ownedMap.has(s.album_code));
@@ -297,6 +299,27 @@ export default function AlbumDetailPage() {
   }, [stickers, tab, ownedMap, duplicatesCountAllVariants]);
 
   const filterOptions = useMemo(() => {
+    const edition = activeAlbum?.edition as AlbumEdition | undefined;
+
+    const stickerPageRange = (s: Sticker): [number, number] | null => {
+      if (!edition) return null;
+      const sp = s.sticker_pages?.[edition];
+      if (sp?.page_start != null && sp?.page_end != null) return [sp.page_start, sp.page_end];
+      const tp = s.team_pages?.[edition];
+      return tp ? [tp[0], tp[1]] : null;
+    };
+
+    const matchesPageRange = (s: Sticker): boolean => {
+      const { pageFrom, pageTo } = filters;
+      if (pageFrom == null && pageTo == null) return true;
+      const range = stickerPageRange(s);
+      if (!range) return false;
+      const [start, end] = range;
+      if (pageFrom != null && end < pageFrom) return false;
+      if (pageTo != null && start > pageTo) return false;
+      return true;
+    };
+
     const filterExcept = (exclude: keyof FilterState): Sticker[] =>
       tabBase.filter((s) => {
         if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
@@ -310,6 +333,7 @@ export default function AlbumDetailPage() {
           const q = filters.search.toLowerCase();
           if (!s.player_name?.toLowerCase().includes(q) && !s.album_code.toLowerCase().includes(q) && !s.team_name?.toLowerCase().includes(q)) return false;
         }
+        if (exclude !== 'pageFrom' && exclude !== 'pageTo' && !matchesPageRange(s)) return false;
         return true;
       });
 
@@ -339,7 +363,7 @@ export default function AlbumDetailPage() {
     const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
 
     return { groupOptions, teamOptions, typeOptions, variantOptions };
-  }, [tabBase, filters, ownedMap]);
+  }, [tabBase, filters, ownedMap, activeAlbum]);
 
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
@@ -395,6 +419,8 @@ export default function AlbumDetailPage() {
       }
     }
 
+    const edition = activeAlbum?.edition as AlbumEdition | undefined;
+
     return base.filter((s) => {
       if (filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
       if (filters.team?.length && !filters.team.includes(s.team_name ?? '') && !filters.team.includes(s.fifa_code ?? '')) return false;
@@ -404,9 +430,24 @@ export default function AlbumDetailPage() {
         if (!p || !filters.variant.some((v) => p.has(v))) return false;
       }
       if (filters.search && !s.player_name?.toLowerCase().includes(filters.search.toLowerCase()) && !s.album_code.toLowerCase().includes(filters.search.toLowerCase()) && !s.team_name?.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      if (filters.pageFrom != null || filters.pageTo != null) {
+        if (!edition) return false;
+        const sp = s.sticker_pages?.[edition];
+        let sStart: number | null = null;
+        let sEnd: number | null = null;
+        if (sp?.page_start != null && sp?.page_end != null) {
+          sStart = sp.page_start; sEnd = sp.page_end;
+        } else {
+          const tp = s.team_pages?.[edition];
+          if (tp) { sStart = tp[0]; sEnd = tp[1]; }
+        }
+        if (sStart == null || sEnd == null) return false;
+        if (filters.pageFrom != null && sEnd < filters.pageFrom) return false;
+        if (filters.pageTo != null && sStart > filters.pageTo) return false;
+      }
       return true;
     });
-  }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants]);
+  }, [stickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum]);
 
   // ---------------------------------------------------------------------------
   // Mutation handlers
@@ -500,8 +541,6 @@ export default function AlbumDetailPage() {
     { id: 'missing', label: 'Missing' },
     { id: 'duplicates', label: 'Duplicates' },
   ];
-
-  const activeAlbum = albums.find((a) => a.id === albumId);
 
   if (!hydrated || (!token && hydrated)) {
     return (

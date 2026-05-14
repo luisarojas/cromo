@@ -14,6 +14,8 @@ export interface FilterState {
   type?: string[];
   variant?: string[];
   search?: string;
+  pageFrom?: number;
+  pageTo?: number;
 }
 
 interface Props {
@@ -52,6 +54,8 @@ export default function FilterBar({
     (filters.team?.length ?? 0) > 0 ||
     (filters.type?.length ?? 0) > 0 ||
     (filters.variant?.length ?? 0) > 0 ||
+    filters.pageFrom != null ||
+    filters.pageTo != null ||
     !!filters.search;
 
   const activeChips: ActiveChip[] = [];
@@ -90,6 +94,21 @@ export default function FilterBar({
       onRemove: () => updateMulti('variant', (filters.variant ?? []).filter((x) => x !== v)),
     });
   });
+  if (filters.pageFrom != null || filters.pageTo != null) {
+    const { pageFrom: from, pageTo: to } = filters;
+    let label: string;
+    if (from != null && to != null) {
+      label = from === to ? `p. ${from}` : `pp. ${from}–${to}`;
+    } else if (from != null) {
+      label = `From p. ${from}`;
+    } else {
+      label = `To p. ${to}`;
+    }
+    activeChips.push({
+      label,
+      onRemove: () => onChange({ ...filters, pageFrom: undefined, pageTo: undefined }),
+    });
+  }
 
   return (
     <div className="flex flex-col gap-2 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
@@ -145,14 +164,47 @@ export default function FilterBar({
           placeholder="Any variant"
         />
 
-        {hasActiveFilter && (
+        {/* Page range */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-gray-500">Page</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              placeholder="From"
+              value={filters.pageFrom ?? ''}
+              onChange={(e) =>
+                onChange({ ...filters, pageFrom: e.target.value ? Number(e.target.value) : undefined })
+              }
+              className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <span className="text-xs text-gray-400">–</span>
+            <input
+              type="number"
+              min={1}
+              placeholder="To"
+              value={filters.pageTo ?? ''}
+              onChange={(e) =>
+                onChange({ ...filters, pageTo: e.target.value ? Number(e.target.value) : undefined })
+              }
+              className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs invisible select-none" aria-hidden>·</span>
           <button
-            onClick={() => onChange({})}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 transition-colors self-end"
+            onClick={() => hasActiveFilter && onChange({})}
+            className={`text-sm px-1 py-1.5 transition-colors ${
+              hasActiveFilter
+                ? 'text-gray-400 hover:text-gray-600 cursor-pointer'
+                : 'text-gray-200 cursor-default'
+            }`}
           >
-            Clear
+            Clear all
           </button>
-        )}
+        </div>
       </div>
 
       {activeChips.length > 0 && (
