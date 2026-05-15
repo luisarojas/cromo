@@ -197,7 +197,13 @@ export default function AlbumDetailPage() {
 
       setLoading(true);
       setError(null);
-      setTab('all');
+      try {
+        const stored = localStorage.getItem(`stickfolio:tab:${albumId}`);
+        const validTabs: Tab[] = ['all', 'have', 'missing', 'duplicates'];
+        setTab(validTabs.includes(stored as Tab) ? (stored as Tab) : 'all');
+      } catch {
+        setTab('all');
+      }
       setFilters({});
       setMissingItems([]);
       setDuplicateItems([]);
@@ -744,7 +750,10 @@ export default function AlbumDetailPage() {
           {TABS.map(({ id, label }) => (
             <button
               key={id}
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setTab(id);
+                try { localStorage.setItem(`stickfolio:tab:${albumId}`, id); } catch { /* ignore */ }
+              }}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 tab === id
                   ? 'border-blue-500 text-blue-600'
