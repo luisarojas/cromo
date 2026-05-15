@@ -115,11 +115,15 @@ export default function TradeStickerPicker({
           prev.map((w, i) => {
             const result = byCode.get(suggestedWantCodes[i]!);
             if (!result) return { ...w, loading: false, error: 'Not found' };
-            const availableVariants =
-              partnerVariantIdSet.size > 0
-                ? result.variants.filter((v) => partnerVariantIdSet.has(v.id))
+            const filteredVariants = partnerVariantIdSet.size > 0
+              ? result.variants.filter((v) => partnerVariantIdSet.has(v.id))
+              : [];
+            const baseVariant = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0];
+            const variants = filteredVariants.length > 0
+              ? filteredVariants
+              : baseVariant
+                ? [baseVariant]
                 : result.variants;
-            const variants = availableVariants.length > 0 ? availableVariants : result.variants;
             const base = variants.find((v) => v.variant_type === 'base') ?? variants[0];
             return {
               ...w,
