@@ -848,7 +848,8 @@ export interface PublicProfile {
 
 export async function fetchTradeMatches(albumId: string, token: string): Promise<TradeMatch[]> {
   const qs = toQueryString({ albumId });
-  return apiFetch<TradeMatch[]>(`/api/v1/trade/matches${qs}`, {}, token);
+  const { items } = await apiFetch<{ items: TradeMatch[] }>(`/api/v1/trade/matches${qs}`, {}, token);
+  return items;
 }
 
 export async function fetchTrades(
@@ -856,7 +857,8 @@ export async function fetchTrades(
   token: string,
 ): Promise<TradeSummary[]> {
   const qs = toQueryString(params);
-  return apiFetch<TradeSummary[]>(`/api/v1/trade/requests${qs}`, {}, token);
+  const { items } = await apiFetch<{ items: TradeSummary[] }>(`/api/v1/trade/requests${qs}`, {}, token);
+  return items;
 }
 
 export async function fetchTrade(id: string, token: string): Promise<TradeDetail> {
