@@ -15,6 +15,7 @@ import {
   type TradeMessage,
   type TradeItemDetail,
 } from '@/lib/api';
+import TradeStickerPicker, { type TradePickerItem } from '../components/TradeStickerPicker';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -82,8 +83,7 @@ export default function TradeDetailPage() {
 
   // Counter form
   const [showCounter, setShowCounter] = useState(false);
-  const [counterOfferIds, setCounterOfferIds] = useState('');
-  const [counterWantIds, setCounterWantIds] = useState('');
+  const [counterItems, setCounterItems] = useState<TradePickerItem[]>([]);
   const [counterError, setCounterError] = useState<string | null>(null);
   const [counterSubmitting, setCounterSubmitting] = useState(false);
 
@@ -196,35 +196,28 @@ export default function TradeDetailPage() {
 
   async function handleCounter() {
     if (!token) return;
-    const offerIds = counterOfferIds
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const wantIds = counterWantIds
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
 
-    if (offerIds.length === 0 && wantIds.length === 0) {
-      setCounterError('Add at least one sticker to offer or want.');
+    const hasOffer = counterItems.some((i) => i.direction === 'offer');
+    const hasWant = counterItems.some((i) => i.direction === 'want');
+
+    if (!hasOffer || !hasWant) {
+      setCounterError('Add at least one sticker to offer and at least one to request.');
       return;
     }
-
-    const items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[] = [
-      ...offerIds.map((id) => ({ albumCode: id, direction: 'offer' as const, quantity: 1 })),
-      ...wantIds.map((id) => ({ albumCode: id, direction: 'want' as const, quantity: 1 })),
-    ];
 
     setCounterSubmitting(true);
     setCounterError(null);
     try {
-      await counterTrade(tradeId, { items }, token);
+      await counterTrade(
+        tradeId,
+        { items: counterItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })) },
+        token,
+      );
       const updated = await fetchTrade(tradeId, token);
       setTrade(updated);
       setMessages(updated.messages);
       setShowCounter(false);
-      setCounterOfferIds('');
-      setCounterWantIds('');
+      setCounterItems([]);
     } catch (err) {
       setCounterError(err instanceof Error ? err.message : 'Failed to submit counter offer');
     } finally {
@@ -447,33 +440,16 @@ export default function TradeDetailPage() {
           </div>
 
           {/* Counter form */}
-          {showCounter && (
-            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+          {showCounter && token && (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
               <h3 className="text-sm font-medium text-gray-700">Submit Counter Offer</h3>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Album codes to offer (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={counterOfferIds}
-                  onChange={(e) => setCounterOfferIds(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="FIFA001, FIFA002"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Album codes to request (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={counterWantIds}
-                  onChange={(e) => setCounterWantIds(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="FIFA010, FIFA011"
-                />
-              </div>
+              <TradeStickerPicker
+                key="counter"
+                offerCodes={[]}
+                wantCodes={[]}
+                token={token}
+                onChange={setCounterItems}
+              />
               {counterError && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
                   {counterError}
@@ -482,13 +458,14 @@ export default function TradeDetailPage() {
               <div className="flex gap-2">
                 <button
                   onClick={handleCounter}
-                  disabled={counterSubmitting}
+                  disabled={counterSubmitting || counterItems.length === 0}
                   className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   {counterSubmitting ? 'Submitting...' : 'Submit Counter'}
                 </button>
                 <button
-                  onClick={() => setShowCounter(false)}
+                  onClick={() => { setShowCounter(false); setCounterItems([]); }}
+                  disabled={counterSubmitting}
                   className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >
                   Cancel

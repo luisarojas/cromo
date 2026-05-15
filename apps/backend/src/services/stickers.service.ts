@@ -158,3 +158,53 @@ export async function getStickerVariants(
   );
   return rows;
 }
+
+export interface StickerLookupRow {
+  album_code: string;
+  player_name: string | null;
+  team_name: string | null;
+  variants: StickerVariantRow[];
+}
+
+/**
+ * getStickersByAlbumCodes — fetch sticker display info + all variants for a
+ * list of album codes in a single query. Used by the trade sticker picker to
+ * avoid N×2 individual requests.
+ */
+export async function getStickersByAlbumCodes(
+  db: Pool,
+  albumCodes: string[]
+): Promise<StickerLookupRow[]> {
+  if (albumCodes.length === 0) return [];
+
+  const { rows } = await db.query<{
+    album_code: string;
+    player_name: string | null;
+    team_name: string | null;
+    variants: StickerVariantRow[];
+  }>(
+    `SELECT
+       s.album_code,
+       s.player_name,
+       t.name AS team_name,
+       json_agg(
+         json_build_object(
+           'id',           sv.id,
+           'sticker_id',   sv.sticker_id,
+           'variant_type', sv.variant_type,
+           'rarity_rank',  sv.rarity_rank,
+           'availability', sv.availability
+         )
+         ORDER BY sv.rarity_rank
+       ) AS variants
+     FROM stickers s
+     LEFT JOIN teams t ON t.id = s.team_id
+     JOIN sticker_variants sv ON sv.sticker_id = s.id
+     WHERE s.album_code = ANY($1)
+     GROUP BY s.album_code, s.player_name, t.name
+     ORDER BY s.number`,
+    [albumCodes]
+  );
+
+  return rows;
+}

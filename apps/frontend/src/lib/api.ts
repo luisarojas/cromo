@@ -377,6 +377,26 @@ export async function fetchStickerVariants(
   return items;
 }
 
+export interface StickerLookup {
+  album_code: string;
+  player_name: string | null;
+  team_name: string | null;
+  variants: StickerVariant[];
+}
+
+export async function fetchStickersBulk(
+  codes: string[],
+  token?: string,
+): Promise<StickerLookup[]> {
+  if (codes.length === 0) return [];
+  const { items } = await apiFetch<{ items: StickerLookup[] }>(
+    '/api/v1/stickers/lookup',
+    { method: 'POST', body: JSON.stringify({ codes }) },
+    token,
+  );
+  return items;
+}
+
 // ---------------------------------------------------------------------------
 // Collection endpoints
 // ---------------------------------------------------------------------------
@@ -868,7 +888,7 @@ export async function fetchTrade(id: string, token: string): Promise<TradeDetail
 export async function createTrade(
   body: {
     recipientId: string;
-    items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[];
+    items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
   },
   token: string,
 ): Promise<{ id: string }> {
@@ -897,7 +917,7 @@ export async function declineTrade(id: string, token: string): Promise<void> {
 
 export async function counterTrade(
   id: string,
-  body: { items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[] },
+  body: { items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] },
   token: string,
 ): Promise<void> {
   return apiFetch<void>(

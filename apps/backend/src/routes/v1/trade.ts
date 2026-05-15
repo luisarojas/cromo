@@ -10,7 +10,7 @@ import * as messagingService from '../../services/messaging.service.js';
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
 const TradeItemSchema = z.object({
-  albumCode:  z.string().min(1),
+  variantId:  z.string().uuid(),
   direction:  z.enum(['offer', 'want']),
   quantity:   z.number().int().positive().default(1),
 });
@@ -147,9 +147,9 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['albumCode', 'direction'],
+                required: ['variantId', 'direction'],
                 properties: {
-                  albumCode: { type: 'string' },
+                  variantId: { type: 'string' },
                   direction: { type: 'string', enum: ['offer', 'want'] },
                   quantity:  { type: 'integer', minimum: 1, default: 1 },
                 },
@@ -310,9 +310,9 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['albumCode', 'direction'],
+                required: ['variantId', 'direction'],
                 properties: {
-                  albumCode: { type: 'string' },
+                  variantId: { type: 'string' },
                   direction: { type: 'string', enum: ['offer', 'want'] },
                   quantity:  { type: 'integer', minimum: 1, default: 1 },
                 },

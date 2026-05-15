@@ -83,7 +83,7 @@ export interface TradeDetail {
 }
 
 interface TradeItemInput {
-  albumCode: string;
+  variantId: string;
   direction: 'offer' | 'want';
   quantity: number;
 }
@@ -96,15 +96,12 @@ function makeError(message: string, statusCode: number): Error & { statusCode: n
   return err;
 }
 
-async function resolveVariantId(db: Pool, albumCode: string): Promise<string> {
+async function assertVariantExists(db: Pool, variantId: string): Promise<void> {
   const { rows } = await db.query<{ id: string }>(
-    `SELECT sv.id FROM sticker_variants sv
-     JOIN stickers s ON s.id = sv.sticker_id
-     WHERE s.album_code = $1 AND sv.variant_type = 'base'`,
-    [albumCode]
+    `SELECT id FROM sticker_variants WHERE id = $1`,
+    [variantId]
   );
-  if (rows.length === 0) throw makeError(`Unknown album code: ${albumCode}`, 400);
-  return rows[0]!.id;
+  if (rows.length === 0) throw makeError(`Unknown sticker variant: ${variantId}`, 400);
 }
 
 async function assertParticipant(
@@ -301,11 +298,11 @@ export async function createTrade(
   );
 
   for (const item of items) {
-    const variantId = await resolveVariantId(db, item.albumCode);
+    await assertVariantExists(db, item.variantId);
     await db.query(
       `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
        VALUES ($1, $2, $3, $4, $5)`,
-      [crypto.randomUUID(), tradeId, variantId, item.direction, item.quantity]
+      [crypto.randomUUID(), tradeId, item.variantId, item.direction, item.quantity]
     );
   }
 
@@ -555,11 +552,11 @@ export async function counterTrade(
   await db.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
 
   for (const item of items) {
-    const variantId = await resolveVariantId(db, item.albumCode);
+    await assertVariantExists(db, item.variantId);
     await db.query(
       `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
        VALUES ($1, $2, $3, $4, $5)`,
-      [crypto.randomUUID(), tradeId, variantId, item.direction, item.quantity]
+      [crypto.randomUUID(), tradeId, item.variantId, item.direction, item.quantity]
     );
   }
 

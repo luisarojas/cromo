@@ -55,6 +55,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(fastifyRateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW_MS,
+    // The refresh endpoint is gated by an HTTP-only cookie so the global
+    // limit adds no security value but does cause spurious 429s when other
+    // API calls saturate the window.
+    allowList: (request) => request.url === '/api/v1/auth/refresh',
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
       error: 'Too Many Requests',

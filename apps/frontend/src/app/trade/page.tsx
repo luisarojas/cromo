@@ -13,6 +13,7 @@ import {
   type TradeMatch,
   type TradeSummary,
 } from '@/lib/api';
+import TradeStickerPicker, { type TradePickerItem } from './components/TradeStickerPicker';
 
 type Tab = 'find' | 'my';
 
@@ -27,8 +28,7 @@ const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: s
 
 interface ProposeModalState {
   match: TradeMatch;
-  offerCodes: string;
-  wantCodes: string;
+  pickerItems: TradePickerItem[];
   submitting: boolean;
   error: string | null;
 }
@@ -73,11 +73,11 @@ export default function TradePage() {
           setAlbums(data);
           if (data.length > 0) {
             const defaultAlbum = data.find((a) => a.is_default) ?? data[0];
-            setSelectedAlbumId(defaultAlbum.id);
+            setSelectedAlbumId(defaultAlbum!.id);
           }
         }
       } catch {
-        // non-fatal — user can still use the page
+        // non-fatal
       }
     }
 
@@ -131,8 +131,7 @@ export default function TradePage() {
   function openProposeModal(match: TradeMatch) {
     setProposeModal({
       match,
-      offerCodes: match.you_have.join(', '),
-      wantCodes: match.they_have.join(', '),
+      pickerItems: [],
       submitting: false,
       error: null,
     });
@@ -141,33 +140,25 @@ export default function TradePage() {
   async function handleSendTradeRequest() {
     if (!proposeModal || !token || !user) return;
 
-    // Parse comma-separated album codes and create minimal trade items
-    const offerCodes = proposeModal.offerCodes
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const wantCodes = proposeModal.wantCodes
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const { pickerItems } = proposeModal;
+    const hasOffer = pickerItems.some((i) => i.direction === 'offer');
+    const hasWant = pickerItems.some((i) => i.direction === 'want');
 
-    if (offerCodes.length === 0 && wantCodes.length === 0) {
+    if (!hasOffer || !hasWant) {
       setProposeModal((prev) =>
-        prev ? { ...prev, error: 'Add at least one sticker to offer or want.' } : prev,
+        prev ? { ...prev, error: 'Add at least one sticker to offer and at least one to request.' } : prev,
       );
       return;
     }
 
-    const items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[] = [
-      ...offerCodes.map((code) => ({ albumCode: code, direction: 'offer' as const, quantity: 1 })),
-      ...wantCodes.map((code) => ({ albumCode: code, direction: 'want' as const, quantity: 1 })),
-    ];
-
-    setProposeModal((prev) => prev ? { ...prev, submitting: true, error: null } : prev);
+    setProposeModal((prev) => (prev ? { ...prev, submitting: true, error: null } : prev));
 
     try {
       const result = await createTrade(
-        { recipientId: proposeModal.match.user_id, items },
+        {
+          recipientId: proposeModal.match.user_id,
+          items: pickerItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })),
+        },
         token,
       );
       setProposeModal(null);
@@ -175,7 +166,11 @@ export default function TradePage() {
     } catch (err) {
       setProposeModal((prev) =>
         prev
-          ? { ...prev, submitting: false, error: err instanceof Error ? err.message : 'Failed to send trade request' }
+          ? {
+              ...prev,
+              submitting: false,
+              error: err instanceof Error ? err.message : 'Failed to send trade request',
+            }
           : prev,
       );
     }
@@ -235,9 +230,7 @@ export default function TradePage() {
                   onChange={(e) => setSelectedAlbumId(e.target.value)}
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {albums.length === 0 && (
-                    <option value="">No albums found</option>
-                  )}
+                  {albums.length === 0 && <option value="">No albums found</option>}
                   {albums.map((album) => (
                     <option key={album.id} value={album.id}>
                       {albumDisplayName(album)}
@@ -365,9 +358,7 @@ export default function TradePage() {
                           {trade.message_count} {trade.message_count === 1 ? 'message' : 'messages'}
                         </div>
                       </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
-                      >
+                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
                         {badge.label}
                       </span>
                     </div>
@@ -380,77 +371,58 @@ export default function TradePage() {
       )}
 
       {/* Propose Trade Modal */}
-      {proposeModal && (
+      {proposeModal && token && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-1">Propose Trade</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              With{' '}
-              <span className="font-medium text-gray-700">
-                {proposeModal.match.display_name ?? proposeModal.match.username}
-              </span>{' '}
-              (@{proposeModal.match.username})
-            </p>
+          <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white shadow-xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+              <h2 className="text-lg font-semibold text-gray-800">Propose Trade</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                With{' '}
+                <span className="font-medium text-gray-700">
+                  {proposeModal.match.display_name ?? proposeModal.match.username}
+                </span>{' '}
+                (@{proposeModal.match.username})
+              </p>
+            </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Stickers you will offer (album codes, comma-separated)
-                </label>
-                <textarea
-                  value={proposeModal.offerCodes}
-                  onChange={(e) =>
-                    setProposeModal((prev) => prev ? { ...prev, offerCodes: e.target.value } : prev)
-                  }
-                  rows={3}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="e.g. FIFA001, FIFA002, FIFA003"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Pre-filled with stickers you have that they need.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Stickers you want (album codes, comma-separated)
-                </label>
-                <textarea
-                  value={proposeModal.wantCodes}
-                  onChange={(e) =>
-                    setProposeModal((prev) => prev ? { ...prev, wantCodes: e.target.value } : prev)
-                  }
-                  rows={3}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="e.g. FIFA010, FIFA011"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Pre-filled with stickers they have that you need.
-                </p>
-              </div>
+            {/* Picker */}
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              <TradeStickerPicker
+                key={proposeModal.match.user_id}
+                offerCodes={proposeModal.match.you_have}
+                wantCodes={proposeModal.match.they_have}
+                token={token}
+                onChange={(items) =>
+                  setProposeModal((prev) => (prev ? { ...prev, pickerItems: items } : prev))
+                }
+              />
 
               {proposeModal.error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mt-4">
                   {proposeModal.error}
                 </div>
               )}
             </div>
 
-            <div className="flex gap-3 mt-5">
-              <button
-                onClick={handleSendTradeRequest}
-                disabled={proposeModal.submitting}
-                className="flex-1 bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {proposeModal.submitting ? 'Sending...' : 'Send Request'}
-              </button>
-              <button
-                onClick={() => setProposeModal(null)}
-                disabled={proposeModal.submitting}
-                className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
+            {/* Footer */}
+            <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSendTradeRequest}
+                  disabled={proposeModal.submitting || proposeModal.pickerItems.length === 0}
+                  className="flex-1 bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {proposeModal.submitting ? 'Sending...' : 'Send Request'}
+                </button>
+                <button
+                  onClick={() => setProposeModal(null)}
+                  disabled={proposeModal.submitting}
+                  className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

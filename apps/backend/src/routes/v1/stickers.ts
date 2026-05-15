@@ -103,6 +103,65 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /**
+   * POST /api/v1/stickers/lookup
+   * Bulk fetch sticker display info + all variants for a list of album codes.
+   * Used by the trade sticker picker to avoid N×2 individual requests.
+   * Public — no auth required.
+   */
+  fastify.post(
+    `${prefix}/lookup`,
+    {
+      schema: {
+        tags: ['Stickers'],
+        summary: 'Bulk lookup sticker info and variants by album codes',
+        body: {
+          type: 'object',
+          required: ['codes'],
+          properties: {
+            codes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    album_code:  { type: 'string' },
+                    player_name: { type: 'string', nullable: true },
+                    team_name:   { type: 'string', nullable: true },
+                    variants: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id:           { type: 'string' },
+                          sticker_id:   { type: 'string' },
+                          variant_type: { type: 'string' },
+                          rarity_rank:  { type: 'integer' },
+                          availability: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { codes } = request.body as { codes: string[] };
+      const items = await stickersService.getStickersByAlbumCodes(fastify.db, codes);
+      return reply.status(200).send({ items });
+    }
+  );
+
+  /**
    * GET /api/v1/stickers/:albumCode
    * Public — no auth required.
    */
