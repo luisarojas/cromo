@@ -1,0 +1,549 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth';
+import {
+  fetchTrade,
+  acceptTrade,
+  declineTrade,
+  cancelTrade,
+  completeTrade,
+  counterTrade,
+  sendTradeMessage,
+  type TradeDetail,
+  type TradeMessage,
+  type TradeItemDetail,
+} from '@/lib/api';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+const STATUS_BADGE: Record<TradeDetail['status'], { label: string; className: string }> = {
+  pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
+  accepted: { label: 'Accepted', className: 'bg-green-100 text-green-800' },
+  declined: { label: 'Declined', className: 'bg-gray-100 text-gray-700' },
+  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-700' },
+  completed: { label: 'Completed', className: 'bg-blue-100 text-blue-800' },
+  expired: { label: 'Expired', className: 'bg-gray-100 text-gray-700' },
+};
+
+function ItemCard({ item }: { item: TradeItemDetail }) {
+  return (
+    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
+      <div className="font-medium text-gray-800">{item.album_code}</div>
+      <div className="text-xs text-gray-500 mt-0.5 space-x-1.5">
+        {item.player_name && <span>{item.player_name}</span>}
+        {item.team_name && <span>&middot; {item.team_name}</span>}
+        <span>&middot; {item.variant_type}</span>
+        {item.quantity > 1 && (
+          <span className="font-medium text-gray-700">&times;{item.quantity}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg, isMe }: { msg: TradeMessage; isMe: boolean }) {
+  return (
+    <div className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+      <div className="text-xs text-gray-400">
+        {msg.sender_display_name ?? msg.sender_username} &middot;{' '}
+        {new Date(msg.sent_at).toLocaleString()}
+      </div>
+      <div
+        className={`max-w-xs rounded-lg px-3 py-2 text-sm ${
+          isMe ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'
+        }`}
+      >
+        {msg.body}
+      </div>
+    </div>
+  );
+}
+
+export default function TradeDetailPage() {
+  const params = useParams();
+  const tradeId = typeof params.tradeId === 'string' ? params.tradeId : (params.tradeId?.[0] ?? '');
+  const router = useRouter();
+  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+
+  const [trade, setTrade] = useState<TradeDetail | null>(null);
+  const [messages, setMessages] = useState<TradeMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Message compose
+  const [msgBody, setMsgBody] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
+
+  // Counter form
+  const [showCounter, setShowCounter] = useState(false);
+  const [counterOfferIds, setCounterOfferIds] = useState('');
+  const [counterWantIds, setCounterWantIds] = useState('');
+  const [counterError, setCounterError] = useState<string | null>(null);
+  const [counterSubmitting, setCounterSubmitting] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!token || !user) {
+      router.replace('/login');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      if (!token) return;
+      try {
+        const data = await fetchTrade(tradeId, token);
+        if (!cancelled) {
+          setTrade(data);
+          setMessages(data.messages);
+        }
+      } catch (err) {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : 'Failed to load trade');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, token, user, router, tradeId]);
+
+  // SSE for real-time updates
+  useEffect(() => {
+    if (!token || !tradeId) return;
+
+    const es = new EventSource(
+      `${BASE_URL}/api/v1/trade/requests/${tradeId}/stream?token=${encodeURIComponent(token)}`,
+    );
+
+    es.addEventListener('new_message', (ev) => {
+      try {
+        const msg = JSON.parse(ev.data) as TradeMessage;
+        setMessages((prev) => {
+          // Avoid duplicates
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+      } catch {}
+    });
+
+    es.addEventListener('status_changed', (ev) => {
+      try {
+        const payload = JSON.parse(ev.data) as { status: TradeDetail['status'] };
+        setTrade((prev) => prev ? { ...prev, status: payload.status } : prev);
+      } catch {}
+    });
+
+    return () => {
+      es.close();
+    };
+  }, [token, tradeId]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  async function runAction(action: () => Promise<void>, onSuccess?: () => void) {
+    if (!token) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await action();
+      // Refresh trade state
+      const updated = await fetchTrade(tradeId, token);
+      setTrade(updated);
+      setMessages(updated.messages);
+      onSuccess?.();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleAccept() {
+    if (!token) return;
+    await runAction(() => acceptTrade(tradeId, token));
+  }
+
+  async function handleDecline() {
+    if (!token) return;
+    await runAction(() => declineTrade(tradeId, token));
+  }
+
+  async function handleCancel() {
+    if (!token) return;
+    await runAction(() => cancelTrade(tradeId, token));
+  }
+
+  async function handleComplete() {
+    if (!token) return;
+    await runAction(() => completeTrade(tradeId, token));
+  }
+
+  async function handleCounter() {
+    if (!token) return;
+    const offerIds = counterOfferIds
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const wantIds = counterWantIds
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (offerIds.length === 0 && wantIds.length === 0) {
+      setCounterError('Add at least one sticker variant ID to offer or want.');
+      return;
+    }
+
+    const items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] = [
+      ...offerIds.map((id) => ({ variantId: id, direction: 'offer' as const, quantity: 1 })),
+      ...wantIds.map((id) => ({ variantId: id, direction: 'want' as const, quantity: 1 })),
+    ];
+
+    setCounterSubmitting(true);
+    setCounterError(null);
+    try {
+      await counterTrade(tradeId, { items }, token);
+      const updated = await fetchTrade(tradeId, token);
+      setTrade(updated);
+      setMessages(updated.messages);
+      setShowCounter(false);
+      setCounterOfferIds('');
+      setCounterWantIds('');
+    } catch (err) {
+      setCounterError(err instanceof Error ? err.message : 'Failed to submit counter offer');
+    } finally {
+      setCounterSubmitting(false);
+    }
+  }
+
+  async function handleSendMessage() {
+    if (!token || !msgBody.trim()) return;
+    setSendingMsg(true);
+    const body = msgBody.trim();
+    setMsgBody('');
+    // Optimistic append
+    const optimisticMsg: TradeMessage = {
+      id: `optimistic-${Date.now()}`,
+      trade_id: tradeId,
+      sender_id: user?.id ?? '',
+      sender_username: user?.username ?? '',
+      sender_display_name: user?.displayName ?? null,
+      body,
+      sent_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    try {
+      const sent = await sendTradeMessage(tradeId, body, token);
+      // Replace optimistic message with real one
+      setMessages((prev) =>
+        prev.map((m) => (m.id === optimisticMsg.id ? sent : m)),
+      );
+    } catch {
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+      setMsgBody(body);
+    } finally {
+      setSendingMsg(false);
+    }
+  }
+
+  if (!hydrated || (!token && hydrated)) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+        Loading...
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-10">
+        <div className="space-y-4">
+          <div className="h-8 w-48 rounded bg-gray-200 animate-pulse" />
+          <div className="h-40 rounded-xl bg-gray-200 animate-pulse" />
+          <div className="h-60 rounded-xl bg-gray-200 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !trade) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-10">
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+          {error ?? 'Trade not found.'}
+        </div>
+        <button
+          onClick={() => router.back()}
+          className="mt-4 text-sm text-blue-600 hover:underline"
+        >
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const badge = STATUS_BADGE[trade.status];
+  const isRequester = trade.requester_id === user?.id;
+  const isRecipient = trade.recipient_id === user?.id;
+
+  const offeredItems = trade.items.filter((i) => i.direction === 'offer');
+  const wantedItems = trade.items.filter((i) => i.direction === 'want');
+
+  const canAcceptDecline = isRecipient && trade.status === 'pending';
+  const canCancel =
+    (isRequester && trade.status === 'pending') ||
+    ((isRequester || isRecipient) && trade.status === 'accepted');
+  const canComplete = (isRequester || isRecipient) && trade.status === 'accepted';
+  const canCounter = isRecipient && trade.status === 'pending';
+  const isTerminal = ['completed', 'declined', 'cancelled', 'expired'].includes(trade.status);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-10">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <button
+          onClick={() => router.push('/trade')}
+          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          &larr; Trades
+        </button>
+      </div>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Trade Details</h1>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
+        >
+          {badge.label}
+        </span>
+      </div>
+
+      {/* Participants */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
+        <div className="flex gap-6 text-sm">
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-0.5">Requester</div>
+            <div className="font-medium text-gray-800">@{trade.requester_username}</div>
+          </div>
+          <div className="text-gray-400 self-center">&harr;</div>
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-0.5">Recipient</div>
+            <div className="font-medium text-gray-800">@{trade.recipient_username}</div>
+          </div>
+          <div className="ml-auto text-xs text-gray-400 self-center">
+            Created {new Date(trade.created_at).toLocaleDateString()}
+          </div>
+        </div>
+      </div>
+
+      {/* Trade items */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Trade Items</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Offered
+            </h3>
+            {offeredItems.length === 0 ? (
+              <p className="text-xs text-gray-400">Nothing offered</p>
+            ) : (
+              <div className="space-y-2">
+                {offeredItems.map((item) => (
+                  <ItemCard key={item.id} item={item} />
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Wanted
+            </h3>
+            {wantedItems.length === 0 ? (
+              <p className="text-xs text-gray-400">Nothing requested</p>
+            ) : (
+              <div className="space-y-2">
+                {wantedItems.map((item) => (
+                  <ItemCard key={item.id} item={item} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      {!isTerminal && (
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Actions</h2>
+
+          {actionError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-3">
+              {actionError}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {canAcceptDecline && (
+              <>
+                <button
+                  onClick={handleAccept}
+                  disabled={actionLoading}
+                  className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={handleDecline}
+                  disabled={actionLoading}
+                  className="bg-red-600 text-white hover:bg-red-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                >
+                  Decline
+                </button>
+              </>
+            )}
+            {canCounter && (
+              <button
+                onClick={() => setShowCounter((v) => !v)}
+                disabled={actionLoading}
+                className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                Counter Offer
+              </button>
+            )}
+            {canComplete && (
+              <button
+                onClick={handleComplete}
+                disabled={actionLoading}
+                className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                Mark Complete
+              </button>
+            )}
+            {canCancel && (
+              <button
+                onClick={handleCancel}
+                disabled={actionLoading}
+                className="bg-red-600 text-white hover:bg-red-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                Cancel Trade
+              </button>
+            )}
+          </div>
+
+          {/* Counter form */}
+          {showCounter && (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+              <h3 className="text-sm font-medium text-gray-700">Submit Counter Offer</h3>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Variant IDs to offer (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={counterOfferIds}
+                  onChange={(e) => setCounterOfferIds(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="variant-id-1, variant-id-2"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Variant IDs to request (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={counterWantIds}
+                  onChange={(e) => setCounterWantIds(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="variant-id-3, variant-id-4"
+                />
+              </div>
+              {counterError && (
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                  {counterError}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCounter}
+                  disabled={counterSubmitting}
+                  className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                >
+                  {counterSubmitting ? 'Submitting...' : 'Submit Counter'}
+                </button>
+                <button
+                  onClick={() => setShowCounter(false)}
+                  className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Messages</h2>
+
+        <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
+          {messages.length === 0 && (
+            <p className="text-xs text-gray-400 text-center py-4">No messages yet.</p>
+          )}
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} msg={msg} isMe={msg.sender_id === user?.id} />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {!isTerminal && (
+          <div className="flex gap-2 pt-3 border-t border-gray-100">
+            <textarea
+              value={msgBody}
+              onChange={(e) => setMsgBody(e.target.value.slice(0, 2000))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              rows={2}
+              placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={sendingMsg || !msgBody.trim()}
+              className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed self-end transition-colors"
+            >
+              Send
+            </button>
+          </div>
+        )}
+
+        {isTerminal && (
+          <p className="text-xs text-gray-400 text-center pt-3 border-t border-gray-100">
+            This trade is {trade.status}. Messaging is disabled.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

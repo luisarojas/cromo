@@ -44,6 +44,12 @@ export default function NavBar() {
               >
                 Albums
               </Link>
+              <Link
+                href="/trade"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Trade
+              </Link>
               {user.role === 'admin' && (
                 <Link
                   href="/admin"

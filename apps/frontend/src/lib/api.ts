@@ -740,3 +740,253 @@ export async function patchAdminSticker(
     token,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Trade & sharing types
+// ---------------------------------------------------------------------------
+
+export interface TradeMatch {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  mutual_overlap: number;
+  they_have: string[]; // album codes they have that you need
+  you_have: string[];  // album codes you have that they need
+}
+
+export interface TradeItemDetail {
+  id: string;
+  sticker_variant_id: string;
+  variant_type: string;
+  direction: 'offer' | 'want';
+  quantity: number;
+  sticker_number: number;
+  album_code: string;
+  player_name: string | null;
+  sticker_type: string;
+  team_name: string | null;
+}
+
+export interface TradeMessage {
+  id: string;
+  trade_id: string;
+  sender_id: string;
+  sender_username: string;
+  sender_display_name: string | null;
+  body: string;
+  sent_at: string;
+}
+
+export interface TradeSummary {
+  id: string;
+  requester_id: string;
+  requester_username: string;
+  recipient_id: string;
+  recipient_username: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'completed' | 'expired';
+  counter_count: number;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface TradeDetail extends TradeSummary {
+  items: TradeItemDetail[];
+  messages: TradeMessage[];
+  accepted_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  expires_at: string | null;
+}
+
+export interface ShareLink {
+  id: string;
+  user_id: string;
+  list_type: 'missing' | 'duplicates' | 'full_collection';
+  share_token: string;
+  expires_at: string | null;
+  created_at: string;
+  url: string;
+}
+
+export interface PublicListItem {
+  sticker_variant_id: string;
+  number: number;
+  album_code: string;
+  player_name: string | null;
+  sticker_type: string;
+  team_name: string | null;
+  variant_type: string;
+  quantity?: number;
+}
+
+export interface PublicList {
+  owner: { username: string; display_name: string | null };
+  list_type: string;
+  items: PublicListItem[];
+  created_at: string;
+}
+
+export interface PublicProfile {
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  member_since: string;
+  collection_stats?: {
+    total: number;
+    owned: number;
+    missing: number;
+    duplicates: number;
+    percentage: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Trade API endpoints
+// ---------------------------------------------------------------------------
+
+export async function fetchTradeMatches(albumId: string, token: string): Promise<TradeMatch[]> {
+  const qs = toQueryString({ albumId });
+  return apiFetch<TradeMatch[]>(`/api/v1/trade/matches${qs}`, {}, token);
+}
+
+export async function fetchTrades(
+  params: { status?: string },
+  token: string,
+): Promise<TradeSummary[]> {
+  const qs = toQueryString(params);
+  return apiFetch<TradeSummary[]>(`/api/v1/trade/requests${qs}`, {}, token);
+}
+
+export async function fetchTrade(id: string, token: string): Promise<TradeDetail> {
+  return apiFetch<TradeDetail>(`/api/v1/trade/requests/${id}`, {}, token);
+}
+
+export async function createTrade(
+  body: {
+    recipientId: string;
+    items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
+  },
+  token: string,
+): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(
+    '/api/v1/trade/requests',
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function acceptTrade(id: string, token: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/trade/requests/${id}/accept`,
+    { method: 'POST' },
+    token,
+  );
+}
+
+export async function declineTrade(id: string, token: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/trade/requests/${id}/decline`,
+    { method: 'POST' },
+    token,
+  );
+}
+
+export async function counterTrade(
+  id: string,
+  body: { items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] },
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/trade/requests/${id}/counter`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function cancelTrade(id: string, token: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/trade/requests/${id}/cancel`,
+    { method: 'POST' },
+    token,
+  );
+}
+
+export async function completeTrade(id: string, token: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/trade/requests/${id}/complete`,
+    { method: 'POST' },
+    token,
+  );
+}
+
+export async function fetchTradeMessages(
+  id: string,
+  params: { cursor?: string; limit?: number },
+  token: string,
+): Promise<{ items: TradeMessage[]; nextCursor: string | null }> {
+  const qs = toQueryString(params as Record<string, string | number | undefined>);
+  return apiFetch<{ items: TradeMessage[]; nextCursor: string | null }>(
+    `/api/v1/trade/requests/${id}/messages${qs}`,
+    {},
+    token,
+  );
+}
+
+export async function sendTradeMessage(
+  id: string,
+  body: string,
+  token: string,
+  idempotencyKey?: string,
+): Promise<TradeMessage> {
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
+  return apiFetch<TradeMessage>(
+    `/api/v1/trade/requests/${id}/messages`,
+    { method: 'POST', body: JSON.stringify({ body }), headers },
+    token,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Share link endpoints
+// ---------------------------------------------------------------------------
+
+export async function createShareLink(
+  userId: string,
+  body: { listType: string },
+  token: string,
+): Promise<ShareLink> {
+  return apiFetch<ShareLink>(
+    `/api/v1/users/${userId}/share`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function fetchShareLinks(userId: string, token: string): Promise<ShareLink[]> {
+  return apiFetch<ShareLink[]>(`/api/v1/users/${userId}/share`, {}, token);
+}
+
+export async function revokeShareLink(
+  userId: string,
+  shareToken: string,
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/share/${shareToken}`,
+    { method: 'DELETE' },
+    token,
+  );
+}
+
+export async function fetchPublicList(shareToken: string): Promise<PublicList> {
+  return apiFetch<PublicList>(`/api/v1/share/${shareToken}`);
+}
+
+export async function fetchPublicProfile(username: string): Promise<PublicProfile> {
+  return apiFetch<PublicProfile>(`/api/v1/profiles/${encodeURIComponent(username)}`);
+}

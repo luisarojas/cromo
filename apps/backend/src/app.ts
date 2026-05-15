@@ -18,6 +18,9 @@ import { collectionRoutes } from './routes/v1/collection.js';
 import { adminRoutes } from './routes/v1/admin.js';
 import { usersRoutes } from './routes/v1/users.js';
 import { albumsRoutes } from './routes/v1/albums.js';
+import { tradeRoutes } from './routes/v1/trade.js';
+import { sharingRoutes } from './routes/v1/sharing.js';
+import { profileRoutes } from './routes/v1/profiles.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -77,6 +80,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(adminRoutes);
   await fastify.register(usersRoutes);
   await fastify.register(albumsRoutes);
+  await fastify.register(tradeRoutes);
+  await fastify.register(sharingRoutes);
+  await fastify.register(profileRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   fastify.setErrorHandler<FastifyError>((error, _request, reply) => {
