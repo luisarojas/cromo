@@ -528,6 +528,7 @@ export default function TradePage() {
                 suggestedWantCodes={proposeModal.match.they_have}
                 suggestedWantVariantIds={proposeModal.match.they_have_variant_ids}
                 token={token}
+                partnerName={proposeModal.match.display_name ?? proposeModal.match.username}
                 favouriteCodes={favouriteCodes}
                 onHideSticker={handleHideSticker}
                 initialOfferVariants={proposeModal.draftOfferVariants}

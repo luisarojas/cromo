@@ -488,6 +488,7 @@ export default function TradeDetailPage() {
                 suggestedOfferCodes={[]}
                 suggestedWantCodes={[]}
                 token={token}
+                partnerName={isRequester ? trade.recipient_username : trade.requester_username}
                 onChange={(items, offerCash, wantCash) => {
                 setCounterItems(items);
                 setCounterOfferCash(offerCash);

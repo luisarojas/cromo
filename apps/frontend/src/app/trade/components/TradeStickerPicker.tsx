@@ -41,6 +41,7 @@ interface Props {
   suggestedWantCodes: string[];
   suggestedWantVariantIds?: string[];
   token: string;
+  partnerName?: string;
   favouriteCodes?: Set<string>;
   onChange: (items: TradePickerItem[], offerCash: number, wantCash: number) => void;
   onHideSticker?: (variantId: string) => void;
@@ -68,6 +69,7 @@ export default function TradeStickerPicker({
   suggestedWantCodes,
   suggestedWantVariantIds = [],
   token,
+  partnerName,
   favouriteCodes = new Set(),
   onChange,
   onHideSticker,
@@ -673,7 +675,9 @@ export default function TradeStickerPicker({
             <div className="flex items-center gap-2 -mx-1">
               <div className="flex-1 h-px bg-emerald-100" />
               <span className="text-[10px] text-emerald-400 font-medium uppercase tracking-wide shrink-0">
-                {selectedWants.length > 0 ? "Partner's stickers" : "Pick from partner's stickers"}
+                {selectedWants.length > 0
+                  ? `${partnerName ?? "Partner"}'s stickers`
+                  : `Pick from ${partnerName ?? "partner"}'s stickers`}
               </span>
               <div className="flex-1 h-px bg-emerald-100" />
             </div>
