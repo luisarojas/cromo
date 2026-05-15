@@ -11,9 +11,11 @@ import {
   completeTrade,
   counterTrade,
   sendTradeMessage,
+  fetchCollection,
   type TradeDetail,
   type TradeMessage,
   type TradeItemDetail,
+  type CollectionItem,
 } from '@/lib/api';
 import TradeStickerPicker, { type TradePickerItem } from '../components/TradeStickerPicker';
 
@@ -86,6 +88,9 @@ export default function TradeDetailPage() {
   const [counterItems, setCounterItems] = useState<TradePickerItem[]>([]);
   const [counterError, setCounterError] = useState<string | null>(null);
   const [counterSubmitting, setCounterSubmitting] = useState(false);
+  const [counterOfferItems, setCounterOfferItems] = useState<CollectionItem[]>([]);
+  const [counterOfferItemsLoading, setCounterOfferItemsLoading] = useState(false);
+  const counterOfferItemsLoadedRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -155,6 +160,17 @@ export default function TradeDetailPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Load user's collection once when counter form first opens
+  useEffect(() => {
+    if (!showCounter || !token || !user || counterOfferItemsLoadedRef.current) return;
+    counterOfferItemsLoadedRef.current = true;
+    setCounterOfferItemsLoading(true);
+    fetchCollection(user.id, { limit: 1000 }, token)
+      .then((result) => setCounterOfferItems(result.items))
+      .catch(() => {})
+      .finally(() => setCounterOfferItemsLoading(false));
+  }, [showCounter, token, user]);
 
   async function runAction(action: () => Promise<void>, onSuccess?: () => void) {
     if (!token) return;
@@ -445,8 +461,10 @@ export default function TradeDetailPage() {
               <h3 className="text-sm font-medium text-gray-700">Submit Counter Offer</h3>
               <TradeStickerPicker
                 key="counter"
-                offerCodes={[]}
-                wantCodes={[]}
+                offerItems={counterOfferItems}
+                offerItemsLoading={counterOfferItemsLoading}
+                suggestedOfferCodes={[]}
+                suggestedWantCodes={[]}
                 token={token}
                 onChange={setCounterItems}
               />

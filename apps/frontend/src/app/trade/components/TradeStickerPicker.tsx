@@ -1,395 +1,651 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { fetchStickersBulk, type StickerVariant } from '@/lib/api';
+import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
 
 export interface TradePickerItem {
   variantId: string;
   direction: 'offer' | 'want';
-  quantity: 1;
+  quantity: number;
 }
 
-interface LineItem {
+interface SelectedOffer {
+  variantId: string;
+  albumCode: string;
+  playerName: string | null;
+  teamName: string | null;
+  variantType: string;
+  maxQty: number;
+  quantity: number;
+}
+
+interface WantItem {
   key: string;
   albumCode: string;
-  variantId: string;
-  variantType: string;
   playerName: string | null;
   teamName: string | null;
   allVariants: StickerVariant[];
-  direction: 'offer' | 'want';
+  variantId: string;
+  variantType: string;
   loading: boolean;
   error: string | null;
+  fromSuggestion: boolean;
+  selected: boolean;
 }
 
 interface Props {
-  offerCodes: string[];
-  wantCodes: string[];
+  offerItems: CollectionItem[];
+  offerItemsLoading: boolean;
+  suggestedOfferCodes: string[];
+  suggestedWantCodes: string[];
   token: string;
   onChange: (items: TradePickerItem[]) => void;
 }
 
-let lineKeySeq = 0;
+let keySeq = 0;
 function nextKey() {
-  return String(++lineKeySeq);
+  return String(++keySeq);
 }
 
-export default function TradeStickerPicker({ offerCodes, wantCodes, token, onChange }: Props) {
-  const [lines, setLines] = useState<LineItem[]>([]);
-  const [offerInput, setOfferInput] = useState('');
+export default function TradeStickerPicker({
+  offerItems,
+  offerItemsLoading,
+  suggestedOfferCodes,
+  suggestedWantCodes,
+  token,
+  onChange,
+}: Props) {
+  const [selectedOffers, setSelectedOffers] = useState<SelectedOffer[]>([]);
+  const [wantItems, setWantItems] = useState<WantItem[]>([]);
   const [wantInput, setWantInput] = useState('');
-  const [offerAdding, setOfferAdding] = useState(false);
   const [wantAdding, setWantAdding] = useState(false);
-  const initializedRef = useRef(false);
+  const [offerSearch, setOfferSearch] = useState('');
+  const [offerVariantFilter, setOfferVariantFilter] = useState('');
+  const [offerQtyFilter, setOfferQtyFilter] = useState<'' | 'duplicate' | 'single'>('');
+  const [wantVariantFilter, setWantVariantFilter] = useState('');
+
+  const wantInitRef = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
   useEffect(() => {
-    const valid = lines.filter((l) => !l.loading && !l.error && l.variantId);
-    onChangeRef.current(valid.map((l) => ({ variantId: l.variantId, direction: l.direction, quantity: 1 as const })));
-  }, [lines]);
-
-  async function loadByCode(albumCode: string, direction: 'offer' | 'want'): Promise<Omit<LineItem, 'key'>> {
-    try {
-      const results = await fetchStickersBulk([albumCode], token);
-      const result = results[0];
-      if (!result) throw new Error('Not found');
-      const base = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0] ?? null;
-      return {
-        albumCode: result.album_code,
-        variantId: base?.id ?? '',
-        variantType: base?.variant_type ?? 'base',
-        playerName: result.player_name,
-        teamName: result.team_name,
-        allVariants: result.variants,
-        direction,
-        loading: false,
-        error: null,
-      };
-    } catch {
-      return {
-        albumCode,
-        variantId: '',
-        variantType: 'base',
-        playerName: null,
-        teamName: null,
-        allVariants: [],
-        direction,
-        loading: false,
-        error: 'Not found',
-      };
-    }
-  }
-
-  // Load initial suggestions once on mount — single bulk request instead of N×2.
-  useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-
-    const entries = [
-      ...offerCodes.map((c) => ({ code: c, direction: 'offer' as const })),
-      ...wantCodes.map((c) => ({ code: c, direction: 'want' as const })),
-    ];
-    if (entries.length === 0) return;
-
-    const keys = entries.map(() => nextKey());
-    setLines(
-      entries.map(({ code, direction }, i) => ({
-        key: keys[i]!,
-        albumCode: code,
-        variantId: '',
-        variantType: 'base',
-        playerName: null,
-        teamName: null,
-        allVariants: [],
-        direction,
-        loading: true,
-        error: null,
+    const items: TradePickerItem[] = [
+      ...selectedOffers.map((o) => ({
+        variantId: o.variantId,
+        direction: 'offer' as const,
+        quantity: o.quantity,
       })),
-    );
+      ...wantItems
+        .filter((w) => w.selected && !w.loading && !w.error && w.variantId)
+        .map((w) => ({ variantId: w.variantId, direction: 'want' as const, quantity: 1 })),
+    ];
+    onChangeRef.current(items);
+  }, [selectedOffers, wantItems]);
 
-    const allCodes = entries.map((e) => e.code);
-    fetchStickersBulk(allCodes, token).then((results) => {
-      const byCode = new Map(results.map((r) => [r.album_code, r]));
-      setLines((prev) =>
-        prev.map((l, i) => {
-          const entry = entries[i];
-          if (!entry || !l.loading) return l;
-          const result = byCode.get(entry.code);
-          if (!result) return { ...l, loading: false, error: 'Not found' };
-          const base = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0] ?? null;
-          return {
-            ...l,
-            albumCode: result.album_code,
-            variantId: base?.id ?? '',
-            variantType: base?.variant_type ?? 'base',
-            playerName: result.player_name,
-            teamName: result.team_name,
-            allVariants: result.variants,
-            loading: false,
-            error: null,
-          };
-        }),
-      );
-    }).catch(() => {
-      setLines((prev) => prev.map((l) => l.loading ? { ...l, loading: false, error: 'Failed to load' } : l));
-    });
+  useEffect(() => {
+    if (wantInitRef.current || suggestedWantCodes.length === 0) return;
+    wantInitRef.current = true;
+
+    const entries = suggestedWantCodes.map((code) => ({
+      key: nextKey(),
+      albumCode: code,
+      playerName: null as string | null,
+      teamName: null as string | null,
+      allVariants: [] as StickerVariant[],
+      variantId: '',
+      variantType: 'base',
+      loading: true,
+      error: null as string | null,
+      fromSuggestion: true,
+      selected: false,
+    }));
+
+    setWantItems(entries);
+
+    fetchStickersBulk(suggestedWantCodes, token)
+      .then((results) => {
+        const byCode = new Map(results.map((r) => [r.album_code, r]));
+        setWantItems((prev) =>
+          prev.map((w, i) => {
+            const result = byCode.get(suggestedWantCodes[i]!);
+            if (!result) return { ...w, loading: false, error: 'Not found' };
+            const base = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0];
+            return {
+              ...w,
+              playerName: result.player_name,
+              teamName: result.team_name,
+              allVariants: result.variants,
+              variantId: base?.id ?? '',
+              variantType: base?.variant_type ?? 'base',
+              loading: false,
+              error: null,
+            };
+          }),
+        );
+      })
+      .catch(() => {
+        setWantItems((prev) =>
+          prev.map((w) => (w.loading ? { ...w, loading: false, error: 'Failed to load' } : w)),
+        );
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function removeItem(key: string) {
-    setLines((prev) => prev.filter((l) => l.key !== key));
+  // ── Offer handlers ────────────────────────────────────────────────────────
+
+  function toggleOffer(item: CollectionItem) {
+    const isSelected = selectedOffers.some((o) => o.variantId === item.sticker_variant_id);
+    if (isSelected) {
+      setSelectedOffers((prev) => prev.filter((o) => o.variantId !== item.sticker_variant_id));
+    } else {
+      setSelectedOffers((prev) => [
+        ...prev,
+        {
+          variantId: item.sticker_variant_id,
+          albumCode: item.album_code,
+          playerName: item.player_name,
+          teamName: item.team_name,
+          variantType: item.variant_type,
+          maxQty: item.quantity,
+          quantity: 1,
+        },
+      ]);
+    }
   }
 
-  function changeVariant(key: string, variant: StickerVariant) {
-    setLines((prev) =>
-      prev.map((l) =>
-        l.key === key ? { ...l, variantId: variant.id, variantType: variant.variant_type } : l,
+  function adjustOfferQty(variantId: string, delta: number) {
+    setSelectedOffers((prev) =>
+      prev.map((o) =>
+        o.variantId === variantId
+          ? { ...o, quantity: Math.max(1, Math.min(o.maxQty, o.quantity + delta)) }
+          : o,
       ),
     );
   }
 
-  async function handleAdd(direction: 'offer' | 'want') {
-    const raw = direction === 'offer' ? offerInput : wantInput;
-    const code = raw.trim().toUpperCase();
-    if (!code) return;
+  // ── Want handlers ─────────────────────────────────────────────────────────
 
-    if (direction === 'offer') {
-      setOfferInput('');
-      setOfferAdding(true);
-    } else {
-      setWantInput('');
-      setWantAdding(true);
-    }
+  function toggleWantSuggestion(key: string) {
+    setWantItems((prev) => prev.map((w) => (w.key === key ? { ...w, selected: !w.selected } : w)));
+  }
+
+  function removeWant(key: string) {
+    setWantItems((prev) => prev.filter((w) => w.key !== key));
+  }
+
+  function changeWantVariant(key: string, variant: StickerVariant) {
+    setWantItems((prev) =>
+      prev.map((w) =>
+        w.key === key ? { ...w, variantId: variant.id, variantType: variant.variant_type } : w,
+      ),
+    );
+  }
+
+  async function addWantByCode() {
+    const code = wantInput.trim().toUpperCase();
+    if (!code) return;
+    setWantInput('');
+    setWantAdding(true);
 
     const key = nextKey();
-    setLines((prev) => [
+    setWantItems((prev) => [
       ...prev,
       {
         key,
         albumCode: code,
-        variantId: '',
-        variantType: 'base',
         playerName: null,
         teamName: null,
         allVariants: [],
-        direction,
+        variantId: '',
+        variantType: 'base',
         loading: true,
         error: null,
+        fromSuggestion: false,
+        selected: true,
       },
     ]);
 
-    const data = await loadByCode(code, direction);
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...data, key } : l)));
-
-    if (direction === 'offer') setOfferAdding(false);
-    else setWantAdding(false);
+    try {
+      const results = await fetchStickersBulk([code], token);
+      const result = results[0];
+      if (!result) throw new Error('Not found');
+      const base = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0];
+      setWantItems((prev) =>
+        prev.map((w) =>
+          w.key === key
+            ? {
+                ...w,
+                playerName: result.player_name,
+                teamName: result.team_name,
+                allVariants: result.variants,
+                variantId: base?.id ?? '',
+                variantType: base?.variant_type ?? 'base',
+                loading: false,
+                error: null,
+              }
+            : w,
+        ),
+      );
+    } catch {
+      setWantItems((prev) =>
+        prev.map((w) => (w.key === key ? { ...w, loading: false, error: 'Not found' } : w)),
+      );
+    } finally {
+      setWantAdding(false);
+    }
   }
 
-  const offerLines = lines.filter((l) => l.direction === 'offer');
-  const wantLines = lines.filter((l) => l.direction === 'want');
+  // ── Derived values ────────────────────────────────────────────────────────
+
+  const suggestedSet = new Set(suggestedOfferCodes);
+  const selectedVariantIds = new Set(selectedOffers.map((o) => o.variantId));
+
+  const offerVariants = [...new Set(offerItems.map((d) => d.variant_type))].sort();
+
+  const filteredDups = offerItems
+    .filter((item) => {
+      if (offerQtyFilter === 'duplicate' && item.quantity < 2) return false;
+      if (offerQtyFilter === 'single' && item.quantity !== 1) return false;
+      if (offerVariantFilter && item.variant_type !== offerVariantFilter) return false;
+      if (!offerSearch) return true;
+      const q = offerSearch.toLowerCase();
+      return (
+        item.album_code.toLowerCase().includes(q) ||
+        (item.player_name?.toLowerCase().includes(q) ?? false) ||
+        (item.team_name?.toLowerCase().includes(q) ?? false)
+      );
+    })
+    .sort((a, b) => {
+      const aS = suggestedSet.has(a.album_code) ? 0 : 1;
+      const bS = suggestedSet.has(b.album_code) ? 0 : 1;
+      return aS - bS || a.album_code.localeCompare(b.album_code);
+    });
+
+  const suggestions = wantItems.filter((w) => w.fromSuggestion);
+  const wantVariants = [
+    ...new Set(
+      suggestions.filter((w) => !w.loading && !w.error).map((w) => w.variantType),
+    ),
+  ].sort();
+  const filteredSuggestions = wantVariantFilter
+    ? suggestions.filter((w) => w.loading || w.variantType === wantVariantFilter)
+    : suggestions;
+
+  const selectedWants = wantItems.filter((w) => w.selected);
+  const selectedWantCount = wantItems.filter(
+    (w) => w.selected && !w.loading && !w.error && w.variantId,
+  ).length;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <StickerPanel
-        title="You're Offering"
-        color="blue"
-        lines={offerLines}
-        onRemove={removeItem}
-        onVariantChange={changeVariant}
-        inputValue={offerInput}
-        onInputChange={setOfferInput}
-        onAdd={() => handleAdd('offer')}
-        adding={offerAdding}
-      />
-      <StickerPanel
-        title="You Want"
-        color="emerald"
-        lines={wantLines}
-        onRemove={removeItem}
-        onVariantChange={changeVariant}
-        inputValue={wantInput}
-        onInputChange={setWantInput}
-        onAdd={() => handleAdd('want')}
-        adding={wantAdding}
-      />
-    </div>
-  );
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StickerPanel({
-  title,
-  color,
-  lines,
-  onRemove,
-  onVariantChange,
-  inputValue,
-  onInputChange,
-  onAdd,
-  adding,
-}: {
-  title: string;
-  color: 'blue' | 'emerald';
-  lines: LineItem[];
-  onRemove: (key: string) => void;
-  onVariantChange: (key: string, v: StickerVariant) => void;
-  inputValue: string;
-  onInputChange: (v: string) => void;
-  onAdd: () => void;
-  adding: boolean;
-}) {
-  const cls = {
-    bg: color === 'blue' ? 'bg-blue-50 border-blue-100' : 'bg-emerald-50 border-emerald-100',
-    title: color === 'blue' ? 'text-blue-700' : 'text-emerald-700',
-    btn: color === 'blue'
-      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-      : 'bg-emerald-600 hover:bg-emerald-700 text-white',
-    ring: color === 'blue' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500',
-  };
-
-  return (
-    <div className={`rounded-xl border p-4 flex flex-col gap-2 ${cls.bg}`}>
-      <div className="flex items-center justify-between mb-1">
-        <h3 className={`text-sm font-semibold ${cls.title}`}>{title}</h3>
-        {lines.length > 0 && (
-          <span className="text-xs text-gray-400 tabular-nums">{lines.filter((l) => !l.loading && !l.error && l.variantId).length} sticker{lines.length !== 1 ? 's' : ''}</span>
-        )}
-      </div>
-
-      {lines.length === 0 && !adding ? (
-        <p className="text-xs text-gray-400 text-center py-4">
-          Add stickers below or they were pre-filled from suggestions.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {lines.map((line) => (
-            <LineCard
-              key={line.key}
-              line={line}
-              onRemove={() => onRemove(line.key)}
-              onVariantChange={(v) => onVariantChange(line.key, v)}
-            />
-          ))}
-          {adding && <div className="h-9 rounded-lg bg-white/70 animate-pulse" />}
-        </div>
-      )}
-
-      <div className="flex gap-1.5 mt-auto pt-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => onInputChange(e.target.value.toUpperCase())}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onAdd();
-            }
-          }}
-          placeholder="Add by code (e.g. FIFA001)"
-          className={`flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 ${cls.ring}`}
-        />
-        <button
-          onClick={onAdd}
-          disabled={!inputValue.trim() || adding}
-          className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors ${cls.btn}`}
-        >
-          Add
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function LineCard({
-  line,
-  onRemove,
-  onVariantChange,
-}: {
-  line: LineItem;
-  onRemove: () => void;
-  onVariantChange: (v: StickerVariant) => void;
-}) {
-  if (line.loading) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
-        <div className="w-2.5 h-2.5 rounded-full bg-gray-200 animate-pulse shrink-0" />
-        <div className="flex-1 h-3.5 bg-gray-200 animate-pulse rounded" />
-        <div className="w-16 h-5 bg-gray-200 animate-pulse rounded shrink-0" />
-      </div>
-    );
-  }
-
-  if (line.error) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border border-red-100 bg-white px-3 py-2">
-        <span className="flex-1 text-xs text-red-500 truncate">
-          {line.albumCode} — {line.error}
-        </span>
-        <button
-          onClick={onRemove}
-          className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
-          aria-label="Remove"
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
-      {/* Variant color swatch */}
-      <span
-        className={`shrink-0 inline-block w-2.5 h-2.5 rounded-full border border-gray-300 ${variantSwatch(line.variantType)}`}
-        aria-hidden
-      />
-
-      {/* Sticker info */}
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-gray-800 truncate">
-          <span className="font-semibold">{line.albumCode}</span>
-          {line.playerName && (
-            <span className="text-gray-500 font-normal"> · {line.playerName}</span>
+      {/* ── Offer Panel ───────────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-blue-700">You're Offering</h3>
+          {selectedOffers.length > 0 && (
+            <span className="text-xs font-medium text-blue-600 tabular-nums">
+              {selectedOffers.length} item{selectedOffers.length !== 1 ? 's' : ''}
+            </span>
           )}
         </div>
-        {line.teamName && (
-          <div className="text-[10px] text-gray-400 truncate leading-none mt-0.5">{line.teamName}</div>
+
+        {selectedOffers.length > 0 && (
+          <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto">
+            {selectedOffers.map((o) => (
+              <div
+                key={o.variantId}
+                className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2"
+              >
+                <span
+                  className={`shrink-0 w-2 h-2 rounded-full border ${variantSwatch(o.variantType)}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-gray-800 leading-none truncate">
+                    {o.albumCode}
+                  </div>
+                  <div className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">
+                    {variantLabel(o.variantType)}
+                    {o.playerName ? ` · ${o.playerName}` : ''}
+                  </div>
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => adjustOfferQty(o.variantId, -1)}
+                    disabled={o.quantity <= 1}
+                    className="w-5 h-5 flex items-center justify-center rounded text-xs font-bold text-blue-600 hover:bg-blue-100 disabled:opacity-30 transition-colors"
+                  >
+                    −
+                  </button>
+                  <span className="w-5 text-center text-xs font-medium text-gray-700 tabular-nums">
+                    {o.quantity}
+                  </span>
+                  <button
+                    onClick={() => adjustOfferQty(o.variantId, 1)}
+                    disabled={o.quantity >= o.maxQty}
+                    className="w-5 h-5 flex items-center justify-center rounded text-xs font-bold text-blue-600 hover:bg-blue-100 disabled:opacity-30 transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  onClick={() =>
+                    setSelectedOffers((prev) => prev.filter((x) => x.variantId !== o.variantId))
+                  }
+                  className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
+                  aria-label={`Remove ${o.albumCode}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         )}
+
+        <div className="flex flex-col gap-2">
+          {selectedOffers.length > 0 && (
+            <div className="flex items-center gap-2 -mx-1">
+              <div className="flex-1 h-px bg-blue-100" />
+              <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wide shrink-0">
+                Your stickers
+              </span>
+              <div className="flex-1 h-px bg-blue-100" />
+            </div>
+          )}
+
+          {/* Quantity-type filter */}
+          <div className="flex rounded-md border border-gray-200 bg-white overflow-hidden text-[11px] font-medium">
+            {(['', 'duplicate', 'single'] as const).map((v) => {
+              const label = v === '' ? 'All' : v === 'duplicate' ? 'Extras' : 'Last copy';
+              return (
+                <button
+                  key={v}
+                  onClick={() => setOfferQtyFilter(v)}
+                  className={`flex-1 px-2 py-1.5 transition-colors ${
+                    offerQtyFilter === v
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-1.5">
+            <input
+              type="text"
+              value={offerSearch}
+              onChange={(e) => setOfferSearch(e.target.value)}
+              placeholder="Search by code or player..."
+              className="flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {offerVariants.length > 1 && (
+              <select
+                value={offerVariantFilter}
+                onChange={(e) => setOfferVariantFilter(e.target.value)}
+                className="shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All</option>
+                {offerVariants.map((v) => (
+                  <option key={v} value={v}>
+                    {variantLabel(v)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1 overflow-y-auto max-h-56">
+          {offerItemsLoading ? (
+            [...Array(4)].map((_, i) => (
+              <div key={i} className="h-11 rounded-lg bg-white/60 animate-pulse" />
+            ))
+          ) : filteredDups.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-6">
+              {offerItems.length === 0
+                ? 'No stickers in your collection for this album.'
+                : 'No stickers match your filters.'}
+            </p>
+          ) : (
+            filteredDups.map((item) => {
+              const isSelected = selectedVariantIds.has(item.sticker_variant_id);
+              const isSuggested = suggestedSet.has(item.album_code);
+              const isLastCopy = item.quantity === 1;
+              return (
+                <button
+                  key={item.sticker_variant_id}
+                  onClick={() => toggleOffer(item)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors ${
+                    isSelected
+                      ? 'border-blue-400 bg-blue-100'
+                      : isLastCopy
+                        ? 'border-amber-100 bg-amber-50/60 hover:border-amber-200 hover:bg-amber-50'
+                        : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/50'
+                  }`}
+                >
+                  <span
+                    className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(item.variant_type)}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="text-xs font-semibold text-gray-800 truncate">
+                        {item.album_code}
+                      </span>
+                      {isSuggested && (
+                        <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
+                          they need
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-gray-400 truncate">
+                      {variantLabel(item.variant_type)}
+                      {item.player_name ? ` · ${item.player_name}` : ''}
+                    </div>
+                  </div>
+                  {isLastCopy ? (
+                    <span className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none">
+                      last copy
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-xs text-gray-400 tabular-nums">
+                      ×{item.quantity}
+                    </span>
+                  )}
+                  <span
+                    className={`shrink-0 text-sm font-medium transition-colors ${
+                      isSelected ? 'text-blue-600' : 'text-gray-300'
+                    }`}
+                  >
+                    {isSelected ? '✓' : '+'}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {/* Variant selector */}
-      {line.allVariants.length > 1 ? (
-        <select
-          value={line.variantId}
-          onChange={(e) => {
-            const v = line.allVariants.find((v) => v.id === e.target.value);
-            if (v) onVariantChange(v);
-          }}
-          className="shrink-0 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 max-w-[100px]"
-        >
-          {line.allVariants.map((v) => (
-            <option key={v.id} value={v.id}>
-              {variantLabel(v.variant_type)}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <span className="shrink-0 text-[11px] text-gray-400">
-          {variantLabel(line.variantType)}
-        </span>
-      )}
+      {/* ── Want Panel ────────────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-emerald-700">You Want</h3>
+          {selectedWantCount > 0 && (
+            <span className="text-xs font-medium text-emerald-600 tabular-nums">
+              {selectedWantCount} item{selectedWantCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
 
-      {/* Remove */}
-      <button
-        onClick={onRemove}
-        className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none ml-0.5"
-        aria-label={`Remove ${line.albumCode}`}
-      >
-        ×
-      </button>
+        {selectedWants.length > 0 && (
+          <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto">
+            {selectedWants.map((w) =>
+              w.loading ? (
+                <div key={w.key} className="h-9 rounded-lg bg-white/70 animate-pulse" />
+              ) : w.error ? (
+                <div
+                  key={w.key}
+                  className="flex items-center gap-2 rounded-lg border border-red-100 bg-white px-3 py-2"
+                >
+                  <span className="flex-1 text-xs text-red-500 truncate">
+                    {w.albumCode} — {w.error}
+                  </span>
+                  <button
+                    onClick={() =>
+                      w.fromSuggestion ? toggleWantSuggestion(w.key) : removeWant(w.key)
+                    }
+                    className="text-gray-300 hover:text-red-500 text-lg leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key={w.key}
+                  className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2"
+                >
+                  <span
+                    className={`shrink-0 w-2 h-2 rounded-full border ${variantSwatch(w.variantType)}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-gray-800 leading-none truncate">
+                      {w.albumCode}
+                    </div>
+                    <div className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">
+                      {variantLabel(w.variantType)}
+                      {w.playerName ? ` · ${w.playerName}` : ''}
+                    </div>
+                  </div>
+                  {w.allVariants.length > 1 && (
+                    <select
+                      value={w.variantId}
+                      onChange={(e) => {
+                        const v = w.allVariants.find((v) => v.id === e.target.value);
+                        if (v) changeWantVariant(w.key, v);
+                      }}
+                      className="shrink-0 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-700 focus:outline-none"
+                    >
+                      {w.allVariants.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {variantLabel(v.variant_type)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    onClick={() =>
+                      w.fromSuggestion ? toggleWantSuggestion(w.key) : removeWant(w.key)
+                    }
+                    className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
+                    aria-label={`Remove ${w.albumCode}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ),
+            )}
+          </div>
+        )}
+
+        {suggestions.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 -mx-1">
+              <div className="flex-1 h-px bg-emerald-100" />
+              <span className="text-[10px] text-emerald-400 font-medium uppercase tracking-wide shrink-0">
+                {selectedWants.length > 0 ? "Partner's stickers" : "Pick from partner's stickers"}
+              </span>
+              <div className="flex-1 h-px bg-emerald-100" />
+            </div>
+
+            {wantVariants.length > 1 && (
+              <select
+                value={wantVariantFilter}
+                onChange={(e) => setWantVariantFilter(e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 self-start"
+              >
+                <option value="">All variants</option>
+                {wantVariants.map((v) => (
+                  <option key={v} value={v}>
+                    {variantLabel(v)}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="flex flex-col gap-1 overflow-y-auto max-h-48">
+              {filteredSuggestions.map((w) => (
+                <button
+                  key={w.key}
+                  disabled={w.loading || !!w.error}
+                  onClick={() => toggleWantSuggestion(w.key)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors disabled:opacity-50 ${
+                    w.selected
+                      ? 'border-emerald-400 bg-emerald-100'
+                      : 'border-gray-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/50'
+                  }`}
+                >
+                  {w.loading ? (
+                    <div className="flex-1 h-3 bg-gray-200 animate-pulse rounded" />
+                  ) : (
+                    <>
+                      <span
+                        className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(w.variantType)}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-gray-800 truncate">
+                          {w.albumCode}
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">
+                          {variantLabel(w.variantType)}
+                          {w.playerName ? ` · ${w.playerName}` : ''}
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 text-sm font-medium transition-colors ${
+                          w.selected ? 'text-emerald-600' : 'text-gray-300'
+                        }`}
+                      >
+                        {w.selected ? '✓' : '+'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {suggestions.length === 0 && selectedWants.length === 0 && !wantAdding && (
+          <p className="text-xs text-gray-400 text-center py-3">
+            Add stickers you want using the input below.
+          </p>
+        )}
+
+        <div className="flex gap-1.5 mt-auto pt-2 border-t border-emerald-100">
+          <input
+            type="text"
+            value={wantInput}
+            onChange={(e) => setWantInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addWantByCode();
+              }
+            }}
+            placeholder="Add by code (e.g. FIFA001)"
+            className="flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <button
+            onClick={addWantByCode}
+            disabled={!wantInput.trim() || wantAdding}
+            className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            Add
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

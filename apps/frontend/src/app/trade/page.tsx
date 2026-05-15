@@ -7,11 +7,13 @@ import {
   fetchUserAlbums,
   fetchTradeMatches,
   fetchTrades,
+  fetchCollection,
   createTrade,
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
   type TradeSummary,
+  type CollectionItem,
 } from '@/lib/api';
 import TradeStickerPicker, { type TradePickerItem } from './components/TradeStickerPicker';
 
@@ -31,6 +33,8 @@ interface ProposeModalState {
   pickerItems: TradePickerItem[];
   submitting: boolean;
   error: string | null;
+  offerItems: CollectionItem[];
+  offerItemsLoading: boolean;
 }
 
 export default function TradePage() {
@@ -143,7 +147,21 @@ export default function TradePage() {
       pickerItems: [],
       submitting: false,
       error: null,
+      offerItems: [],
+      offerItemsLoading: true,
     });
+
+    if (token && user && selectedAlbumId) {
+      fetchCollection(user.id, { albumId: selectedAlbumId, limit: 1000 }, token)
+        .then((result) => {
+          setProposeModal((prev) =>
+            prev ? { ...prev, offerItems: result.items, offerItemsLoading: false } : prev,
+          );
+        })
+        .catch(() => {
+          setProposeModal((prev) => (prev ? { ...prev, offerItemsLoading: false } : prev));
+        });
+    }
   }
 
   async function handleSendTradeRequest() {
@@ -399,8 +417,10 @@ export default function TradePage() {
             <div className="px-6 py-4 overflow-y-auto flex-1">
               <TradeStickerPicker
                 key={proposeModal.match.user_id}
-                offerCodes={proposeModal.match.you_have}
-                wantCodes={proposeModal.match.they_have}
+                offerItems={proposeModal.offerItems}
+                offerItemsLoading={proposeModal.offerItemsLoading}
+                suggestedOfferCodes={proposeModal.match.you_have}
+                suggestedWantCodes={proposeModal.match.they_have}
                 token={token}
                 onChange={(items) =>
                   setProposeModal((prev) => (prev ? { ...prev, pickerItems: items } : prev))
