@@ -246,6 +246,8 @@ export const tradeRequests = pgTable('trade_requests', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   requesterId: uuid('requester_id').notNull().references(() => users.id),
   recipientId: uuid('recipient_id').notNull().references(() => users.id),
+  requesterAlbumId: uuid('requester_album_id').references(() => userAlbums.id),
+  recipientAlbumId: uuid('recipient_album_id').references(() => userAlbums.id),
   status: text('status').notNull().default('pending'),
   counterCount: integer('counter_count').notNull().default(0),
   offerCash: integer('offer_cash').notNull().default(0),

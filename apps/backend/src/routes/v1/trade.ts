@@ -16,10 +16,11 @@ const TradeItemSchema = z.object({
 });
 
 const CreateTradeBody = z.object({
-  recipientId: z.string().uuid(),
-  items:       z.array(TradeItemSchema).min(0),
-  offerCash:   z.number().int().min(0).default(0),
-  wantCash:    z.number().int().min(0).default(0),
+  recipientId:      z.string().uuid(),
+  items:            z.array(TradeItemSchema).min(0),
+  offerCash:        z.number().int().min(0).default(0),
+  wantCash:         z.number().int().min(0).default(0),
+  requesterAlbumId: z.string().uuid().optional(),
 });
 
 const CounterTradeBody = z.object({
@@ -146,7 +147,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['recipientId', 'items'],
           properties: {
-            recipientId: { type: 'string' },
+            recipientId:      { type: 'string' },
+            requesterAlbumId: { type: 'string' },
             items: {
               type: 'array',
               items: {
@@ -188,7 +190,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           parsed.data.recipientId,
           parsed.data.items,
           parsed.data.offerCash,
-          parsed.data.wantCash
+          parsed.data.wantCash,
+          parsed.data.requesterAlbumId
         );
         return reply.status(201).send(result);
       } catch (err) {

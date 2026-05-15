@@ -167,7 +167,10 @@ export async function getTradeMatches(
     they_have_variant_ids: string[];
     you_have: string[];
   }>(
-    `WITH my_missing AS (
+    `WITH requester_album AS (
+       SELECT album_type_id FROM user_albums WHERE id = $2
+     ),
+     my_missing AS (
        -- Sticker variant IDs (base variants) I don't have in my album
        SELECT sv.id AS variant_id
        FROM sticker_variants sv
@@ -188,14 +191,16 @@ export async function getTradeMatches(
          AND NOT us.trade_hidden
      ),
      candidate_albums AS (
-       -- Albums belonging to other users who have trade_matching_enabled
-       SELECT ua.id AS album_id, ua.user_id
+       -- One album per eligible user: same album type, prefer default, then most recently updated
+       SELECT DISTINCT ON (ua.user_id) ua.id AS album_id, ua.user_id
        FROM user_albums ua
        JOIN user_settings us2 ON us2.user_id = ua.user_id
        JOIN users u ON u.id = ua.user_id
        WHERE ua.user_id != $1
+         AND ua.album_type_id = (SELECT album_type_id FROM requester_album)
          AND us2.trade_matching_enabled = true
          AND u.deleted_at IS NULL
+       ORDER BY ua.user_id, ua.is_default DESC, ua.updated_at DESC
      ),
      they_have_my_missing AS (
        -- From candidates: which ones have stickers I'm missing (as duplicates)
@@ -294,7 +299,8 @@ export async function createTrade(
   recipientId: string,
   items: TradeItemInput[],
   offerCash: number = 0,
-  wantCash: number = 0
+  wantCash: number = 0,
+  requesterAlbumId?: string
 ): Promise<{ id: string }> {
   if (userId === recipientId) {
     throw makeError('You cannot trade with yourself.', 400);
@@ -314,12 +320,41 @@ export async function createTrade(
     throw makeError('Trade must include at least one offer and one request (stickers or cash).', 400);
   }
 
+  // Resolve album IDs
+  let resolvedRequesterAlbumId: string | null = null;
+  let resolvedRecipientAlbumId: string | null = null;
+
+  if (requesterAlbumId) {
+    const { rows: raRows } = await db.query<{ id: string; album_type_id: string }>(
+      `SELECT id, album_type_id FROM user_albums WHERE id = $1 AND user_id = $2`,
+      [requesterAlbumId, userId]
+    );
+    if (raRows.length === 0) {
+      throw makeError('Requester album not found.', 400);
+    }
+    resolvedRequesterAlbumId = raRows[0]!.id;
+    const albumTypeId = raRows[0]!.album_type_id;
+
+    const { rows: recAlbumRows } = await db.query<{ id: string }>(
+      `SELECT id FROM user_albums
+       WHERE user_id = $1 AND album_type_id = $2
+       ORDER BY is_default DESC, updated_at DESC
+       LIMIT 1`,
+      [recipientId, albumTypeId]
+    );
+    if (recAlbumRows.length === 0) {
+      throw makeError('Recipient has no compatible album for this trade.', 422);
+    }
+    resolvedRecipientAlbumId = recAlbumRows[0]!.id;
+  }
+
   const tradeId = crypto.randomUUID();
   await db.query(
     `INSERT INTO trade_requests
-       (id, requester_id, recipient_id, status, counter_count, offer_cash, want_cash, created_at, updated_at)
-     VALUES ($1, $2, $3, 'pending', 0, $4, $5, NOW(), NOW())`,
-    [tradeId, userId, recipientId, offerCash, wantCash]
+       (id, requester_id, recipient_id, requester_album_id, recipient_album_id,
+        status, counter_count, offer_cash, want_cash, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, 'pending', 0, $6, $7, NOW(), NOW())`,
+    [tradeId, userId, recipientId, resolvedRequesterAlbumId, resolvedRecipientAlbumId, offerCash, wantCash]
   );
 
   for (const item of items) {
@@ -597,6 +632,8 @@ export async function counterTrade(
     `UPDATE trade_requests
      SET requester_id = $2,
          recipient_id = $3,
+         requester_album_id = recipient_album_id,
+         recipient_album_id = requester_album_id,
          counter_count = counter_count + 1,
          offer_cash = $4,
          want_cash = $5,
@@ -656,9 +693,11 @@ export async function completeTrade(
     const { rows } = await client.query<{
       requester_id: string;
       recipient_id: string;
+      requester_album_id: string | null;
+      recipient_album_id: string | null;
       status: string;
     }>(
-      `SELECT requester_id, recipient_id, status
+      `SELECT requester_id, recipient_id, requester_album_id, recipient_album_id, status
        FROM trade_requests
        WHERE id = $1
        FOR UPDATE`,
@@ -684,34 +723,37 @@ export async function completeTrade(
       [tradeId]
     );
 
+    // Resolve album IDs: use stored values, fall back to default albums for legacy trades
+    const requesterAlbumId = locked.requester_album_id
+      ?? (await client.query<{ id: string }>(
+          `SELECT id FROM user_albums WHERE user_id = $1 AND is_default = true LIMIT 1`,
+          [requesterId]
+        )).rows[0]?.id ?? null;
+    const recipientAlbumId = locked.recipient_album_id
+      ?? (await client.query<{ id: string }>(
+          `SELECT id FROM user_albums WHERE user_id = $1 AND is_default = true LIMIT 1`,
+          [recipientId]
+        )).rows[0]?.id ?? null;
+
     // Fetch trade items
     const { rows: items } = await client.query<{
       sticker_variant_id: string;
       direction: string;
       quantity: number;
-      requester_album_id: string | null;
-      recipient_album_id: string | null;
     }>(
-      `SELECT
-         ti.sticker_variant_id,
-         ti.direction,
-         ti.quantity,
-         (SELECT ua.id FROM user_albums ua WHERE ua.user_id = $2 AND ua.is_default = true LIMIT 1) AS requester_album_id,
-         (SELECT ua.id FROM user_albums ua WHERE ua.user_id = $3 AND ua.is_default = true LIMIT 1) AS recipient_album_id
-       FROM trade_items ti
-       WHERE ti.trade_id = $1`,
-      [tradeId, requesterId, recipientId]
+      `SELECT sticker_variant_id, direction, quantity
+       FROM trade_items
+       WHERE trade_id = $1`,
+      [tradeId]
     );
+
+    if (!requesterAlbumId || !recipientAlbumId) {
+      await client.query('ROLLBACK');
+      throw makeError('One or both participants have no album for this trade.', 422);
+    }
 
     for (const item of items) {
       const { sticker_variant_id, direction, quantity } = item;
-      const requesterAlbum = item.requester_album_id;
-      const recipientAlbum = item.recipient_album_id;
-
-      if (!requesterAlbum || !recipientAlbum) {
-        await client.query('ROLLBACK');
-        throw makeError('One or both participants have no default album.', 422);
-      }
 
       if (direction === 'offer') {
         // Requester gives → Recipient receives
@@ -719,14 +761,14 @@ export async function completeTrade(
           `UPDATE user_stickers
            SET quantity = quantity - $3, updated_at = NOW()
            WHERE album_id = $1 AND sticker_variant_id = $2`,
-          [requesterAlbum, sticker_variant_id, quantity]
+          [requesterAlbumId, sticker_variant_id, quantity]
         );
         await client.query(
           `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
            VALUES ($1, $2, $3)
            ON CONFLICT (album_id, sticker_variant_id)
            DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-          [recipientAlbum, sticker_variant_id, quantity]
+          [recipientAlbumId, sticker_variant_id, quantity]
         );
       } else {
         // direction === 'want': Recipient gives → Requester receives
@@ -734,14 +776,14 @@ export async function completeTrade(
           `UPDATE user_stickers
            SET quantity = quantity - $3, updated_at = NOW()
            WHERE album_id = $1 AND sticker_variant_id = $2`,
-          [recipientAlbum, sticker_variant_id, quantity]
+          [recipientAlbumId, sticker_variant_id, quantity]
         );
         await client.query(
           `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
            VALUES ($1, $2, $3)
            ON CONFLICT (album_id, sticker_variant_id)
            DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-          [requesterAlbum, sticker_variant_id, quantity]
+          [requesterAlbumId, sticker_variant_id, quantity]
         );
       }
     }

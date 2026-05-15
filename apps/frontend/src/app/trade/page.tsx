@@ -286,6 +286,7 @@ export default function TradePage() {
       const result = await createTrade(
         {
           recipientId: proposeModal.match.user_id,
+          requesterAlbumId: selectedAlbumId || undefined,
           items: pickerItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })),
           offerCash,
           wantCash,

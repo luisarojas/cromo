@@ -908,6 +908,7 @@ export async function fetchTrade(id: string, token: string): Promise<TradeDetail
 export async function createTrade(
   body: {
     recipientId: string;
+    requesterAlbumId?: string;
     items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
     offerCash?: number;
     wantCash?: number;
