@@ -43,7 +43,7 @@ export default function StickerCard({
   onToggleSelect,
 }: Props) {
   const typeColor =
-    TYPE_COLORS[sticker.sticker_type] ?? 'bg-gray-100 text-gray-600';
+    TYPE_COLORS[sticker.stickerType] ?? 'bg-gray-100 text-gray-600';
 
   const ownedEntries = ownedVariants ? Array.from(ownedVariants.entries()) : [];
   const owned = ownedEntries.length > 0;
@@ -71,7 +71,7 @@ export default function StickerCard({
         }
       `}
     >
-      {sticker.is_foil && (
+      {sticker.isFoil && (
         <span
           className="absolute top-1.5 right-1.5 text-xs"
           title="Foil sticker"
@@ -107,27 +107,27 @@ export default function StickerCard({
       )}
 
       <div className="text-lg font-extrabold text-gray-800 leading-none mb-1 mt-0.5">
-        {sticker.album_code}
+        {sticker.albumCode}
       </div>
 
       <div className="text-xs font-medium text-gray-700 truncate leading-tight mb-1">
-        {sticker.player_name ?? sticker.team_name ?? '—'}
+        {sticker.playerName ?? sticker.teamName ?? '—'}
       </div>
 
-      {sticker.fifa_code && (
+      {sticker.fifaCode && (
         <div className="flex items-center gap-1 mb-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={flagUrl(sticker.fifa_code) ?? undefined}
-            alt={sticker.fifa_code}
+            src={flagUrl(sticker.fifaCode) ?? undefined}
+            alt={sticker.fifaCode}
             width={20}
             height={14}
             className="rounded-[2px] object-cover flex-shrink-0"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
-          {sticker.player_name && (
+          {sticker.playerName && (
             <span className="text-[10px] text-gray-500 truncate leading-tight">
-              {sticker.fifa_code}
+              {sticker.fifaCode}
             </span>
           )}
         </div>
@@ -136,7 +136,7 @@ export default function StickerCard({
       <span
         className={`inline-block self-start rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${typeColor}`}
       >
-        {(sticker.sticker_type ?? '').replace('_', ' ')}
+        {(sticker.stickerType ?? '').replace('_', ' ')}
       </span>
 
       {/* Owned-variant chips */}

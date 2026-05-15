@@ -37,11 +37,11 @@ const STATUS_BADGE: Record<TradeDetail['status'], { label: string; className: st
 function ItemCard({ item }: { item: TradeItemDetail }) {
   return (
     <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
-      <div className="font-medium text-gray-800">{item.album_code}</div>
+      <div className="font-medium text-gray-800">{item.albumCode}</div>
       <div className="text-xs text-gray-500 mt-0.5 space-x-1.5">
-        {item.player_name && <span>{item.player_name}</span>}
-        {item.team_name && <span>&middot; {item.team_name}</span>}
-        <span>&middot; {item.variant_type}</span>
+        {item.playerName && <span>{item.playerName}</span>}
+        {item.teamName && <span>&middot; {item.teamName}</span>}
+        <span>&middot; {item.variantType}</span>
         {item.quantity > 1 && (
           <span className="font-medium text-gray-700">&times;{item.quantity}</span>
         )}
@@ -54,8 +54,8 @@ function MessageBubble({ msg, isMe }: { msg: TradeMessage; isMe: boolean }) {
   return (
     <div className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
       <div className="text-xs text-gray-400">
-        {msg.sender_display_name ?? msg.sender_username} &middot;{' '}
-        {new Date(msg.sent_at).toLocaleString()}
+        {msg.senderDisplayName ?? msg.senderUsername} &middot;{' '}
+        {new Date(msg.sentAt).toLocaleString()}
       </div>
       <div
         className={`max-w-xs rounded-lg px-3 py-2 text-sm ${
@@ -261,12 +261,12 @@ export default function TradeDetailPage() {
     // Optimistic append
     const optimisticMsg: TradeMessage = {
       id: `optimistic-${Date.now()}`,
-      trade_id: tradeId,
-      sender_id: user?.id ?? '',
-      sender_username: user?.username ?? '',
-      sender_display_name: user?.displayName ?? null,
+      tradeId: tradeId,
+      senderId: user?.id ?? '',
+      senderUsername: user?.username ?? '',
+      senderDisplayName: user?.displayName ?? null,
       body,
-      sent_at: new Date().toISOString(),
+      sentAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     try {
@@ -321,8 +321,8 @@ export default function TradeDetailPage() {
   }
 
   const badge = STATUS_BADGE[trade.status];
-  const isRequester = trade.requester_id === user?.id;
-  const isRecipient = trade.recipient_id === user?.id;
+  const isRequester = trade.requesterId === user?.id;
+  const isRecipient = trade.recipientId === user?.id;
 
   const offeredItems = trade.items.filter((i) => i.direction === 'offer');
   const wantedItems = trade.items.filter((i) => i.direction === 'want');
@@ -360,15 +360,15 @@ export default function TradeDetailPage() {
         <div className="flex gap-6 text-sm">
           <div>
             <div className="text-xs font-medium text-gray-500 mb-0.5">Requester</div>
-            <div className="font-medium text-gray-800">@{trade.requester_username}</div>
+            <div className="font-medium text-gray-800">@{trade.requesterUsername}</div>
           </div>
           <div className="text-gray-400 self-center">&harr;</div>
           <div>
             <div className="text-xs font-medium text-gray-500 mb-0.5">Recipient</div>
-            <div className="font-medium text-gray-800">@{trade.recipient_username}</div>
+            <div className="font-medium text-gray-800">@{trade.recipientUsername}</div>
           </div>
           <div className="ml-auto text-xs text-gray-400 self-center">
-            Created {new Date(trade.created_at).toLocaleDateString()}
+            Created {new Date(trade.createdAt).toLocaleDateString()}
           </div>
         </div>
       </div>
@@ -381,13 +381,13 @@ export default function TradeDetailPage() {
             <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Offered
             </h3>
-            {offeredItems.length === 0 && trade.offer_cash === 0 ? (
+            {offeredItems.length === 0 && trade.offerCash === 0 ? (
               <p className="text-xs text-gray-400">Nothing offered</p>
             ) : (
               <div className="space-y-2">
-                {trade.offer_cash > 0 && (
+                {trade.offerCash > 0 && (
                   <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700">
-                    {formatCash(trade.offer_cash)} cash
+                    {formatCash(trade.offerCash)} cash
                   </div>
                 )}
                 {offeredItems.map((item) => (
@@ -400,13 +400,13 @@ export default function TradeDetailPage() {
             <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Wanted
             </h3>
-            {wantedItems.length === 0 && trade.want_cash === 0 ? (
+            {wantedItems.length === 0 && trade.wantCash === 0 ? (
               <p className="text-xs text-gray-400">Nothing requested</p>
             ) : (
               <div className="space-y-2">
-                {trade.want_cash > 0 && (
+                {trade.wantCash > 0 && (
                   <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-                    {formatCash(trade.want_cash)} cash
+                    {formatCash(trade.wantCash)} cash
                   </div>
                 )}
                 {wantedItems.map((item) => (
@@ -488,7 +488,7 @@ export default function TradeDetailPage() {
                 suggestedOfferCodes={[]}
                 suggestedWantCodes={[]}
                 token={token}
-                partnerName={isRequester ? trade.recipient_username : trade.requester_username}
+                partnerName={isRequester ? trade.recipientUsername : trade.requesterUsername}
                 onChange={(items, offerCash, wantCash) => {
                 setCounterItems(items);
                 setCounterOfferCash(offerCash);
@@ -530,7 +530,7 @@ export default function TradeDetailPage() {
             <p className="text-xs text-gray-400 text-center py-4">No messages yet.</p>
           )}
           {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} isMe={msg.sender_id === user?.id} />
+            <MessageBubble key={msg.id} msg={msg} isMe={msg.senderId === user?.id} />
           ))}
           <div ref={messagesEndRef} />
         </div>

@@ -17,7 +17,7 @@ export interface OwnedVariantEntry {
 
 interface Props {
   sticker: Sticker;
-  ownedVariants: Map<string, OwnedVariantEntry>; // keyed by variant_type
+  ownedVariants: Map<string, OwnedVariantEntry>; // keyed by variantType
   anchorRect: DOMRect;
   albumId: string;
   token: string;
@@ -65,14 +65,14 @@ export default function VariantPopover({
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {
-    const sp = sticker.sticker_pages?.[albumEdition];
+    const sp = sticker.stickerPages?.[albumEdition];
     if (sp) {
-      if (sp.page_start !== null && sp.page_end !== null) {
-        return formatPageSpread([sp.page_start, sp.page_end]);
+      if (sp.pageStart !== null && sp.pageEnd !== null) {
+        return formatPageSpread([sp.pageStart, sp.pageEnd]);
       }
       return sp.description ?? null;
     }
-    const pages = sticker.team_pages?.[albumEdition];
+    const pages = sticker.teamPages?.[albumEdition];
     return pages ? formatPageSpread(pages as [number, number]) : null;
   })();
 
@@ -82,7 +82,7 @@ export default function VariantPopover({
     async function load() {
       setLoadingVariants(true);
       try {
-        const items = await fetchStickerVariants(sticker.album_code, token);
+        const items = await fetchStickerVariants(sticker.albumCode, token);
         setAllVariants(items);
       } catch (err) {
         console.error('Failed to fetch variants', err);
@@ -91,7 +91,7 @@ export default function VariantPopover({
       }
     }
     load();
-  }, [sticker.album_code, token]);
+  }, [sticker.albumCode, token]);
 
   // Close on outside click / Esc
   useEffect(() => {
@@ -190,24 +190,24 @@ export default function VariantPopover({
   }
 
   const unownedVariants = (allVariants ?? []).filter(
-    (v) => !ownedVariants.has(v.variant_type),
+    (v) => !ownedVariants.has(v.variantType),
   );
 
   const node = (
     <div
       ref={ref}
       role="dialog"
-      aria-label={`Manage variants for sticker ${sticker.album_code}`}
+      aria-label={`Manage variants for sticker ${sticker.albumCode}`}
       className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl p-3 flex flex-col gap-2 overflow-y-auto"
       style={{ ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }}
     >
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-gray-800">
-            {sticker.album_code}
+            {sticker.albumCode}
           </div>
           <div className="text-xs text-gray-500 truncate">
-            {sticker.player_name ?? sticker.team_name ?? '—'}
+            {sticker.playerName ?? sticker.teamName ?? '—'}
           </div>
           {pageLocation && (
             <div className="mt-1">
@@ -413,7 +413,7 @@ export default function VariantPopover({
                 >
                   {allVariants.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {variantLabel(v.variant_type)}
+                      {variantLabel(v.variantType)}
                     </option>
                   ))}
                 </select>
@@ -493,19 +493,19 @@ export default function VariantPopover({
           {unownedVariants.map((v) => (
             <button
               key={v.id}
-              onClick={() => handleAddNew(v.id, v.variant_type)}
+              onClick={() => handleAddNew(v.id, v.variantType)}
               disabled={busy}
               className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-blue-50 disabled:opacity-50 text-left"
             >
               <span
-                className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variant_type)}`}
+                className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variantType)}`}
                 aria-hidden
               />
               <span className="flex-1 text-xs text-gray-700 truncate">
-                {VARIANT_META[v.variant_type]?.label ?? v.variant_type}
+                {VARIANT_META[v.variantType]?.label ?? v.variantType}
               </span>
               <span className="text-[10px] text-gray-400">
-                {variantRarity(v.variant_type)}
+                {variantRarity(v.variantType)}
               </span>
             </button>
           ))}

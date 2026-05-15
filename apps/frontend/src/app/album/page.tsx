@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   fetchUserAlbums,
-  fetchAllStickersCached,
-  fetchAlbumSummaries,
+  fetchAlbumStats,
   fetchAlbumEditions,
+  fetchAllStickersCached,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
@@ -16,44 +16,13 @@ import {
   DEFAULT_ALBUM_TYPE_KEY,
   type AlbumEditionOption,
   type AlbumSettings,
+  type AlbumStats,
   type Sticker,
   type UserAlbum,
-  type CollectionStats,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useAlbumsStore } from '@/store/albums';
 import AlbumFormModal from './components/AlbumFormModal';
-
-function computeAlbumStats(
-  allStickers: Sticker[],
-  album: UserAlbum,
-  ownedCodes: Set<string>,
-  duplicateCodes: Set<string>,
-): CollectionStats {
-  const edition = album.edition;
-  const settings = album.settings;
-
-  const filtered = allStickers.filter((s) => {
-    if (s.sticker_type === 'coca_cola_special') return settings.include_coca_cola;
-    const hasPage =
-      (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
-      s.team_pages?.[edition] != null;
-    if (s.sticker_type === 'museum' && !hasPage) return settings.include_non_album_museum;
-    if (hasPage) return true;
-    return settings.include_all_stickers;
-  });
-
-  const total = filtered.length;
-  let owned = 0;
-  let duplicates = 0;
-  for (const s of filtered) {
-    if (ownedCodes.has(s.album_code)) owned++;
-    if (duplicateCodes.has(s.album_code)) duplicates++;
-  }
-  const missing = total - owned;
-  const percentage = total > 0 ? (owned / total) * 100 : 0;
-  return { total, owned, missing, duplicates, percentage };
-}
 
 const MAX_ALBUMS = 10;
 
@@ -75,9 +44,10 @@ export default function AlbumsPage() {
   const upsertAlbum = useAlbumsStore((s) => s.upsertAlbum);
   const removeAlbum = useAlbumsStore((s) => s.removeAlbum);
 
-  const [albumStats, setAlbumStats] = useState<Map<string, CollectionStats>>(new Map());
-  const [allStickers, setAllStickers] = useState<Sticker[]>([]);
+  const [albumStats, setAlbumStats] = useState<Map<string, AlbumStats>>(new Map());
   const [editions, setEditions] = useState<AlbumEditionOption[]>([]);
+  // Loaded lazily when opening the modal so it can show sticker-count hints.
+  const [modalStickers, setModalStickers] = useState<Sticker[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -104,10 +74,9 @@ export default function AlbumsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [userAlbums, allStickers, summaries, editionList] = await Promise.all([
+        const [userAlbums, statsList, editionList] = await Promise.all([
           fetchUserAlbums(usr.id, tok),
-          fetchAllStickersCached(tok),
-          fetchAlbumSummaries(usr.id, tok),
+          fetchAlbumStats(usr.id, tok),
           fetchAlbumEditions(DEFAULT_ALBUM_TYPE_KEY),
         ]);
         if (cancelled) return;
@@ -119,15 +88,7 @@ export default function AlbumsPage() {
           return;
         }
 
-        if (!cancelled) setAllStickers(allStickers);
-        const summaryMap = new Map(summaries.map((s) => [s.album_id, s]));
-        const statsEntries = userAlbums.map((album) => {
-          const summary = summaryMap.get(album.id);
-          const ownedCodes = new Set(summary?.owned_album_codes ?? []);
-          const duplicateCodes = new Set(summary?.duplicate_album_codes ?? []);
-          return [album.id, computeAlbumStats(allStickers, album, ownedCodes, duplicateCodes)] as const;
-        });
-        if (!cancelled) setAlbumStats(new Map(statsEntries));
+        setAlbumStats(new Map(statsList.map((s) => [s.albumId, s])));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load albums');
       } finally {
@@ -140,24 +101,35 @@ export default function AlbumsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, router]);
 
+  // Lazy-load the catalog when the modal is about to open. Cached in localStorage.
+  const ensureModalStickers = useCallback(async () => {
+    if (modalStickers) return;
+    const tok = tokenRef.current;
+    if (!tok) return;
+    try {
+      const all = await fetchAllStickersCached(tok);
+      setModalStickers(all);
+    } catch { /* show modal without counts if catalog fetch fails */ }
+  }, [modalStickers]);
+
+  const handleOpenAdd = useCallback(() => {
+    setShowAddModal(true);
+    void ensureModalStickers();
+  }, [ensureModalStickers]);
+
+  const handleOpenEdit = useCallback((album: UserAlbum) => {
+    setEditingAlbum(album);
+    void ensureModalStickers();
+  }, [ensureModalStickers]);
+
   const handleAddAlbum = useCallback(
     async (data: { alias: string | null; edition: string; settings: AlbumSettings }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
-      const newAlbum = await createUserAlbum(usr.id, data, tok);
-      upsertAlbum(newAlbum);
-      try {
-        const [allStickers, summaries] = await Promise.all([
-          fetchAllStickersCached(tok),
-          fetchAlbumSummaries(usr.id, tok),
-        ]);
-        const summary = summaries.find((s) => s.album_id === newAlbum.id);
-        const ownedCodes = new Set(summary?.owned_album_codes ?? []);
-        const duplicateCodes = new Set(summary?.duplicate_album_codes ?? []);
-        const stats = computeAlbumStats(allStickers, newAlbum, ownedCodes, duplicateCodes);
-        setAlbumStats((prev) => new Map(prev).set(newAlbum.id, stats));
-      } catch {}
+      const created = await createUserAlbum(usr.id, data, tok);
+      upsertAlbum(created);
+      setAlbumStats((prev) => new Map(prev).set(created.id, created.stats));
     },
     [upsertAlbum]
   );
@@ -169,17 +141,7 @@ export default function AlbumsPage() {
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
       const updated = await updateUserAlbum(usr.id, editingAlbum.id, data, tok);
       upsertAlbum(updated);
-      try {
-        const [allStickers, summaries] = await Promise.all([
-          fetchAllStickersCached(tok),
-          fetchAlbumSummaries(usr.id, tok),
-        ]);
-        const summary = summaries.find((s) => s.album_id === updated.id);
-        const ownedCodes = new Set(summary?.owned_album_codes ?? []);
-        const duplicateCodes = new Set(summary?.duplicate_album_codes ?? []);
-        const stats = computeAlbumStats(allStickers, updated, ownedCodes, duplicateCodes);
-        setAlbumStats((prev) => new Map(prev).set(updated.id, stats));
-      } catch {}
+      setAlbumStats((prev) => new Map(prev).set(updated.id, updated.stats));
     },
     [editingAlbum, upsertAlbum]
   );
@@ -233,7 +195,7 @@ export default function AlbumsPage() {
           </div>
           {albums.length < MAX_ALBUMS && !loading && (
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={handleOpenAdd}
               className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -260,7 +222,7 @@ export default function AlbumsPage() {
           <div className="text-center py-20">
             <p className="text-gray-400 mb-4">No albums yet.</p>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={handleOpenAdd}
               className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
             >
               Add your first album
@@ -284,14 +246,14 @@ export default function AlbumsPage() {
                         </h2>
                         {album.alias && (
                           <p className="text-[11px] text-gray-400 truncate mt-0.5 leading-snug">
-                            {album.album_type_name}
+                            {album.albumTypeName}
                           </p>
                         )}
                         <span className={`inline-block mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
                           {album.edition_name}
                         </span>
                       </div>
-                      {album.is_default && (
+                      {album.isDefault && (
                         <svg
                           className="w-4 h-4 text-amber-400 shrink-0 mt-0.5"
                           viewBox="0 0 20 20"
@@ -329,7 +291,7 @@ export default function AlbumsPage() {
 
                   {/* Hover actions */}
                   <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!album.is_default && (
+                    {!album.isDefault && (
                       <button
                         onClick={(e) => { e.preventDefault(); handleSetDefault(album.id); }}
                         className="p-1.5 rounded-lg text-gray-300 hover:text-amber-500 hover:bg-amber-50 transition-colors"
@@ -341,7 +303,7 @@ export default function AlbumsPage() {
                       </button>
                     )}
                     <button
-                      onClick={(e) => { e.preventDefault(); setEditingAlbum(album); }}
+                      onClick={(e) => { e.preventDefault(); handleOpenEdit(album); }}
                       className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                       title="Edit album"
                     >
@@ -361,7 +323,7 @@ export default function AlbumsPage() {
         <AlbumFormModal
           mode="create"
           editions={editions}
-          allStickers={allStickers}
+          allStickers={modalStickers ?? undefined}
           onConfirm={handleAddAlbum}
           onClose={() => setShowAddModal(false)}
         />
@@ -372,7 +334,7 @@ export default function AlbumsPage() {
           mode="edit"
           album={editingAlbum}
           editions={editions}
-          allStickers={allStickers}
+          allStickers={modalStickers ?? undefined}
           onConfirm={handleSaveAlbum}
           onDelete={handleDeleteAlbum}
           onClose={() => setEditingAlbum(null)}

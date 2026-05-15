@@ -103,7 +103,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       try {
-        const { userId } = await authService.register(fastify.db, parsed.data);
+        const { userId } = await authService.register(fastify.drizzle, parsed.data);
         return reply.status(201).send({
           message: 'Registration successful. Please check your email to verify your account.',
           userId,
@@ -169,7 +169,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       try {
         const { accessToken, refreshToken, user } = await authService.login(
-          fastify.db,
+          fastify.drizzle,
           parsed.data
         );
 
@@ -248,7 +248,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       try {
         const { accessToken, refreshToken, user } = await authService.refresh(
-          fastify.db,
+          fastify.drizzle,
           token
         );
 
@@ -304,7 +304,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       try {
-        await authService.verifyEmail(fastify.db, parsed.data.token);
+        await authService.verifyEmail(fastify.drizzle, parsed.data.token);
         return reply.status(200).send({ message: 'Email verified successfully.' });
       } catch (err) {
         const e = err as Error & { statusCode?: number };
@@ -349,7 +349,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(204).send(); // Anti-enumeration: always 204
       }
 
-      await authService.resendVerification(fastify.db, parsed.data.email);
+      await authService.resendVerification(fastify.drizzle, parsed.data.email);
       return reply.status(204).send();
     }
   );
@@ -381,7 +381,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(204).send(); // Anti-enumeration
       }
 
-      await authService.forgotPassword(fastify.db, parsed.data.email);
+      await authService.forgotPassword(fastify.drizzle, parsed.data.email);
       return reply.status(204).send();
     }
   );
@@ -424,7 +424,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       try {
-        await authService.resetPassword(fastify.db, parsed.data.token, parsed.data.password);
+        await authService.resetPassword(fastify.drizzle, parsed.data.token, parsed.data.password);
         return reply.status(200).send({ message: 'Password reset successfully.' });
       } catch (err) {
         const e = err as Error & { statusCode?: number };

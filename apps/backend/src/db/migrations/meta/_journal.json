@@ -45,6 +45,24 @@
       "when": 1747785600000,
       "tag": "0008_trade_album_ids",
       "breakpoints": true
+    },{
+      "idx": 8,
+      "version": "7",
+      "when": 1747872000000,
+      "tag": "0009_indexes",
+      "breakpoints": true
+    },{
+      "idx": 9,
+      "version": "7",
+      "when": 1747958400000,
+      "tag": "0010_trade_album_ids_required",
+      "breakpoints": true
+    },{
+      "idx": 10,
+      "version": "7",
+      "when": 1748044800000,
+      "tag": "0011_camelcase_album_settings",
+      "breakpoints": true
     }
   ]
 }

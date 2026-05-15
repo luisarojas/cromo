@@ -1,5 +1,16 @@
-import type { Pool } from 'pg';
 import crypto from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
+import type { Drizzle } from '../db/index.js';
+import {
+  users,
+  userSettings,
+  userAlbums,
+  albumTypes,
+  albumEditions,
+  emailVerificationTokens,
+  passwordResetTokens,
+  auditLog,
+} from '../db/schema.js';
 import { env } from '../env.js';
 import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY } from '../constants.js';
 import { sendVerificationEmail, sendPasswordResetEmail } from './email.service.js';
@@ -42,6 +53,12 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function statusError(message: string, statusCode: number): Error & { statusCode: number } {
+  const err = new Error(message) as Error & { statusCode: number };
+  err.statusCode = statusCode;
+  return err;
+}
+
 // ─── Service functions ────────────────────────────────────────────────────────
 
 /**
@@ -49,146 +66,91 @@ function generateToken(): string {
  * Sends a verification email. Does not log the user in.
  */
 export async function register(
-  db: Pool,
+  db: Drizzle,
   input: RegisterInput
 ): Promise<{ userId: string; email: string; username: string }> {
-  const { email, username, displayName } = input;
-  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedEmail = input.email.toLowerCase().trim();
+  const normalizedUsername = input.username.toLowerCase().trim();
   const hashedEmail = hashEmail(normalizedEmail);
 
-  // Check for existing email
-  const existingEmail = await db.query<{ id: string }>(
-    'SELECT id FROM users WHERE email = $1 LIMIT 1',
-    [normalizedEmail]
-  );
-  if ((existingEmail.rowCount ?? 0) > 0) {
-    const err = new Error('Email is already registered.') as Error & { statusCode: number };
-    err.statusCode = 409;
-    throw err;
-  }
+  const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1);
+  if (existingEmail) throw statusError('Email is already registered.', 409);
 
-  // Check for existing username
-  const existingUsername = await db.query<{ id: string }>(
-    'SELECT id FROM users WHERE username = $1 LIMIT 1',
-    [username.toLowerCase().trim()]
-  );
-  if ((existingUsername.rowCount ?? 0) > 0) {
-    const err = new Error('Username is already taken.') as Error & { statusCode: number };
-    err.statusCode = 409;
-    throw err;
-  }
+  const [existingUsername] = await db.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
+  if (existingUsername) throw statusError('Username is already taken.', 409);
 
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
+  const verificationToken = generateToken();
 
-    // Insert user (no password_hash — local mode accepts any password)
-    const userResult = await client.query<{ id: string }>(
-      `INSERT INTO users (email, username, display_name, hashed_email)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id`,
-      [normalizedEmail, username.toLowerCase().trim(), displayName ?? null, hashedEmail]
-    );
+  const userId = await db.transaction(async (tx) => {
+    const [newUser] = await tx
+      .insert(users)
+      .values({
+        email: normalizedEmail,
+        username: normalizedUsername,
+        displayName: input.displayName ?? null,
+        hashedEmail,
+      })
+      .returning({ id: users.id });
 
-    const userId = userResult.rows[0]!.id;
+    const id = newUser!.id;
 
-    // Insert default settings
-    await client.query(
-      'INSERT INTO user_settings (user_id) VALUES ($1)',
-      [userId]
-    );
+    await tx.insert(userSettings).values({ userId: id });
 
-    // Create default album
-    await client.query(
-      `INSERT INTO user_albums (user_id, album_type_id, album_edition_id, is_default)
-       VALUES (
-         $1,
-         (SELECT id FROM album_types WHERE key = $2),
-         (SELECT ae.id FROM album_editions ae
-          JOIN album_types at ON at.id = ae.album_type_id
-          WHERE at.key = $2 AND ae.key = $3),
-         true
-       )`,
-      [userId, DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY]
-    );
+    // Look up album_type_id and album_edition_id for the default album
+    const [albumIds] = await tx
+      .select({
+        typeId: albumTypes.id,
+        editionId: albumEditions.id,
+      })
+      .from(albumEditions)
+      .innerJoin(albumTypes, eq(albumTypes.id, albumEditions.albumTypeId))
+      .where(sql`${albumTypes.key} = ${DEFAULT_ALBUM_TYPE_KEY} AND ${albumEditions.key} = ${DEFAULT_ALBUM_EDITION_KEY}`)
+      .limit(1);
 
-    // Create verification token
-    const token = generateToken();
-    await client.query(
-      `INSERT INTO email_verification_tokens (token, user_id)
-       VALUES ($1, $2)`,
-      [token, userId]
-    );
+    if (!albumIds) {
+      throw new Error('Default album type/edition not found — did migrations + seeds run?');
+    }
 
-    await client.query('COMMIT');
-
-    // Send verification email (don't block registration if email fails)
-    sendVerificationEmail(normalizedEmail, username, token).catch((err) => {
-      console.error('[auth] Failed to send verification email:', err);
+    await tx.insert(userAlbums).values({
+      userId: id,
+      albumTypeId: albumIds.typeId,
+      albumEditionId: albumIds.editionId,
+      isDefault: true,
     });
 
-    return { userId, email: normalizedEmail, username: username.toLowerCase().trim() };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+    await tx.insert(emailVerificationTokens).values({
+      token: verificationToken,
+      userId: id,
+    });
+
+    return id;
+  });
+
+  // Send verification email (don't block registration if email fails)
+  sendVerificationEmail(normalizedEmail, normalizedUsername, verificationToken).catch((err) => {
+    console.error('[auth] Failed to send verification email:', err);
+  });
+
+  return { userId, email: normalizedEmail, username: normalizedUsername };
 }
 
 /**
  * login — authenticates a user.
  * In AUTH_MODE=local: any password is accepted; user must exist.
- * Returns access + refresh tokens.
  */
-export async function login(db: Pool, input: LoginInput): Promise<AuthTokens> {
-  const { email, password: _password } = input;  // _password unused in local mode
-  const normalizedEmail = email.toLowerCase().trim();
+export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens> {
+  const normalizedEmail = input.email.toLowerCase().trim();
 
-  const result = await db.query<{
-    id: string;
-    email: string;
-    username: string;
-    display_name: string | null;
-    role: string;
-    email_verified_at: Date | null;
-    deleted_at: Date | null;
-  }>(
-    `SELECT id, email, username, display_name, role, email_verified_at, deleted_at
-     FROM users
-     WHERE email = $1
-     LIMIT 1`,
-    [normalizedEmail]
-  );
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
 
-  if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('Invalid email or password.') as Error & { statusCode: number };
-    err.statusCode = 401;
-    throw err;
-  }
+  if (!user) throw statusError('Invalid email or password.', 401);
+  if (user.deletedAt) throw statusError('This account has been deactivated.', 403);
 
-  const user = result.rows[0]!;
-
-  if (user.deleted_at) {
-    const err = new Error('This account has been deactivated.') as Error & { statusCode: number };
-    err.statusCode = 403;
-    throw err;
-  }
-
-  // In AUTH_MODE=local: skip password verification entirely
   if (env.AUTH_MODE !== 'local') {
-    // Phase B: Cognito validation would go here
-    const err = new Error('AUTH_MODE not supported.') as Error & { statusCode: number };
-    err.statusCode = 501;
-    throw err;
+    throw statusError('AUTH_MODE not supported.', 501);
   }
 
-  const tokenPayload = {
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-  };
-
+  const tokenPayload = { sub: user.id, email: user.email, role: user.role };
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
 
@@ -199,9 +161,9 @@ export async function login(db: Pool, input: LoginInput): Promise<AuthTokens> {
       id: user.id,
       email: user.email,
       username: user.username,
-      displayName: user.display_name,
+      displayName: user.displayName,
       role: user.role,
-      emailVerifiedAt: user.email_verified_at,
+      emailVerifiedAt: user.emailVerifiedAt,
     },
   };
 }
@@ -209,58 +171,30 @@ export async function login(db: Pool, input: LoginInput): Promise<AuthTokens> {
 /**
  * refresh — exchanges a valid refresh token for new access + refresh tokens.
  */
-export async function refresh(db: Pool, refreshToken: string): Promise<AuthTokens> {
+export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTokens> {
   let payload;
   try {
     payload = verifyRefreshToken(refreshToken);
   } catch {
-    const err = new Error('Invalid or expired refresh token.') as Error & { statusCode: number };
-    err.statusCode = 401;
-    throw err;
+    throw statusError('Invalid or expired refresh token.', 401);
   }
 
-  const result = await db.query<{
-    id: string;
-    email: string;
-    username: string;
-    display_name: string | null;
-    role: string;
-    email_verified_at: Date | null;
-    deleted_at: Date | null;
-  }>(
-    `SELECT id, email, username, display_name, role, email_verified_at, deleted_at
-     FROM users WHERE id = $1 LIMIT 1`,
-    [payload.sub]
-  );
+  const [user] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
 
-  if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('User not found.') as Error & { statusCode: number };
-    err.statusCode = 401;
-    throw err;
-  }
-
-  const user = result.rows[0]!;
-
-  if (user.deleted_at) {
-    const err = new Error('This account has been deactivated.') as Error & { statusCode: number };
-    err.statusCode = 403;
-    throw err;
-  }
+  if (!user) throw statusError('User not found.', 401);
+  if (user.deletedAt) throw statusError('This account has been deactivated.', 403);
 
   const tokenPayload = { sub: user.id, email: user.email, role: user.role };
-  const newAccessToken = signAccessToken(tokenPayload);
-  const newRefreshToken = signRefreshToken(tokenPayload);
-
   return {
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
+    accessToken: signAccessToken(tokenPayload),
+    refreshToken: signRefreshToken(tokenPayload),
     user: {
       id: user.id,
       email: user.email,
       username: user.username,
-      displayName: user.display_name,
+      displayName: user.displayName,
       role: user.role,
-      emailVerifiedAt: user.email_verified_at,
+      emailVerifiedAt: user.emailVerifiedAt,
     },
   };
 }
@@ -268,125 +202,73 @@ export async function refresh(db: Pool, refreshToken: string): Promise<AuthToken
 /**
  * verifyEmail — marks email_verified_at when given a valid token.
  */
-export async function verifyEmail(db: Pool, token: string): Promise<void> {
-  const result = await db.query<{ user_id: string; expires_at: Date }>(
-    'SELECT user_id, expires_at FROM email_verification_tokens WHERE token = $1 LIMIT 1',
-    [token]
-  );
+export async function verifyEmail(db: Drizzle, token: string): Promise<void> {
+  const [row] = await db
+    .select({ userId: emailVerificationTokens.userId, expiresAt: emailVerificationTokens.expiresAt })
+    .from(emailVerificationTokens)
+    .where(eq(emailVerificationTokens.token, token))
+    .limit(1);
 
-  if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('Verification token not found.') as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
-  }
+  if (!row) throw statusError('Verification token not found.', 404);
+  if (new Date() > row.expiresAt) throw statusError('Verification token has expired.', 410);
 
-  const row = result.rows[0]!;
-
-  if (new Date() > row.expires_at) {
-    const err = new Error('Verification token has expired.') as Error & { statusCode: number };
-    err.statusCode = 410;
-    throw err;
-  }
-
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      'UPDATE users SET email_verified_at = now(), updated_at = now() WHERE id = $1',
-      [row.user_id]
-    );
-    await client.query(
-      'DELETE FROM email_verification_tokens WHERE token = $1',
-      [token]
-    );
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ emailVerifiedAt: sql`now()`, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
+    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.token, token));
+  });
 }
 
 /**
  * resendVerification — deletes existing tokens for a user, creates a new one, re-sends email.
  */
-export async function resendVerification(db: Pool, email: string): Promise<void> {
+export async function resendVerification(db: Drizzle, email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const userResult = await db.query<{
-    id: string;
-    username: string;
-    email_verified_at: Date | null;
-  }>(
-    'SELECT id, username, email_verified_at FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1',
-    [normalizedEmail]
-  );
+  const [user] = await db
+    .select({ id: users.id, username: users.username, emailVerifiedAt: users.emailVerifiedAt, deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.email, normalizedEmail))
+    .limit(1);
 
   // Always respond 204 to avoid user enumeration
-  if ((userResult.rowCount ?? 0) === 0) return;
+  if (!user || user.deletedAt) return;
+  if (user.emailVerifiedAt) return;
 
-  const user = userResult.rows[0]!;
+  const token = generateToken();
+  await db.transaction(async (tx) => {
+    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, user.id));
+    await tx.insert(emailVerificationTokens).values({ token, userId: user.id });
+  });
 
-  if (user.email_verified_at) return; // Already verified — silently succeed
-
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(
-      'DELETE FROM email_verification_tokens WHERE user_id = $1',
-      [user.id]
-    );
-    const token = generateToken();
-    await client.query(
-      'INSERT INTO email_verification_tokens (token, user_id) VALUES ($1, $2)',
-      [token, user.id]
-    );
-    await client.query('COMMIT');
-
-    sendVerificationEmail(normalizedEmail, user.username, token).catch((err) => {
-      console.error('[auth] Failed to resend verification email:', err);
-    });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  sendVerificationEmail(normalizedEmail, user.username, token).catch((err) => {
+    console.error('[auth] Failed to resend verification email:', err);
+  });
 }
 
 /**
  * forgotPassword — generates a reset token and emails it.
  * Always responds the same way regardless of whether email exists (anti-enumeration).
  */
-export async function forgotPassword(db: Pool, email: string): Promise<void> {
+export async function forgotPassword(db: Drizzle, email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const userResult = await db.query<{ id: string; username: string }>(
-    'SELECT id, username FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1',
-    [normalizedEmail]
-  );
+  const [user] = await db
+    .select({ id: users.id, username: users.username, deletedAt: users.deletedAt })
+    .from(users)
+    .where(eq(users.email, normalizedEmail))
+    .limit(1);
 
-  if ((userResult.rowCount ?? 0) === 0) return;
+  if (!user || user.deletedAt) return;
 
-  const user = userResult.rows[0]!;
   const token = generateToken();
-
-  const client = await db.connect();
   try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
-    await client.query(
-      'INSERT INTO password_reset_tokens (token, user_id) VALUES ($1, $2)',
-      [token, user.id]
-    );
-    await client.query('COMMIT');
+    await db.transaction(async (tx) => {
+      await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
+      await tx.insert(passwordResetTokens).values({ token, userId: user.id });
+    });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('[auth] forgotPassword error:', err);
     return;
-  } finally {
-    client.release();
   }
 
   sendPasswordResetEmail(normalizedEmail, user.username, token).catch((err) => {
@@ -399,43 +281,26 @@ export async function forgotPassword(db: Pool, email: string): Promise<void> {
  * In local mode passwords are not stored, so we only verify token validity.
  */
 export async function resetPassword(
-  db: Pool,
+  db: Drizzle,
   token: string,
   _newPassword: string
 ): Promise<void> {
   if (env.AUTH_MODE !== 'local') {
-    const err = new Error('AUTH_MODE not supported for password reset.') as Error & {
-      statusCode: number;
-    };
-    err.statusCode = 501;
-    throw err;
+    throw statusError('AUTH_MODE not supported for password reset.', 501);
   }
 
-  const result = await db.query<{ user_id: string; expires_at: Date }>(
-    'SELECT user_id, expires_at FROM password_reset_tokens WHERE token = $1 LIMIT 1',
-    [token]
-  );
+  const [row] = await db
+    .select({ userId: passwordResetTokens.userId, expiresAt: passwordResetTokens.expiresAt })
+    .from(passwordResetTokens)
+    .where(eq(passwordResetTokens.token, token))
+    .limit(1);
 
-  if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('Reset token is invalid or has expired.') as Error & {
-      statusCode: number;
-    };
-    err.statusCode = 400;
-    throw err;
+  if (!row || new Date() > row.expiresAt) {
+    throw statusError('Reset token is invalid or has expired.', 400);
   }
 
-  const row = result.rows[0]!;
-  if (new Date() > row.expires_at) {
-    const err = new Error('Reset token is invalid or has expired.') as Error & {
-      statusCode: number;
-    };
-    err.statusCode = 400;
-    throw err;
-  }
-
-  await db.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
-  await db.query(
-    `INSERT INTO audit_log (user_id, action) VALUES ($1, 'password_reset_completed')`,
-    [row.user_id]
-  );
+  await db.transaction(async (tx) => {
+    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.token, token));
+    await tx.insert(auditLog).values({ userId: row.userId, action: 'password_reset_completed' });
+  });
 }

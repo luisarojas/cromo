@@ -5,9 +5,9 @@ import * as albumsService from '../../services/albums.service.js';
 const albumSettingsShape = {
   type: 'object',
   properties: {
-    include_all_stickers:     { type: 'boolean' },
-    include_coca_cola:        { type: 'boolean' },
-    include_non_album_museum: { type: 'boolean' },
+    includeAllStickers:    { type: 'boolean' },
+    includeCocaCola:       { type: 'boolean' },
+    includeNonAlbumMuseum: { type: 'boolean' },
   },
 } as const;
 
@@ -27,6 +27,26 @@ const albumShape = {
     settings:         albumSettingsShape,
     created_at:       { type: 'string' },
     updated_at:       { type: 'string' },
+  },
+} as const;
+
+const albumStatsShape = {
+  type: 'object',
+  properties: {
+    album_id:   { type: 'string' },
+    total:      { type: 'integer' },
+    owned:      { type: 'integer' },
+    missing:    { type: 'integer' },
+    duplicates: { type: 'integer' },
+    percentage: { type: 'number' },
+  },
+} as const;
+
+const albumWithStatsShape = {
+  type: 'object',
+  properties: {
+    ...albumShape.properties,
+    stats: albumStatsShape,
   },
 } as const;
 
@@ -60,6 +80,40 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
       const items = await albumsService.listAlbums(fastify.db, userId);
+      return reply.status(200).send({ items });
+    }
+  );
+
+  /**
+   * GET /api/v1/users/:userId/albums/stats
+   * Per-album completion stats computed server-side (replaces the client-side
+   * `computeAlbumStats` that used to filter the entire sticker catalog in JS).
+   */
+  fastify.get(
+    '/api/v1/users/:userId/albums/stats',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: 'Get per-album completion stats',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId'],
+          properties: { userId: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { items: { type: 'array', items: albumStatsShape } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId } = request.params as { userId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const items = await albumsService.getAlbumStats(fastify.db, fastify.redis, userId);
       return reply.status(200).send({ items });
     }
   );
@@ -160,15 +214,16 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
             settings: albumSettingsShape,
           },
         },
-        response: { 201: albumShape },
+        response: { 201: albumWithStatsShape },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string; settings?: { include_all_stickers?: boolean; include_coca_cola?: boolean; include_non_album_museum?: boolean } };
-      const album = await albumsService.createAlbum(fastify.db, userId, body);
-      return reply.status(201).send(album);
+      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeAllStickers?: boolean; includeCocaCola?: boolean; includeNonAlbumMuseum?: boolean } };
+      const album = await albumsService.createAlbum(fastify.db, fastify.redis, userId, body);
+      const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);
+      return reply.status(201).send({ ...album, stats });
     }
   );
 
@@ -196,16 +251,17 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
             settings: albumSettingsShape,
           },
         },
-        response: { 200: albumShape },
+        response: { 200: albumWithStatsShape },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string; settings?: { include_all_stickers?: boolean; include_coca_cola?: boolean; include_non_album_museum?: boolean } };
-      const album = await albumsService.updateAlbum(fastify.db, userId, albumId, body);
+      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeAllStickers?: boolean; includeCocaCola?: boolean; includeNonAlbumMuseum?: boolean } };
+      const album = await albumsService.updateAlbum(fastify.db, fastify.redis, userId, albumId, body);
       if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
-      return reply.status(200).send(album);
+      const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);
+      return reply.status(200).send({ ...album, stats });
     }
   );
 

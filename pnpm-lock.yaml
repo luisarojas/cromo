@@ -38,6 +38,9 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^5.2.0
         version: 5.2.6
+      '@stickfolio/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       drizzle-orm:
         specifier: ^0.31.4
         version: 0.31.4(@types/pg@8.20.0)(@types/react@19.2.14)(pg@8.20.0)(react@19.2.5)
@@ -111,6 +114,9 @@ importers:
 
   apps/frontend:
     dependencies:
+      '@stickfolio/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@tanstack/react-query':
         specifier: ^5.100.10
         version: 5.100.10(react@19.2.5)

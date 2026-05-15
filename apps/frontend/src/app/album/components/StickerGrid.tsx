@@ -11,7 +11,7 @@ export type OwnedVariantMap = Map<string, OwnedVariantEntry>; // variantType -> 
 
 interface Props {
   stickers: Sticker[];
-  ownedMap: Map<string, OwnedVariantMap>; // album_code -> variantType -> entry
+  ownedMap: Map<string, OwnedVariantMap>; // albumCode -> variantType -> entry
   userId: string;
   albumId: string;
   token: string;
@@ -22,11 +22,11 @@ interface Props {
     variantId: string,
     delta: number,
   ) => void;
-  // album_code -> Set of other album IDs that are missing this sticker
+  // albumCode -> Set of other album IDs that are missing this sticker
   crossAlbumNeeded?: Map<string, string[]>;
-  // album_code -> Set of other album IDs that have extras of this sticker
+  // albumCode -> Set of other album IDs that have extras of this sticker
   crossAlbumAvailable?: Map<string, string[]>;
-  // album_code -> albums that own this sticker (used for move-from picker)
+  // albumCode -> albums that own this sticker (used for move-from picker)
   crossAlbumHasSticker?: Map<string, Array<{ id: string; name: string }>>;
   favouriteSet?: Set<string>;
   onToggleFavourite?: (albumCode: string) => void;
@@ -106,9 +106,9 @@ export default function StickerGrid({
       delta: 1 | -1,
     ) => {
       const current =
-        ownedMap.get(sticker.album_code)?.get(variantType)?.quantity ?? 0;
+        ownedMap.get(sticker.albumCode)?.get(variantType)?.quantity ?? 0;
       const next = current + delta;
-      onOptimisticAdjust(sticker.album_code, variantType, variantId, delta);
+      onOptimisticAdjust(sticker.albumCode, variantType, variantId, delta);
       try {
         if (delta > 0 && current === 0) {
           await addSticker(userId, variantId, 1, token || undefined, albumId);
@@ -119,7 +119,7 @@ export default function StickerGrid({
       } catch (err) {
         console.error('Failed to adjust sticker', err);
         addToast('Failed to update sticker. Please try again.');
-        onOptimisticAdjust(sticker.album_code, variantType, variantId, -delta);
+        onOptimisticAdjust(sticker.albumCode, variantType, variantId, -delta);
       }
     },
     [userId, albumId, token, ownedMap, onCollectionChange, onOptimisticAdjust, addToast],
@@ -127,14 +127,14 @@ export default function StickerGrid({
 
   const handleAddNew = useCallback(
     async (sticker: Sticker, variantId: string, variantType: string) => {
-      onOptimisticAdjust(sticker.album_code, variantType, variantId, 1);
+      onOptimisticAdjust(sticker.albumCode, variantType, variantId, 1);
       try {
         await addSticker(userId, variantId, 1, token || undefined, albumId);
         onCollectionChange();
       } catch (err) {
         console.error('Failed to add variant', err);
         addToast('Failed to add variant. Please try again.');
-        onOptimisticAdjust(sticker.album_code, variantType, variantId, -1);
+        onOptimisticAdjust(sticker.albumCode, variantType, variantId, -1);
       }
     },
     [userId, token, albumId, onCollectionChange, onOptimisticAdjust, addToast],
@@ -215,25 +215,25 @@ export default function StickerGrid({
             >
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 py-1">
                 {rowStickers.map((sticker) => {
-                  const ownedVariants = ownedMap.get(sticker.album_code);
+                  const ownedVariants = ownedMap.get(sticker.albumCode);
                   const totalQuantity = ownedVariants
                     ? Array.from(ownedVariants.values()).reduce((sum, e) => sum + e.quantity, 0)
                     : 0;
                   return (
                     <StickerCard
-                      key={sticker.album_code}
+                      key={sticker.albumCode}
                       sticker={sticker}
                       ownedVariants={ownedVariants}
-                      crossAlbumNeededBy={totalQuantity > 1 ? crossAlbumNeeded?.get(sticker.album_code) : undefined}
-                      crossAlbumAvailableIn={crossAlbumAvailable?.get(sticker.album_code)}
-                      isFavourited={favouriteSet?.has(sticker.album_code)}
-                      onToggleFavourite={onToggleFavourite ? () => onToggleFavourite(sticker.album_code) : undefined}
+                      crossAlbumNeededBy={totalQuantity > 1 ? crossAlbumNeeded?.get(sticker.albumCode) : undefined}
+                      crossAlbumAvailableIn={crossAlbumAvailable?.get(sticker.albumCode)}
+                      isFavourited={favouriteSet?.has(sticker.albumCode)}
+                      onToggleFavourite={onToggleFavourite ? () => onToggleFavourite(sticker.albumCode) : undefined}
                       onOpenPopover={(anchor) =>
                         handleOpenPopover(sticker, anchor)
                       }
                       selectionMode={selectionMode}
-                      isSelected={selectedCodes?.has(sticker.album_code)}
-                      onToggleSelect={onToggleSelect ? () => onToggleSelect(sticker.album_code) : undefined}
+                      isSelected={selectedCodes?.has(sticker.albumCode)}
+                      onToggleSelect={onToggleSelect ? () => onToggleSelect(sticker.albumCode) : undefined}
                     />
                   );
                 })}
@@ -251,7 +251,7 @@ export default function StickerGrid({
         <VariantPopover
           sticker={popover.sticker}
           ownedVariants={
-            ownedMap.get(popover.sticker.album_code) ?? new Map()
+            ownedMap.get(popover.sticker.albumCode) ?? new Map()
           }
           anchorRect={popover.rect}
           albumId={albumId}
@@ -266,7 +266,7 @@ export default function StickerGrid({
           onMove={handleMove}
           onMoveFrom={handleMoveFrom}
           onSetTradeFlag={handleSetTradeFlag}
-          albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.album_code)}
+          albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.albumCode)}
         />
       )}
     </>

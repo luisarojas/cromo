@@ -13,7 +13,7 @@ const LIST_TYPE_LABELS: Record<string, string> = {
 function groupByTeam(items: PublicListItem[]): Map<string, PublicListItem[]> {
   const grouped = new Map<string, PublicListItem[]>();
   for (const item of items) {
-    const key = item.team_name ?? 'Other';
+    const key = item.teamName ?? 'Other';
     const bucket = grouped.get(key) ?? [];
     bucket.push(item);
     grouped.set(key, bucket);
@@ -66,8 +66,8 @@ export default function ShareListPage() {
     if (!q) return list.items;
     return list.items.filter(
       (item) =>
-        item.album_code.toLowerCase().includes(q) ||
-        (item.player_name?.toLowerCase().includes(q) ?? false),
+        item.albumCode.toLowerCase().includes(q) ||
+        (item.playerName?.toLowerCase().includes(q) ?? false),
     );
   }, [list, search]);
 
@@ -119,14 +119,14 @@ export default function ShareListPage() {
     );
   }
 
-  const ownerName = list.owner.display_name ?? `@${list.owner.username}`;
-  const listTypeLabel = LIST_TYPE_LABELS[list.list_type] ?? list.list_type;
-  const createdDate = new Date(list.created_at).toLocaleDateString(undefined, {
+  const ownerName = list.owner.displayName ?? `@${list.owner.username}`;
+  const listTypeLabel = LIST_TYPE_LABELS[list.listType] ?? list.listType;
+  const createdDate = new Date(list.createdAt).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
-  const showQuantity = list.list_type === 'duplicates';
+  const showQuantity = list.listType === 'duplicates';
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
@@ -184,24 +184,24 @@ export default function ShareListPage() {
               <div className="divide-y divide-gray-50">
                 {teamItems.map((item) => (
                   <div
-                    key={item.sticker_variant_id}
+                    key={item.stickerVariantId}
                     className="flex items-center justify-between px-4 py-2.5 gap-3"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono font-medium text-gray-500 shrink-0">
-                          {item.album_code}
+                          {item.albumCode}
                         </span>
-                        {item.player_name && (
+                        {item.playerName && (
                           <span className="text-sm text-gray-800 truncate">
-                            {item.player_name}
+                            {item.playerName}
                           </span>
                         )}
                       </div>
                       <div className="text-xs text-gray-400 mt-0.5 flex gap-1.5">
-                        <span>{item.variant_type}</span>
-                        {item.sticker_type !== 'player' && (
-                          <span>&middot; {item.sticker_type}</span>
+                        <span>{item.variantType}</span>
+                        {item.stickerType !== 'player' && (
+                          <span>&middot; {item.stickerType}</span>
                         )}
                       </div>
                     </div>

@@ -5,9 +5,9 @@ import { createPortal } from 'react-dom';
 import type { AlbumEditionOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
-  include_all_stickers: true,
-  include_coca_cola: true,
-  include_non_album_museum: true,
+  includeAllStickers: true,
+  includeCocaCola: true,
+  includeNonAlbumMuseum: true,
 };
 
 interface Props {
@@ -49,13 +49,13 @@ export default function AlbumFormModal({
     let coca_cola = 0, non_album_museum = 0, other_no_spot = 0;
     for (const s of allStickers) {
       const hasPage =
-        (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
-        s.team_pages?.[edition] != null;
-      if (s.sticker_type === 'coca_cola_special') { coca_cola++; continue; }
-      if (s.sticker_type === 'museum' && !hasPage) { non_album_museum++; continue; }
+        (s.stickerPages?.[edition]?.pageStart != null && s.stickerPages?.[edition]?.pageEnd != null) ||
+        s.teamPages?.[edition] != null;
+      if (s.stickerType === 'coca_cola_special') { coca_cola++; continue; }
+      if (s.stickerType === 'museum' && !hasPage) { non_album_museum++; continue; }
       if (!hasPage) other_no_spot++;
     }
-    return { include_all_stickers: other_no_spot, include_coca_cola: coca_cola, include_non_album_museum: non_album_museum };
+    return { includeAllStickers: other_no_spot, includeCocaCola: coca_cola, includeNonAlbumMuseum: non_album_museum };
   }, [allStickers, edition]);
 
   useEffect(() => {
@@ -161,9 +161,9 @@ export default function AlbumFormModal({
             <span className="text-xs font-medium text-gray-600">Sticker visibility</span>
             {(
               [
-                { key: 'include_all_stickers', label: 'Stickers without a spot in my edition' },
-                { key: 'include_coca_cola', label: 'Coca-Cola stickers' },
-                { key: 'include_non_album_museum', label: 'Museum stickers not placed in any album' },
+                { key: 'includeAllStickers', label: 'Stickers without a spot in my edition' },
+                { key: 'includeCocaCola', label: 'Coca-Cola stickers' },
+                { key: 'includeNonAlbumMuseum', label: 'Museum stickers not placed in any album' },
               ] as { key: keyof AlbumSettings; label: string }[]
             ).map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -206,7 +206,7 @@ export default function AlbumFormModal({
           </div>
         </form>
 
-        {mode === 'edit' && onDelete && !album?.is_default && (
+        {mode === 'edit' && onDelete && !album?.isDefault && (
           <div className="border-t border-gray-100 pt-4">
             {!confirmDelete ? (
               <button

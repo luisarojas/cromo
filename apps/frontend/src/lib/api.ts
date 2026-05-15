@@ -1,5 +1,18 @@
 export const DEFAULT_ALBUM_TYPE_KEY = 'fifa_world_cup_2026';
 
+// Canonical literal unions + AlbumSettings live in @stickfolio/shared so the
+// backend (Drizzle schema, response shapes) and the frontend (api.ts, pages)
+// agree on names and casing. Add new shared types there, not here.
+export type {
+  AlbumSettings,
+  StickerType,
+  VariantType,
+  Position,
+  TradeStatus,
+  ListType,
+  UserRole,
+} from '@stickfolio/shared';
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -173,53 +186,53 @@ export async function deleteAccountApi(token: string): Promise<void> {
 export interface Sticker {
   id: string;
   number: number;
-  album_code: string;
-  player_name: string | null;
+  albumCode: string;
+  playerName: string | null;
   position: string | null;
-  sticker_type: string;
-  is_foil: boolean;
-  team_name: string | null;
-  fifa_code: string | null;
-  group_name: string | null;
-  base_variant_id: string | null;
-  team_pages: Record<string, [number, number]> | null;
-  sticker_pages: Record<string, { page_start: number | null; page_end: number | null; description: string | null }> | null;
+  stickerType: string;
+  isFoil: boolean;
+  teamName: string | null;
+  fifaCode: string | null;
+  groupName: string | null;
+  baseVariantId: string | null;
+  teamPages: Record<string, [number, number]> | null;
+  stickerPages: Record<string, { pageStart: number | null; pageEnd: number | null; description: string | null }> | null;
 }
 
 export interface CollectionItem extends Sticker {
-  user_sticker_id: string;
-  sticker_variant_id: string;
-  variant_type: string;
+  userStickerId: string;
+  stickerVariantId: string;
+  variantType: string;
   quantity: number;
-  trade_hidden: boolean;
-  trade_forced: boolean;
+  tradeHidden: boolean;
+  tradeForced: boolean;
 }
 
 // MissingItem is now sticker-shaped (a sticker the user owns zero variants of).
-// base_variant_id is included for the default "+ Add" action.
+// baseVariantId is included for the default "+ Add" action.
 export type MissingItem = Sticker;
 
 export interface StickerVariant {
   id: string;
-  sticker_id: string;
-  variant_type: string;
+  stickerId: string;
+  variantType: string;
   rarity_rank: number;
   availability: string;
 }
 
 export interface DuplicateItem {
-  user_sticker_id: string;
-  sticker_variant_id: string;
-  variant_type: string;
+  userStickerId: string;
+  stickerVariantId: string;
+  variantType: string;
   quantity: number;
   number: number;
-  album_code: string;
-  player_name: string | null;
-  sticker_type: string;
-  is_foil: boolean;
-  team_name: string | null;
-  fifa_code: string | null;
-  group_name: string | null;
+  albumCode: string;
+  playerName: string | null;
+  stickerType: string;
+  isFoil: boolean;
+  teamName: string | null;
+  fifaCode: string | null;
+  groupName: string | null;
 }
 
 export interface CollectionStats {
@@ -307,9 +320,8 @@ function toQueryString(
 // Sticker catalog — with localStorage cache (24h TTL, version-keyed)
 // ---------------------------------------------------------------------------
 
-const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v6';
-// const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const STICKER_CACHE_TTL_MS = 0;
+const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v7';
+const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
   if (typeof window !== 'undefined') {
@@ -380,9 +392,9 @@ export async function fetchStickerVariants(
 }
 
 export interface StickerLookup {
-  album_code: string;
-  player_name: string | null;
-  team_name: string | null;
+  albumCode: string;
+  playerName: string | null;
+  teamName: string | null;
   variants: StickerVariant[];
 }
 
@@ -483,30 +495,27 @@ export async function fetchAlbumEditions(albumTypeKey: string): Promise<AlbumEdi
 // Album endpoints
 // ---------------------------------------------------------------------------
 
-export interface AlbumSettings {
-  include_all_stickers: boolean;
-  include_coca_cola: boolean;
-  include_non_album_museum: boolean;
-}
+// AlbumSettings is re-exported from @stickfolio/shared at the top of this file.
+import type { AlbumSettings } from '@stickfolio/shared';
 
 export interface UserAlbum {
   id: string;
-  user_id: string;
-  album_type_id: string;
-  album_type_key: string;
-  album_type_name: string;
-  album_edition_id: string;
+  userId: string;
+  albumTypeId: string;
+  albumTypeKey: string;
+  albumTypeName: string;
+  albumEditionId: string;
   edition: string;
   edition_name: string;
   alias: string | null;
-  is_default: boolean;
+  isDefault: boolean;
   settings: AlbumSettings;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export function albumDisplayName(album: UserAlbum): string {
-  return album.alias ?? album.album_type_name;
+  return album.alias ?? album.albumTypeName;
 }
 
 export async function fetchUserAlbums(
@@ -525,8 +534,8 @@ export async function createUserAlbum(
   userId: string,
   body: { alias?: string | null; edition?: string; settings?: AlbumSettings },
   token: string,
-): Promise<UserAlbum> {
-  return apiFetch<UserAlbum>(
+): Promise<UserAlbumWithStats> {
+  return apiFetch<UserAlbumWithStats>(
     `/api/v1/users/${userId}/albums`,
     { method: 'POST', body: JSON.stringify(body) },
     token,
@@ -538,8 +547,8 @@ export async function updateUserAlbum(
   albumId: string,
   patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> },
   token: string,
-): Promise<UserAlbum> {
-  return apiFetch<UserAlbum>(
+): Promise<UserAlbumWithStats> {
+  return apiFetch<UserAlbumWithStats>(
     `/api/v1/users/${userId}/albums/${albumId}`,
     { method: 'PATCH', body: JSON.stringify(patch) },
     token,
@@ -571,9 +580,9 @@ export async function setDefaultUserAlbum(
 }
 
 export interface AlbumSummary {
-  album_id: string;
-  owned_album_codes: string[];
-  duplicate_album_codes: string[];
+  albumId: string;
+  ownedAlbumCodes: string[];
+  duplicateAlbumCodes: string[];
 }
 
 export async function fetchAlbumSummaries(
@@ -582,6 +591,31 @@ export async function fetchAlbumSummaries(
 ): Promise<AlbumSummary[]> {
   const { items } = await apiFetch<{ items: AlbumSummary[] }>(
     `/api/v1/users/${userId}/albums/summary`,
+    {},
+    token,
+  );
+  return items;
+}
+
+export interface AlbumStats {
+  albumId: string;
+  total: number;
+  owned: number;
+  missing: number;
+  duplicates: number;
+  percentage: number;
+}
+
+export interface UserAlbumWithStats extends UserAlbum {
+  stats: AlbumStats;
+}
+
+export async function fetchAlbumStats(
+  userId: string,
+  token: string,
+): Promise<AlbumStats[]> {
+  const { items } = await apiFetch<{ items: AlbumStats[] }>(
+    `/api/v1/users/${userId}/albums/stats`,
     {},
     token,
   );
@@ -699,9 +733,9 @@ export interface AdminUser {
   username: string;
   email: string;
   role: string;
-  created_at: string;
-  deleted_at: string | null;
-  is_banned: boolean;
+  createdAt: string;
+  deletedAt: string | null;
+  isBanned: boolean;
 }
 
 export interface AdminUsersResult {
@@ -783,97 +817,97 @@ export async function patchAdminSticker(
 // ---------------------------------------------------------------------------
 
 export interface TradeMatch {
-  user_id: string;
+  userId: string;
   username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  mutual_overlap: number;
-  they_have: string[];             // album codes they have that you need
-  they_have_variant_ids: string[]; // all variant IDs they have as dupes for those stickers
-  you_have: string[];              // album codes you have that they need
+  displayName: string | null;
+  avatarUrl: string | null;
+  mutualOverlap: number;
+  theyHave: string[];             // album codes they have that you need
+  theyHaveVariantIds: string[]; // all variant IDs they have as dupes for those stickers
+  youHave: string[];              // album codes you have that they need
 }
 
 export interface TradeItemDetail {
   id: string;
-  sticker_variant_id: string;
-  variant_type: string;
+  stickerVariantId: string;
+  variantType: string;
   direction: 'offer' | 'want';
   quantity: number;
-  sticker_number: number;
-  album_code: string;
-  player_name: string | null;
-  sticker_type: string;
-  team_name: string | null;
+  stickerNumber: number;
+  albumCode: string;
+  playerName: string | null;
+  stickerType: string;
+  teamName: string | null;
 }
 
 export interface TradeMessage {
   id: string;
-  trade_id: string;
-  sender_id: string;
-  sender_username: string;
-  sender_display_name: string | null;
+  tradeId: string;
+  senderId: string;
+  senderUsername: string;
+  senderDisplayName: string | null;
   body: string;
-  sent_at: string;
+  sentAt: string;
 }
 
 export interface TradeSummary {
   id: string;
-  requester_id: string;
-  requester_username: string;
-  recipient_id: string;
-  recipient_username: string;
+  requesterId: string;
+  requesterUsername: string;
+  recipientId: string;
+  recipientUsername: string;
   status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'completed' | 'expired';
-  counter_count: number;
-  offer_cash: number;
-  want_cash: number;
-  created_at: string;
-  updated_at: string;
-  message_count: number;
+  counterCount: number;
+  offerCash: number;
+  wantCash: number;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
 }
 
 export interface TradeDetail extends TradeSummary {
   items: TradeItemDetail[];
   messages: TradeMessage[];
-  accepted_at: string | null;
-  completed_at: string | null;
-  cancelled_at: string | null;
-  expires_at: string | null;
+  acceptedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  expiresAt: string | null;
 }
 
 export interface ShareLink {
   id: string;
-  user_id: string;
-  list_type: 'missing' | 'duplicates' | 'full_collection';
-  share_token: string;
-  expires_at: string | null;
-  created_at: string;
+  userId: string;
+  listType: 'missing' | 'duplicates' | 'full_collection';
+  shareToken: string;
+  expiresAt: string | null;
+  createdAt: string;
   url: string;
 }
 
 export interface PublicListItem {
-  sticker_variant_id: string;
+  stickerVariantId: string;
   number: number;
-  album_code: string;
-  player_name: string | null;
-  sticker_type: string;
-  team_name: string | null;
-  variant_type: string;
+  albumCode: string;
+  playerName: string | null;
+  stickerType: string;
+  teamName: string | null;
+  variantType: string;
   quantity?: number;
 }
 
 export interface PublicList {
-  owner: { username: string; display_name: string | null };
-  list_type: string;
+  owner: { username: string; displayName: string | null };
+  listType: string;
   items: PublicListItem[];
-  created_at: string;
+  createdAt: string;
 }
 
 export interface PublicProfile {
   username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  member_since: string;
-  collection_stats?: {
+  displayName: string | null;
+  avatarUrl: string | null;
+  memberSince: string;
+  collectionStats?: {
     total: number;
     owned: number;
     missing: number;

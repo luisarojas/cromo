@@ -109,14 +109,14 @@ export default function TradeStickerPicker({
     const draftMap = new Map(initialOfferVariantsMemo.map((d) => [d.variantId, d.quantity]));
     const restored: SelectedOffer[] = [];
     for (const item of offerItems) {
-      const qty = draftMap.get(item.sticker_variant_id);
+      const qty = draftMap.get(item.stickerVariantId);
       if (qty === undefined) continue;
       restored.push({
-        variantId: item.sticker_variant_id,
-        albumCode: item.album_code,
-        playerName: item.player_name,
-        teamName: item.team_name,
-        variantType: item.variant_type,
+        variantId: item.stickerVariantId,
+        albumCode: item.albumCode,
+        playerName: item.playerName,
+        teamName: item.teamName,
+        variantType: item.variantType,
         maxQty: item.quantity,
         quantity: Math.min(qty, item.quantity),
       });
@@ -134,7 +134,7 @@ export default function TradeStickerPicker({
       prev.map((w) => {
         const matchingVariant = w.allVariants.find((v) => draftIds.has(v.id));
         if (!matchingVariant) return w;
-        return { ...w, selected: true, variantId: matchingVariant.id, variantType: matchingVariant.variant_type };
+        return { ...w, selected: true, variantId: matchingVariant.id, variantType: matchingVariant.variantType };
       }),
     );
   }, [wantItems, initialWantVariantIdsMemo]);
@@ -179,7 +179,7 @@ export default function TradeStickerPicker({
 
     fetchStickersBulk(suggestedWantCodes, token)
       .then((results) => {
-        const byCode = new Map(results.map((r) => [r.album_code, r]));
+        const byCode = new Map(results.map((r) => [r.albumCode, r]));
         setWantItems((prev) =>
           prev.map((w, i) => {
             const result = byCode.get(suggestedWantCodes[i]!);
@@ -187,20 +187,20 @@ export default function TradeStickerPicker({
             const filteredVariants = partnerVariantIdSet.size > 0
               ? result.variants.filter((v) => partnerVariantIdSet.has(v.id))
               : [];
-            const baseVariant = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0];
+            const baseVariant = result.variants.find((v) => v.variantType === 'base') ?? result.variants[0];
             const variants = filteredVariants.length > 0
               ? filteredVariants
               : baseVariant
                 ? [baseVariant]
                 : result.variants;
-            const base = variants.find((v) => v.variant_type === 'base') ?? variants[0];
+            const base = variants.find((v) => v.variantType === 'base') ?? variants[0];
             return {
               ...w,
-              playerName: result.player_name,
-              teamName: result.team_name,
+              playerName: result.playerName,
+              teamName: result.teamName,
               allVariants: variants,
               variantId: base?.id ?? '',
-              variantType: base?.variant_type ?? 'base',
+              variantType: base?.variantType ?? 'base',
               loading: false,
               error: null,
             };
@@ -218,18 +218,18 @@ export default function TradeStickerPicker({
   // ── Offer handlers ────────────────────────────────────────────────────────
 
   function toggleOffer(item: CollectionItem) {
-    const isSelected = selectedOffers.some((o) => o.variantId === item.sticker_variant_id);
+    const isSelected = selectedOffers.some((o) => o.variantId === item.stickerVariantId);
     if (isSelected) {
-      setSelectedOffers((prev) => prev.filter((o) => o.variantId !== item.sticker_variant_id));
+      setSelectedOffers((prev) => prev.filter((o) => o.variantId !== item.stickerVariantId));
     } else {
       setSelectedOffers((prev) => [
         ...prev,
         {
-          variantId: item.sticker_variant_id,
-          albumCode: item.album_code,
-          playerName: item.player_name,
-          teamName: item.team_name,
-          variantType: item.variant_type,
+          variantId: item.stickerVariantId,
+          albumCode: item.albumCode,
+          playerName: item.playerName,
+          teamName: item.teamName,
+          variantType: item.variantType,
           maxQty: item.quantity,
           quantity: 1,
         },
@@ -256,7 +256,7 @@ export default function TradeStickerPicker({
   function changeWantVariant(key: string, variant: StickerVariant) {
     setWantItems((prev) =>
       prev.map((w) =>
-        w.key === key ? { ...w, variantId: variant.id, variantType: variant.variant_type } : w,
+        w.key === key ? { ...w, variantId: variant.id, variantType: variant.variantType } : w,
       ),
     );
   }
@@ -265,36 +265,36 @@ export default function TradeStickerPicker({
 
   const suggestedSet = new Set(suggestedOfferCodes);
   const selectedVariantIds = new Set(selectedOffers.map((o) => o.variantId));
-  const ownedAlbumCodes = new Set(offerItems.map((item) => item.album_code));
+  const ownedAlbumCodes = new Set(offerItems.map((item) => item.albumCode));
 
   const offerVariants = [
     ...new Set(
       offerItems
-        .filter((d) => !d.trade_hidden && !selectedVariantIds.has(d.sticker_variant_id))
-        .map((d) => d.variant_type),
+        .filter((d) => !d.tradeHidden && !selectedVariantIds.has(d.stickerVariantId))
+        .map((d) => d.variantType),
     ),
   ].sort();
 
   const filteredDups = offerItems
     .filter((item) => {
-      if (selectedVariantIds.has(item.sticker_variant_id)) return false;
-      if (item.trade_hidden) return false;
+      if (selectedVariantIds.has(item.stickerVariantId)) return false;
+      if (item.tradeHidden) return false;
       if (offerQtyFilter === 'duplicate' && item.quantity < 2) return false;
       if (offerQtyFilter === 'single' && item.quantity !== 1) return false;
-      if (offerTheyNeedOnly && !suggestedSet.has(item.album_code)) return false;
-      if (offerVariantFilters.length > 0 && !offerVariantFilters.includes(item.variant_type)) return false;
+      if (offerTheyNeedOnly && !suggestedSet.has(item.albumCode)) return false;
+      if (offerVariantFilters.length > 0 && !offerVariantFilters.includes(item.variantType)) return false;
       if (!offerSearch) return true;
       const q = offerSearch.toLowerCase();
       return (
-        item.album_code.toLowerCase().includes(q) ||
-        (item.player_name?.toLowerCase().includes(q) ?? false) ||
-        (item.team_name?.toLowerCase().includes(q) ?? false)
+        item.albumCode.toLowerCase().includes(q) ||
+        (item.playerName?.toLowerCase().includes(q) ?? false) ||
+        (item.teamName?.toLowerCase().includes(q) ?? false)
       );
     })
     .sort((a, b) => {
-      const aS = suggestedSet.has(a.album_code) ? 0 : 1;
-      const bS = suggestedSet.has(b.album_code) ? 0 : 1;
-      return aS - bS || a.album_code.localeCompare(b.album_code);
+      const aS = suggestedSet.has(a.albumCode) ? 0 : 1;
+      const bS = suggestedSet.has(b.albumCode) ? 0 : 1;
+      return aS - bS || a.albumCode.localeCompare(b.albumCode);
     });
 
   const suggestions = wantItems.filter((w) => w.fromSuggestion);
@@ -302,7 +302,7 @@ export default function TradeStickerPicker({
     ...new Set(
       suggestions
         .filter((w) => !w.loading && !w.error)
-        .flatMap((w) => w.allVariants.map((v) => v.variant_type)),
+        .flatMap((w) => w.allVariants.map((v) => v.variantType)),
     ),
   ].sort();
   const filteredSuggestions = suggestions.filter((w) => {
@@ -312,7 +312,7 @@ export default function TradeStickerPicker({
     if (wantFavouritedOnly && !favouriteCodes.has(w.albumCode)) return false;
     if (
       wantVariantFilters.length > 0 &&
-      !w.allVariants.some((v) => wantVariantFilters.includes(v.variant_type))
+      !w.allVariants.some((v) => wantVariantFilters.includes(v.variantType))
     )
       return false;
     if (wantSearch) {
@@ -430,12 +430,12 @@ export default function TradeStickerPicker({
               </p>
             ) : (
               filteredDups.map((item) => {
-                const isSelected = selectedVariantIds.has(item.sticker_variant_id);
-                const isSuggested = suggestedSet.has(item.album_code);
+                const isSelected = selectedVariantIds.has(item.stickerVariantId);
+                const isSuggested = suggestedSet.has(item.albumCode);
                 const isLastCopy = item.quantity === 1;
                 return (
                   <div
-                    key={item.sticker_variant_id}
+                    key={item.stickerVariantId}
                     onClick={() => toggleOffer(item)}
                     role="button"
                     tabIndex={0}
@@ -449,12 +449,12 @@ export default function TradeStickerPicker({
                     }`}
                   >
                     <span
-                      className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(item.variant_type)}`}
+                      className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(item.variantType)}`}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1 min-w-0">
                         <span className="text-xs font-semibold text-gray-800 truncate">
-                          {item.album_code}
+                          {item.albumCode}
                         </span>
                         {isSuggested && (
                           <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
@@ -463,8 +463,8 @@ export default function TradeStickerPicker({
                         )}
                       </div>
                       <div className="text-[10px] text-gray-400 truncate">
-                        {variantLabel(item.variant_type)}
-                        {item.player_name ? ` · ${item.player_name}` : ''}
+                        {variantLabel(item.variantType)}
+                        {item.playerName ? ` · ${item.playerName}` : ''}
                       </div>
                     </div>
                     {isLastCopy ? (
@@ -478,7 +478,7 @@ export default function TradeStickerPicker({
                     )}
                     {onHideSticker && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); onHideSticker(item.sticker_variant_id); }}
+                        onClick={(e) => { e.stopPropagation(); onHideSticker(item.stickerVariantId); }}
                         title="Hide from trades"
                         className="shrink-0 text-gray-300 hover:text-red-400 transition-colors"
                       >
@@ -756,7 +756,7 @@ export default function TradeStickerPicker({
                       >
                         {w.allVariants.map((v) => (
                           <option key={v.id} value={v.id}>
-                            {variantLabel(v.variant_type)}
+                            {variantLabel(v.variantType)}
                           </option>
                         ))}
                       </select>

@@ -5,11 +5,8 @@ import { invalidateUserCaches } from './cache.js';
 
 const MAX_ALBUMS_PER_USER = 10;
 
-export interface AlbumSettings {
-  include_all_stickers: boolean;
-  include_coca_cola: boolean;
-  include_non_album_museum: boolean;
-}
+import type { AlbumSettings } from '@stickfolio/shared';
+export type { AlbumSettings };
 
 export interface UserAlbum {
   id: string;
@@ -31,6 +28,19 @@ export interface AlbumSummary {
   album_id: string;
   owned_album_codes: string[];
   duplicate_album_codes: string[];
+}
+
+export interface AlbumStats {
+  album_id: string;
+  total: number;
+  owned: number;
+  missing: number;
+  duplicates: number;
+  percentage: number;
+}
+
+export interface UserAlbumWithStats extends UserAlbum {
+  stats: AlbumStats;
 }
 
 // ─── Service functions ────────────────────────────────────────────────────────
@@ -96,6 +106,7 @@ export async function resolveAlbumId(
 
 export async function createAlbum(
   db: Pool,
+  redis: Redis,
   userId: string,
   input: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> }
 ): Promise<UserAlbum> {
@@ -124,42 +135,20 @@ export async function createAlbum(
           WHERE at.key = $5 AND ae.key = $2),
          $3,
          false,
-         COALESCE($4::jsonb, '{"include_all_stickers":true,"include_coca_cola":true,"include_non_album_museum":true}'::jsonb)
+         COALESCE($4::jsonb, '{"includeAllStickers":true,"includeCocaCola":true,"includeNonAlbumMuseum":true}'::jsonb)
        )
        RETURNING *
      )
      ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
     [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY]
   );
-  return rows[0]!;
-}
-
-export async function createDefaultAlbum(
-  db: Pool,
-  userId: string,
-  editionKey: string = DEFAULT_ALBUM_EDITION_KEY
-): Promise<UserAlbum> {
-  const { rows } = await db.query<UserAlbum>(
-    `WITH ins AS (
-       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, is_default)
-       VALUES (
-         $1,
-         (SELECT id FROM album_types WHERE key = $3),
-         (SELECT ae.id FROM album_editions ae
-          JOIN album_types at ON at.id = ae.album_type_id
-          WHERE at.key = $3 AND ae.key = $2),
-         true
-       )
-       RETURNING *
-     )
-     ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-    [userId, editionKey, DEFAULT_ALBUM_TYPE_KEY]
-  );
+  await invalidateUserCaches(redis, userId);
   return rows[0]!;
 }
 
 export async function updateAlbum(
   db: Pool,
+  redis: Redis,
   userId: string,
   albumId: string,
   patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> }
@@ -198,6 +187,7 @@ export async function updateAlbum(
      ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM upd ua')}`,
     values
   );
+  if (rows[0]) await invalidateUserCaches(redis, userId);
   return rows[0] ?? null;
 }
 
@@ -302,6 +292,112 @@ export async function getAlbumSummaries(
 
   await redis.set(cacheKey, JSON.stringify(rows), 'EX', 300);
   return rows;
+}
+
+/**
+ * getAlbumStats — per-album completion stats for ALL of a user's albums,
+ * computed server-side respecting each album's edition + settings (which stickers
+ * count toward the total based on `include_all_stickers`, `include_coca_cola`,
+ * `include_non_album_museum`).
+ *
+ * Replaces the previous client-side `computeAlbumStats` that pulled the entire
+ * sticker catalog and filtered in JS.
+ */
+export async function getAlbumStats(
+  db: Pool,
+  redis: Redis,
+  userId: string
+): Promise<AlbumStats[]> {
+  const cacheKey = `user:${userId}:album_stats`;
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached) as AlbumStats[];
+
+  const { rows } = await db.query<{
+    album_id: string;
+    total: string;
+    owned: string;
+    duplicates: string;
+  }>(
+    `WITH album_info AS (
+       SELECT ua.id AS album_id,
+              ua.album_type_id,
+              ae.key AS edition,
+              (ua.settings->>'includeAllStickers')::boolean AS inc_all,
+              (ua.settings->>'includeCocaCola')::boolean AS inc_coca,
+              (ua.settings->>'includeNonAlbumMuseum')::boolean AS inc_museum
+       FROM user_albums ua
+       JOIN album_editions ae ON ae.id = ua.album_edition_id
+       WHERE ua.user_id = $1
+     ),
+     filtered_stickers AS (
+       SELECT ai.album_id, s.id AS sticker_id
+       FROM album_info ai
+       JOIN stickers s ON s.album_type_id = ai.album_type_id
+       LEFT JOIN sticker_album_pages sap
+         ON sap.sticker_id = s.id AND sap.edition = ai.edition
+       LEFT JOIN team_album_pages tap
+         ON tap.team_id = s.team_id AND tap.edition = ai.edition
+       WHERE
+         CASE
+           WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
+           WHEN s.sticker_type = 'museum'
+             AND sap.page_start IS NULL AND tap.page_start IS NULL THEN ai.inc_museum
+           WHEN sap.page_start IS NOT NULL OR tap.page_start IS NOT NULL THEN true
+           ELSE ai.inc_all
+         END
+     ),
+     stats AS (
+       SELECT
+         fs.album_id,
+         COUNT(DISTINCT fs.sticker_id) AS total,
+         COUNT(DISTINCT CASE WHEN us.quantity > 0 THEN fs.sticker_id END) AS owned,
+         COUNT(DISTINCT CASE WHEN us.quantity > 1 THEN fs.sticker_id END) AS duplicates
+       FROM filtered_stickers fs
+       LEFT JOIN sticker_variants sv ON sv.sticker_id = fs.sticker_id
+       LEFT JOIN user_stickers us
+         ON us.sticker_variant_id = sv.id AND us.album_id = fs.album_id
+       GROUP BY fs.album_id
+     )
+     SELECT
+       ai.album_id,
+       COALESCE(s.total, 0)::text AS total,
+       COALESCE(s.owned, 0)::text AS owned,
+       COALESCE(s.duplicates, 0)::text AS duplicates
+     FROM album_info ai
+     LEFT JOIN stats s ON s.album_id = ai.album_id`,
+    [userId]
+  );
+
+  const result: AlbumStats[] = rows.map((r) => {
+    const total = parseInt(r.total, 10);
+    const owned = parseInt(r.owned, 10);
+    const duplicates = parseInt(r.duplicates, 10);
+    return {
+      album_id: r.album_id,
+      total,
+      owned,
+      missing: total - owned,
+      duplicates,
+      percentage: total > 0 ? parseFloat(((owned / total) * 100).toFixed(2)) : 0,
+    };
+  });
+
+  await redis.set(cacheKey, JSON.stringify(result), 'EX', 300);
+  return result;
+}
+
+/**
+ * getAlbumStatsForOne — stats for a single album, used by create/update endpoints
+ * so the frontend doesn't need to refetch after a mutation.
+ */
+export async function getAlbumStatsForOne(
+  db: Pool,
+  redis: Redis,
+  userId: string,
+  albumId: string
+): Promise<AlbumStats | null> {
+  const all = await getAlbumStats(db, redis, userId);
+  return all.find((s) => s.album_id === albumId) ?? null;
 }
 
 export async function moveSticker(

@@ -4,6 +4,7 @@ import fastifyRateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
 
 import { env } from './env.js';
+import { camelizeKeys } from './utils/casing.js';
 import { corsPlugin } from './plugins/cors.js';
 import { helmetPlugin } from './plugins/helmet.js';
 import { swaggerPlugin } from './plugins/swagger.js';
@@ -38,6 +39,14 @@ export async function buildApp(): Promise<FastifyInstance> {
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
   });
+
+  // ── Response serializer: convert snake_case keys → camelCase ──────────────
+  // The DB uses snake_case columns; Drizzle exposes camelCase TS fields; but the
+  // legacy raw-SQL services emit snake_case row objects. This serializer
+  // normalises every response payload to camelCase so the wire format matches
+  // the canonical types in @stickfolio/shared. Response schemas in routes are
+  // now documentation only (fast-json-stringify is bypassed).
+  fastify.setSerializerCompiler(() => (data) => JSON.stringify(camelizeKeys(data)));
 
   // ── Security plugins ─────────────────────────────────────────────────────
   await helmetPlugin(fastify);

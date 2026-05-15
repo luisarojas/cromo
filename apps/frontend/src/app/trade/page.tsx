@@ -34,7 +34,7 @@ interface TradeDraft {
 function saveDraft(match: TradeMatch, items: TradePickerItem[], offerCashCents: number, wantCashCents: number) {
   try {
     const draft: TradeDraft = {
-      matchUserId: match.user_id,
+      matchUserId: match.userId,
       match,
       offerVariants: items.filter((i) => i.direction === 'offer').map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
       wantVariantIds: items.filter((i) => i.direction === 'want').map((i) => i.variantId),
@@ -134,7 +134,7 @@ function TradePageContent() {
         if (!cancelled) {
           setAlbums(data);
           if (data.length > 0) {
-            const defaultAlbum = data.find((a) => a.is_default) ?? data[0];
+            const defaultAlbum = data.find((a) => a.isDefault) ?? data[0];
             setSelectedAlbumId(defaultAlbum!.id);
           }
         }
@@ -213,7 +213,7 @@ function TradePageContent() {
   }
 
   function openProposeModal(match: TradeMatch) {
-    const draft = loadDraft(match.user_id);
+    const draft = loadDraft(match.userId);
 
     setProposeModal({
       match,
@@ -250,7 +250,7 @@ function TradePageContent() {
       return {
         ...prev,
         offerItems: prev.offerItems.map((item) =>
-          item.sticker_variant_id === variantId ? { ...item, trade_hidden: true } : item,
+          item.stickerVariantId === variantId ? { ...item, tradeHidden: true } : item,
         ),
       };
     });
@@ -262,7 +262,7 @@ function TradePageContent() {
         return {
           ...prev,
           offerItems: prev.offerItems.map((item) =>
-            item.sticker_variant_id === variantId ? { ...item, trade_hidden: false } : item,
+            item.stickerVariantId === variantId ? { ...item, tradeHidden: false } : item,
           ),
         };
       });
@@ -288,7 +288,7 @@ function TradePageContent() {
     try {
       const result = await createTrade(
         {
-          recipientId: proposeModal.match.user_id,
+          recipientId: proposeModal.match.userId,
           requesterAlbumId: selectedAlbumId || undefined,
           items: pickerItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })),
           offerCash,
@@ -411,23 +411,23 @@ function TradePageContent() {
               </p>
               {matches.map((match) => (
                 <div
-                  key={match.user_id}
+                  key={match.userId}
                   className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex items-center gap-4"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-                    {(match.display_name ?? match.username).charAt(0).toUpperCase()}
+                    {(match.displayName ?? match.username).charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-800 truncate">
-                      {match.display_name ?? match.username}
+                      {match.displayName ?? match.username}
                     </div>
                     <div className="text-xs text-gray-500">@{match.username}</div>
                     <div className="mt-1 flex gap-3 text-xs text-gray-600 flex-wrap">
                       <span className="text-blue-600 font-medium">
-                        {match.mutual_overlap} mutual stickers
+                        {match.mutualOverlap} mutual stickers
                       </span>
-                      <span>They have {match.they_have.length} you need</span>
-                      <span>You have {match.you_have.length} they need</span>
+                      <span>They have {match.theyHave.length} you need</span>
+                      <span>You have {match.youHave.length} they need</span>
                     </div>
                   </div>
                   <button
@@ -476,8 +476,8 @@ function TradePageContent() {
             <div className="space-y-2">
               {trades.map((trade) => {
                 const badge = STATUS_BADGE[trade.status];
-                const isRequester = trade.requester_id === user?.id;
-                const otherUser = isRequester ? trade.recipient_username : trade.requester_username;
+                const isRequester = trade.requesterId === user?.id;
+                const otherUser = isRequester ? trade.recipientUsername : trade.requesterUsername;
                 return (
                   <button
                     key={trade.id}
@@ -490,8 +490,8 @@ function TradePageContent() {
                           {isRequester ? 'To' : 'From'}: @{otherUser}
                         </div>
                         <div className="text-xs text-gray-400 mt-0.5">
-                          {new Date(trade.created_at).toLocaleDateString()} &middot;{' '}
-                          {trade.message_count} {trade.message_count === 1 ? 'message' : 'messages'}
+                          {new Date(trade.createdAt).toLocaleDateString()} &middot;{' '}
+                          {trade.messageCount} {trade.messageCount === 1 ? 'message' : 'messages'}
                         </div>
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
@@ -516,7 +516,7 @@ function TradePageContent() {
               <p className="text-sm text-gray-500 mt-0.5">
                 With{' '}
                 <span className="font-medium text-gray-700">
-                  {proposeModal.match.display_name ?? proposeModal.match.username}
+                  {proposeModal.match.displayName ?? proposeModal.match.username}
                 </span>{' '}
                 (@{proposeModal.match.username})
               </p>
@@ -525,14 +525,14 @@ function TradePageContent() {
             {/* Picker */}
             <div className="px-6 py-4 flex-1 min-h-0 flex flex-col">
               <TradeStickerPicker
-                key={proposeModal.match.user_id}
+                key={proposeModal.match.userId}
                 offerItems={proposeModal.offerItems}
                 offerItemsLoading={proposeModal.offerItemsLoading}
-                suggestedOfferCodes={proposeModal.match.you_have}
-                suggestedWantCodes={proposeModal.match.they_have}
-                suggestedWantVariantIds={proposeModal.match.they_have_variant_ids}
+                suggestedOfferCodes={proposeModal.match.youHave}
+                suggestedWantCodes={proposeModal.match.theyHave}
+                suggestedWantVariantIds={proposeModal.match.theyHaveVariantIds}
                 token={token}
-                partnerName={proposeModal.match.display_name ?? proposeModal.match.username}
+                partnerName={proposeModal.match.displayName ?? proposeModal.match.username}
                 favouriteCodes={favouriteCodes}
                 onHideSticker={handleHideSticker}
                 initialOfferVariants={proposeModal.draftOfferVariants}

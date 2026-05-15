@@ -82,16 +82,16 @@ async function loadOwnedMap(
       token,
     );
     for (const item of page.items) {
-      let perSticker = map.get(item.album_code);
+      let perSticker = map.get(item.albumCode);
       if (!perSticker) {
         perSticker = new Map<string, OwnedVariantEntry>();
-        map.set(item.album_code, perSticker);
+        map.set(item.albumCode, perSticker);
       }
-      perSticker.set(item.variant_type, {
-        variantId: item.sticker_variant_id,
+      perSticker.set(item.variantType, {
+        variantId: item.stickerVariantId,
         quantity: item.quantity,
-        tradeHidden: item.trade_hidden,
-        tradeForced: item.trade_forced,
+        tradeHidden: item.tradeHidden,
+        tradeForced: item.tradeForced,
       });
     }
     if (!page.nextCursor || page.items.length === 0) break;
@@ -296,10 +296,10 @@ export default function AlbumDetailPage() {
     if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, string[]>();
     for (const summary of albumSummaries) {
-      if (summary.album_id === albumId) continue;
-      const album = albums.find((a) => a.id === summary.album_id);
+      if (summary.albumId === albumId) continue;
+      const album = albums.find((a) => a.id === summary.albumId);
       const name = album ? albumDisplayName(album) : 'Another album';
-      const otherOwned = new Set(summary.owned_album_codes);
+      const otherOwned = new Set(summary.ownedAlbumCodes);
       for (const albumCode of ownedMap.keys()) {
         if (!otherOwned.has(albumCode)) {
           if (!map.has(albumCode)) map.set(albumCode, []);
@@ -314,10 +314,10 @@ export default function AlbumDetailPage() {
     if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, string[]>();
     for (const summary of albumSummaries) {
-      if (summary.album_id === albumId) continue;
-      const album = albums.find((a) => a.id === summary.album_id);
+      if (summary.albumId === albumId) continue;
+      const album = albums.find((a) => a.id === summary.albumId);
       const name = album ? albumDisplayName(album) : 'Another album';
-      for (const albumCode of summary.duplicate_album_codes) {
+      for (const albumCode of summary.duplicateAlbumCodes) {
         if (!map.has(albumCode)) map.set(albumCode, []);
         map.get(albumCode)!.push(name);
       }
@@ -329,13 +329,13 @@ export default function AlbumDetailPage() {
     if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, Array<{ id: string; name: string }>>();
     for (const summary of albumSummaries) {
-      if (summary.album_id === albumId) continue;
-      const album = albums.find((a) => a.id === summary.album_id);
+      if (summary.albumId === albumId) continue;
+      const album = albums.find((a) => a.id === summary.albumId);
       if (!album) continue;
       const name = albumDisplayName(album);
-      for (const albumCode of summary.owned_album_codes) {
+      for (const albumCode of summary.ownedAlbumCodes) {
         if (!map.has(albumCode)) map.set(albumCode, []);
-        map.get(albumCode)!.push({ id: summary.album_id, name });
+        map.get(albumCode)!.push({ id: summary.albumId, name });
       }
     }
     return map;
@@ -351,22 +351,22 @@ export default function AlbumDetailPage() {
     if (!albumSettings) return stickers;
     const edition = activeAlbum.edition;
     return stickers.filter((s) => {
-      if (s.sticker_type === 'coca_cola_special') return albumSettings.include_coca_cola;
+      if (s.stickerType === 'coca_cola_special') return albumSettings.includeCocaCola;
       const hasPage =
-        (s.sticker_pages?.[edition]?.page_start != null && s.sticker_pages?.[edition]?.page_end != null) ||
-        s.team_pages?.[edition] != null;
-      if (s.sticker_type === 'museum' && !hasPage) return albumSettings.include_non_album_museum;
+        (s.stickerPages?.[edition]?.pageStart != null && s.stickerPages?.[edition]?.pageEnd != null) ||
+        s.teamPages?.[edition] != null;
+      if (s.stickerType === 'museum' && !hasPage) return albumSettings.includeNonAlbumMuseum;
       if (hasPage) return true;
-      return albumSettings.include_all_stickers;
+      return albumSettings.includeAllStickers;
     });
   }, [stickers, activeAlbum]);
 
   const tabBase = useMemo(() => {
     if (tab === 'all') return settingsFilteredStickers;
-    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.album_code));
-    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.album_code));
+    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
+    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
     return settingsFilteredStickers.filter((s) => {
-      const p = ownedMap.get(s.album_code);
+      const p = ownedMap.get(s.albumCode);
       return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
     });
   }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
@@ -376,9 +376,9 @@ export default function AlbumDetailPage() {
 
     const stickerPageRange = (s: Sticker): [number, number] | null => {
       if (!edition) return null;
-      const sp = s.sticker_pages?.[edition];
-      if (sp?.page_start != null && sp?.page_end != null) return [sp.page_start, sp.page_end];
-      const tp = s.team_pages?.[edition];
+      const sp = s.stickerPages?.[edition];
+      if (sp?.pageStart != null && sp?.pageEnd != null) return [sp.pageStart, sp.pageEnd];
+      const tp = s.teamPages?.[edition];
       return tp ? [tp[0], tp[1]] : null;
     };
 
@@ -395,23 +395,23 @@ export default function AlbumDetailPage() {
 
     const filterExcept = (exclude: keyof FilterState): Sticker[] =>
       tabBase.filter((s) => {
-        if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.album_code)) return false;
-        if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
-        if (exclude !== 'team' && filters.team?.length && !filters.team.includes(s.team_name ?? '') && !filters.team.includes(s.fifa_code ?? '')) return false;
-        if (exclude !== 'type' && filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
+        if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
+        if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
+        if (exclude !== 'team' && filters.team?.length && !filters.team.includes(s.teamName ?? '') && !filters.team.includes(s.fifaCode ?? '')) return false;
+        if (exclude !== 'type' && filters.type?.length && !filters.type.includes(s.stickerType)) return false;
         if (exclude !== 'variant' && filters.variant?.length) {
-          const p = ownedMap.get(s.album_code);
+          const p = ownedMap.get(s.albumCode);
           if (!p || !filters.variant.some((v) => p.has(v))) return false;
         }
         if (exclude !== 'search' && filters.search) {
           const q = filters.search.toLowerCase();
-          if (!s.player_name?.toLowerCase().includes(q) && !s.album_code.toLowerCase().includes(q) && !s.team_name?.toLowerCase().includes(q)) return false;
+          if (!s.playerName?.toLowerCase().includes(q) && !s.albumCode.toLowerCase().includes(q) && !s.teamName?.toLowerCase().includes(q)) return false;
         }
         if (exclude !== 'pageFrom' && exclude !== 'pageTo' && !matchesPageRange(s)) return false;
         return true;
       });
 
-    const groupSet = new Set(filterExcept('group').map((s) => s.group_name).filter(Boolean) as string[]);
+    const groupSet = new Set(filterExcept('group').map((s) => s.groupName).filter(Boolean) as string[]);
     const groupOptions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
       .filter((g) => groupSet.has(g))
       .map((g) => ({ value: g, label: `Group ${g}` }));
@@ -419,19 +419,19 @@ export default function AlbumDetailPage() {
     const teamSeen = new Set<string>();
     const teamOptions: { value: string; label: string }[] = [];
     for (const s of filterExcept('team')) {
-      if (s.team_name && !teamSeen.has(s.team_name)) {
-        teamSeen.add(s.team_name);
-        teamOptions.push({ value: s.team_name, label: s.team_name });
+      if (s.teamName && !teamSeen.has(s.teamName)) {
+        teamSeen.add(s.teamName);
+        teamOptions.push({ value: s.teamName, label: s.teamName });
       }
     }
     teamOptions.sort((a, b) => a.label.localeCompare(b.label));
 
-    const typeSet = new Set(filterExcept('type').map((s) => s.sticker_type).filter(Boolean));
+    const typeSet = new Set(filterExcept('type').map((s) => s.stickerType).filter(Boolean));
     const typeOptions = Object.entries(TYPE_LABELS).filter(([v]) => typeSet.has(v)).map(([value, label]) => ({ value, label }));
 
     const variantSet = new Set<string>();
     for (const s of filterExcept('variant')) {
-      const p = ownedMap.get(s.album_code);
+      const p = ownedMap.get(s.albumCode);
       if (p) for (const vt of p.keys()) variantSet.add(vt);
     }
     const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
@@ -445,7 +445,7 @@ export default function AlbumDetailPage() {
     let owned = 0;
     let duplicates = 0;
     for (const s of settingsFilteredStickers) {
-      const perSticker = ownedMap.get(s.album_code);
+      const perSticker = ownedMap.get(s.albumCode);
       if (perSticker) {
         owned++;
         if (isDuplicateSticker(perSticker, duplicatesCountAllVariants)) duplicates++;
@@ -459,7 +459,7 @@ export default function AlbumDetailPage() {
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
     for (const s of settingsFilteredStickers) {
-      const perSticker = ownedMap.get(s.album_code);
+      const perSticker = ownedMap.get(s.albumCode);
       if (perSticker) {
         for (const entry of perSticker.values()) sum += entry.quantity;
       }
@@ -470,7 +470,7 @@ export default function AlbumDetailPage() {
   const totalExtraCopies = useMemo(() => {
     let sum = 0;
     for (const s of settingsFilteredStickers) {
-      const perSticker = ownedMap.get(s.album_code);
+      const perSticker = ownedMap.get(s.albumCode);
       if (!perSticker) continue;
       if (duplicatesCountAllVariants) {
         let total = 0;
@@ -491,25 +491,25 @@ export default function AlbumDetailPage() {
     if (tab === 'all') {
       base = settingsFilteredStickers;
     } else if (tab === 'have') {
-      base = settingsFilteredStickers.filter((s) => ownedMap.has(s.album_code));
+      base = settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
     } else if (tab === 'missing') {
       base = missingItems.length > 0
-        ? missingItems.filter((s) => settingsFilteredStickers.some((sf) => sf.album_code === s.album_code))
-        : settingsFilteredStickers.filter((s) => !ownedMap.has(s.album_code));
+        ? missingItems.filter((s) => settingsFilteredStickers.some((sf) => sf.albumCode === s.albumCode))
+        : settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
     } else {
       if (duplicateItems.length > 0) {
         const seen = new Set<string>();
         base = [];
         for (const d of duplicateItems) {
-          if (seen.has(d.album_code)) continue;
-          seen.add(d.album_code);
-          const match = settingsFilteredStickers.find((s) => s.album_code === d.album_code);
+          if (seen.has(d.albumCode)) continue;
+          seen.add(d.albumCode);
+          const match = settingsFilteredStickers.find((s) => s.albumCode === d.albumCode);
           if (match) base.push(match);
           else base.push(d as unknown as Sticker);
         }
       } else {
         base = settingsFilteredStickers.filter((s) => {
-          const p = ownedMap.get(s.album_code);
+          const p = ownedMap.get(s.albumCode);
           return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
         });
       }
@@ -518,24 +518,24 @@ export default function AlbumDetailPage() {
     const edition = activeAlbum?.edition;
 
     return base.filter((s) => {
-      if (filters.favouritesOnly && !favouriteSet.has(s.album_code)) return false;
-      if (filters.group?.length && !filters.group.includes(s.group_name ?? '')) return false;
-      if (filters.team?.length && !filters.team.includes(s.team_name ?? '') && !filters.team.includes(s.fifa_code ?? '')) return false;
-      if (filters.type?.length && !filters.type.includes(s.sticker_type)) return false;
+      if (filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
+      if (filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
+      if (filters.team?.length && !filters.team.includes(s.teamName ?? '') && !filters.team.includes(s.fifaCode ?? '')) return false;
+      if (filters.type?.length && !filters.type.includes(s.stickerType)) return false;
       if (filters.variant?.length) {
-        const p = ownedMap.get(s.album_code);
+        const p = ownedMap.get(s.albumCode);
         if (!p || !filters.variant.some((v) => p.has(v))) return false;
       }
-      if (filters.search && !s.player_name?.toLowerCase().includes(filters.search.toLowerCase()) && !s.album_code.toLowerCase().includes(filters.search.toLowerCase()) && !s.team_name?.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
       if (filters.pageFrom != null || filters.pageTo != null) {
         if (!edition) return false;
-        const sp = s.sticker_pages?.[edition];
+        const sp = s.stickerPages?.[edition];
         let sStart: number | null = null;
         let sEnd: number | null = null;
-        if (sp?.page_start != null && sp?.page_end != null) {
-          sStart = sp.page_start; sEnd = sp.page_end;
+        if (sp?.pageStart != null && sp?.pageEnd != null) {
+          sStart = sp.pageStart; sEnd = sp.pageEnd;
         } else {
-          const tp = s.team_pages?.[edition];
+          const tp = s.teamPages?.[edition];
           if (tp) { sStart = tp[0]; sEnd = tp[1]; }
         }
         if (sStart == null || sEnd == null) return false;
@@ -588,7 +588,7 @@ export default function AlbumDetailPage() {
   }, []);
 
   const handleSelectAll = useCallback(() => {
-    setSelectedCodes(new Set(displayedStickers.map((s) => s.album_code)));
+    setSelectedCodes(new Set(displayedStickers.map((s) => s.albumCode)));
   }, [displayedStickers]);
 
   const handleDeselectAll = useCallback(() => {
@@ -639,7 +639,7 @@ export default function AlbumDetailPage() {
     setMassWorking(true);
     try {
       const selectedStickerList = stickers.filter(
-        (s) => selectedCodes.has(s.album_code) && !ownedMap.get(s.album_code)?.has(variantType),
+        (s) => selectedCodes.has(s.albumCode) && !ownedMap.get(s.albumCode)?.has(variantType),
       );
       if (selectedStickerList.length === 0) {
         addToast('All selected stickers already own that variant.');
@@ -647,21 +647,21 @@ export default function AlbumDetailPage() {
       }
       if (variantType === 'base') {
         await runBatched(selectedStickerList, 10, async (sticker) => {
-          if (!sticker.base_variant_id) return;
-          await addSticker(usr.id, sticker.base_variant_id, 1, tok, albumId);
+          if (!sticker.baseVariantId) return;
+          await addSticker(usr.id, sticker.baseVariantId, 1, tok, albumId);
         });
       } else {
-        const codes = selectedStickerList.map((s) => s.album_code);
+        const codes = selectedStickerList.map((s) => s.albumCode);
         const variantIdMap = new Map<string, string>();
         for (let i = 0; i < codes.length; i += 100) {
           const results = await fetchStickersBulk(codes.slice(i, i + 100), tok);
           for (const lookup of results) {
-            const v = lookup.variants.find((x) => x.variant_type === variantType);
-            if (v) variantIdMap.set(lookup.album_code, v.id);
+            const v = lookup.variants.find((x) => x.variantType === variantType);
+            if (v) variantIdMap.set(lookup.albumCode, v.id);
           }
         }
         await runBatched(selectedStickerList, 10, async (sticker) => {
-          const variantId = variantIdMap.get(sticker.album_code);
+          const variantId = variantIdMap.get(sticker.albumCode);
           if (!variantId) return;
           await addSticker(usr.id, variantId, 1, tok, albumId);
         });
@@ -877,11 +877,11 @@ export default function AlbumDetailPage() {
                   <p className="text-sm text-gray-500 mt-0.5">
                     {activeAlbum.alias && (
                       <span className="mr-1.5">
-                        {activeAlbum.album_type_name} ·
+                        {activeAlbum.albumTypeName} ·
                       </span>
                     )}
                     {activeAlbum.edition_name} Edition
-                    {activeAlbum.is_default && (
+                    {activeAlbum.isDefault && (
                       <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
                         <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -893,9 +893,9 @@ export default function AlbumDetailPage() {
                   {(() => {
                     const s = activeAlbum.settings;
                     const chips = [
-                      s.include_coca_cola        && 'Coca-Cola',
-                      s.include_non_album_museum && 'Museum (no album)',
-                      s.include_all_stickers     && 'Unlisted stickers',
+                      s.includeCocaCola        && 'Coca-Cola',
+                      s.includeNonAlbumMuseum && 'Museum (no album)',
+                      s.includeAllStickers     && 'Unlisted stickers',
                     ].filter(Boolean) as string[];
                     return chips.length > 0 ? (
                       <div className="flex flex-wrap gap-1 mt-1.5">
@@ -917,7 +917,7 @@ export default function AlbumDetailPage() {
 
           {activeAlbum && (
             <div className="flex items-center gap-2">
-              {!activeAlbum.is_default && (
+              {!activeAlbum.isDefault && (
                 <button
                   onClick={handleSetDefault}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
@@ -1098,7 +1098,7 @@ export default function AlbumDetailPage() {
           totalDisplayed={displayedStickers.length}
           allDisplayedSelected={
             displayedStickers.length > 0 &&
-            displayedStickers.every((s) => selectedCodes.has(s.album_code))
+            displayedStickers.every((s) => selectedCodes.has(s.albumCode))
           }
           hasAnyOwned={selectedHasAnyOwned}
           favouriteState={selectedFavouriteState}

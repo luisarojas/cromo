@@ -35,7 +35,7 @@ function EditRow({
   onCancel: () => void;
 }) {
   const [form, setForm] = useState<EditForm>({
-    playerName: sticker.player_name ?? '',
+    playerName: sticker.playerName ?? '',
     position: sticker.position ?? '',
     notes: '',
   });
@@ -148,9 +148,9 @@ function StickersSection({ token }: { token: string }) {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      s.album_code.toLowerCase().includes(q) ||
-      (s.player_name?.toLowerCase().includes(q) ?? false) ||
-      (s.team_name?.toLowerCase().includes(q) ?? false)
+      s.albumCode.toLowerCase().includes(q) ||
+      (s.playerName?.toLowerCase().includes(q) ?? false) ||
+      (s.teamName?.toLowerCase().includes(q) ?? false)
     );
   });
 
@@ -200,15 +200,15 @@ function StickersSection({ token }: { token: string }) {
                   <tr
                     className={`hover:bg-gray-50 transition-colors ${editingId === sticker.id ? 'bg-blue-50' : ''}`}
                   >
-                    <td className="px-4 py-2 font-mono font-semibold text-gray-800">{sticker.album_code}</td>
+                    <td className="px-4 py-2 font-mono font-semibold text-gray-800">{sticker.albumCode}</td>
                     <td className="px-4 py-2 text-gray-700">
-                      {sticker.player_name ?? <span className="text-gray-300">—</span>}
+                      {sticker.playerName ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-2 text-gray-600">
-                      {sticker.team_name ?? <span className="text-gray-300">—</span>}
+                      {sticker.teamName ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded bg-gray-100 text-gray-600 px-1.5 py-0.5 text-xs">{sticker.sticker_type}</span>
+                      <span className="rounded bg-gray-100 text-gray-600 px-1.5 py-0.5 text-xs">{sticker.stickerType}</span>
                     </td>
                     <td className="px-4 py-2 text-gray-500 text-xs">{sticker.position ?? '—'}</td>
                     <td className="px-4 py-2">
@@ -275,12 +275,12 @@ function SortableHeader({
 }
 
 function StatusBadge({ user }: { user: AdminUser }) {
-  if (user.deleted_at) {
+  if (user.deletedAt) {
     return (
       <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">Deleted</span>
     );
   }
-  if (user.is_banned) {
+  if (user.isBanned) {
     return (
       <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-600">Banned</span>
     );
@@ -411,7 +411,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
     }
   };
 
-  const statusOrder = (u: AdminUser) => (u.deleted_at ? 2 : u.is_banned ? 1 : 0);
+  const statusOrder = (u: AdminUser) => (u.deletedAt ? 2 : u.isBanned ? 1 : 0);
 
   const sorted = [...users].sort((a, b) => {
     let cmp = 0;
@@ -420,7 +420,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
       case 'email': cmp = a.email.localeCompare(b.email); break;
       case 'role': cmp = a.role.localeCompare(b.role); break;
       case 'status': cmp = statusOrder(a) - statusOrder(b); break;
-      case 'joined': cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime(); break;
+      case 'joined': cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); break;
     }
     return sortDir === 'asc' ? cmp : -cmp;
   });
@@ -440,7 +440,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
 
   const handleBanConfirm = async (userId: string, reason: string) => {
     await banAdminUser(userId, reason, token);
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_banned: true } : u)));
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isBanned: true } : u)));
     setBanningId(null);
   };
 
@@ -449,7 +449,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
     setActionError(null);
     try {
       await unbanAdminUser(user.id, token);
-      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_banned: false } : u)));
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, isBanned: false } : u)));
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to unban user');
     }
@@ -461,7 +461,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
     try {
       await deleteAdminUser(user.id, token);
       setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, deleted_at: new Date().toISOString() } : u)),
+        prev.map((u) => (u.id === user.id ? { ...u, deletedAt: new Date().toISOString() } : u)),
       );
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to delete user');
@@ -533,7 +533,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                 {sorted.map((user) => (
                   <Fragment key={user.id}>
                     <tr
-                      className={`hover:bg-gray-50 transition-colors ${user.deleted_at ? 'opacity-50' : ''}`}
+                      className={`hover:bg-gray-50 transition-colors ${user.deletedAt ? 'opacity-50' : ''}`}
                     >
                       <td className="px-4 py-2 font-medium text-gray-800">
                         {user.username}
@@ -543,7 +543,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                       </td>
                       <td className="px-4 py-2 text-gray-500">{user.email}</td>
                       <td className="px-4 py-2">
-                        {user.id === currentUserId || user.deleted_at ? (
+                        {user.id === currentUserId || user.deletedAt ? (
                           <RoleBadge role={user.role} />
                         ) : (
                           <select
@@ -558,14 +558,14 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                       </td>
                       <td className="px-4 py-2"><StatusBadge user={user} /></td>
                       <td className="px-4 py-2 text-gray-400 text-xs">
-                        {new Date(user.created_at).toLocaleDateString()}
+                        {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-2">
-                        {user.id === currentUserId || user.deleted_at ? (
+                        {user.id === currentUserId || user.deletedAt ? (
                           <span className="text-xs text-gray-300">—</span>
                         ) : (
                           <div className="flex gap-1.5 flex-wrap">
-                            {user.is_banned ? (
+                            {user.isBanned ? (
                               <button
                                 onClick={() => handleUnban(user)}
                                 className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-green-600 hover:bg-green-50 transition-colors"

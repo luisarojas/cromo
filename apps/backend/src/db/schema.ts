@@ -64,17 +64,15 @@ export const albumEditions = pgTable('album_editions', {
 
 // ─── user_albums ──────────────────────────────────────────────────────────────
 
-export interface AlbumSettings {
-  include_all_stickers: boolean;
-  include_coca_cola: boolean;
-  include_non_album_museum: boolean;
-}
+import type { AlbumSettings } from '@stickfolio/shared';
 
 const DEFAULT_ALBUM_SETTINGS: AlbumSettings = {
-  include_all_stickers: true,
-  include_coca_cola: true,
-  include_non_album_museum: true,
+  includeAllStickers: true,
+  includeCocaCola: true,
+  includeNonAlbumMuseum: true,
 };
+
+export type { AlbumSettings };
 
 export const userAlbums = pgTable('user_albums', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -129,7 +127,9 @@ export const consentRecords = pgTable('consent_records', {
   ipAddress: inet('ip_address'),
   userAgent: text('user_agent'),
   recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (table) => ({
+  userTypeIdx: index('idx_consent_records_user_id_type').on(table.userId, table.consentType),
+}));
 
 // ─── email_verification_tokens ────────────────────────────────────────────────
 
@@ -246,8 +246,8 @@ export const tradeRequests = pgTable('trade_requests', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   requesterId: uuid('requester_id').notNull().references(() => users.id),
   recipientId: uuid('recipient_id').notNull().references(() => users.id),
-  requesterAlbumId: uuid('requester_album_id').references(() => userAlbums.id),
-  recipientAlbumId: uuid('recipient_album_id').references(() => userAlbums.id),
+  requesterAlbumId: uuid('requester_album_id').notNull().references(() => userAlbums.id),
+  recipientAlbumId: uuid('recipient_album_id').notNull().references(() => userAlbums.id),
   status: text('status').notNull().default('pending'),
   counterCount: integer('counter_count').notNull().default(0),
   offerCash: integer('offer_cash').notNull().default(0),
@@ -350,7 +350,9 @@ export const auditLog = pgTable('audit_log', {
   userAgent: text('user_agent'),
   metadata: jsonb('metadata'),
   occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().default(sql`now()`),
-});
+}, (table) => ({
+  userOccurredIdx: index('idx_audit_log_user_id_occurred_at').on(table.userId, table.occurredAt.desc()),
+}));
 
 // ─── trade_ratings ────────────────────────────────────────────────────────────
 
@@ -367,6 +369,7 @@ export const tradeRatings = pgTable('trade_ratings', {
     table.tradeId,
     table.raterId
   ),
+  ratedUserIdx: index('idx_trade_ratings_rated_user_id').on(table.ratedUserId),
   commentCheck: check('trade_ratings_comment_check', sql`char_length(${table.comment}) <= 500`),
   raterCheck: check('trade_ratings_rater_check', sql`${table.raterId} <> ${table.ratedUserId}`),
 }));
@@ -407,6 +410,7 @@ export const userReports = pgTable('user_reports', {
     'user_reports_reporter_check',
     sql`${table.reporterId} <> ${table.reportedUserId}`
   ),
+  reportedStatusIdx: index('idx_user_reports_reported_user_id_status').on(table.reportedUserId, table.status),
 }));
 
 // ─── user_bans ────────────────────────────────────────────────────────────────

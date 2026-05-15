@@ -79,9 +79,9 @@ export default function PublicProfilePage() {
     );
   }
 
-  const stats = profile.collection_stats;
-  const displayName = profile.display_name ?? `@${profile.username}`;
-  const memberSince = new Date(profile.member_since).toLocaleDateString(undefined, {
+  const stats = profile.collectionStats;
+  const displayName = profile.displayName ?? `@${profile.username}`;
+  const memberSince = new Date(profile.memberSince).toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'long',
   });
@@ -91,10 +91,10 @@ export default function PublicProfilePage() {
       {/* Profile header */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 mb-5">
         <div className="flex items-center gap-4">
-          {profile.avatar_url ? (
+          {profile.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={profile.avatar_url}
+              src={profile.avatarUrl}
               alt={displayName}
               className="h-16 w-16 rounded-full object-cover border border-gray-200"
             />
@@ -105,7 +105,7 @@ export default function PublicProfilePage() {
           )}
           <div>
             <h1 className="text-2xl font-bold text-gray-800">{displayName}</h1>
-            {profile.display_name && (
+            {profile.displayName && (
               <div className="text-sm text-gray-500">@{profile.username}</div>
             )}
             <div className="text-xs text-gray-400 mt-1">Member since {memberSince}</div>
