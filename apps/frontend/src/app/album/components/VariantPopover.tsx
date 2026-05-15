@@ -279,8 +279,8 @@ export default function VariantPopover({
                       tradeHidden: !entry.tradeHidden,
                       ...((!entry.tradeHidden) && { tradeForced: false }),
                     })}
-                    disabled={busy || entry.tradeForced}
-                    title={entry.tradeForced ? 'Cannot hide while forced for trade' : entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
+                    disabled={busy || (entry.tradeForced && !entry.tradeHidden)}
+                    title={entry.tradeForced && !entry.tradeHidden ? 'Cannot hide while forced for trade' : entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeHidden
                         ? 'bg-red-100 text-red-700 hover:bg-red-200'
@@ -301,8 +301,8 @@ export default function VariantPopover({
                       tradeForced: !entry.tradeForced,
                       ...((!entry.tradeForced) && { tradeHidden: false }),
                     })}
-                    disabled={busy || entry.tradeHidden}
-                    title={entry.tradeHidden ? 'Cannot force trade while hidden' : entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
+                    disabled={busy || (entry.tradeHidden && !entry.tradeForced)}
+                    title={entry.tradeHidden && !entry.tradeForced ? 'Cannot force trade while hidden' : entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeForced
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'
