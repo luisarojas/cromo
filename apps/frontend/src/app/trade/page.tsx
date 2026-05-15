@@ -9,6 +9,7 @@ import {
   fetchTrades,
   fetchCollection,
   createTrade,
+  setTradeFlags,
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
@@ -236,6 +237,32 @@ export default function TradePage() {
         .catch(() => {
           setProposeModal((prev) => (prev ? { ...prev, offerItemsLoading: false } : prev));
         });
+    }
+  }
+
+  async function handleHideSticker(variantId: string) {
+    if (!user || !token || !selectedAlbumId) return;
+    setProposeModal((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        offerItems: prev.offerItems.map((item) =>
+          item.sticker_variant_id === variantId ? { ...item, trade_hidden: true } : item,
+        ),
+      };
+    });
+    try {
+      await setTradeFlags(user.id, variantId, { tradeHidden: true }, token, selectedAlbumId);
+    } catch {
+      setProposeModal((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          offerItems: prev.offerItems.map((item) =>
+            item.sticker_variant_id === variantId ? { ...item, trade_hidden: false } : item,
+          ),
+        };
+      });
     }
   }
 
@@ -502,6 +529,7 @@ export default function TradePage() {
                 suggestedWantVariantIds={proposeModal.match.they_have_variant_ids}
                 token={token}
                 favouriteCodes={favouriteCodes}
+                onHideSticker={handleHideSticker}
                 initialOfferVariants={proposeModal.draftOfferVariants}
                 initialWantVariantIds={proposeModal.draftWantVariantIds}
                 initialOfferCash={proposeModal.draftOfferCash}
