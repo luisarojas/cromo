@@ -267,7 +267,13 @@ export default function TradeStickerPicker({
   const selectedVariantIds = new Set(selectedOffers.map((o) => o.variantId));
   const ownedAlbumCodes = new Set(offerItems.map((item) => item.album_code));
 
-  const offerVariants = [...new Set(offerItems.map((d) => d.variant_type))].sort();
+  const offerVariants = [
+    ...new Set(
+      offerItems
+        .filter((d) => !d.trade_hidden && !selectedVariantIds.has(d.sticker_variant_id))
+        .map((d) => d.variant_type),
+    ),
+  ].sort();
 
   const filteredDups = offerItems
     .filter((item) => {
