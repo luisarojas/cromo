@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
 
@@ -43,6 +43,10 @@ interface Props {
   token: string;
   favouriteCodes?: Set<string>;
   onChange: (items: TradePickerItem[], offerCash: number, wantCash: number) => void;
+  initialOfferVariants?: { variantId: string; quantity: number }[];
+  initialWantVariantIds?: string[];
+  initialOfferCash?: number;
+  initialWantCash?: number;
 }
 
 let keySeq = 0;
@@ -65,6 +69,10 @@ export default function TradeStickerPicker({
   token,
   favouriteCodes = new Set(),
   onChange,
+  initialOfferVariants,
+  initialWantVariantIds,
+  initialOfferCash,
+  initialWantCash,
 }: Props) {
   const [selectedOffers, setSelectedOffers] = useState<SelectedOffer[]>([]);
   const [wantItems, setWantItems] = useState<WantItem[]>([]);
@@ -73,12 +81,56 @@ export default function TradeStickerPicker({
   const [offerQtyFilter, setOfferQtyFilter] = useState<'' | 'duplicate' | 'single'>('');
   const [wantVariantFilters, setWantVariantFilters] = useState<string[]>([]);
   const [wantSearch, setWantSearch] = useState('');
-  const [offerCashInput, setOfferCashInput] = useState('');
-  const [wantCashInput, setWantCashInput] = useState('');
+  const [offerCashInput, setOfferCashInput] = useState(
+    () => (initialOfferCash && initialOfferCash > 0 ? (initialOfferCash / 100).toFixed(2) : ''),
+  );
+  const [wantCashInput, setWantCashInput] = useState(
+    () => (initialWantCash && initialWantCash > 0 ? (initialWantCash / 100).toFixed(2) : ''),
+  );
 
   const wantInitRef = useRef(false);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  const initialOfferVariantsMemo = useMemo(() => initialOfferVariants, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const initialWantVariantIdsMemo = useMemo(() => initialWantVariantIds, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const offerDraftApplied = useRef(false);
+  useEffect(() => {
+    if (offerDraftApplied.current || !initialOfferVariantsMemo?.length || offerItemsLoading || offerItems.length === 0) return;
+    offerDraftApplied.current = true;
+    const draftMap = new Map(initialOfferVariantsMemo.map((d) => [d.variantId, d.quantity]));
+    const restored: SelectedOffer[] = [];
+    for (const item of offerItems) {
+      const qty = draftMap.get(item.sticker_variant_id);
+      if (qty === undefined) continue;
+      restored.push({
+        variantId: item.sticker_variant_id,
+        albumCode: item.album_code,
+        playerName: item.player_name,
+        teamName: item.team_name,
+        variantType: item.variant_type,
+        maxQty: item.quantity,
+        quantity: Math.min(qty, item.quantity),
+      });
+    }
+    if (restored.length > 0) setSelectedOffers(restored);
+  }, [offerItems, offerItemsLoading, initialOfferVariantsMemo]);
+
+  const wantDraftApplied = useRef(false);
+  useEffect(() => {
+    if (wantDraftApplied.current || !initialWantVariantIdsMemo?.length) return;
+    if (wantItems.length === 0 || wantItems.some((w) => w.loading)) return;
+    wantDraftApplied.current = true;
+    const draftIds = new Set(initialWantVariantIdsMemo);
+    setWantItems((prev) =>
+      prev.map((w) => {
+        const matchingVariant = w.allVariants.find((v) => draftIds.has(v.id));
+        if (!matchingVariant) return w;
+        return { ...w, selected: true, variantId: matchingVariant.id, variantType: matchingVariant.variant_type };
+      }),
+    );
+  }, [wantItems, initialWantVariantIdsMemo]);
 
   useEffect(() => {
     const items: TradePickerItem[] = [

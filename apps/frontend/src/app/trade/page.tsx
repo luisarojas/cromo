@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -18,6 +18,45 @@ import {
 import TradeStickerPicker, { type TradePickerItem } from './components/TradeStickerPicker';
 
 type Tab = 'find' | 'my';
+
+const DRAFT_KEY = 'stickfolio:trade_propose_draft';
+
+interface TradeDraft {
+  matchUserId: string;
+  match: TradeMatch;
+  offerVariants: { variantId: string; quantity: number }[];
+  wantVariantIds: string[];
+  offerCashCents: number;
+  wantCashCents: number;
+}
+
+function saveDraft(match: TradeMatch, items: TradePickerItem[], offerCashCents: number, wantCashCents: number) {
+  try {
+    const draft: TradeDraft = {
+      matchUserId: match.user_id,
+      match,
+      offerVariants: items.filter((i) => i.direction === 'offer').map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+      wantVariantIds: items.filter((i) => i.direction === 'want').map((i) => i.variantId),
+      offerCashCents,
+      wantCashCents,
+    };
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch { /* ignore */ }
+}
+
+function clearDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+}
+
+function loadDraft(matchUserId?: string): TradeDraft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as TradeDraft;
+    if (matchUserId !== undefined && draft.matchUserId !== matchUserId) return null;
+    return draft;
+  } catch { return null; }
+}
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
@@ -37,6 +76,10 @@ interface ProposeModalState {
   error: string | null;
   offerItems: CollectionItem[];
   offerItemsLoading: boolean;
+  draftOfferVariants?: { variantId: string; quantity: number }[];
+  draftWantVariantIds?: string[];
+  draftOfferCash?: number;
+  draftWantCash?: number;
 }
 
 export default function TradePage() {
@@ -71,6 +114,7 @@ export default function TradePage() {
 
   // Propose modal
   const [proposeModal, setProposeModal] = useState<ProposeModalState | null>(null);
+  const draftRestoredRef = useRef(false);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -139,6 +183,16 @@ export default function TradePage() {
     }
   }, [selectedAlbumId]);
 
+  // Auto-restore a trade draft if the user refreshed mid-proposal
+  useEffect(() => {
+    if (draftRestoredRef.current || !hydrated || !token || !user || !selectedAlbumId) return;
+    const draft = loadDraft();
+    if (!draft) return;
+    draftRestoredRef.current = true;
+    openProposeModal(draft.match);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, token, user, selectedAlbumId]);
+
   async function handleFindMatches() {
     if (!token || !selectedAlbumId) return;
     setMatchesLoading(true);
@@ -155,15 +209,21 @@ export default function TradePage() {
   }
 
   function openProposeModal(match: TradeMatch) {
+    const draft = loadDraft(match.user_id);
+
     setProposeModal({
       match,
       pickerItems: [],
-      offerCash: 0,
-      wantCash: 0,
+      offerCash: draft?.offerCashCents ?? 0,
+      wantCash: draft?.wantCashCents ?? 0,
       submitting: false,
       error: null,
       offerItems: [],
       offerItemsLoading: true,
+      draftOfferVariants: draft?.offerVariants,
+      draftWantVariantIds: draft?.wantVariantIds,
+      draftOfferCash: draft?.offerCashCents,
+      draftWantCash: draft?.wantCashCents,
     });
 
     if (token && user && selectedAlbumId) {
@@ -205,6 +265,7 @@ export default function TradePage() {
         },
         token,
       );
+      clearDraft();
       setProposeModal(null);
       router.push(`/trade/${result.id}`);
     } catch (err) {
@@ -441,9 +502,17 @@ export default function TradePage() {
                 suggestedWantVariantIds={proposeModal.match.they_have_variant_ids}
                 token={token}
                 favouriteCodes={favouriteCodes}
-                onChange={(items, offerCash, wantCash) =>
-                  setProposeModal((prev) => (prev ? { ...prev, pickerItems: items, offerCash, wantCash } : prev))
-                }
+                initialOfferVariants={proposeModal.draftOfferVariants}
+                initialWantVariantIds={proposeModal.draftWantVariantIds}
+                initialOfferCash={proposeModal.draftOfferCash}
+                initialWantCash={proposeModal.draftWantCash}
+                onChange={(items, offerCash, wantCash) => {
+                  setProposeModal((prev) => {
+                    if (!prev) return prev;
+                    saveDraft(prev.match, items, offerCash, wantCash);
+                    return { ...prev, pickerItems: items, offerCash, wantCash };
+                  });
+                }}
               />
 
               {proposeModal.error && (
@@ -457,7 +526,7 @@ export default function TradePage() {
             <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
               <div className="flex gap-3">
                 <button
-                  onClick={() => setProposeModal(null)}
+                  onClick={() => { clearDraft(); setProposeModal(null); }}
                   disabled={proposeModal.submitting}
                   className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
