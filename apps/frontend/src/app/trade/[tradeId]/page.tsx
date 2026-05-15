@@ -21,6 +21,10 @@ import TradeStickerPicker, { type TradePickerItem } from '../components/TradeSti
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+function formatCash(cents: number): string {
+  return `CA$${(cents / 100).toFixed(2)}`;
+}
+
 const STATUS_BADGE: Record<TradeDetail['status'], { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
   accepted: { label: 'Accepted', className: 'bg-green-100 text-green-800' },
@@ -86,6 +90,8 @@ export default function TradeDetailPage() {
   // Counter form
   const [showCounter, setShowCounter] = useState(false);
   const [counterItems, setCounterItems] = useState<TradePickerItem[]>([]);
+  const [counterOfferCash, setCounterOfferCash] = useState(0);
+  const [counterWantCash, setCounterWantCash] = useState(0);
   const [counterError, setCounterError] = useState<string | null>(null);
   const [counterSubmitting, setCounterSubmitting] = useState(false);
   const [counterOfferItems, setCounterOfferItems] = useState<CollectionItem[]>([]);
@@ -213,11 +219,11 @@ export default function TradeDetailPage() {
   async function handleCounter() {
     if (!token) return;
 
-    const hasOffer = counterItems.some((i) => i.direction === 'offer');
-    const hasWant = counterItems.some((i) => i.direction === 'want');
+    const hasOffer = counterItems.some((i) => i.direction === 'offer') || counterOfferCash > 0;
+    const hasWant = counterItems.some((i) => i.direction === 'want') || counterWantCash > 0;
 
     if (!hasOffer || !hasWant) {
-      setCounterError('Add at least one sticker to offer and at least one to request.');
+      setCounterError('Add at least one sticker or cash amount to offer and to request.');
       return;
     }
 
@@ -226,7 +232,11 @@ export default function TradeDetailPage() {
     try {
       await counterTrade(
         tradeId,
-        { items: counterItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })) },
+        {
+          items: counterItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })),
+          offerCash: counterOfferCash,
+          wantCash: counterWantCash,
+        },
         token,
       );
       const updated = await fetchTrade(tradeId, token);
@@ -234,6 +244,8 @@ export default function TradeDetailPage() {
       setMessages(updated.messages);
       setShowCounter(false);
       setCounterItems([]);
+      setCounterOfferCash(0);
+      setCounterWantCash(0);
     } catch (err) {
       setCounterError(err instanceof Error ? err.message : 'Failed to submit counter offer');
     } finally {
@@ -369,10 +381,15 @@ export default function TradeDetailPage() {
             <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Offered
             </h3>
-            {offeredItems.length === 0 ? (
+            {offeredItems.length === 0 && trade.offer_cash === 0 ? (
               <p className="text-xs text-gray-400">Nothing offered</p>
             ) : (
               <div className="space-y-2">
+                {trade.offer_cash > 0 && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700">
+                    {formatCash(trade.offer_cash)} cash
+                  </div>
+                )}
                 {offeredItems.map((item) => (
                   <ItemCard key={item.id} item={item} />
                 ))}
@@ -383,10 +400,15 @@ export default function TradeDetailPage() {
             <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
               Wanted
             </h3>
-            {wantedItems.length === 0 ? (
+            {wantedItems.length === 0 && trade.want_cash === 0 ? (
               <p className="text-xs text-gray-400">Nothing requested</p>
             ) : (
               <div className="space-y-2">
+                {trade.want_cash > 0 && (
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                    {formatCash(trade.want_cash)} cash
+                  </div>
+                )}
                 {wantedItems.map((item) => (
                   <ItemCard key={item.id} item={item} />
                 ))}
@@ -466,7 +488,11 @@ export default function TradeDetailPage() {
                 suggestedOfferCodes={[]}
                 suggestedWantCodes={[]}
                 token={token}
-                onChange={setCounterItems}
+                onChange={(items, offerCash, wantCash) => {
+                setCounterItems(items);
+                setCounterOfferCash(offerCash);
+                setCounterWantCash(wantCash);
+              }}
               />
               {counterError && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
@@ -482,7 +508,7 @@ export default function TradeDetailPage() {
                   {counterSubmitting ? 'Submitting...' : 'Submit Counter'}
                 </button>
                 <button
-                  onClick={() => { setShowCounter(false); setCounterItems([]); }}
+                  onClick={() => { setShowCounter(false); setCounterItems([]); setCounterOfferCash(0); setCounterWantCash(0); }}
                   disabled={counterSubmitting}
                   className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >

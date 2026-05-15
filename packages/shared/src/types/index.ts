@@ -114,6 +114,8 @@ export interface TradeRequest {
   recipientId: string
   status: TradeStatus
   counterCount: number
+  offerCash: number
+  wantCash: number
   acceptedAt: string | null
   completedAt: string | null
   cancelledAt: string | null

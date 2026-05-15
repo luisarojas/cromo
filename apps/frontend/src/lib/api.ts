@@ -807,6 +807,8 @@ export interface TradeSummary {
   recipient_username: string;
   status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'completed' | 'expired';
   counter_count: number;
+  offer_cash: number;
+  want_cash: number;
   created_at: string;
   updated_at: string;
   message_count: number;
@@ -890,6 +892,8 @@ export async function createTrade(
   body: {
     recipientId: string;
     items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
+    offerCash?: number;
+    wantCash?: number;
   },
   token: string,
 ): Promise<{ id: string }> {
@@ -918,7 +922,11 @@ export async function declineTrade(id: string, token: string): Promise<void> {
 
 export async function counterTrade(
   id: string,
-  body: { items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] },
+  body: {
+    items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
+    offerCash?: number;
+    wantCash?: number;
+  },
   token: string,
 ): Promise<void> {
   return apiFetch<void>(

@@ -246,6 +246,8 @@ export const tradeRequests = pgTable('trade_requests', {
   recipientId: uuid('recipient_id').notNull().references(() => users.id),
   status: text('status').notNull().default('pending'),
   counterCount: integer('counter_count').notNull().default(0),
+  offerCash: integer('offer_cash').notNull().default(0),
+  wantCash: integer('want_cash').notNull().default(0),
   acceptedAt: timestamp('accepted_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
@@ -260,6 +262,14 @@ export const tradeRequests = pgTable('trade_requests', {
   counterCheck: check(
     'trade_requests_counter_count_check',
     sql`${table.counterCount} BETWEEN 0 AND 5`
+  ),
+  offerCashCheck: check(
+    'trade_requests_offer_cash_check',
+    sql`${table.offerCash} >= 0`
+  ),
+  wantCashCheck: check(
+    'trade_requests_want_cash_check',
+    sql`${table.wantCash} >= 0`
   ),
 }));
 

@@ -42,12 +42,18 @@ interface Props {
   suggestedWantVariantIds?: string[];
   token: string;
   favouriteCodes?: Set<string>;
-  onChange: (items: TradePickerItem[]) => void;
+  onChange: (items: TradePickerItem[], offerCash: number, wantCash: number) => void;
 }
 
 let keySeq = 0;
 function nextKey() {
   return String(++keySeq);
+}
+
+function parseCashCents(value: string): number {
+  const num = parseFloat(value);
+  if (!isFinite(num) || num < 0) return 0;
+  return Math.round(num * 100);
 }
 
 export default function TradeStickerPicker({
@@ -67,6 +73,8 @@ export default function TradeStickerPicker({
   const [offerQtyFilter, setOfferQtyFilter] = useState<'' | 'duplicate' | 'single'>('');
   const [wantVariantFilters, setWantVariantFilters] = useState<string[]>([]);
   const [wantSearch, setWantSearch] = useState('');
+  const [offerCashInput, setOfferCashInput] = useState('');
+  const [wantCashInput, setWantCashInput] = useState('');
 
   const wantInitRef = useRef(false);
   const onChangeRef = useRef(onChange);
@@ -83,8 +91,10 @@ export default function TradeStickerPicker({
         .filter((w) => w.selected && !w.loading && !w.error && w.variantId)
         .map((w) => ({ variantId: w.variantId, direction: 'want' as const, quantity: 1 })),
     ];
-    onChangeRef.current(items);
-  }, [selectedOffers, wantItems]);
+    const offerCents = parseCashCents(offerCashInput);
+    const wantCents = parseCashCents(wantCashInput);
+    onChangeRef.current(items, offerCents, wantCents);
+  }, [selectedOffers, wantItems, offerCashInput, wantCashInput]);
 
   useEffect(() => {
     if (wantInitRef.current || suggestedWantCodes.length === 0) return;
@@ -314,6 +324,23 @@ export default function TradeStickerPicker({
           </div>
         )}
 
+        {/* Cash offer input */}
+        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2">
+          <span className="text-xs font-medium text-blue-700 shrink-0">+ Cash (CAD)</span>
+          <div className="relative flex-1">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">CA$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={offerCashInput}
+              onChange={(e) => setOfferCashInput(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded border border-gray-200 bg-gray-50 pl-9 pr-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+        </div>
+
         <div className="flex flex-col gap-2">
           {selectedOffers.length > 0 && (
             <div className="flex items-center gap-2 -mx-1">
@@ -531,6 +558,23 @@ export default function TradeStickerPicker({
             )}
           </div>
         )}
+
+        {/* Cash want input */}
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2">
+          <span className="text-xs font-medium text-emerald-700 shrink-0">+ Cash (CAD)</span>
+          <div className="relative flex-1">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">CA$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={wantCashInput}
+              onChange={(e) => setWantCashInput(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded border border-gray-200 bg-gray-50 pl-9 pr-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+            />
+          </div>
+        </div>
 
         {suggestions.length > 0 && (
           <div className="flex flex-col flex-1 min-h-0 gap-3">

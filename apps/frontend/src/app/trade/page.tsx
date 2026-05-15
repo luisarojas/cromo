@@ -31,6 +31,8 @@ const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: s
 interface ProposeModalState {
   match: TradeMatch;
   pickerItems: TradePickerItem[];
+  offerCash: number;
+  wantCash: number;
   submitting: boolean;
   error: string | null;
   offerItems: CollectionItem[];
@@ -156,6 +158,8 @@ export default function TradePage() {
     setProposeModal({
       match,
       pickerItems: [],
+      offerCash: 0,
+      wantCash: 0,
       submitting: false,
       error: null,
       offerItems: [],
@@ -178,13 +182,13 @@ export default function TradePage() {
   async function handleSendTradeRequest() {
     if (!proposeModal || !token || !user) return;
 
-    const { pickerItems } = proposeModal;
-    const hasOffer = pickerItems.some((i) => i.direction === 'offer');
-    const hasWant = pickerItems.some((i) => i.direction === 'want');
+    const { pickerItems, offerCash, wantCash } = proposeModal;
+    const hasOffer = pickerItems.some((i) => i.direction === 'offer') || offerCash > 0;
+    const hasWant = pickerItems.some((i) => i.direction === 'want') || wantCash > 0;
 
     if (!hasOffer || !hasWant) {
       setProposeModal((prev) =>
-        prev ? { ...prev, error: 'Add at least one sticker to offer and at least one to request.' } : prev,
+        prev ? { ...prev, error: 'Add at least one sticker or cash amount to offer and to request.' } : prev,
       );
       return;
     }
@@ -196,6 +200,8 @@ export default function TradePage() {
         {
           recipientId: proposeModal.match.user_id,
           items: pickerItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })),
+          offerCash,
+          wantCash,
         },
         token,
       );
@@ -435,8 +441,8 @@ export default function TradePage() {
                 suggestedWantVariantIds={proposeModal.match.they_have_variant_ids}
                 token={token}
                 favouriteCodes={favouriteCodes}
-                onChange={(items) =>
-                  setProposeModal((prev) => (prev ? { ...prev, pickerItems: items } : prev))
+                onChange={(items, offerCash, wantCash) =>
+                  setProposeModal((prev) => (prev ? { ...prev, pickerItems: items, offerCash, wantCash } : prev))
                 }
               />
 
@@ -451,18 +457,18 @@ export default function TradePage() {
             <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
               <div className="flex gap-3">
                 <button
-                  onClick={handleSendTradeRequest}
-                  disabled={proposeModal.submitting || proposeModal.pickerItems.length === 0}
-                  className="flex-1 bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {proposeModal.submitting ? 'Sending...' : 'Send Request'}
-                </button>
-                <button
                   onClick={() => setProposeModal(null)}
                   disabled={proposeModal.submitting}
                   className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   Cancel
+                </button>
+                <button
+                  onClick={handleSendTradeRequest}
+                  disabled={proposeModal.submitting || proposeModal.pickerItems.length === 0}
+                  className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {proposeModal.submitting ? 'Sending...' : 'Send Request'}
                 </button>
               </div>
             </div>

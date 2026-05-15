@@ -17,11 +17,15 @@ const TradeItemSchema = z.object({
 
 const CreateTradeBody = z.object({
   recipientId: z.string().uuid(),
-  items:       z.array(TradeItemSchema).min(2),
+  items:       z.array(TradeItemSchema).min(0),
+  offerCash:   z.number().int().min(0).default(0),
+  wantCash:    z.number().int().min(0).default(0),
 });
 
 const CounterTradeBody = z.object({
-  items: z.array(TradeItemSchema).min(2),
+  items:     z.array(TradeItemSchema).min(0),
+  offerCash: z.number().int().min(0).default(0),
+  wantCash:  z.number().int().min(0).default(0),
 });
 
 const SendMessageBody = z.object({
@@ -155,6 +159,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
                 },
               },
             },
+            offerCash: { type: 'integer', minimum: 0, default: 0 },
+            wantCash:  { type: 'integer', minimum: 0, default: 0 },
           },
         },
         response: {
@@ -180,7 +186,9 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           fastify.redis,
           request.userId!,
           parsed.data.recipientId,
-          parsed.data.items
+          parsed.data.items,
+          parsed.data.offerCash,
+          parsed.data.wantCash
         );
         return reply.status(201).send(result);
       } catch (err) {
@@ -318,6 +326,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
                 },
               },
             },
+            offerCash: { type: 'integer', minimum: 0, default: 0 },
+            wantCash:  { type: 'integer', minimum: 0, default: 0 },
           },
         },
         response: { 204: { type: 'null' } },
@@ -335,7 +345,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       }
       try {
         await tradeService.counterTrade(
-          fastify.db, fastify.redis, request.userId!, id, parsed.data.items
+          fastify.db, fastify.redis, request.userId!, id, parsed.data.items,
+          parsed.data.offerCash, parsed.data.wantCash
         );
         return reply.status(204).send();
       } catch (err) {

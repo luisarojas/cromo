@@ -27,6 +27,12 @@
       "when": 1747526400000,
       "tag": "0005_album_settings",
       "breakpoints": true
+    },{
+      "idx": 5,
+      "version": "7",
+      "when": 1747612800000,
+      "tag": "0006_trade_cash_offer",
+      "breakpoints": true
     }
   ]
 }

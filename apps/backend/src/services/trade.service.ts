@@ -52,6 +52,8 @@ export interface TradeSummary {
   recipient_avatar_url: string | null;
   status: string;
   counter_count: number;
+  offer_cash: number;
+  want_cash: number;
   accepted_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
@@ -73,6 +75,8 @@ export interface TradeDetail {
   recipient_avatar_url: string | null;
   status: string;
   counter_count: number;
+  offer_cash: number;
+  want_cash: number;
   accepted_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
@@ -285,7 +289,9 @@ export async function createTrade(
   redis: Redis,
   userId: string,
   recipientId: string,
-  items: TradeItemInput[]
+  items: TradeItemInput[],
+  offerCash: number = 0,
+  wantCash: number = 0
 ): Promise<{ id: string }> {
   if (userId === recipientId) {
     throw makeError('You cannot trade with yourself.', 400);
@@ -299,18 +305,18 @@ export async function createTrade(
     throw makeError('Recipient not found.', 404);
   }
 
-  const hasOffer = items.some((i) => i.direction === 'offer');
-  const hasWant = items.some((i) => i.direction === 'want');
+  const hasOffer = items.some((i) => i.direction === 'offer') || offerCash > 0;
+  const hasWant = items.some((i) => i.direction === 'want') || wantCash > 0;
   if (!hasOffer || !hasWant) {
-    throw makeError('Trade must include at least one offer item and one want item.', 400);
+    throw makeError('Trade must include at least one offer and one request (stickers or cash).', 400);
   }
 
   const tradeId = crypto.randomUUID();
   await db.query(
     `INSERT INTO trade_requests
-       (id, requester_id, recipient_id, status, counter_count, created_at, updated_at)
-     VALUES ($1, $2, $3, 'pending', 0, NOW(), NOW())`,
-    [tradeId, userId, recipientId]
+       (id, requester_id, recipient_id, status, counter_count, offer_cash, want_cash, created_at, updated_at)
+     VALUES ($1, $2, $3, 'pending', 0, $4, $5, NOW(), NOW())`,
+    [tradeId, userId, recipientId, offerCash, wantCash]
   );
 
   for (const item of items) {
@@ -352,6 +358,8 @@ export async function listTrades(
        re.avatar_url     AS recipient_avatar_url,
        tr.status,
        tr.counter_count,
+       tr.offer_cash,
+       tr.want_cash,
        tr.accepted_at,
        tr.completed_at,
        tr.cancelled_at,
@@ -391,6 +399,8 @@ export async function getTrade(
     recipient_avatar_url: string | null;
     status: string;
     counter_count: number;
+    offer_cash: number;
+    want_cash: number;
     accepted_at: string | null;
     completed_at: string | null;
     cancelled_at: string | null;
@@ -410,6 +420,8 @@ export async function getTrade(
        re.avatar_url     AS recipient_avatar_url,
        tr.status,
        tr.counter_count,
+       tr.offer_cash,
+       tr.want_cash,
        tr.accepted_at,
        tr.completed_at,
        tr.cancelled_at,
@@ -542,7 +554,9 @@ export async function counterTrade(
   redis: Redis,
   userId: string,
   tradeId: string,
-  items: TradeItemInput[]
+  items: TradeItemInput[],
+  offerCash: number = 0,
+  wantCash: number = 0
 ): Promise<void> {
   const trade = await assertParticipant(db, userId, tradeId);
 
@@ -553,10 +567,10 @@ export async function counterTrade(
     throw makeError('Counter limit reached.', 409);
   }
 
-  const hasOffer = items.some((i) => i.direction === 'offer');
-  const hasWant = items.some((i) => i.direction === 'want');
+  const hasOffer = items.some((i) => i.direction === 'offer') || offerCash > 0;
+  const hasWant = items.some((i) => i.direction === 'want') || wantCash > 0;
   if (!hasOffer || !hasWant) {
-    throw makeError('Counter offer must include at least one offer item and one want item.', 400);
+    throw makeError('Counter offer must include at least one offer and one request (stickers or cash).', 400);
   }
 
   // The counter-proposer becomes the new requester
@@ -581,9 +595,11 @@ export async function counterTrade(
      SET requester_id = $2,
          recipient_id = $3,
          counter_count = counter_count + 1,
+         offer_cash = $4,
+         want_cash = $5,
          updated_at = NOW()
      WHERE id = $1`,
-    [tradeId, newRequesterId, newRecipientId]
+    [tradeId, newRequesterId, newRecipientId, offerCash, wantCash]
   );
 
   await publishTradeEvent(redis, tradeId, 'status_changed', {
