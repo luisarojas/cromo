@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import {
   fetchUserAlbums,
@@ -35,11 +35,20 @@ interface ProposeModalState {
 
 export default function TradePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
 
-  const [tab, setTab] = useState<Tab>('find');
+  const rawTab = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(rawTab === 'my' ? 'my' : 'find');
+
+  function switchTab(next: Tab) {
+    setTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', next);
+    router.replace(`/trade?${params.toString()}`);
+  }
 
   // Find Trades state
   const [albums, setAlbums] = useState<UserAlbum[]>([]);
@@ -196,7 +205,7 @@ export default function TradePage() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-200">
         <button
-          onClick={() => setTab('find')}
+          onClick={() => switchTab('find')}
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             tab === 'find'
               ? 'border-blue-600 text-blue-600'
@@ -206,7 +215,7 @@ export default function TradePage() {
           Find Trades
         </button>
         <button
-          onClick={() => setTab('my')}
+          onClick={() => switchTab('my')}
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             tab === 'my'
               ? 'border-blue-600 text-blue-600'
@@ -328,7 +337,7 @@ export default function TradePage() {
             <div className="text-center py-12">
               <p className="text-sm text-gray-500">You have no trades yet.</p>
               <button
-                onClick={() => setTab('find')}
+                onClick={() => switchTab('find')}
                 className="mt-3 text-sm text-blue-600 hover:underline"
               >
                 Find trading partners
