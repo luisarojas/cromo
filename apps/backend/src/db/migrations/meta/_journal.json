@@ -33,6 +33,12 @@
       "when": 1747612800000,
       "tag": "0006_trade_cash_offer",
       "breakpoints": true
+    },{
+      "idx": 6,
+      "version": "7",
+      "when": 1747699200000,
+      "tag": "0007_trade_flags",
+      "breakpoints": true
     }
   ]
 }
