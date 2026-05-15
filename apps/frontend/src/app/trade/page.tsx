@@ -107,6 +107,7 @@ export default function TradePage() {
   const [matches, setMatches] = useState<TradeMatch[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [matchesSearched, setMatchesSearched] = useState(false);
 
   // My Trades state
   const [trades, setTrades] = useState<TradeSummary[]>([]);
@@ -199,6 +200,7 @@ export default function TradePage() {
     setMatchesLoading(true);
     setMatchesError(null);
     setMatches([]);
+    setMatchesSearched(false);
     try {
       const data = await fetchTradeMatches(selectedAlbumId, token);
       setMatches(data);
@@ -206,6 +208,7 @@ export default function TradePage() {
       setMatchesError(err instanceof Error ? err.message : 'Failed to find matches');
     } finally {
       setMatchesLoading(false);
+      setMatchesSearched(true);
     }
   }
 
@@ -397,7 +400,7 @@ export default function TradePage() {
 
           {!matchesLoading && matches.length === 0 && !matchesError && selectedAlbumId && (
             <p className="text-sm text-gray-500 text-center py-8">
-              No matches found yet. Click "Find Matches" to search.
+              {matchesSearched ? 'No matches found.' : 'Click "Find Matches" to search.'}
             </p>
           )}
 
