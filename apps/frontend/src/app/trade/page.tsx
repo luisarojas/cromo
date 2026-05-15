@@ -505,7 +505,7 @@ export default function TradePage() {
       {/* Propose Trade Modal */}
       {proposeModal && token && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white shadow-xl flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-5xl rounded-xl border border-gray-200 bg-white shadow-xl flex flex-col max-h-[95vh]">
             {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
               <h2 className="text-lg font-semibold text-gray-800">Propose Trade</h2>

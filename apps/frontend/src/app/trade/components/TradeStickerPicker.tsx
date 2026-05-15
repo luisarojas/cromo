@@ -326,418 +326,81 @@ export default function TradeStickerPicker({
   ).length;
 
   return (
-    <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {/* ── Offer Panel ───────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-3 min-h-0">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-blue-700">You're Offering</h3>
-          {selectedOffers.length > 0 && (
-            <span className="text-xs font-medium text-blue-600 tabular-nums">
-              {selectedOffers.length} item{selectedOffers.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
+    <div className="flex-1 min-h-0 flex flex-col gap-3">
 
-        {selectedOffers.length > 0 && (
-          <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto">
-            {selectedOffers.map((o) => (
-              <div
-                key={o.variantId}
-                className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2"
-              >
-                <span
-                  className={`shrink-0 w-2 h-2 rounded-full border ${variantSwatch(o.variantType)}`}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-gray-800 leading-none truncate">
-                    {o.albumCode}
-                  </div>
-                  <div className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">
-                    {variantLabel(o.variantType)}
-                    {o.playerName ? ` · ${o.playerName}` : ''}
-                  </div>
-                </div>
-                <div className="flex items-center gap-0.5 shrink-0">
+      {/* ── Picker panels ─────────────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {/* ── Offer Panel ─────────────────────────────────────────────────── */}
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-2.5 min-h-0">
+          <div className="flex items-center justify-between shrink-0">
+            <h3 className="text-sm font-semibold text-blue-700">You're Offering</h3>
+          </div>
+
+          <div className="flex flex-col gap-2 shrink-0">
+            <div className="flex rounded-md border border-gray-200 bg-white overflow-hidden text-[11px] font-medium">
+              {(['', 'duplicate', 'single'] as const).map((v) => {
+                const label = v === '' ? 'All' : v === 'duplicate' ? 'Extras' : 'Last copy';
+                return (
                   <button
-                    onClick={() => adjustOfferQty(o.variantId, -1)}
-                    disabled={o.quantity <= 1}
-                    className="w-5 h-5 flex items-center justify-center rounded text-xs font-bold text-blue-600 hover:bg-blue-100 disabled:opacity-30 transition-colors"
-                  >
-                    −
-                  </button>
-                  <span className="w-5 text-center text-xs font-medium text-gray-700 tabular-nums">
-                    {o.quantity}
-                  </span>
-                  <button
-                    onClick={() => adjustOfferQty(o.variantId, 1)}
-                    disabled={o.quantity >= o.maxQty}
-                    className="w-5 h-5 flex items-center justify-center rounded text-xs font-bold text-blue-600 hover:bg-blue-100 disabled:opacity-30 transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
-                <button
-                  onClick={() =>
-                    setSelectedOffers((prev) => prev.filter((x) => x.variantId !== o.variantId))
-                  }
-                  className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
-                  aria-label={`Remove ${o.albumCode}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Cash offer input */}
-        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2">
-          <span className="text-xs font-medium text-blue-700 shrink-0">+ Cash</span>
-          <div className="relative flex-1">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">CA$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={offerCashInput}
-              onChange={(e) => setOfferCashInput(e.target.value)}
-              placeholder="0.00"
-              className="w-full rounded border border-gray-200 bg-gray-50 pl-9 pr-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {selectedOffers.length > 0 && (
-            <div className="flex items-center gap-2 -mx-1">
-              <div className="flex-1 h-px bg-blue-100" />
-              <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wide shrink-0">
-                Your stickers
-              </span>
-              <div className="flex-1 h-px bg-blue-100" />
-            </div>
-          )}
-
-          {/* Quantity-type filter */}
-          <div className="flex rounded-md border border-gray-200 bg-white overflow-hidden text-[11px] font-medium">
-            {(['', 'duplicate', 'single'] as const).map((v) => {
-              const label = v === '' ? 'All' : v === 'duplicate' ? 'Extras' : 'Last copy';
-              return (
-                <button
-                  key={v}
-                  onClick={() => setOfferQtyFilter(v)}
-                  className={`flex-1 px-2 py-1.5 transition-colors ${
-                    offerQtyFilter === v
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {suggestedOfferCodes.length > 0 && (
-            <button
-              onClick={() => setOfferTheyNeedOnly((v) => !v)}
-              className={`w-full px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
-                offerTheyNeedOnly
-                  ? 'bg-teal-500 text-white border-teal-500'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              They Need
-            </button>
-          )}
-
-          <input
-            type="text"
-            value={offerSearch}
-            onChange={(e) => setOfferSearch(e.target.value)}
-            placeholder="Search by code or player..."
-            className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {offerVariants.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              <button
-                onClick={() => setOfferVariantFilters([])}
-                className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                  offerVariantFilters.length === 0
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                All
-              </button>
-              {offerVariants.map((v) => (
-                <button
-                  key={v}
-                  onClick={() =>
-                    setOfferVariantFilters((prev) =>
-                      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
-                    )
-                  }
-                  className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                    offerVariantFilters.includes(v)
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  {variantLabel(v)}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
-          {offerItemsLoading ? (
-            [...Array(4)].map((_, i) => (
-              <div key={i} className="h-11 rounded-lg bg-white/60 animate-pulse" />
-            ))
-          ) : filteredDups.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-6">
-              {offerItems.length === 0
-                ? 'No stickers in your collection for this album.'
-                : 'No stickers match your filters.'}
-            </p>
-          ) : (
-            filteredDups.map((item) => {
-              const isSelected = selectedVariantIds.has(item.sticker_variant_id);
-              const isSuggested = suggestedSet.has(item.album_code);
-              const isLastCopy = item.quantity === 1;
-              return (
-                <div
-                  key={item.sticker_variant_id}
-                  onClick={() => toggleOffer(item)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' || e.key === ' ' ? toggleOffer(item) : undefined}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'border-blue-400 bg-blue-100'
-                      : isLastCopy
-                        ? 'border-amber-100 bg-amber-50/60 hover:border-amber-200 hover:bg-amber-50'
-                        : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/50'
-                  }`}
-                >
-                  <span
-                    className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(item.variant_type)}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 min-w-0">
-                      <span className="text-xs font-semibold text-gray-800 truncate">
-                        {item.album_code}
-                      </span>
-                      {isSuggested && (
-                        <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
-                          they need
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-gray-400 truncate">
-                      {variantLabel(item.variant_type)}
-                      {item.player_name ? ` · ${item.player_name}` : ''}
-                    </div>
-                  </div>
-                  {isLastCopy ? (
-                    <span className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none">
-                      last copy
-                    </span>
-                  ) : (
-                    <span className="shrink-0 text-xs text-gray-400 tabular-nums">
-                      ×{item.quantity}
-                    </span>
-                  )}
-                  {onHideSticker && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onHideSticker(item.sticker_variant_id); }}
-                      title="Hide from trades"
-                      className="shrink-0 text-gray-300 hover:text-red-400 transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                        <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                      </svg>
-                    </button>
-                  )}
-                  <span
-                    className={`shrink-0 text-sm font-medium transition-colors ${
-                      isSelected ? 'text-blue-600' : 'text-gray-300'
+                    key={v}
+                    onClick={() => setOfferQtyFilter(v)}
+                    className={`flex-1 px-2 py-1.5 transition-colors ${
+                      offerQtyFilter === v
+                        ? 'bg-blue-500 text-white'
+                        : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    {isSelected ? '✓' : '+'}
-                  </span>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── Want Panel ────────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-3 min-h-0">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-emerald-700">You Want</h3>
-          {selectedWantCount > 0 && (
-            <span className="text-xs font-medium text-emerald-600 tabular-nums">
-              {selectedWantCount} item{selectedWantCount !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-
-        {selectedWants.length > 0 && (
-          <div className="flex flex-col gap-1.5 max-h-28 overflow-y-auto">
-            {selectedWants.map((w) =>
-              w.loading ? (
-                <div key={w.key} className="h-9 rounded-lg bg-white/70 animate-pulse" />
-              ) : w.error ? (
-                <div
-                  key={w.key}
-                  className="flex items-center gap-2 rounded-lg border border-red-100 bg-white px-3 py-2"
-                >
-                  <span className="flex-1 text-xs text-red-500 truncate">
-                    {w.albumCode} — {w.error}
-                  </span>
-                  <button
-                    onClick={() => toggleWantSuggestion(w.key)}
-                    className="text-gray-300 hover:text-red-500 text-lg leading-none"
-                  >
-                    ×
+                    {label}
                   </button>
-                </div>
-              ) : (
-                <div
-                  key={w.key}
-                  className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2"
-                >
-                  <span
-                    className={`shrink-0 w-2 h-2 rounded-full border ${variantSwatch(w.variantType)}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-gray-800 leading-none truncate">
-                      {w.albumCode}
-                    </div>
-                    <div className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">
-                      {variantLabel(w.variantType)}
-                      {w.playerName ? ` · ${w.playerName}` : ''}
-                    </div>
-                  </div>
-                  {w.allVariants.length > 1 && (
-                    <select
-                      value={w.variantId}
-                      onChange={(e) => {
-                        const v = w.allVariants.find((v) => v.id === e.target.value);
-                        if (v) changeWantVariant(w.key, v);
-                      }}
-                      className="shrink-0 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] text-gray-700 focus:outline-none"
-                    >
-                      {w.allVariants.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {variantLabel(v.variant_type)}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <button
-                    onClick={() => toggleWantSuggestion(w.key)}
-                    className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
-                    aria-label={`Remove ${w.albumCode}`}
-                  >
-                    ×
-                  </button>
-                </div>
-              ),
-            )}
-          </div>
-        )}
-
-        {/* Cash want input */}
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2">
-          <span className="text-xs font-medium text-emerald-700 shrink-0">+ Cash</span>
-          <div className="relative flex-1">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">CA$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={wantCashInput}
-              onChange={(e) => setWantCashInput(e.target.value)}
-              placeholder="0.00"
-              className="w-full rounded border border-gray-200 bg-gray-50 pl-9 pr-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            />
-          </div>
-        </div>
-
-        {suggestions.length > 0 && (
-          <div className="flex flex-col flex-1 min-h-0 gap-3">
-            <div className="flex items-center gap-2 -mx-1">
-              <div className="flex-1 h-px bg-emerald-100" />
-              <span className="text-[10px] text-emerald-400 font-medium uppercase tracking-wide shrink-0">
-                {selectedWants.length > 0
-                  ? `${partnerName ?? "Partner"}'s stickers`
-                  : `Pick from ${partnerName ?? "partner"}'s stickers`}
-              </span>
-              <div className="flex-1 h-px bg-emerald-100" />
+                );
+              })}
             </div>
 
-            <input
-              type="text"
-              value={wantSearch}
-              onChange={(e) => setWantSearch(e.target.value)}
-              placeholder="Search by code or player..."
-              className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-
-            <div className="flex gap-1.5">
+            {suggestedOfferCodes.length > 0 && (
               <button
-                onClick={() => setWantMissingOnly((v) => !v)}
-                className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
-                  wantMissingOnly
-                    ? 'bg-emerald-500 text-white border-emerald-500'
+                onClick={() => setOfferTheyNeedOnly((v) => !v)}
+                className={`w-full px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                  offerTheyNeedOnly
+                    ? 'bg-teal-500 text-white border-teal-500'
                     : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                I Need
+                They Need
               </button>
-              {favouriteCodes.size > 0 && (
-                <button
-                  onClick={() => setWantFavouritedOnly((v) => !v)}
-                  className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
-                    wantFavouritedOnly
-                      ? 'bg-amber-500 text-white border-amber-500'
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  ★ Favourited
-                </button>
-              )}
-            </div>
+            )}
 
-            {wantVariants.length > 0 && (
-              <div className="flex flex-wrap gap-1 shrink-0">
+            <input
+              type="text"
+              value={offerSearch}
+              onChange={(e) => setOfferSearch(e.target.value)}
+              placeholder="Search by code or player..."
+              className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+
+            {offerVariants.length > 0 && (
+              <div className="flex flex-wrap gap-1">
                 <button
-                  onClick={() => setWantVariantFilters([])}
+                  onClick={() => setOfferVariantFilters([])}
                   className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                    wantVariantFilters.length === 0
-                      ? 'bg-emerald-500 text-white'
+                    offerVariantFilters.length === 0
+                      ? 'bg-blue-500 text-white'
                       : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   All
                 </button>
-                {wantVariants.map((v) => (
+                {offerVariants.map((v) => (
                   <button
                     key={v}
                     onClick={() =>
-                      setWantVariantFilters((prev) =>
+                      setOfferVariantFilters((prev) =>
                         prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
                       )
                     }
                     className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-                      wantVariantFilters.includes(v)
-                        ? 'bg-emerald-500 text-white'
+                      offerVariantFilters.includes(v)
+                        ? 'bg-blue-500 text-white'
                         : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
@@ -746,71 +409,369 @@ export default function TradeStickerPicker({
                 ))}
               </div>
             )}
+          </div>
 
-            <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
-              {filteredSuggestions.map((w) => {
-                const isFavourited = favouriteCodes.has(w.albumCode);
+          <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
+            {offerItemsLoading ? (
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="h-11 rounded-lg bg-white/60 animate-pulse" />
+              ))
+            ) : filteredDups.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-6">
+                {offerItems.length === 0
+                  ? 'No stickers in your collection for this album.'
+                  : 'No stickers match your filters.'}
+              </p>
+            ) : (
+              filteredDups.map((item) => {
+                const isSelected = selectedVariantIds.has(item.sticker_variant_id);
+                const isSuggested = suggestedSet.has(item.album_code);
+                const isLastCopy = item.quantity === 1;
                 return (
-                  <button
-                    key={w.key}
-                    disabled={w.loading || !!w.error}
-                    onClick={() => toggleWantSuggestion(w.key)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors disabled:opacity-50 ${
-                      w.selected
-                        ? 'border-emerald-400 bg-emerald-100'
-                        : isFavourited
-                          ? 'border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100/60'
-                          : 'border-gray-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/50'
+                  <div
+                    key={item.sticker_variant_id}
+                    onClick={() => toggleOffer(item)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' || e.key === ' ' ? toggleOffer(item) : undefined}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'border-blue-400 bg-blue-100'
+                        : isLastCopy
+                          ? 'border-amber-100 bg-amber-50/60 hover:border-amber-200 hover:bg-amber-50'
+                          : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/50'
                     }`}
                   >
-                    {w.loading ? (
-                      <div className="flex-1 h-3 bg-gray-200 animate-pulse rounded" />
-                    ) : (
-                      <>
-                        <span
-                          className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(w.variantType)}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="text-xs font-semibold text-gray-800 truncate">
-                              {w.albumCode}
-                            </span>
-                            {isFavourited && (
-                              <span
-                                className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none"
-                                title="In your favourites"
-                              >
-                                ★ want
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-gray-400 truncate">
-                            {variantLabel(w.variantType)}
-                            {w.playerName ? ` · ${w.playerName}` : ''}
-                          </div>
-                        </div>
-                        <span
-                          className={`shrink-0 text-sm font-medium transition-colors ${
-                            w.selected ? 'text-emerald-600' : 'text-gray-300'
-                          }`}
-                        >
-                          {w.selected ? '✓' : '+'}
+                    <span
+                      className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(item.variant_type)}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-xs font-semibold text-gray-800 truncate">
+                          {item.album_code}
                         </span>
-                      </>
+                        {isSuggested && (
+                          <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
+                            they need
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-400 truncate">
+                        {variantLabel(item.variant_type)}
+                        {item.player_name ? ` · ${item.player_name}` : ''}
+                      </div>
+                    </div>
+                    {isLastCopy ? (
+                      <span className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none">
+                        last copy
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-xs text-gray-400 tabular-nums">
+                        ×{item.quantity}
+                      </span>
                     )}
-                  </button>
+                    {onHideSticker && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onHideSticker(item.sticker_variant_id); }}
+                        title="Hide from trades"
+                        className="shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                          <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                        </svg>
+                      </button>
+                    )}
+                    <span
+                      className={`shrink-0 text-sm font-medium transition-colors ${
+                        isSelected ? 'text-blue-600' : 'text-gray-300'
+                      }`}
+                    >
+                      {isSelected ? '✓' : '+'}
+                    </span>
+                  </div>
                 );
-              })}
-            </div>
+              })
+            )}
           </div>
-        )}
+        </div>
 
-        {suggestions.length === 0 && selectedWants.length === 0 && (
-          <p className="flex-1 flex items-center justify-center text-xs text-gray-400 text-center py-3">
-            No stickers available from this partner.
-          </p>
-        )}
+        {/* ── Want Panel ──────────────────────────────────────────────────── */}
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-2.5 min-h-0">
+          <div className="flex items-center justify-between shrink-0">
+            <h3 className="text-sm font-semibold text-emerald-700">You Want</h3>
+          </div>
+
+          {suggestions.length > 0 ? (
+            <div className="flex flex-col flex-1 min-h-0 gap-2.5">
+              <div className="flex flex-col gap-2 shrink-0">
+                <input
+                  type="text"
+                  value={wantSearch}
+                  onChange={(e) => setWantSearch(e.target.value)}
+                  placeholder="Search by code or player..."
+                  className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setWantMissingOnly((v) => !v)}
+                    className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                      wantMissingOnly
+                        ? 'bg-emerald-500 text-white border-emerald-500'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    I Need
+                  </button>
+                  {favouriteCodes.size > 0 && (
+                    <button
+                      onClick={() => setWantFavouritedOnly((v) => !v)}
+                      className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                        wantFavouritedOnly
+                          ? 'bg-amber-500 text-white border-amber-500'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      ★ Favourited
+                    </button>
+                  )}
+                </div>
+
+                {wantVariants.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setWantVariantFilters([])}
+                      className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                        wantVariantFilters.length === 0
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {wantVariants.map((v) => (
+                      <button
+                        key={v}
+                        onClick={() =>
+                          setWantVariantFilters((prev) =>
+                            prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+                          )
+                        }
+                        className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                          wantVariantFilters.includes(v)
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        {variantLabel(v)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
+                {filteredSuggestions.map((w) => {
+                  const isFavourited = favouriteCodes.has(w.albumCode);
+                  return (
+                    <button
+                      key={w.key}
+                      disabled={w.loading || !!w.error}
+                      onClick={() => toggleWantSuggestion(w.key)}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors disabled:opacity-50 ${
+                        w.selected
+                          ? 'border-emerald-400 bg-emerald-100'
+                          : isFavourited
+                            ? 'border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100/60'
+                            : 'border-gray-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/50'
+                      }`}
+                    >
+                      {w.loading ? (
+                        <div className="flex-1 h-3 bg-gray-200 animate-pulse rounded" />
+                      ) : (
+                        <>
+                          <span
+                            className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(w.variantType)}`}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="text-xs font-semibold text-gray-800 truncate">
+                                {w.albumCode}
+                              </span>
+                              {isFavourited && (
+                                <span
+                                  className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none"
+                                  title="In your favourites"
+                                >
+                                  ★ want
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400 truncate">
+                              {variantLabel(w.variantType)}
+                              {w.playerName ? ` · ${w.playerName}` : ''}
+                            </div>
+                          </div>
+                          <span
+                            className={`shrink-0 text-sm font-medium transition-colors ${
+                              w.selected ? 'text-emerald-600' : 'text-gray-300'
+                            }`}
+                          >
+                            {w.selected ? '✓' : '+'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="flex-1 flex items-center justify-center text-xs text-gray-400 text-center">
+              No stickers available from this partner.
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* ── Trade Summary Bar ─────────────────────────────────────────────── */}
+      <div className="shrink-0 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col gap-2">
+        {/* Offering row */}
+        <div className="flex items-start gap-3">
+          <span className="shrink-0 text-xs font-semibold text-blue-700 w-14 pt-1">Offering</span>
+          <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
+            {selectedOffers.length === 0 ? (
+              <span className="text-xs text-gray-400 italic">Nothing selected yet</span>
+            ) : (
+              selectedOffers.map((o) => (
+                <div
+                  key={o.variantId}
+                  className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-white px-2 py-1 shrink-0"
+                >
+                  <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(o.variantType)}`} />
+                  <span className="text-xs font-semibold text-gray-800">{o.albumCode}</span>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => adjustOfferQty(o.variantId, -1)}
+                      disabled={o.quantity <= 1}
+                      className="w-4 h-4 flex items-center justify-center rounded text-xs font-bold text-blue-600 hover:bg-blue-100 disabled:opacity-30 transition-colors"
+                    >
+                      −
+                    </button>
+                    <span className="w-5 text-center text-xs text-gray-600 tabular-nums">×{o.quantity}</span>
+                    <button
+                      onClick={() => adjustOfferQty(o.variantId, 1)}
+                      disabled={o.quantity >= o.maxQty}
+                      className="w-4 h-4 flex items-center justify-center rounded text-xs font-bold text-blue-600 hover:bg-blue-100 disabled:opacity-30 transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setSelectedOffers((prev) => prev.filter((x) => x.variantId !== o.variantId))}
+                    className="text-gray-300 hover:text-red-500 transition-colors text-base leading-none"
+                    aria-label={`Remove ${o.albumCode}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="shrink-0 flex items-center gap-1.5 pt-1">
+            {selectedOffers.length > 0 && (
+              <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full tabular-nums">
+                {selectedOffers.length} {selectedOffers.length === 1 ? 'item' : 'items'}
+              </span>
+            )}
+            <span className="text-xs text-gray-400">+ CA$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={offerCashInput}
+              onChange={(e) => setOfferCashInput(e.target.value)}
+              placeholder="0.00"
+              className="w-20 rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+        </div>
+
+        <div className="h-px bg-gray-200" />
+
+        {/* Wanting row */}
+        <div className="flex items-start gap-3">
+          <span className="shrink-0 text-xs font-semibold text-emerald-700 w-14 pt-1">Wanting</span>
+          <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
+            {selectedWants.length === 0 ? (
+              <span className="text-xs text-gray-400 italic">Nothing selected yet</span>
+            ) : (
+              selectedWants.map((w) =>
+                w.loading ? (
+                  <div key={w.key} className="w-16 h-7 rounded-md bg-gray-200 animate-pulse shrink-0" />
+                ) : w.error ? (
+                  <div key={w.key} className="flex items-center gap-1 rounded-md border border-red-100 bg-white px-2 py-1 shrink-0">
+                    <span className="text-xs text-red-500">{w.albumCode}</span>
+                    <button
+                      onClick={() => toggleWantSuggestion(w.key)}
+                      className="text-gray-300 hover:text-red-500 transition-colors text-base leading-none"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div key={w.key} className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-2 py-1 shrink-0">
+                    <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(w.variantType)}`} />
+                    <span className="text-xs font-semibold text-gray-800">{w.albumCode}</span>
+                    {w.allVariants.length > 1 && (
+                      <select
+                        value={w.variantId}
+                        onChange={(e) => {
+                          const v = w.allVariants.find((v) => v.id === e.target.value);
+                          if (v) changeWantVariant(w.key, v);
+                        }}
+                        className="rounded border border-gray-200 bg-white px-1 py-0.5 text-[11px] text-gray-700 focus:outline-none"
+                      >
+                        {w.allVariants.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {variantLabel(v.variant_type)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      onClick={() => toggleWantSuggestion(w.key)}
+                      className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-base leading-none"
+                      aria-label={`Remove ${w.albumCode}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              )
+            )}
+          </div>
+          <div className="shrink-0 flex items-center gap-1.5 pt-1">
+            {selectedWantCount > 0 && (
+              <span className="text-xs font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full tabular-nums">
+                {selectedWantCount} {selectedWantCount === 1 ? 'item' : 'items'}
+              </span>
+            )}
+            <span className="text-xs text-gray-400">+ CA$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={wantCashInput}
+              onChange={(e) => setWantCashInput(e.target.value)}
+              placeholder="0.00"
+              className="w-20 rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+            />
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
