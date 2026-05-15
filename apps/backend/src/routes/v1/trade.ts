@@ -566,11 +566,16 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       // ── Set SSE headers ────────────────────────────────────────────────────
+      // reply.raw.writeHead bypasses Fastify's response pipeline, so CORS headers
+      // set by the plugin in onRequest are never flushed. Carry them over manually.
+      const corsOrigin = reply.getHeader('access-control-allow-origin') as string | undefined;
       reply.raw.writeHead(200, {
         'Content-Type':  'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection':    'keep-alive',
-        'X-Accel-Buffering': 'no', // disable nginx buffering if present
+        'X-Accel-Buffering': 'no',
+        ...(corsOrigin && { 'Access-Control-Allow-Origin': corsOrigin }),
+        'Access-Control-Allow-Credentials': 'true',
       });
       reply.raw.flushHeaders?.();
 
