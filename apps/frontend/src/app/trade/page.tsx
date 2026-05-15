@@ -57,6 +57,7 @@ export default function TradePage() {
   // Find Trades state
   const [albums, setAlbums] = useState<UserAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string>('');
+  const [favouriteCodes, setFavouriteCodes] = useState<Set<string>>(new Set());
   const [matches, setMatches] = useState<TradeMatch[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [matchesError, setMatchesError] = useState<string | null>(null);
@@ -125,6 +126,16 @@ export default function TradePage() {
       cancelled = true;
     };
   }, [tab, token]);
+
+  useEffect(() => {
+    if (!selectedAlbumId) return;
+    try {
+      const stored = localStorage.getItem(`stickfolio:favourites:${selectedAlbumId}`);
+      setFavouriteCodes(new Set(stored ? (JSON.parse(stored) as string[]) : []));
+    } catch {
+      setFavouriteCodes(new Set());
+    }
+  }, [selectedAlbumId]);
 
   async function handleFindMatches() {
     if (!token || !selectedAlbumId) return;
@@ -421,7 +432,9 @@ export default function TradePage() {
                 offerItemsLoading={proposeModal.offerItemsLoading}
                 suggestedOfferCodes={proposeModal.match.you_have}
                 suggestedWantCodes={proposeModal.match.they_have}
+                suggestedWantVariantIds={proposeModal.match.they_have_variant_ids}
                 token={token}
+                favouriteCodes={favouriteCodes}
                 onChange={(items) =>
                   setProposeModal((prev) => (prev ? { ...prev, pickerItems: items } : prev))
                 }

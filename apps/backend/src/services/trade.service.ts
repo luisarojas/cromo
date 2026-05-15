@@ -12,6 +12,7 @@ export interface TradeMatch {
   avatar_url: string | null;
   mutual_overlap: number;
   they_have: string[];
+  they_have_variant_ids: string[];
   you_have: string[];
 }
 
@@ -159,6 +160,7 @@ export async function getTradeMatches(
     avatar_url: string | null;
     mutual_overlap: number;
     they_have: string[];
+    they_have_variant_ids: string[];
     you_have: string[];
   }>(
     `WITH my_missing AS (
@@ -219,6 +221,16 @@ export async function getTradeMatches(
        FROM they_have_my_missing thm
        WHERE thm.user_id IN (SELECT user_id FROM i_have_their_missing)
      ),
+     they_have_all_dupes AS (
+       -- All variant IDs the partner has as duplicates for stickers in they_have_my_missing
+       SELECT DISTINCT thm.user_id, sv_all.id AS variant_id
+       FROM they_have_my_missing thm
+       JOIN sticker_variants sv_base ON sv_base.id = thm.variant_id
+       JOIN sticker_variants sv_all ON sv_all.sticker_id = sv_base.sticker_id
+       JOIN user_stickers uss ON uss.sticker_variant_id = sv_all.id
+         AND uss.album_id = thm.album_id
+         AND uss.quantity > 1
+     ),
      overlap_counts AS (
        SELECT
          mu.user_id,
@@ -226,9 +238,11 @@ export async function getTradeMatches(
          COUNT(DISTINCT ihm.variant_id) AS you_have_count,
          (COUNT(DISTINCT thm.variant_id) + COUNT(DISTINCT ihm.variant_id)) AS mutual_overlap,
          array_agg(DISTINCT thm.album_code) FILTER (WHERE thm.album_code IS NOT NULL) AS they_have,
+         array_agg(DISTINCT thad.variant_id::text) FILTER (WHERE thad.variant_id IS NOT NULL) AS they_have_variant_ids,
          array_agg(DISTINCT ihm.album_code) FILTER (WHERE ihm.album_code IS NOT NULL) AS you_have
        FROM mutual_users mu
        LEFT JOIN they_have_my_missing thm ON thm.user_id = mu.user_id
+       LEFT JOIN they_have_all_dupes thad ON thad.user_id = mu.user_id
        LEFT JOIN i_have_their_missing ihm ON ihm.user_id = mu.user_id
        GROUP BY mu.user_id
      )
@@ -239,6 +253,7 @@ export async function getTradeMatches(
        u.avatar_url,
        oc.mutual_overlap,
        COALESCE(oc.they_have, ARRAY[]::text[]) AS they_have,
+       COALESCE(oc.they_have_variant_ids, ARRAY[]::text[]) AS they_have_variant_ids,
        COALESCE(oc.you_have, ARRAY[]::text[]) AS you_have
      FROM overlap_counts oc
      JOIN users u ON u.id = oc.user_id
@@ -253,6 +268,7 @@ export async function getTradeMatches(
     avatar_url: r.avatar_url,
     mutual_overlap: Number(r.mutual_overlap),
     they_have: r.they_have ?? [],
+    they_have_variant_ids: r.they_have_variant_ids ?? [],
     you_have: r.you_have ?? [],
   }));
 

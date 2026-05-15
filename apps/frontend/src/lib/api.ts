@@ -771,8 +771,9 @@ export interface TradeMatch {
   display_name: string | null;
   avatar_url: string | null;
   mutual_overlap: number;
-  they_have: string[]; // album codes they have that you need
-  you_have: string[];  // album codes you have that they need
+  they_have: string[];             // album codes they have that you need
+  they_have_variant_ids: string[]; // all variant IDs they have as dupes for those stickers
+  you_have: string[];              // album codes you have that they need
 }
 
 export interface TradeItemDetail {

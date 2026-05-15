@@ -39,7 +39,9 @@ interface Props {
   offerItemsLoading: boolean;
   suggestedOfferCodes: string[];
   suggestedWantCodes: string[];
+  suggestedWantVariantIds?: string[];
   token: string;
+  favouriteCodes?: Set<string>;
   onChange: (items: TradePickerItem[]) => void;
 }
 
@@ -53,17 +55,18 @@ export default function TradeStickerPicker({
   offerItemsLoading,
   suggestedOfferCodes,
   suggestedWantCodes,
+  suggestedWantVariantIds = [],
   token,
+  favouriteCodes = new Set(),
   onChange,
 }: Props) {
   const [selectedOffers, setSelectedOffers] = useState<SelectedOffer[]>([]);
   const [wantItems, setWantItems] = useState<WantItem[]>([]);
-  const [wantInput, setWantInput] = useState('');
-  const [wantAdding, setWantAdding] = useState(false);
   const [offerSearch, setOfferSearch] = useState('');
-  const [offerVariantFilter, setOfferVariantFilter] = useState('');
+  const [offerVariantFilters, setOfferVariantFilters] = useState<string[]>([]);
   const [offerQtyFilter, setOfferQtyFilter] = useState<'' | 'duplicate' | 'single'>('');
-  const [wantVariantFilter, setWantVariantFilter] = useState('');
+  const [wantVariantFilters, setWantVariantFilters] = useState<string[]>([]);
+  const [wantSearch, setWantSearch] = useState('');
 
   const wantInitRef = useRef(false);
   const onChangeRef = useRef(onChange);
@@ -103,6 +106,8 @@ export default function TradeStickerPicker({
 
     setWantItems(entries);
 
+    const partnerVariantIdSet = new Set(suggestedWantVariantIds);
+
     fetchStickersBulk(suggestedWantCodes, token)
       .then((results) => {
         const byCode = new Map(results.map((r) => [r.album_code, r]));
@@ -110,12 +115,17 @@ export default function TradeStickerPicker({
           prev.map((w, i) => {
             const result = byCode.get(suggestedWantCodes[i]!);
             if (!result) return { ...w, loading: false, error: 'Not found' };
-            const base = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0];
+            const availableVariants =
+              partnerVariantIdSet.size > 0
+                ? result.variants.filter((v) => partnerVariantIdSet.has(v.id))
+                : result.variants;
+            const variants = availableVariants.length > 0 ? availableVariants : result.variants;
+            const base = variants.find((v) => v.variant_type === 'base') ?? variants[0];
             return {
               ...w,
               playerName: result.player_name,
               teamName: result.team_name,
-              allVariants: result.variants,
+              allVariants: variants,
               variantId: base?.id ?? '',
               variantType: base?.variant_type ?? 'base',
               loading: false,
@@ -170,70 +180,12 @@ export default function TradeStickerPicker({
     setWantItems((prev) => prev.map((w) => (w.key === key ? { ...w, selected: !w.selected } : w)));
   }
 
-  function removeWant(key: string) {
-    setWantItems((prev) => prev.filter((w) => w.key !== key));
-  }
-
   function changeWantVariant(key: string, variant: StickerVariant) {
     setWantItems((prev) =>
       prev.map((w) =>
         w.key === key ? { ...w, variantId: variant.id, variantType: variant.variant_type } : w,
       ),
     );
-  }
-
-  async function addWantByCode() {
-    const code = wantInput.trim().toUpperCase();
-    if (!code) return;
-    setWantInput('');
-    setWantAdding(true);
-
-    const key = nextKey();
-    setWantItems((prev) => [
-      ...prev,
-      {
-        key,
-        albumCode: code,
-        playerName: null,
-        teamName: null,
-        allVariants: [],
-        variantId: '',
-        variantType: 'base',
-        loading: true,
-        error: null,
-        fromSuggestion: false,
-        selected: true,
-      },
-    ]);
-
-    try {
-      const results = await fetchStickersBulk([code], token);
-      const result = results[0];
-      if (!result) throw new Error('Not found');
-      const base = result.variants.find((v) => v.variant_type === 'base') ?? result.variants[0];
-      setWantItems((prev) =>
-        prev.map((w) =>
-          w.key === key
-            ? {
-                ...w,
-                playerName: result.player_name,
-                teamName: result.team_name,
-                allVariants: result.variants,
-                variantId: base?.id ?? '',
-                variantType: base?.variant_type ?? 'base',
-                loading: false,
-                error: null,
-              }
-            : w,
-        ),
-      );
-    } catch {
-      setWantItems((prev) =>
-        prev.map((w) => (w.key === key ? { ...w, loading: false, error: 'Not found' } : w)),
-      );
-    } finally {
-      setWantAdding(false);
-    }
   }
 
   // ── Derived values ────────────────────────────────────────────────────────
@@ -247,7 +199,7 @@ export default function TradeStickerPicker({
     .filter((item) => {
       if (offerQtyFilter === 'duplicate' && item.quantity < 2) return false;
       if (offerQtyFilter === 'single' && item.quantity !== 1) return false;
-      if (offerVariantFilter && item.variant_type !== offerVariantFilter) return false;
+      if (offerVariantFilters.length > 0 && !offerVariantFilters.includes(item.variant_type)) return false;
       if (!offerSearch) return true;
       const q = offerSearch.toLowerCase();
       return (
@@ -265,12 +217,28 @@ export default function TradeStickerPicker({
   const suggestions = wantItems.filter((w) => w.fromSuggestion);
   const wantVariants = [
     ...new Set(
-      suggestions.filter((w) => !w.loading && !w.error).map((w) => w.variantType),
+      suggestions
+        .filter((w) => !w.loading && !w.error)
+        .flatMap((w) => w.allVariants.map((v) => v.variant_type)),
     ),
   ].sort();
-  const filteredSuggestions = wantVariantFilter
-    ? suggestions.filter((w) => w.loading || w.variantType === wantVariantFilter)
-    : suggestions;
+  const filteredSuggestions = suggestions.filter((w) => {
+    if (w.loading) return true;
+    if (
+      wantVariantFilters.length > 0 &&
+      !w.allVariants.some((v) => wantVariantFilters.includes(v.variant_type))
+    )
+      return false;
+    if (wantSearch) {
+      const q = wantSearch.toLowerCase();
+      return (
+        w.albumCode.toLowerCase().includes(q) ||
+        (w.playerName?.toLowerCase().includes(q) ?? false) ||
+        (w.teamName?.toLowerCase().includes(q) ?? false)
+      );
+    }
+    return true;
+  });
 
   const selectedWants = wantItems.filter((w) => w.selected);
   const selectedWantCount = wantItems.filter(
@@ -373,32 +341,47 @@ export default function TradeStickerPicker({
             })}
           </div>
 
-          <div className="flex gap-1.5">
-            <input
-              type="text"
-              value={offerSearch}
-              onChange={(e) => setOfferSearch(e.target.value)}
-              placeholder="Search by code or player..."
-              className="flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {offerVariants.length > 1 && (
-              <select
-                value={offerVariantFilter}
-                onChange={(e) => setOfferVariantFilter(e.target.value)}
-                className="shrink-0 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <input
+            type="text"
+            value={offerSearch}
+            onChange={(e) => setOfferSearch(e.target.value)}
+            placeholder="Search by code or player..."
+            className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {offerVariants.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <button
+                onClick={() => setOfferVariantFilters([])}
+                className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                  offerVariantFilters.length === 0
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
               >
-                <option value="">All</option>
-                {offerVariants.map((v) => (
-                  <option key={v} value={v}>
-                    {variantLabel(v)}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+                All
+              </button>
+              {offerVariants.map((v) => (
+                <button
+                  key={v}
+                  onClick={() =>
+                    setOfferVariantFilters((prev) =>
+                      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+                    )
+                  }
+                  className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                    offerVariantFilters.includes(v)
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {variantLabel(v)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="flex flex-col gap-1 overflow-y-auto max-h-56">
+        <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
           {offerItemsLoading ? (
             [...Array(4)].map((_, i) => (
               <div key={i} className="h-11 rounded-lg bg-white/60 animate-pulse" />
@@ -493,9 +476,7 @@ export default function TradeStickerPicker({
                     {w.albumCode} — {w.error}
                   </span>
                   <button
-                    onClick={() =>
-                      w.fromSuggestion ? toggleWantSuggestion(w.key) : removeWant(w.key)
-                    }
+                    onClick={() => toggleWantSuggestion(w.key)}
                     className="text-gray-300 hover:text-red-500 text-lg leading-none"
                   >
                     ×
@@ -535,9 +516,7 @@ export default function TradeStickerPicker({
                     </select>
                   )}
                   <button
-                    onClick={() =>
-                      w.fromSuggestion ? toggleWantSuggestion(w.key) : removeWant(w.key)
-                    }
+                    onClick={() => toggleWantSuggestion(w.key)}
                     className="shrink-0 text-gray-300 hover:text-red-500 transition-colors text-lg leading-none"
                     aria-label={`Remove ${w.albumCode}`}
                   >
@@ -550,7 +529,7 @@ export default function TradeStickerPicker({
         )}
 
         {suggestions.length > 0 && (
-          <>
+          <div className="flex flex-col flex-1 min-h-0 gap-3">
             <div className="flex items-center gap-2 -mx-1">
               <div className="flex-1 h-px bg-emerald-100" />
               <span className="text-[10px] text-emerald-400 font-medium uppercase tracking-wide shrink-0">
@@ -559,92 +538,108 @@ export default function TradeStickerPicker({
               <div className="flex-1 h-px bg-emerald-100" />
             </div>
 
-            {wantVariants.length > 1 && (
-              <select
-                value={wantVariantFilter}
-                onChange={(e) => setWantVariantFilter(e.target.value)}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 self-start"
-              >
-                <option value="">All variants</option>
-                {wantVariants.map((v) => (
-                  <option key={v} value={v}>
-                    {variantLabel(v)}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <div className="flex flex-col gap-1 overflow-y-auto max-h-48">
-              {filteredSuggestions.map((w) => (
+            <input
+              type="text"
+              value={wantSearch}
+              onChange={(e) => setWantSearch(e.target.value)}
+              placeholder="Search by code or player..."
+              className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            {wantVariants.length > 0 && (
+              <div className="flex flex-wrap gap-1 shrink-0">
                 <button
-                  key={w.key}
-                  disabled={w.loading || !!w.error}
-                  onClick={() => toggleWantSuggestion(w.key)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors disabled:opacity-50 ${
-                    w.selected
-                      ? 'border-emerald-400 bg-emerald-100'
-                      : 'border-gray-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/50'
+                  onClick={() => setWantVariantFilters([])}
+                  className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                    wantVariantFilters.length === 0
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {w.loading ? (
-                    <div className="flex-1 h-3 bg-gray-200 animate-pulse rounded" />
-                  ) : (
-                    <>
-                      <span
-                        className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(w.variantType)}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-gray-800 truncate">
-                          {w.albumCode}
-                        </div>
-                        <div className="text-[10px] text-gray-400 truncate">
-                          {variantLabel(w.variantType)}
-                          {w.playerName ? ` · ${w.playerName}` : ''}
-                        </div>
-                      </div>
-                      <span
-                        className={`shrink-0 text-sm font-medium transition-colors ${
-                          w.selected ? 'text-emerald-600' : 'text-gray-300'
-                        }`}
-                      >
-                        {w.selected ? '✓' : '+'}
-                      </span>
-                    </>
-                  )}
+                  All
                 </button>
-              ))}
+                {wantVariants.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() =>
+                      setWantVariantFilters((prev) =>
+                        prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+                      )
+                    }
+                    className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                      wantVariantFilters.includes(v)
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {variantLabel(v)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
+              {filteredSuggestions.map((w) => {
+                const isFavourited = favouriteCodes.has(w.albumCode);
+                return (
+                  <button
+                    key={w.key}
+                    disabled={w.loading || !!w.error}
+                    onClick={() => toggleWantSuggestion(w.key)}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors disabled:opacity-50 ${
+                      w.selected
+                        ? 'border-emerald-400 bg-emerald-100'
+                        : isFavourited
+                          ? 'border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100/60'
+                          : 'border-gray-100 bg-white hover:border-emerald-200 hover:bg-emerald-50/50'
+                    }`}
+                  >
+                    {w.loading ? (
+                      <div className="flex-1 h-3 bg-gray-200 animate-pulse rounded" />
+                    ) : (
+                      <>
+                        <span
+                          className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(w.variantType)}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-xs font-semibold text-gray-800 truncate">
+                              {w.albumCode}
+                            </span>
+                            {isFavourited && (
+                              <span
+                                className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none"
+                                title="In your favourites"
+                              >
+                                ★ want
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-gray-400 truncate">
+                            {variantLabel(w.variantType)}
+                            {w.playerName ? ` · ${w.playerName}` : ''}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 text-sm font-medium transition-colors ${
+                            w.selected ? 'text-emerald-600' : 'text-gray-300'
+                          }`}
+                        >
+                          {w.selected ? '✓' : '+'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          </>
+          </div>
         )}
 
-        {suggestions.length === 0 && selectedWants.length === 0 && !wantAdding && (
-          <p className="text-xs text-gray-400 text-center py-3">
-            Add stickers you want using the input below.
+        {suggestions.length === 0 && selectedWants.length === 0 && (
+          <p className="flex-1 flex items-center justify-center text-xs text-gray-400 text-center py-3">
+            No stickers available from this partner.
           </p>
         )}
-
-        <div className="flex gap-1.5 mt-auto pt-2 border-t border-emerald-100">
-          <input
-            type="text"
-            value={wantInput}
-            onChange={(e) => setWantInput(e.target.value.toUpperCase())}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addWantByCode();
-              }
-            }}
-            placeholder="Add by code (e.g. FIFA001)"
-            className="flex-1 min-w-0 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-          <button
-            onClick={addWantByCode}
-            disabled={!wantInput.trim() || wantAdding}
-            className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            Add
-          </button>
-        </div>
       </div>
     </div>
   );
