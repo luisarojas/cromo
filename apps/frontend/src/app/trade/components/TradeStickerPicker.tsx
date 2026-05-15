@@ -506,10 +506,13 @@ export default function TradeStickerPicker({
               const isSuggested = suggestedSet.has(item.album_code);
               const isLastCopy = item.quantity === 1;
               return (
-                <button
+                <div
                   key={item.sticker_variant_id}
                   onClick={() => toggleOffer(item)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors ${
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' || e.key === ' ' ? toggleOffer(item) : undefined}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left w-full transition-colors cursor-pointer ${
                     isSelected
                       ? 'border-blue-400 bg-blue-100'
                       : isLastCopy
@@ -564,7 +567,7 @@ export default function TradeStickerPicker({
                   >
                     {isSelected ? '✓' : '+'}
                   </span>
-                </button>
+                </div>
               );
             })
           )}
