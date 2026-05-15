@@ -83,7 +83,7 @@ export interface TradeDetail {
 }
 
 interface TradeItemInput {
-  variantId: string;
+  albumCode: string;
   direction: 'offer' | 'want';
   quantity: number;
 }
@@ -94,6 +94,17 @@ function makeError(message: string, statusCode: number): Error & { statusCode: n
   const err = new Error(message) as Error & { statusCode: number };
   err.statusCode = statusCode;
   return err;
+}
+
+async function resolveVariantId(db: Pool, albumCode: string): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `SELECT sv.id FROM sticker_variants sv
+     JOIN stickers s ON s.id = sv.sticker_id
+     WHERE s.album_code = $1 AND sv.variant_type = 'base'`,
+    [albumCode]
+  );
+  if (rows.length === 0) throw makeError(`Unknown album code: ${albumCode}`, 400);
+  return rows[0]!.id;
 }
 
 async function assertParticipant(
@@ -184,17 +195,21 @@ export async function getTradeMatches(
      ),
      they_have_my_missing AS (
        -- From candidates: which ones have stickers I'm missing (as duplicates)
-       SELECT ca.user_id, ca.album_id, uss.sticker_variant_id AS variant_id
+       SELECT ca.user_id, ca.album_id, uss.sticker_variant_id AS variant_id, s.album_code
        FROM candidate_albums ca
        JOIN user_stickers uss ON uss.album_id = ca.album_id
+       JOIN sticker_variants sv ON sv.id = uss.sticker_variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
        WHERE uss.sticker_variant_id IN (SELECT variant_id FROM my_missing)
          AND uss.quantity > 1
      ),
      i_have_their_missing AS (
        -- From candidates: which ones are missing stickers I have as duplicates
-       SELECT ca.user_id, md.variant_id
+       SELECT ca.user_id, md.variant_id, s.album_code
        FROM candidate_albums ca
        CROSS JOIN my_duplicates md
+       JOIN sticker_variants sv ON sv.id = md.variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
        WHERE NOT EXISTS (
          SELECT 1 FROM user_stickers uss2
          WHERE uss2.album_id = ca.album_id
@@ -213,8 +228,8 @@ export async function getTradeMatches(
          COUNT(DISTINCT thm.variant_id) AS they_have_count,
          COUNT(DISTINCT ihm.variant_id) AS you_have_count,
          (COUNT(DISTINCT thm.variant_id) + COUNT(DISTINCT ihm.variant_id)) AS mutual_overlap,
-         array_agg(DISTINCT thm.variant_id::text) FILTER (WHERE thm.variant_id IS NOT NULL) AS they_have,
-         array_agg(DISTINCT ihm.variant_id::text) FILTER (WHERE ihm.variant_id IS NOT NULL) AS you_have
+         array_agg(DISTINCT thm.album_code) FILTER (WHERE thm.album_code IS NOT NULL) AS they_have,
+         array_agg(DISTINCT ihm.album_code) FILTER (WHERE ihm.album_code IS NOT NULL) AS you_have
        FROM mutual_users mu
        LEFT JOIN they_have_my_missing thm ON thm.user_id = mu.user_id
        LEFT JOIN i_have_their_missing ihm ON ihm.user_id = mu.user_id
@@ -286,10 +301,11 @@ export async function createTrade(
   );
 
   for (const item of items) {
+    const variantId = await resolveVariantId(db, item.albumCode);
     await db.query(
       `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
        VALUES ($1, $2, $3, $4, $5)`,
-      [crypto.randomUUID(), tradeId, item.variantId, item.direction, item.quantity]
+      [crypto.randomUUID(), tradeId, variantId, item.direction, item.quantity]
     );
   }
 
@@ -539,10 +555,11 @@ export async function counterTrade(
   await db.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
 
   for (const item of items) {
+    const variantId = await resolveVariantId(db, item.albumCode);
     await db.query(
       `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
        VALUES ($1, $2, $3, $4, $5)`,
-      [crypto.randomUUID(), tradeId, item.variantId, item.direction, item.quantity]
+      [crypto.randomUUID(), tradeId, variantId, item.direction, item.quantity]
     );
   }
 

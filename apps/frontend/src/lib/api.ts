@@ -868,7 +868,7 @@ export async function fetchTrade(id: string, token: string): Promise<TradeDetail
 export async function createTrade(
   body: {
     recipientId: string;
-    items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
+    items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[];
   },
   token: string,
 ): Promise<{ id: string }> {
@@ -897,7 +897,7 @@ export async function declineTrade(id: string, token: string): Promise<void> {
 
 export async function counterTrade(
   id: string,
-  body: { items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] },
+  body: { items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[] },
   token: string,
 ): Promise<void> {
   return apiFetch<void>(

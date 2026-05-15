@@ -206,13 +206,13 @@ export default function TradeDetailPage() {
       .filter(Boolean);
 
     if (offerIds.length === 0 && wantIds.length === 0) {
-      setCounterError('Add at least one sticker variant ID to offer or want.');
+      setCounterError('Add at least one sticker to offer or want.');
       return;
     }
 
-    const items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] = [
-      ...offerIds.map((id) => ({ variantId: id, direction: 'offer' as const, quantity: 1 })),
-      ...wantIds.map((id) => ({ variantId: id, direction: 'want' as const, quantity: 1 })),
+    const items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[] = [
+      ...offerIds.map((id) => ({ albumCode: id, direction: 'offer' as const, quantity: 1 })),
+      ...wantIds.map((id) => ({ albumCode: id, direction: 'want' as const, quantity: 1 })),
     ];
 
     setCounterSubmitting(true);
@@ -452,26 +452,26 @@ export default function TradeDetailPage() {
               <h3 className="text-sm font-medium text-gray-700">Submit Counter Offer</h3>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Variant IDs to offer (comma-separated)
+                  Album codes to offer (comma-separated)
                 </label>
                 <input
                   type="text"
                   value={counterOfferIds}
                   onChange={(e) => setCounterOfferIds(e.target.value)}
                   className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="variant-id-1, variant-id-2"
+                  placeholder="FIFA001, FIFA002"
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Variant IDs to request (comma-separated)
+                  Album codes to request (comma-separated)
                 </label>
                 <input
                   type="text"
                   value={counterWantIds}
                   onChange={(e) => setCounterWantIds(e.target.value)}
                   className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="variant-id-3, variant-id-4"
+                  placeholder="FIFA010, FIFA011"
                 />
               </div>
               {counterError && (

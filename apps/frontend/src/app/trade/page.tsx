@@ -158,9 +158,9 @@ export default function TradePage() {
       return;
     }
 
-    const items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[] = [
-      ...offerCodes.map((code) => ({ variantId: code, direction: 'offer' as const, quantity: 1 })),
-      ...wantCodes.map((code) => ({ variantId: code, direction: 'want' as const, quantity: 1 })),
+    const items: { albumCode: string; direction: 'offer' | 'want'; quantity: number }[] = [
+      ...offerCodes.map((code) => ({ albumCode: code, direction: 'offer' as const, quantity: 1 })),
+      ...wantCodes.map((code) => ({ albumCode: code, direction: 'want' as const, quantity: 1 })),
     ];
 
     setProposeModal((prev) => prev ? { ...prev, submitting: true, error: null } : prev);
