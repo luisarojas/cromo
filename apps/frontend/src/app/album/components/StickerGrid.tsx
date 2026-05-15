@@ -30,6 +30,9 @@ interface Props {
   crossAlbumHasSticker?: Map<string, Array<{ id: string; name: string }>>;
   favouriteSet?: Set<string>;
   onToggleFavourite?: (albumCode: string) => void;
+  selectionMode?: boolean;
+  selectedCodes?: Set<string>;
+  onToggleSelect?: (albumCode: string) => void;
 }
 
 const COLS = 4;
@@ -52,6 +55,9 @@ export default function StickerGrid({
   crossAlbumHasSticker,
   favouriteSet,
   onToggleFavourite,
+  selectionMode,
+  selectedCodes,
+  onToggleSelect,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -85,10 +91,11 @@ export default function StickerGrid({
 
   const handleOpenPopover = useCallback(
     (sticker: Sticker, anchor: HTMLElement) => {
+      if (selectionMode) return;
       popoverAnchorRef.current = anchor;
       setPopover({ sticker, rect: anchor.getBoundingClientRect() });
     },
-    [],
+    [selectionMode],
   );
 
   const handleAdjust = useCallback(
@@ -224,6 +231,9 @@ export default function StickerGrid({
                       onOpenPopover={(anchor) =>
                         handleOpenPopover(sticker, anchor)
                       }
+                      selectionMode={selectionMode}
+                      isSelected={selectedCodes?.has(sticker.album_code)}
+                      onToggleSelect={onToggleSelect ? () => onToggleSelect(sticker.album_code) : undefined}
                     />
                   );
                 })}

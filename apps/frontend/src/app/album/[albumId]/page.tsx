@@ -12,10 +12,14 @@ import {
   fetchUserAlbums,
   fetchAlbumSummaries,
   fetchAlbumEditions,
+  fetchStickersBulk,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
   setDefaultUserAlbum,
+  addSticker,
+  deleteSticker,
+  setTradeFlags,
   albumDisplayName,
   DEFAULT_ALBUM_TYPE_KEY,
   type AlbumEditionOption,
@@ -27,15 +31,28 @@ import {
   type UserAlbum,
   type AlbumSummary,
 } from '@/lib/api';
+import { useToast } from '@/components/ToastProvider';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import FilterBar, { type FilterState } from '../components/FilterBar';
-import { variantLabel } from '../components/variantMeta';
+import { variantLabel, ALL_VARIANT_TYPES } from '../components/variantMeta';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import AlbumFormModal from '../components/AlbumFormModal';
+import MassActionBar from '../components/MassActionBar';
+import VariantPickerModal from '../components/VariantPickerModal';
 import type { OwnedVariantEntry } from '../components/VariantPopover';
+
+async function runBatched<T>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<unknown>,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    await Promise.allSettled(items.slice(i, i + batchSize).map(fn));
+  }
+}
 
 type Tab = 'all' | 'have' | 'missing' | 'duplicates';
 
@@ -105,6 +122,7 @@ export default function AlbumDetailPage() {
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
+  const { addToast } = useToast();
 
   const albums = useAlbumsStore((s) => s.albums);
   const setAlbums = useAlbumsStore((s) => s.setAlbums);
@@ -127,6 +145,11 @@ export default function AlbumDetailPage() {
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
+  const [massWorking, setMassWorking] = useState(false);
+  const [variantPicker, setVariantPicker] = useState<'add' | 'remove' | null>(null);
 
   const tokenRef = useRef(token);
   const userRef = useRef(user);
@@ -524,6 +547,207 @@ export default function AlbumDetailPage() {
   }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum, favouriteSet]);
 
   // ---------------------------------------------------------------------------
+  // Selection helpers
+  // ---------------------------------------------------------------------------
+  const selectedHasAnyOwned = useMemo(() => {
+    for (const code of selectedCodes) {
+      if (ownedMap.has(code)) return true;
+    }
+    return false;
+  }, [selectedCodes, ownedMap]);
+
+  const selectedFavouriteState = useMemo<'all' | 'some' | 'none'>(() => {
+    if (selectedCodes.size === 0) return 'none';
+    let favCount = 0;
+    for (const code of selectedCodes) {
+      if (favouriteSet.has(code)) favCount++;
+    }
+    if (favCount === 0) return 'none';
+    if (favCount === selectedCodes.size) return 'all';
+    return 'some';
+  }, [selectedCodes, favouriteSet]);
+
+  const removableVariantTypes = useMemo(() => {
+    const types = new Set<string>();
+    for (const code of selectedCodes) {
+      const variants = ownedMap.get(code);
+      if (variants) {
+        for (const vt of variants.keys()) types.add(vt);
+      }
+    }
+    return [...types];
+  }, [selectedCodes, ownedMap]);
+
+  const handleToggleSelect = useCallback((albumCode: string) => {
+    setSelectedCodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(albumCode)) next.delete(albumCode);
+      else next.add(albumCode);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedCodes(new Set(displayedStickers.map((s) => s.album_code)));
+  }, [displayedStickers]);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedCodes(new Set());
+  }, []);
+
+  const handleExitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedCodes(new Set());
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Mass action handlers
+  // ---------------------------------------------------------------------------
+  const handleMassDelete = useCallback(async () => {
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (!tok || !usr || selectedCodes.size === 0) return;
+    setMassWorking(true);
+    try {
+      const toDelete: string[] = [];
+      for (const code of selectedCodes) {
+        const variants = ownedMap.get(code);
+        if (variants) {
+          for (const entry of variants.values()) toDelete.push(entry.variantId);
+        }
+      }
+      await runBatched(toDelete, 10, (variantId) =>
+        deleteSticker(usr.id, variantId, tok, albumId),
+      );
+      setSelectedCodes(new Set());
+      await loadCollection(tok, usr.id, albumId);
+      setMissingItems([]);
+      setDuplicateItems([]);
+      addToast(`Removed ${toDelete.length} sticker variant${toDelete.length === 1 ? '' : 's'} from collection`);
+    } catch (err) {
+      console.error('Mass delete failed', err);
+      addToast('Failed to delete stickers. Please try again.');
+    } finally {
+      setMassWorking(false);
+    }
+  }, [selectedCodes, ownedMap, albumId, loadCollection, addToast]);
+
+  const handleMassAddVariant = useCallback(async (variantType: string) => {
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (!tok || !usr || selectedCodes.size === 0) return;
+    setMassWorking(true);
+    try {
+      const selectedStickerList = stickers.filter(
+        (s) => selectedCodes.has(s.album_code) && !ownedMap.get(s.album_code)?.has(variantType),
+      );
+      if (selectedStickerList.length === 0) {
+        addToast('All selected stickers already own that variant.');
+        return;
+      }
+      if (variantType === 'base') {
+        await runBatched(selectedStickerList, 10, async (sticker) => {
+          if (!sticker.base_variant_id) return;
+          await addSticker(usr.id, sticker.base_variant_id, 1, tok, albumId);
+        });
+      } else {
+        const codes = selectedStickerList.map((s) => s.album_code);
+        const variantIdMap = new Map<string, string>();
+        for (let i = 0; i < codes.length; i += 100) {
+          const results = await fetchStickersBulk(codes.slice(i, i + 100), tok);
+          for (const lookup of results) {
+            const v = lookup.variants.find((x) => x.variant_type === variantType);
+            if (v) variantIdMap.set(lookup.album_code, v.id);
+          }
+        }
+        await runBatched(selectedStickerList, 10, async (sticker) => {
+          const variantId = variantIdMap.get(sticker.album_code);
+          if (!variantId) return;
+          await addSticker(usr.id, variantId, 1, tok, albumId);
+        });
+      }
+      await loadCollection(tok, usr.id, albumId);
+      setMissingItems([]);
+      setDuplicateItems([]);
+      addToast(`Added ${variantType} variant to ${selectedStickerList.length} sticker${selectedStickerList.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      console.error('Mass add variant failed', err);
+      addToast('Failed to add variants. Please try again.');
+    } finally {
+      setMassWorking(false);
+    }
+  }, [selectedCodes, stickers, ownedMap, albumId, loadCollection, addToast]);
+
+  const handleMassRemoveVariant = useCallback(async (variantType: string) => {
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (!tok || !usr || selectedCodes.size === 0) return;
+    setMassWorking(true);
+    try {
+      const toRemove: string[] = [];
+      for (const code of selectedCodes) {
+        const entry = ownedMap.get(code)?.get(variantType);
+        if (entry) toRemove.push(entry.variantId);
+      }
+      await runBatched(toRemove, 10, (variantId) =>
+        deleteSticker(usr.id, variantId, tok, albumId),
+      );
+      await loadCollection(tok, usr.id, albumId);
+      setMissingItems([]);
+      setDuplicateItems([]);
+      addToast(`Removed ${variantType} from ${toRemove.length} sticker${toRemove.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      console.error('Mass remove variant failed', err);
+      addToast('Failed to remove variants. Please try again.');
+    } finally {
+      setMassWorking(false);
+    }
+  }, [selectedCodes, ownedMap, albumId, loadCollection, addToast]);
+
+  const handleMassToggleFavourite = useCallback(() => {
+    const addFav = selectedFavouriteState !== 'all';
+    setFavouriteSet((prev) => {
+      const next = new Set(prev);
+      for (const code of selectedCodes) {
+        if (addFav) next.add(code);
+        else next.delete(code);
+      }
+      try {
+        localStorage.setItem(`stickfolio:favourites:${albumId}`, JSON.stringify([...next]));
+      } catch { /* ignore */ }
+      return next;
+    });
+  }, [selectedCodes, selectedFavouriteState, albumId]);
+
+  const handleMassTradeFlags = useCallback(async (flags: { tradeHidden?: boolean; tradeForced?: boolean }) => {
+    const tok = tokenRef.current;
+    const usr = userRef.current;
+    if (!tok || !usr || selectedCodes.size === 0) return;
+    setMassWorking(true);
+    try {
+      const toUpdate: string[] = [];
+      for (const code of selectedCodes) {
+        const variants = ownedMap.get(code);
+        if (variants) {
+          for (const entry of variants.values()) toUpdate.push(entry.variantId);
+        }
+      }
+      await runBatched(toUpdate, 10, (variantId) =>
+        setTradeFlags(usr.id, variantId, flags, tok, albumId),
+      );
+      await loadCollection(tok, usr.id, albumId);
+      setMissingItems([]);
+      setDuplicateItems([]);
+      addToast(`Updated trade flags for ${toUpdate.length} sticker variant${toUpdate.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      console.error('Mass trade flags failed', err);
+      addToast('Failed to update trade flags. Please try again.');
+    } finally {
+      setMassWorking(false);
+    }
+  }, [selectedCodes, ownedMap, albumId, loadCollection, addToast]);
+
+  // ---------------------------------------------------------------------------
   // Mutation handlers
   // ---------------------------------------------------------------------------
   const handleCollectionChange = useCallback(async (options?: { reloadSummaries?: boolean }) => {
@@ -746,7 +970,7 @@ export default function AlbumDetailPage() {
           variantOptions={filterOptions.variantOptions}
         />
 
-        <div className="flex gap-1 border-b border-gray-200">
+        <div className="flex items-center gap-1 border-b border-gray-200">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
@@ -783,6 +1007,28 @@ export default function AlbumDetailPage() {
               )}
             </button>
           ))}
+          <button
+            onClick={() => {
+              if (selectionMode) {
+                handleExitSelection();
+              } else {
+                setSelectionMode(true);
+              }
+            }}
+            className={`ml-auto px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+              selectionMode
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="3" width="6" height="6" rx="1" />
+              <path d="M13 12l2 2 4-3" strokeLinecap="round" strokeLinejoin="round" />
+              <rect x="11" y="3" width="6" height="6" rx="1" />
+              <rect x="3" y="11" width="6" height="6" rx="1" />
+            </svg>
+            {selectionMode ? 'Selecting…' : 'Select'}
+          </button>
         </div>
 
         {loading ? (
@@ -790,20 +1036,25 @@ export default function AlbumDetailPage() {
             Loading stickers…
           </div>
         ) : albumId ? (
-          <StickerGrid
-            stickers={displayedStickers}
-            ownedMap={ownedMap}
-            userId={user!.id}
-            albumId={albumId}
-            token={token!}
-            onCollectionChange={handleCollectionChange}
-            onOptimisticAdjust={handleOptimisticAdjust}
-            crossAlbumNeeded={crossAlbumNeeded}
-            crossAlbumAvailable={crossAlbumAvailable}
-            crossAlbumHasSticker={crossAlbumHasSticker}
-            favouriteSet={favouriteSet}
-            onToggleFavourite={handleToggleFavourite}
-          />
+          <div className={selectionMode ? 'pb-20' : ''}>
+            <StickerGrid
+              stickers={displayedStickers}
+              ownedMap={ownedMap}
+              userId={user!.id}
+              albumId={albumId}
+              token={token!}
+              onCollectionChange={handleCollectionChange}
+              onOptimisticAdjust={handleOptimisticAdjust}
+              crossAlbumNeeded={crossAlbumNeeded}
+              crossAlbumAvailable={crossAlbumAvailable}
+              crossAlbumHasSticker={crossAlbumHasSticker}
+              favouriteSet={favouriteSet}
+              onToggleFavourite={handleToggleFavourite}
+              selectionMode={selectionMode}
+              selectedCodes={selectedCodes}
+              onToggleSelect={handleToggleSelect}
+            />
+          </div>
         ) : null}
       </div>
 
@@ -832,13 +1083,50 @@ export default function AlbumDetailPage() {
       {showScrollTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 z-50 p-3 rounded-full bg-white border border-gray-200 shadow-md text-gray-500 hover:text-gray-800 hover:shadow-lg transition-all"
+          className={`fixed ${selectionMode ? 'bottom-20' : 'bottom-6'} right-6 z-50 p-3 rounded-full bg-white border border-gray-200 shadow-md text-gray-500 hover:text-gray-800 hover:shadow-lg transition-all`}
           aria-label="Scroll to top"
         >
           <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
           </svg>
         </button>
+      )}
+
+      {selectionMode && (
+        <MassActionBar
+          selectedCount={selectedCodes.size}
+          totalDisplayed={displayedStickers.length}
+          allDisplayedSelected={
+            displayedStickers.length > 0 &&
+            displayedStickers.every((s) => selectedCodes.has(s.album_code))
+          }
+          hasAnyOwned={selectedHasAnyOwned}
+          favouriteState={selectedFavouriteState}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onDelete={handleMassDelete}
+          onToggleFavourite={handleMassToggleFavourite}
+          onAddVariant={() => setVariantPicker('add')}
+          onRemoveVariant={() => setVariantPicker('remove')}
+          onTradeHide={() => handleMassTradeFlags({ tradeHidden: true, tradeForced: false })}
+          onTradeShow={() => handleMassTradeFlags({ tradeForced: true, tradeHidden: false })}
+          onTradeReset={() => handleMassTradeFlags({ tradeHidden: false, tradeForced: false })}
+          onExit={handleExitSelection}
+          isWorking={massWorking}
+        />
+      )}
+
+      {variantPicker && (
+        <VariantPickerModal
+          mode={variantPicker}
+          availableTypes={variantPicker === 'remove' ? removableVariantTypes : ALL_VARIANT_TYPES}
+          onConfirm={(variantType) => {
+            setVariantPicker(null);
+            if (variantPicker === 'add') handleMassAddVariant(variantType);
+            else handleMassRemoveVariant(variantType);
+          }}
+          onClose={() => setVariantPicker(null)}
+        />
       )}
     </div>
   );

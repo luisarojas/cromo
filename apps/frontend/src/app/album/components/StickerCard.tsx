@@ -15,6 +15,9 @@ interface Props {
   isFavourited?: boolean;
   onToggleFavourite?: () => void;
   onOpenPopover: (anchor: HTMLElement) => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -35,6 +38,9 @@ export default function StickerCard({
   isFavourited,
   onToggleFavourite,
   onOpenPopover,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
 }: Props) {
   const typeColor =
     TYPE_COLORS[sticker.sticker_type] ?? 'bg-gray-100 text-gray-600';
@@ -46,14 +52,22 @@ export default function StickerCard({
   return (
     <button
       type="button"
-      onClick={(e) => onOpenPopover(e.currentTarget)}
+      onClick={(e) => {
+        if (selectionMode && onToggleSelect) {
+          onToggleSelect();
+        } else {
+          onOpenPopover(e.currentTarget);
+        }
+      }}
       className={`
         group relative flex flex-col rounded-lg border p-2.5 text-sm text-left
         transition-all duration-150 select-none w-full
         ${
-          owned
-            ? 'border-green-400 bg-green-50 shadow-sm hover:shadow-md'
-            : 'border-gray-200 bg-white opacity-70 hover:opacity-100 hover:border-gray-400'
+          selectionMode && isSelected
+            ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200 shadow-sm'
+            : owned
+              ? 'border-green-400 bg-green-50 shadow-sm hover:shadow-md'
+              : 'border-gray-200 bg-white opacity-70 hover:opacity-100 hover:border-gray-400'
         }
       `}
     >
@@ -66,14 +80,30 @@ export default function StickerCard({
         </span>
       )}
 
-      {/* Total quantity badge */}
-      {owned && totalQuantity > 1 && (
+      {/* Selection checkbox (selection mode) */}
+      {selectionMode ? (
         <span
-          className="absolute top-1.5 left-1.5 rounded-full bg-green-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center"
-          title={`${totalQuantity} total across variants`}
+          className={`absolute top-1.5 left-1.5 flex items-center justify-center w-4.5 h-4.5 rounded border-2 transition-colors ${
+            isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'
+          }`}
+          style={{ width: '18px', height: '18px' }}
         >
-          {totalQuantity > 9 ? '9+' : totalQuantity}
+          {isSelected && (
+            <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </span>
+      ) : (
+        /* Total quantity badge */
+        owned && totalQuantity > 1 && (
+          <span
+            className="absolute top-1.5 left-1.5 rounded-full bg-green-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center"
+            title={`${totalQuantity} total across variants`}
+          >
+            {totalQuantity > 9 ? '9+' : totalQuantity}
+          </span>
+        )
       )}
 
       <div className="text-lg font-extrabold text-gray-800 leading-none mb-1 mt-0.5">
@@ -160,8 +190,8 @@ export default function StickerCard({
         {owned ? 'Click to manage variants' : 'Click to add'}
       </div>
 
-      {/* Favourite button */}
-      {onToggleFavourite && (
+      {/* Favourite button — hidden in selection mode */}
+      {onToggleFavourite && !selectionMode && (
         <span
           role="button"
           tabIndex={0}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -83,7 +83,7 @@ interface ProposeModalState {
   draftWantCash?: number;
 }
 
-export default function TradePage() {
+function TradePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
@@ -578,5 +578,19 @@ export default function TradePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TradePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+          Loading…
+        </div>
+      }
+    >
+      <TradePageContent />
+    </Suspense>
   );
 }
