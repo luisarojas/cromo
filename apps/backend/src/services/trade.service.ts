@@ -180,11 +180,12 @@ export async function getTradeMatches(
          )
      ),
      my_duplicates AS (
-       -- Sticker variant IDs I have as duplicates (quantity > 1)
+       -- Sticker variant IDs I can trade (duplicates, or singles forced available and not hidden)
        SELECT us.sticker_variant_id AS variant_id
        FROM user_stickers us
        WHERE us.album_id = $2
-         AND us.quantity > 1
+         AND (us.quantity > 1 OR us.trade_forced)
+         AND NOT us.trade_hidden
      ),
      candidate_albums AS (
        -- Albums belonging to other users who have trade_matching_enabled
@@ -204,7 +205,8 @@ export async function getTradeMatches(
        JOIN sticker_variants sv ON sv.id = uss.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id
        WHERE uss.sticker_variant_id IN (SELECT variant_id FROM my_missing)
-         AND uss.quantity > 1
+         AND (uss.quantity > 1 OR uss.trade_forced)
+         AND NOT uss.trade_hidden
      ),
      i_have_their_missing AS (
        -- From candidates: which ones are missing stickers I have as duplicates
@@ -233,7 +235,8 @@ export async function getTradeMatches(
        JOIN sticker_variants sv_all ON sv_all.sticker_id = sv_base.sticker_id
        JOIN user_stickers uss ON uss.sticker_variant_id = sv_all.id
          AND uss.album_id = thm.album_id
-         AND uss.quantity > 1
+         AND (uss.quantity > 1 OR uss.trade_forced)
+         AND NOT uss.trade_hidden
      ),
      overlap_counts AS (
        SELECT

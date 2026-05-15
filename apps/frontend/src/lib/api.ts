@@ -191,6 +191,8 @@ export interface CollectionItem extends Sticker {
   sticker_variant_id: string;
   variant_type: string;
   quantity: number;
+  trade_hidden: boolean;
+  trade_forced: boolean;
 }
 
 // MissingItem is now sticker-shaped (a sticker the user owns zero variants of).
@@ -646,6 +648,21 @@ export async function deleteSticker(
   return apiFetch<void>(
     `/api/v1/users/${userId}/stickers/${variantId}${qs}`,
     { method: 'DELETE' },
+    token,
+  );
+}
+
+export async function setTradeFlags(
+  userId: string,
+  variantId: string,
+  flags: { tradeHidden?: boolean; tradeForced?: boolean },
+  token: string,
+  albumId?: string,
+): Promise<void> {
+  const qs = albumId ? `?albumId=${encodeURIComponent(albumId)}` : '';
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/stickers/${variantId}/trade-flags${qs}`,
+    { method: 'PATCH', body: JSON.stringify(flags) },
     token,
   );
 }

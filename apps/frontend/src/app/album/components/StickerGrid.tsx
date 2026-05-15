@@ -3,7 +3,7 @@
 import { useRef, useCallback, useState, useEffect } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import type { Sticker } from '@/lib/api';
-import { addSticker, patchSticker, moveSticker } from '@/lib/api';
+import { addSticker, patchSticker, moveSticker, setTradeFlags } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
 import VariantPopover, { type OwnedVariantEntry } from './VariantPopover';
@@ -159,6 +159,19 @@ export default function StickerGrid({
     [userId, albumId, token, onCollectionChange, addToast],
   );
 
+  const handleSetTradeFlag = useCallback(
+    async (variantId: string, flags: { tradeHidden?: boolean; tradeForced?: boolean }) => {
+      try {
+        await setTradeFlags(userId, variantId, flags, token, albumId);
+        onCollectionChange();
+      } catch (err) {
+        console.error('Failed to update trade flag', err);
+        addToast('Failed to update trade setting. Please try again.');
+      }
+    },
+    [userId, albumId, token, onCollectionChange, addToast],
+  );
+
   if (stickers.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center text-gray-400 text-sm">
@@ -242,6 +255,7 @@ export default function StickerGrid({
           }
           onMove={handleMove}
           onMoveFrom={handleMoveFrom}
+          onSetTradeFlag={handleSetTradeFlag}
           albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.album_code)}
         />
       )}

@@ -226,6 +226,8 @@ export const userStickers = pgTable('user_stickers', {
   albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
   stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
   quantity: integer('quantity').notNull().default(1),
+  tradeHidden: boolean('trade_hidden').notNull().default(false),
+  tradeForced: boolean('trade_forced').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({

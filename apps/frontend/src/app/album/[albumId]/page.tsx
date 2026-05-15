@@ -73,6 +73,8 @@ async function loadOwnedMap(
       perSticker.set(item.variant_type, {
         variantId: item.sticker_variant_id,
         quantity: item.quantity,
+        tradeHidden: item.trade_hidden,
+        tradeForced: item.trade_forced,
       });
     }
     if (!page.nextCursor || page.items.length === 0) break;
@@ -543,6 +545,8 @@ export default function AlbumDetailPage() {
           perSticker.set(variantType, {
             variantId: current?.variantId ?? variantId,
             quantity: newQty,
+            tradeHidden: current?.tradeHidden ?? false,
+            tradeForced: current?.tradeForced ?? false,
           });
         }
         if (perSticker.size === 0) next.delete(albumCode);

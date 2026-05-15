@@ -65,6 +65,8 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
                     sticker_variant_id: { type: 'string' },
                     variant_type:       { type: 'string' },
                     quantity:           { type: 'integer' },
+                    trade_hidden:       { type: 'boolean' },
+                    trade_forced:       { type: 'boolean' },
                     sticker_id:         { type: 'string' },
                     number:             { type: 'integer' },
                     album_code:         { type: 'string' },
@@ -265,6 +267,8 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
                     sticker_variant_id: { type: 'string' },
                     variant_type:       { type: 'string' },
                     quantity:           { type: 'integer' },
+                    trade_hidden:       { type: 'boolean' },
+                    trade_forced:       { type: 'boolean' },
                     sticker_id:         { type: 'string' },
                     number:             { type: 'integer' },
                     album_code:         { type: 'string' },
@@ -426,6 +430,56 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
 
       await collectionService.removeSticker(
         fastify.db, fastify.redis, userId, albumId, variantId
+      );
+      return reply.status(204).send();
+    }
+  );
+
+  /**
+   * PATCH /api/v1/users/:userId/stickers/:variantId/trade-flags
+   */
+  fastify.patch(
+    '/api/v1/users/:userId/stickers/:variantId/trade-flags',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Collection'],
+        summary: 'Update trade visibility flags for a sticker variant',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'variantId'],
+          properties: {
+            userId:    { type: 'string' },
+            variantId: { type: 'string' },
+          },
+        },
+        querystring: {
+          type: 'object',
+          properties: { albumId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          properties: {
+            tradeHidden: { type: 'boolean' },
+            tradeForced: { type: 'boolean' },
+          },
+        },
+        response: { 204: { type: 'null', description: 'Flags updated' } },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, variantId } = request.params as { userId: string; variantId: string };
+      if (!assertAccess(request, reply, userId, 'collection')) return;
+
+      const { albumId: qAlbumId } = request.query as { albumId?: string };
+      const body = request.body as { tradeHidden?: boolean; tradeForced?: boolean };
+
+      const albumId = await resolveAlbum(fastify, reply, userId, qAlbumId);
+      if (!albumId) return;
+
+      await collectionService.setTradeFlags(
+        fastify.db, fastify.redis, userId, albumId, variantId, body
       );
       return reply.status(204).send();
     }

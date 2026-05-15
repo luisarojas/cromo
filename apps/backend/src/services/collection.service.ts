@@ -25,6 +25,8 @@ export interface CollectionItem {
   sticker_variant_id: string;
   variant_type: string;
   quantity: number;
+  trade_hidden: boolean;
+  trade_forced: boolean;
   sticker_id: string;
   number: number;
   album_code: string;
@@ -59,6 +61,8 @@ export interface DuplicateItem {
   sticker_variant_id: string;
   variant_type: string;
   quantity: number;
+  trade_hidden: boolean;
+  trade_forced: boolean;
   sticker_id: string;
   number: number;
   album_code: string;
@@ -115,6 +119,8 @@ export async function getCollection(
             us.sticker_variant_id,
             sv.variant_type,
             us.quantity,
+            us.trade_hidden,
+            us.trade_forced,
             s.id AS sticker_id,
             s.number,
             s.album_code,
@@ -287,6 +293,8 @@ export async function getDuplicates(
             us.sticker_variant_id,
             sv.variant_type,
             us.quantity,
+            us.trade_hidden,
+            us.trade_forced,
             s.id AS sticker_id,
             s.number,
             s.album_code,
@@ -429,6 +437,42 @@ export async function updateSticker(
       [albumId, variantId, quantity]
     );
   }
+
+  await invalidateUserCaches(redis, userId);
+}
+
+/**
+ * setTradeFlags — update trade_hidden / trade_forced for a single user_sticker row.
+ */
+export async function setTradeFlags(
+  db: Pool,
+  redis: Redis,
+  userId: string,
+  albumId: string,
+  variantId: string,
+  flags: { tradeHidden?: boolean; tradeForced?: boolean }
+): Promise<void> {
+  const setParts: string[] = [];
+  const values: (boolean | string)[] = [albumId, variantId];
+  let idx = 3;
+
+  if (flags.tradeHidden !== undefined) {
+    setParts.push(`trade_hidden = $${idx++}`);
+    values.push(flags.tradeHidden);
+  }
+  if (flags.tradeForced !== undefined) {
+    setParts.push(`trade_forced = $${idx++}`);
+    values.push(flags.tradeForced);
+  }
+
+  if (setParts.length === 0) return;
+
+  await db.query(
+    `UPDATE user_stickers
+     SET ${setParts.join(', ')}, updated_at = NOW()
+     WHERE album_id = $1 AND sticker_variant_id = $2`,
+    values
+  );
 
   await invalidateUserCaches(redis, userId);
 }

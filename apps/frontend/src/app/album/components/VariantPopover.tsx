@@ -11,6 +11,8 @@ import { albumDisplayName } from '@/lib/api';
 export interface OwnedVariantEntry {
   variantId: string;
   quantity: number;
+  tradeHidden: boolean;
+  tradeForced: boolean;
 }
 
 interface Props {
@@ -24,6 +26,7 @@ interface Props {
   onAddNew: (variantId: string, variantType: string) => Promise<void>;
   onMove: (variantId: string, targetAlbumId: string, quantity: number) => Promise<void>;
   onMoveFrom: (variantId: string, sourceAlbumId: string, quantity: number) => Promise<void>;
+  onSetTradeFlag?: (variantId: string, flags: { tradeHidden?: boolean; tradeForced?: boolean }) => Promise<void>;
   albumsWithSticker?: Array<{ id: string; name: string }>;
 }
 
@@ -40,6 +43,7 @@ export default function VariantPopover({
   onAddNew,
   onMove,
   onMoveFrom,
+  onSetTradeFlag,
   albumsWithSticker,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
@@ -234,38 +238,78 @@ export default function VariantPopover({
           {ownedEntries.map(([variantType, entry]) => (
             <li
               key={variantType}
-              className="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1.5"
+              className="flex flex-col gap-1 rounded-md bg-gray-50 px-2 py-1.5"
             >
-              <span
-                className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(variantType)}`}
-                aria-hidden
-              />
-              <span className="flex-1 text-xs font-medium text-gray-700 truncate">
-                {variantLabel(variantType)}
-              </span>
-              <span className="text-xs font-semibold text-gray-800 tabular-nums w-5 text-right">
-                ×{entry.quantity}
-              </span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => handleAdjust(entry.variantId, variantType, -1)}
-                  disabled={busy}
-                  className="w-6 h-6 rounded bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
-                  aria-label={`Remove one ${variantLabel(variantType)}`}
-                  title="Remove one"
-                >
-                  −
-                </button>
-                <button
-                  onClick={() => handleAdjust(entry.variantId, variantType, 1)}
-                  disabled={busy}
-                  className="w-6 h-6 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 disabled:opacity-50 text-sm font-bold leading-none"
-                  aria-label={`Add one ${variantLabel(variantType)}`}
-                  title="Add one"
-                >
-                  +
-                </button>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(variantType)}`}
+                  aria-hidden
+                />
+                <span className="flex-1 text-xs font-medium text-gray-700 truncate">
+                  {variantLabel(variantType)}
+                </span>
+                <span className="text-xs font-semibold text-gray-800 tabular-nums w-5 text-right">
+                  ×{entry.quantity}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleAdjust(entry.variantId, variantType, -1)}
+                    disabled={busy}
+                    className="w-6 h-6 rounded bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
+                    aria-label={`Remove one ${variantLabel(variantType)}`}
+                    title="Remove one"
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() => handleAdjust(entry.variantId, variantType, 1)}
+                    disabled={busy}
+                    className="w-6 h-6 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 disabled:opacity-50 text-sm font-bold leading-none"
+                    aria-label={`Add one ${variantLabel(variantType)}`}
+                    title="Add one"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
+              {onSetTradeFlag && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => onSetTradeFlag(entry.variantId, { tradeHidden: !entry.tradeHidden })}
+                    disabled={busy}
+                    title={entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
+                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                      entry.tradeHidden
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      {entry.tradeHidden ? (
+                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                      ) : (
+                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                      )}
+                    </svg>
+                    {entry.tradeHidden ? 'Hidden from trade' : 'Visible for trade'}
+                  </button>
+                  <button
+                    onClick={() => onSetTradeFlag(entry.variantId, { tradeForced: !entry.tradeForced })}
+                    disabled={busy}
+                    title={entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
+                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                      entry.tradeForced
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                    </svg>
+                    {entry.tradeForced ? 'Always offered' : 'Not forced'}
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
