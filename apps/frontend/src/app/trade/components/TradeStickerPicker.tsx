@@ -651,6 +651,11 @@ export default function TradeStickerPicker({
                 >
                   <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(o.variantType)}`} />
                   <span className="text-xs font-semibold text-gray-800">{o.albumCode}</span>
+                  {suggestedSet.has(o.albumCode) && (
+                    <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
+                      they want
+                    </span>
+                  )}
                   <div className="flex items-center gap-0.5">
                     <button
                       onClick={() => adjustOfferQty(o.variantId, -1)}
@@ -724,6 +729,16 @@ export default function TradeStickerPicker({
                   <div key={w.key} className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-2 py-1 shrink-0">
                     <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(w.variantType)}`} />
                     <span className="text-xs font-semibold text-gray-800">{w.albumCode}</span>
+                    {!ownedAlbumCodes.has(w.albumCode) && (
+                      <span className="shrink-0 text-[9px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1 py-px rounded leading-none">
+                        I need
+                      </span>
+                    )}
+                    {favouriteCodes.has(w.albumCode) && (
+                      <span className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none">
+                        ★
+                      </span>
+                    )}
                     {w.allVariants.length > 1 && (
                       <select
                         value={w.variantId}
