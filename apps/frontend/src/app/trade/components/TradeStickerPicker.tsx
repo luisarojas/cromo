@@ -79,8 +79,11 @@ export default function TradeStickerPicker({
   const [offerSearch, setOfferSearch] = useState('');
   const [offerVariantFilters, setOfferVariantFilters] = useState<string[]>([]);
   const [offerQtyFilter, setOfferQtyFilter] = useState<'' | 'duplicate' | 'single'>('');
+  const [offerTheyNeedOnly, setOfferTheyNeedOnly] = useState(false);
   const [wantVariantFilters, setWantVariantFilters] = useState<string[]>([]);
   const [wantSearch, setWantSearch] = useState('');
+  const [wantMissingOnly, setWantMissingOnly] = useState(false);
+  const [wantFavouritedOnly, setWantFavouritedOnly] = useState(false);
   const [offerCashInput, setOfferCashInput] = useState(
     () => (initialOfferCash && initialOfferCash > 0 ? (initialOfferCash / 100).toFixed(2) : ''),
   );
@@ -258,6 +261,7 @@ export default function TradeStickerPicker({
 
   const suggestedSet = new Set(suggestedOfferCodes);
   const selectedVariantIds = new Set(selectedOffers.map((o) => o.variantId));
+  const ownedAlbumCodes = new Set(offerItems.map((item) => item.album_code));
 
   const offerVariants = [...new Set(offerItems.map((d) => d.variant_type))].sort();
 
@@ -265,6 +269,7 @@ export default function TradeStickerPicker({
     .filter((item) => {
       if (offerQtyFilter === 'duplicate' && item.quantity < 2) return false;
       if (offerQtyFilter === 'single' && item.quantity !== 1) return false;
+      if (offerTheyNeedOnly && !suggestedSet.has(item.album_code)) return false;
       if (offerVariantFilters.length > 0 && !offerVariantFilters.includes(item.variant_type)) return false;
       if (!offerSearch) return true;
       const q = offerSearch.toLowerCase();
@@ -290,6 +295,8 @@ export default function TradeStickerPicker({
   ].sort();
   const filteredSuggestions = suggestions.filter((w) => {
     if (w.loading) return true;
+    if (wantMissingOnly && ownedAlbumCodes.has(w.albumCode)) return false;
+    if (wantFavouritedOnly && !favouriteCodes.has(w.albumCode)) return false;
     if (
       wantVariantFilters.length > 0 &&
       !w.allVariants.some((v) => wantVariantFilters.includes(v.variant_type))
@@ -378,7 +385,7 @@ export default function TradeStickerPicker({
 
         {/* Cash offer input */}
         <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2">
-          <span className="text-xs font-medium text-blue-700 shrink-0">+ Cash (CAD)</span>
+          <span className="text-xs font-medium text-blue-700 shrink-0">+ Cash</span>
           <div className="relative flex-1">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">CA$</span>
             <input
@@ -423,6 +430,19 @@ export default function TradeStickerPicker({
               );
             })}
           </div>
+
+          {suggestedOfferCodes.length > 0 && (
+            <button
+              onClick={() => setOfferTheyNeedOnly((v) => !v)}
+              className={`w-full px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                offerTheyNeedOnly
+                  ? 'bg-teal-500 text-white border-teal-500'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              They Need
+            </button>
+          )}
 
           <input
             type="text"
@@ -613,7 +633,7 @@ export default function TradeStickerPicker({
 
         {/* Cash want input */}
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2">
-          <span className="text-xs font-medium text-emerald-700 shrink-0">+ Cash (CAD)</span>
+          <span className="text-xs font-medium text-emerald-700 shrink-0">+ Cash</span>
           <div className="relative flex-1">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">CA$</span>
             <input
@@ -645,6 +665,32 @@ export default function TradeStickerPicker({
               placeholder="Search by code or player..."
               className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
+
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setWantMissingOnly((v) => !v)}
+                className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                  wantMissingOnly
+                    ? 'bg-emerald-500 text-white border-emerald-500'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                I Need
+              </button>
+              {favouriteCodes.size > 0 && (
+                <button
+                  onClick={() => setWantFavouritedOnly((v) => !v)}
+                  className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                    wantFavouritedOnly
+                      ? 'bg-amber-500 text-white border-amber-500'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  ★ Favourited
+                </button>
+              )}
+            </div>
+
             {wantVariants.length > 0 && (
               <div className="flex flex-wrap gap-1 shrink-0">
                 <button
