@@ -425,7 +425,7 @@ export default function TradePage() {
             </div>
 
             {/* Picker */}
-            <div className="px-6 py-4 overflow-y-auto flex-1">
+            <div className="px-6 py-4 flex-1 min-h-0 flex flex-col">
               <TradeStickerPicker
                 key={proposeModal.match.user_id}
                 offerItems={proposeModal.offerItems}

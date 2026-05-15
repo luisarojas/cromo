@@ -250,9 +250,9 @@ export default function TradeStickerPicker({
   ).length;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
       {/* ── Offer Panel ───────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-3">
+      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-3 min-h-0">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-blue-700">You're Offering</h3>
           {selectedOffers.length > 0 && (
@@ -456,7 +456,7 @@ export default function TradeStickerPicker({
       </div>
 
       {/* ── Want Panel ────────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-3">
+      <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-3 min-h-0">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-emerald-700">You Want</h3>
           {selectedWantCount > 0 && (
