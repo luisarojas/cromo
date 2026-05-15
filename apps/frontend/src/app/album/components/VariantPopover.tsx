@@ -275,9 +275,12 @@ export default function VariantPopover({
               {onSetTradeFlag && (
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => onSetTradeFlag(entry.variantId, { tradeHidden: !entry.tradeHidden })}
-                    disabled={busy}
-                    title={entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
+                    onClick={() => onSetTradeFlag(entry.variantId, {
+                      tradeHidden: !entry.tradeHidden,
+                      ...((!entry.tradeHidden) && { tradeForced: false }),
+                    })}
+                    disabled={busy || entry.tradeForced}
+                    title={entry.tradeForced ? 'Cannot hide while forced for trade' : entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeHidden
                         ? 'bg-red-100 text-red-700 hover:bg-red-200'
@@ -294,9 +297,12 @@ export default function VariantPopover({
                     {entry.tradeHidden ? 'Hidden from trade' : 'Visible for trade'}
                   </button>
                   <button
-                    onClick={() => onSetTradeFlag(entry.variantId, { tradeForced: !entry.tradeForced })}
-                    disabled={busy}
-                    title={entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
+                    onClick={() => onSetTradeFlag(entry.variantId, {
+                      tradeForced: !entry.tradeForced,
+                      ...((!entry.tradeForced) && { tradeHidden: false }),
+                    })}
+                    disabled={busy || entry.tradeHidden}
+                    title={entry.tradeHidden ? 'Cannot force trade while hidden' : entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeForced
                         ? 'bg-green-100 text-green-700 hover:bg-green-200'

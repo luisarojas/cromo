@@ -456,13 +456,16 @@ export async function setTradeFlags(
   const values: (boolean | string)[] = [albumId, variantId];
   let idx = 3;
 
-  if (flags.tradeHidden !== undefined) {
+  const resolvedHidden = flags.tradeHidden ?? (flags.tradeForced ? false : undefined);
+  const resolvedForced = flags.tradeForced ?? (flags.tradeHidden ? false : undefined);
+
+  if (resolvedHidden !== undefined) {
     setParts.push(`trade_hidden = $${idx++}`);
-    values.push(flags.tradeHidden);
+    values.push(resolvedHidden);
   }
-  if (flags.tradeForced !== undefined) {
+  if (resolvedForced !== undefined) {
     setParts.push(`trade_forced = $${idx++}`);
-    values.push(flags.tradeForced);
+    values.push(resolvedForced);
   }
 
   if (setParts.length === 0) return;
