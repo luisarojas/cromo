@@ -202,7 +202,7 @@ export async function getStickersByAlbumCodes(
      JOIN sticker_variants sv ON sv.sticker_id = s.id
      WHERE s.album_code = ANY($1)
      GROUP BY s.album_code, s.player_name, t.name
-     ORDER BY s.number`,
+     ORDER BY MIN(s.number)`,
     [albumCodes]
   );
 
