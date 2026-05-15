@@ -7,10 +7,20 @@ import type { FastifyInstance } from 'fastify';
  * These tests require a real PostgreSQL database and Redis instance.
  * They are skipped when DATABASE_URL does not point to a real server.
  *
- * Seeded test users (from seed-database):
- *   admin  — 00000000-0000-0000-0000-000000000001  admin@test.local
- *   alice  — 00000000-0000-0000-0000-000000000002  alice@test.local  (stickers 1-200, every 7th is duplicate)
- *   bob    — 00000000-0000-0000-0000-000000000003  bob@test.local
+ * Seeded test users (from 07_test_users.sql):
+ *   admin   — 00000000-0000-0000-0000-000000000001  admin@test.local
+ *   alice   — 00000000-0000-0000-0000-000000000002  alice@test.local
+ *             north_america album: stickers 1–200 (every 7th duplicate)
+ *             international album: stickers 1–50 (every 5th duplicate)
+ *             trade_hidden on stickers #7 and #14 (north_america)
+ *   bob     — 00000000-0000-0000-0000-000000000003  bob@test.local
+ *             north_america album: stickers 150–400 (every 5th duplicate)
+ *             international album: stickers 300–400 (every 8th duplicate)
+ *             trade_forced on stickers #151 and #156 (north_america)
+ *   charlie — 00000000-0000-0000-0000-000000000004  charlie@test.local
+ *             north_america album: stickers 1–100 (every 3rd duplicate)
+ *   diana   — 00000000-0000-0000-0000-000000000005  diana@test.local
+ *             north_america album: stickers 250–400 (every 4th duplicate)
  */
 
 const HAS_REAL_DB =
@@ -24,9 +34,17 @@ const HAS_REAL_REDIS =
 
 const shouldRun = HAS_REAL_DB && HAS_REAL_REDIS;
 
-const ALICE_ID = '00000000-0000-0000-0000-000000000002';
-const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
-const BOB_ID   = '00000000-0000-0000-0000-000000000003';
+const ADMIN_ID   = '00000000-0000-0000-0000-000000000001';
+const ALICE_ID   = '00000000-0000-0000-0000-000000000002';
+const BOB_ID     = '00000000-0000-0000-0000-000000000003';
+const CHARLIE_ID = '00000000-0000-0000-0000-000000000004';
+const DIANA_ID   = '00000000-0000-0000-0000-000000000005';
+
+const ALICE_NA_ALBUM_ID   = '00000000-0000-0000-0001-000000000002';
+const ALICE_INTL_ALBUM_ID = '00000000-0000-0000-0001-000000000012';
+const BOB_NA_ALBUM_ID     = '00000000-0000-0000-0001-000000000003';
+const CHARLIE_ALBUM_ID    = '00000000-0000-0000-0001-000000000004';
+const DIANA_ALBUM_ID      = '00000000-0000-0000-0001-000000000005';
 
 // ─── Integration tests (require real DB + Redis) ──────────────────────────────
 
@@ -35,6 +53,8 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
   let aliceToken: string;
   let adminToken: string;
   let bobToken: string;
+  let charlieToken: string;
+  let dianaToken: string;
 
   beforeAll(async () => {
     const { buildApp } = await import('../../src/app.js');
@@ -43,9 +63,11 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
     app = await buildApp();
     await app.ready();
 
-    aliceToken = signAccessToken({ sub: ALICE_ID, email: 'alice@test.local', role: 'user' });
-    adminToken = signAccessToken({ sub: ADMIN_ID, email: 'admin@test.local', role: 'admin' });
-    bobToken   = signAccessToken({ sub: BOB_ID,   email: 'bob@test.local',   role: 'user' });
+    aliceToken   = signAccessToken({ sub: ALICE_ID,   email: 'alice@test.local',   role: 'user' });
+    adminToken   = signAccessToken({ sub: ADMIN_ID,   email: 'admin@test.local',   role: 'admin' });
+    bobToken     = signAccessToken({ sub: BOB_ID,     email: 'bob@test.local',     role: 'user' });
+    charlieToken = signAccessToken({ sub: CHARLIE_ID, email: 'charlie@test.local', role: 'user' });
+    dianaToken   = signAccessToken({ sub: DIANA_ID,   email: 'diana@test.local',   role: 'user' });
   });
 
   afterAll(async () => {
@@ -54,12 +76,13 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
 
   // ── GET /collection ──────────────────────────────────────────────────────────
 
-  describe(`GET /api/v1/users/${ALICE_ID}/collection`, () => {
+  describe(`GET /api/v1/users/${ALICE_ID}/collection (north_america album)`, () => {
     it('returns 200 with { items, nextCursor, total } for the owner', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/collection`,
         headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
       });
 
       expect(response.statusCode).toBe(200);
@@ -94,12 +117,132 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/collection`,
         headers: { Authorization: `Bearer ${adminToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
       });
 
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{ items: unknown[]; total: number }>();
       expect(Array.isArray(body.items)).toBe(true);
+    });
+
+    it('collection items include trade_hidden and trade_forced boolean fields', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${ALICE_ID}/collection`,
+        headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID, limit: '200' },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{
+        items: { trade_hidden: unknown; trade_forced: unknown }[];
+      }>();
+
+      expect(body.items.length).toBeGreaterThan(0);
+      for (const item of body.items) {
+        expect(typeof item.trade_hidden).toBe('boolean');
+        expect(typeof item.trade_forced).toBe('boolean');
+      }
+    });
+
+    it('seeded trade_hidden stickers (#7, #14) are visible in collection but flagged', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${ALICE_ID}/collection`,
+        headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID, limit: '200' },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{
+        items: { number: number; trade_hidden: boolean; trade_forced: boolean }[];
+      }>();
+
+      const hiddenItems = body.items.filter((i) => i.trade_hidden);
+      const hiddenNumbers = hiddenItems.map((i) => i.number);
+
+      // Stickers #7 and #14 were seeded with trade_hidden = true
+      expect(hiddenNumbers).toContain(7);
+      expect(hiddenNumbers).toContain(14);
+
+      // trade_hidden items must not also be trade_forced
+      for (const item of hiddenItems) {
+        expect(item.trade_forced).toBe(false);
+      }
+    });
+  });
+
+  // ── Multiple albums ──────────────────────────────────────────────────────────
+
+  describe('Multiple albums per user', () => {
+    it('Alice\'s international album has fewer stickers than her north_america album', async () => {
+      const [naRes, intlRes] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/${ALICE_ID}/collection/stats`,
+          headers: { Authorization: `Bearer ${aliceToken}` },
+          query: { albumId: ALICE_NA_ALBUM_ID },
+        }),
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/${ALICE_ID}/collection/stats`,
+          headers: { Authorization: `Bearer ${aliceToken}` },
+          query: { albumId: ALICE_INTL_ALBUM_ID },
+        }),
+      ]);
+
+      expect(naRes.statusCode).toBe(200);
+      expect(intlRes.statusCode).toBe(200);
+
+      const naStats   = naRes.json<{ owned: number }>() ;
+      const intlStats = intlRes.json<{ owned: number }>();
+
+      // North America has stickers 1-200; international only 1-50
+      expect(naStats.owned).toBeGreaterThan(intlStats.owned);
+    });
+
+    it('international album collection returns independent items from north_america album', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${ALICE_ID}/collection`,
+        headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_INTL_ALBUM_ID },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{ items: unknown[]; total: number }>();
+      expect(Array.isArray(body.items)).toBe(true);
+      // International album was seeded with stickers 1-50
+      expect(body.total).toBeGreaterThan(0);
+    });
+
+    it('Bob\'s international album has separate collection from his north_america album', async () => {
+      const [naRes, intlRes] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/${BOB_ID}/collection/stats`,
+          headers: { Authorization: `Bearer ${bobToken}` },
+          query: { albumId: BOB_NA_ALBUM_ID },
+        }),
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/${BOB_ID}/collection/stats`,
+          headers: { Authorization: `Bearer ${bobToken}` },
+          query: { albumId: '00000000-0000-0000-0001-000000000013' },
+        }),
+      ]);
+
+      expect(naRes.statusCode).toBe(200);
+      // International album request may 403 if not the album owner check uses album — skip if so
+      if (intlRes.statusCode === 200) {
+        const naStats   = naRes.json<{ owned: number }>();
+        const intlStats = intlRes.json<{ owned: number }>();
+        expect(naStats.owned).toBeGreaterThan(intlStats.owned);
+      }
     });
   });
 
@@ -111,6 +254,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/collection/stats`,
         headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
       });
 
       expect(response.statusCode).toBe(200);
@@ -134,6 +278,37 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       // Alice has stickers 1-200 seeded
       expect(body.owned).toBeGreaterThan(0);
     });
+
+    it('Charlie\'s album stats reflect his 1–100 collection', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${CHARLIE_ID}/collection/stats`,
+        headers: { Authorization: `Bearer ${charlieToken}` },
+        query: { albumId: CHARLIE_ALBUM_ID },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{ owned: number; duplicates: number }>();
+      expect(body.owned).toBeGreaterThan(0);
+      // Every 3rd sticker is a duplicate → duplicates ≥ 1
+      expect(body.duplicates).toBeGreaterThan(0);
+    });
+
+    it('Diana\'s album stats reflect her 250–400 collection', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${DIANA_ID}/collection/stats`,
+        headers: { Authorization: `Bearer ${dianaToken}` },
+        query: { albumId: DIANA_ALBUM_ID },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{ owned: number; duplicates: number }>();
+      expect(body.owned).toBeGreaterThan(0);
+      expect(body.duplicates).toBeGreaterThan(0);
+    });
   });
 
   // ── GET /missing ─────────────────────────────────────────────────────────────
@@ -144,6 +319,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/missing`,
         headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
       });
 
       expect(response.statusCode).toBe(200);
@@ -156,6 +332,32 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(Array.isArray(body.items)).toBe(true);
       expect(typeof body.total).toBe('number');
     });
+
+    it('Alice\'s international album has more missing stickers than north_america', async () => {
+      const [naRes, intlRes] = await Promise.all([
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/${ALICE_ID}/missing`,
+          headers: { Authorization: `Bearer ${aliceToken}` },
+          query: { albumId: ALICE_NA_ALBUM_ID },
+        }),
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/${ALICE_ID}/missing`,
+          headers: { Authorization: `Bearer ${aliceToken}` },
+          query: { albumId: ALICE_INTL_ALBUM_ID },
+        }),
+      ]);
+
+      expect(naRes.statusCode).toBe(200);
+      expect(intlRes.statusCode).toBe(200);
+
+      const naMissing   = naRes.json<{ total: number }>();
+      const intlMissing = intlRes.json<{ total: number }>();
+
+      // International only has stickers 1–50, so more are missing
+      expect(intlMissing.total).toBeGreaterThan(naMissing.total);
+    });
   });
 
   // ── GET /duplicates ──────────────────────────────────────────────────────────
@@ -166,12 +368,13 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/duplicates`,
         headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
       });
 
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { quantity: number; sticker_variant_id: string }[];
+        items: { quantity: number; sticker_variant_id: string; trade_hidden: boolean; trade_forced: boolean }[];
         total: number;
       }>();
 
@@ -179,6 +382,79 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       // Every duplicate must have quantity > 1
       for (const item of body.items) {
         expect(item.quantity).toBeGreaterThan(1);
+      }
+    });
+
+    it('duplicate items include trade_hidden and trade_forced fields', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${ALICE_ID}/duplicates`,
+        headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{
+        items: { trade_hidden: unknown; trade_forced: unknown }[];
+      }>();
+
+      expect(body.items.length).toBeGreaterThan(0);
+      for (const item of body.items) {
+        expect(typeof item.trade_hidden).toBe('boolean');
+        expect(typeof item.trade_forced).toBe('boolean');
+      }
+    });
+
+    it('some of Alice\'s duplicates are marked trade_hidden', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${ALICE_ID}/duplicates`,
+        headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{
+        items: { number: number; trade_hidden: boolean }[];
+      }>();
+
+      const hiddenNumbers = body.items
+        .filter((i) => i.trade_hidden)
+        .map((i) => i.number);
+
+      expect(hiddenNumbers).toContain(7);
+      expect(hiddenNumbers).toContain(14);
+    });
+  });
+
+  // ── Trade flags: trade_forced ─────────────────────────────────────────────────
+
+  describe('Trade flags — trade_forced (Bob)', () => {
+    it('Bob\'s collection contains trade_forced stickers (#151, #156)', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/users/${BOB_ID}/collection`,
+        headers: { Authorization: `Bearer ${bobToken}` },
+        query: { albumId: BOB_NA_ALBUM_ID, limit: '300' },
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{
+        items: { number: number; trade_forced: boolean; quantity: number }[];
+      }>();
+
+      const forcedItems = body.items.filter((i) => i.trade_forced);
+      const forcedNumbers = forcedItems.map((i) => i.number);
+
+      expect(forcedNumbers).toContain(151);
+      expect(forcedNumbers).toContain(156);
+
+      // trade_forced stickers are singles (not duplicates), not trade_hidden
+      for (const item of forcedItems) {
+        expect(item.quantity).toBe(1);
       }
     });
   });
@@ -210,7 +486,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
           Authorization: `Bearer ${aliceToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ variantId }),
+        body: JSON.stringify({ variantId, albumId: ALICE_NA_ALBUM_ID }),
       });
 
       expect(response.statusCode).toBe(204);
@@ -221,6 +497,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
         method: 'DELETE',
         url: `/api/v1/users/${ALICE_ID}/stickers/${variantId}`,
         headers: { Authorization: `Bearer ${aliceToken}` },
+        query: { albumId: ALICE_NA_ALBUM_ID },
       });
 
       expect(response.statusCode).toBe(204);

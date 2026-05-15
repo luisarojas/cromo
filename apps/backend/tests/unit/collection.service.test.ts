@@ -7,6 +7,7 @@ import {
   addSticker,
   removeSticker,
   updateSticker,
+  setTradeFlags,
 } from '../../src/services/collection.service.js';
 
 // ─── Minimal mocks ─────────────────────────────────────────────────────────────
@@ -200,5 +201,91 @@ describe('updateSticker', () => {
 
     expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
+  });
+});
+
+// ─── setTradeFlags ─────────────────────────────────────────────────────────────
+
+describe('setTradeFlags', () => {
+  it('runs an UPDATE setting trade_hidden when only tradeHidden is provided', async () => {
+    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
+
+    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(sql).toMatch(/UPDATE user_stickers/i);
+    expect(sql).toMatch(/trade_hidden/i);
+    expect(params).toContain('album-1');
+    expect(params).toContain('variant-1');
+    expect(params).toContain(true);
+  });
+
+  it('also clears trade_forced when trade_hidden is set', async () => {
+    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
+
+    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
+    // Service resolves tradeForced = false when tradeHidden is set
+    expect(sql).toMatch(/trade_forced/i);
+    expect(params).toContain(false);
+  });
+
+  it('runs an UPDATE setting trade_forced when only tradeForced is provided', async () => {
+    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeForced: true });
+
+    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(sql).toMatch(/UPDATE user_stickers/i);
+    expect(sql).toMatch(/trade_forced/i);
+    expect(params).toContain(true);
+  });
+
+  it('also clears trade_hidden when trade_forced is set', async () => {
+    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeForced: true });
+
+    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(sql).toMatch(/trade_hidden/i);
+    expect(params).toContain(false);
+  });
+
+  it('updates both flags when both are explicitly provided', async () => {
+    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {
+      tradeHidden: false,
+      tradeForced: false,
+    });
+
+    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(sql).toMatch(/UPDATE user_stickers/i);
+    expect(params).toContain('album-1');
+    expect(params).toContain('variant-1');
+  });
+
+  it('does not run a query when no flags are provided', async () => {
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {});
+
+    expect(mockDb.query).not.toHaveBeenCalled();
+  });
+
+  it('invalidates user caches after updating flags', async () => {
+    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-1:collection:album-1']]);
+
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
+
+    expect(mockRedis.scan).toHaveBeenCalled();
+    expect(mockRedis.del).toHaveBeenCalled();
+  });
+
+  it('does not invalidate caches when no query was run', async () => {
+    await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {});
+
+    expect(mockRedis.scan).not.toHaveBeenCalled();
+    expect(mockRedis.del).not.toHaveBeenCalled();
   });
 });

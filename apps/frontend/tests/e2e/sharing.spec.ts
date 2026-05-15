@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * E2E tests for Phase A3 — Sharing & Public Profile flows.
+ * E2E tests for Sharing & Public Profile flows.
  *
- * Prerequisites: the app is running locally with test users seeded.
- * Alice: email=alice@example.com, password=password123
+ * Prerequisites: the app is running locally with test users seeded (07_test_users.sql).
+ * In local mode any password is accepted; the email must match a seeded account.
  *
  * Run locally: pnpm exec playwright test tests/e2e/sharing.spec.ts
  */
 
-const ALICE = { email: 'alice@example.com', password: 'password123' };
+const ALICE = { email: 'alice@test.local', password: 'any' };
 
 async function loginAs(page: import('@playwright/test').Page, user: typeof ALICE) {
   await page.goto('/login');
