@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchStickerVariants, toEditionKey, type Sticker, type StickerVariant } from '@/lib/api';
+import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
 import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
-import { formatPageSpread } from '@/lib/albumPages';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
 
@@ -61,21 +60,7 @@ export default function VariantPopover({
   const [moveFromQuantity, setMoveFromQuantity] = useState(1);
 
   const albums = useAlbumsStore((s) => s.albums);
-  const albumEdition = albums.find((a) => a.id === albumId)?.edition ?? 'north_america';
-  const albumEditionKey = toEditionKey(albumEdition);
   const otherAlbums = albums.filter((a) => a.id !== albumId);
-
-  const pageLocation = (() => {
-    const sp = sticker.stickerPages?.[albumEditionKey];
-    if (sp) {
-      if (sp.pageStart !== null && sp.pageEnd !== null) {
-        return formatPageSpread([sp.pageStart, sp.pageEnd]);
-      }
-      return sp.description ?? null;
-    }
-    const pages = sticker.stickerType !== 'extra' ? sticker.teamPages?.[albumEditionKey] : null;
-    return pages ? formatPageSpread(pages as [number, number]) : null;
-  })();
 
   // Fetch all variants on mount so we can hide the "Add another variant" button
   // immediately when the user already owns every available variant.
@@ -210,13 +195,6 @@ export default function VariantPopover({
           <div className="text-xs text-gray-500 truncate">
             {sticker.playerName ?? sticker.teamName ?? '—'}
           </div>
-          {pageLocation && (
-            <div className="mt-1">
-              <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 tabular-nums">
-                {pageLocation}
-              </span>
-            </div>
-          )}
         </div>
         <button
           onClick={onClose}

@@ -37,10 +37,10 @@ ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position;
 
--- Four rarity-tiered variants per Extra sticker
+-- Four rarity-tiered variants per Extra sticker (Purple/Bronze/Silver/Gold per official checklist)
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id,
-       unnest(ARRAY['extra_base', 'extra_bronze', 'extra_silver', 'extra_gold']),
+       unnest(ARRAY['extra_purple', 'extra_bronze', 'extra_silver', 'extra_gold']),
        unnest(ARRAY[15, 16, 17, 18]),
        'retail'
 FROM stickers

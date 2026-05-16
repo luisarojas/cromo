@@ -38,12 +38,6 @@ echo "✓ Coca-Cola stickers seeded (CC1–CC12)"
 run_seed scripts/seeds/10_extra_stickers.sql
 echo "✓ Extra stickers seeded (EX1–EX20, 4 rarities each)"
 
-run_seed scripts/seeds/11_host_city_stickers.sql
-echo "✓ Host city stickers seeded (HC1–HC16)"
-
-run_seed scripts/seeds/12_swiss_legend_stickers.sql
-echo "✓ Swiss Legend stickers seeded (L1–L10, Swiss Gold edition)"
-
 run_seed scripts/seeds/13_team_album_pages.sql
 echo "✓ Team album pages seeded"
 

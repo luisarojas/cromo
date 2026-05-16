@@ -76,11 +76,11 @@ export type VariantType =
   | 'green_crumple'
   | 'black_crumple_1of1'
   | 'coca_cola'
-  | 'extra_base'
+  | 'extra_purple'
   | 'extra_bronze'
   | 'extra_silver'
   | 'extra_gold'
-  | 'swiss_gold'
+  | 'swiss_green'
 
 export type Availability =
   | 'retail'

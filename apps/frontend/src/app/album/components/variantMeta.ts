@@ -6,19 +6,24 @@ export interface VariantMeta {
 }
 
 export const VARIANT_META: Record<string, VariantMeta> = {
-  base:                { label: 'Base',                short: 'Base',      swatch: 'bg-white border-gray-400', rarity: 'Common' },
-  blue:                { label: 'Blue parallel',       short: 'Blue',      swatch: 'bg-blue-500',              rarity: 'Uncommon' },
-  red:                 { label: 'Red parallel',        short: 'Red',       swatch: 'bg-red-500',               rarity: 'Rare' },
-  purple:              { label: 'Purple parallel',     short: 'Purple',    swatch: 'bg-purple-500',            rarity: 'Epic' },
-  green:               { label: 'Green parallel',      short: 'Green',     swatch: 'bg-green-500',             rarity: 'Legendary' },
-  black_1of1:          { label: 'Black',               short: 'Black',     swatch: 'bg-black',                 rarity: '1 of 1' },
-  orange_amazon:       { label: 'Orange (Amazon)',     short: 'Orange',    swatch: 'bg-orange-500',            rarity: 'Exclusive' },
-  gold_crumple:        { label: 'Gold Flood Crumple',  short: 'Crumple',   swatch: 'bg-yellow-400',            rarity: 'Ultra Rare' },
-  extra_base:          { label: 'Extra — Base',        short: 'EX Base',   swatch: 'bg-white border-gray-400', rarity: 'Common' },
-  extra_bronze:        { label: 'Extra — Bronze',      short: 'EX Bronze', swatch: 'bg-amber-600',             rarity: 'Uncommon' },
-  extra_silver:        { label: 'Extra — Silver',      short: 'EX Silver', swatch: 'bg-slate-400',             rarity: 'Rare' },
-  extra_gold:          { label: 'Extra — Gold',        short: 'EX Gold',   swatch: 'bg-yellow-500',            rarity: 'Legendary' },
-  swiss_gold:          { label: 'Swiss Gold',          short: 'Swiss',     swatch: 'bg-yellow-300',            rarity: 'Swiss Edition' },
+  base:                 { label: 'Base',                    short: 'Base',      swatch: 'bg-white border-gray-400', rarity: 'Common' },
+  blue:                 { label: 'Blue parallel',           short: 'Blue',      swatch: 'bg-blue-500',              rarity: 'Uncommon' },
+  red:                  { label: 'Red parallel',            short: 'Red',       swatch: 'bg-red-500',               rarity: 'Rare' },
+  purple:               { label: 'Purple parallel',         short: 'Purple',    swatch: 'bg-purple-500',            rarity: 'Epic' },
+  green:                { label: 'Green parallel',          short: 'Green',     swatch: 'bg-green-500',             rarity: 'Legendary' },
+  black_1of1:           { label: 'Black',                   short: 'Black',     swatch: 'bg-black',                 rarity: '1 of 1' },
+  orange_amazon:        { label: 'Orange (Amazon)',         short: 'Orange',    swatch: 'bg-orange-500',            rarity: 'Exclusive' },
+  gold_crumple:         { label: 'Gold Flood Crumple',      short: 'Gold Crmp', swatch: 'bg-yellow-400',            rarity: 'iCollect' },
+  blue_crumple:         { label: 'Blue Crumple',            short: 'Blue Crmp', swatch: 'bg-blue-400',              rarity: 'iCollect' },
+  red_crumple:          { label: 'Red Crumple',             short: 'Red Crmp',  swatch: 'bg-red-400',               rarity: 'iCollect Rare' },
+  purple_crumple:       { label: 'Purple Crumple',          short: 'Pur Crmp',  swatch: 'bg-purple-400',            rarity: 'iCollect Epic' },
+  green_crumple:        { label: 'Green Crumple',           short: 'Grn Crmp',  swatch: 'bg-green-400',             rarity: 'iCollect Legendary' },
+  black_crumple_1of1:   { label: 'Black Crumple',           short: 'Blk Crmp',  swatch: 'bg-neutral-900',           rarity: '1 of 1' },
+  extra_purple:         { label: 'Extra — Purple',          short: 'EX Purple', swatch: 'bg-purple-400',            rarity: 'Common' },
+  extra_bronze:         { label: 'Extra — Bronze',          short: 'EX Bronze', swatch: 'bg-amber-600',             rarity: 'Uncommon' },
+  extra_silver:         { label: 'Extra — Silver',          short: 'EX Silver', swatch: 'bg-slate-400',             rarity: 'Rare' },
+  extra_gold:           { label: 'Extra — Gold',            short: 'EX Gold',   swatch: 'bg-yellow-500',            rarity: 'Legendary' },
+  swiss_green:          { label: 'Green (United Edition)',  short: 'Swiss',     swatch: 'bg-green-400',             rarity: 'Swiss Edition' },
 };
 
 export const ALL_VARIANT_TYPES = Object.keys(VARIANT_META);
