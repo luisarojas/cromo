@@ -444,17 +444,46 @@ export async function completeTrade(
     const { requester_id: requesterId, recipient_id: recipientId,
             requester_album_id: requesterAlbumId, recipient_album_id: recipientAlbumId } = locked;
 
-    await client.query(
-      `UPDATE trade_requests
-       SET status = 'completed', completed_at = NOW(), updated_at = NOW()
-       WHERE id = $1`,
-      [tradeId]
-    );
-
     const { rows: items } = await client.query<{
       sticker_variant_id: string; direction: string; quantity: number;
     }>(
       `SELECT sticker_variant_id, direction, quantity FROM trade_items WHERE trade_id = $1`,
+      [tradeId]
+    );
+
+    // Validate that each side still holds sufficient quantity, locking those rows
+    // so a concurrent trade cannot drain them between now and the transfer below.
+    for (const item of items) {
+      const albumId = item.direction === 'offer' ? requesterAlbumId : recipientAlbumId;
+      const { rows: stock } = await client.query<{ quantity: number }>(
+        `SELECT quantity FROM user_stickers
+         WHERE album_id = $1 AND sticker_variant_id = $2 FOR UPDATE`,
+        [albumId, item.sticker_variant_id]
+      );
+      const available = stock[0]?.quantity ?? 0;
+      if (available < item.quantity) {
+        await client.query(
+          `UPDATE trade_requests
+           SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+           WHERE id = $1`,
+          [tradeId]
+        );
+        await client.query('COMMIT');
+        await Promise.all([
+          invalidateUserCaches(redis, requesterId),
+          invalidateUserCaches(redis, recipientId),
+        ]);
+        await publishTradeEvent(redis, tradeId, 'status_changed', {
+          trade_id: tradeId, status: 'cancelled',
+        });
+        throw statusError('One or more stickers in this trade are no longer available', 409);
+      }
+    }
+
+    await client.query(
+      `UPDATE trade_requests
+       SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+       WHERE id = $1`,
       [tradeId]
     );
 
