@@ -459,7 +459,7 @@ type SettingsTab = 'account' | 'album';
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'account', label: 'Account' },
-  { id: 'album', label: 'Albums' },
+  { id: 'album', label: 'Album Defaults' },
 ];
 
 export default function SettingsPage() {
