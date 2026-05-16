@@ -185,6 +185,11 @@ export async function deleteAccountApi(token: string): Promise<void> {
 // Types
 // ---------------------------------------------------------------------------
 
+// camelizeKeys (backend serializer) converts dict keys too, so "north_america" → "northAmerica" inside teamPages/stickerPages
+export function toEditionKey(edition: string): string {
+  return edition.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
 export interface Sticker {
   id: string;
   number: number;
@@ -322,7 +327,7 @@ function toQueryString(
 // Sticker catalog — with localStorage cache (24h TTL, version-keyed)
 // ---------------------------------------------------------------------------
 
-const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v7';
+const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v8';
 const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {

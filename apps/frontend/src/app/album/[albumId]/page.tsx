@@ -21,6 +21,7 @@ import {
   deleteSticker,
   setTradeFlags,
   albumDisplayName,
+  toEditionKey,
   DEFAULT_ALBUM_TYPE_KEY,
   type AlbumEditionOption,
   type AlbumSettings,
@@ -350,11 +351,12 @@ export default function AlbumDetailPage() {
     const albumSettings = activeAlbum?.settings;
     if (!albumSettings) return stickers;
     const edition = activeAlbum.edition;
+    const ek = toEditionKey(edition);
     return stickers.filter((s) => {
       if (s.stickerType === 'coca_cola_special') return albumSettings.includeCocaCola;
       const hasPage =
-        (s.stickerPages?.[edition]?.pageStart != null && s.stickerPages?.[edition]?.pageEnd != null) ||
-        s.teamPages?.[edition] != null;
+        (s.stickerPages?.[ek]?.pageStart != null && s.stickerPages?.[ek]?.pageEnd != null) ||
+        (s.stickerType !== 'extra' && s.teamPages?.[ek] != null);
       if (s.stickerType === 'museum' && !hasPage) return albumSettings.includeNonAlbumMuseum;
       if (hasPage) return true;
       return albumSettings.includeAllStickers;
@@ -376,9 +378,10 @@ export default function AlbumDetailPage() {
 
     const stickerPageRange = (s: Sticker): [number, number] | null => {
       if (!edition) return null;
-      const sp = s.stickerPages?.[edition];
+      const ek = toEditionKey(edition);
+      const sp = s.stickerPages?.[ek];
       if (sp?.pageStart != null && sp?.pageEnd != null) return [sp.pageStart, sp.pageEnd];
-      const tp = s.teamPages?.[edition];
+      const tp = s.teamPages?.[ek];
       return tp ? [tp[0], tp[1]] : null;
     };
 
@@ -529,13 +532,14 @@ export default function AlbumDetailPage() {
       if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
       if (filters.pageFrom != null || filters.pageTo != null) {
         if (!edition) return false;
-        const sp = s.stickerPages?.[edition];
+        const ek = toEditionKey(edition);
+        const sp = s.stickerPages?.[ek];
         let sStart: number | null = null;
         let sEnd: number | null = null;
         if (sp?.pageStart != null && sp?.pageEnd != null) {
           sStart = sp.pageStart; sEnd = sp.pageEnd;
         } else {
-          const tp = s.teamPages?.[edition];
+          const tp = s.teamPages?.[ek];
           if (tp) { sStart = tp[0]; sEnd = tp[1]; }
         }
         if (sStart == null || sEnd == null) return false;

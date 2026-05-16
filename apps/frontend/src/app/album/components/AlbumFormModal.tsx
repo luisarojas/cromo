@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AlbumEditionOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
+import { toEditionKey } from '@/lib/api';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
   includeAllStickers: true,
@@ -55,10 +56,11 @@ export default function AlbumFormModal({
   const stickerCounts = useMemo(() => {
     if (!allStickers?.length) return null;
     let coca_cola = 0, non_album_museum = 0, other_no_spot = 0;
+    const ek = toEditionKey(edition);
     for (const s of allStickers) {
       const hasPage =
-        (s.stickerPages?.[edition]?.pageStart != null && s.stickerPages?.[edition]?.pageEnd != null) ||
-        s.teamPages?.[edition] != null;
+        (s.stickerPages?.[ek]?.pageStart != null && s.stickerPages?.[ek]?.pageEnd != null) ||
+        (s.stickerType !== 'extra' && s.teamPages?.[ek] != null);
       if (s.stickerType === 'coca_cola_special') { coca_cola++; continue; }
       if (s.stickerType === 'museum' && !hasPage) { non_album_museum++; continue; }
       if (!hasPage) other_no_spot++;

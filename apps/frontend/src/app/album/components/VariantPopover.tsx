@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
+import { fetchStickerVariants, toEditionKey, type Sticker, type StickerVariant } from '@/lib/api';
 import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { formatPageSpread } from '@/lib/albumPages';
 import { useAlbumsStore } from '@/store/albums';
@@ -62,17 +62,18 @@ export default function VariantPopover({
 
   const albums = useAlbumsStore((s) => s.albums);
   const albumEdition = albums.find((a) => a.id === albumId)?.edition ?? 'north_america';
+  const albumEditionKey = toEditionKey(albumEdition);
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
   const pageLocation = (() => {
-    const sp = sticker.stickerPages?.[albumEdition];
+    const sp = sticker.stickerPages?.[albumEditionKey];
     if (sp) {
       if (sp.pageStart !== null && sp.pageEnd !== null) {
         return formatPageSpread([sp.pageStart, sp.pageEnd]);
       }
       return sp.description ?? null;
     }
-    const pages = sticker.teamPages?.[albumEdition];
+    const pages = sticker.stickerType !== 'extra' ? sticker.teamPages?.[albumEditionKey] : null;
     return pages ? formatPageSpread(pages as [number, number]) : null;
   })();
 

@@ -1,6 +1,7 @@
 -- Seed 14: sticker_album_pages
--- Per-edition page locations for non-team stickers (CC, intro/FWC).
--- Must run after 02_intro_stickers.sql and 08_coca_cola_stickers.sql.
+-- Per-edition page locations for non-team stickers (CC, intro/FWC, HC, Swiss Legends).
+-- Must run after 02_intro_stickers.sql, 08_coca_cola_stickers.sql, 11_host_city_stickers.sql,
+-- and 12_swiss_legend_stickers.sql.
 
 -- Coca-Cola stickers (all CC stickers share the same spread per edition)
 INSERT INTO sticker_album_pages (sticker_id, edition, page_start, page_end, description)
@@ -58,3 +59,18 @@ JOIN (VALUES
   ('FWC8', 'south_america', '2', '2', NULL)
 ) AS v(album_code, edition, page_start, page_end, description) ON s.album_code = v.album_code
 ON CONFLICT (sticker_id, edition) DO NOTHING;
+
+-- Swiss Legends (L1–L10) — exclusive to swiss_gold edition, pages 104–105.
+-- Not included in north_america, international, or south_america.
+INSERT INTO sticker_album_pages (sticker_id, edition, page_start, page_end, description)
+SELECT s.id, 'swiss_gold', 104, 105, NULL
+FROM stickers s
+WHERE s.album_code LIKE 'L%'
+  AND s.sticker_type = 'museum'
+  AND s.is_foil = true
+  AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
+ON CONFLICT (sticker_id, edition) DO NOTHING;
+
+-- Host City stickers (HC1–HC16)
+-- north_america and swiss_gold: dedicated collectible boxes (page numbers TBD — add when confirmed).
+-- international and south_america: artwork printed directly on album background; no sticker slot.
