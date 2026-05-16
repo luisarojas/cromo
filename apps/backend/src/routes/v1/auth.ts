@@ -239,11 +239,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       const token = (request.cookies as Record<string, string | undefined>)[REFRESH_COOKIE_NAME];
 
       if (!token) {
-        return reply.status(401).send({
-          statusCode: 401,
-          error: 'Unauthorized',
-          message: 'No refresh token cookie found.',
-        });
+        return reply.status(200).send({ authenticated: false });
       }
 
       try {
@@ -254,15 +250,10 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         setRefreshCookie(reply, refreshToken);
 
-        return reply.status(200).send({ accessToken, user });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
+        return reply.status(200).send({ authenticated: true, accessToken, user });
+      } catch {
         clearRefreshCookie(reply);
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Unauthorized',
-          message: e.message,
-        });
+        return reply.status(200).send({ authenticated: false });
       }
     }
   );

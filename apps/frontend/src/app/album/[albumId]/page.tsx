@@ -880,7 +880,7 @@ export default function AlbumDetailPage() {
                         {activeAlbum.albumTypeName} ·
                       </span>
                     )}
-                    {activeAlbum.edition_name} Edition
+                    {activeAlbum.editionName} Edition
                     {activeAlbum.isDefault && (
                       <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
                         <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">

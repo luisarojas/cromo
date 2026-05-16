@@ -52,7 +52,9 @@ export async function refreshApi(): Promise<{ accessToken: string; user: AuthUse
     credentials: 'include',
   });
   if (!res.ok) return null;
-  return res.json() as Promise<{ accessToken: string; user: AuthUser }>;
+  const data = await res.json() as { authenticated: boolean; accessToken?: string; user?: AuthUser };
+  if (!data.authenticated) return null;
+  return { accessToken: data.accessToken!, user: data.user! };
 }
 
 export async function logoutApi(): Promise<void> {
@@ -506,7 +508,7 @@ export interface UserAlbum {
   albumTypeName: string;
   albumEditionId: string;
   edition: string;
-  edition_name: string;
+  editionName: string;
   alias: string | null;
   isDefault: boolean;
   settings: AlbumSettings;

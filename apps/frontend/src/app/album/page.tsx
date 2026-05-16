@@ -250,7 +250,7 @@ export default function AlbumsPage() {
                           </p>
                         )}
                         <span className={`inline-block mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
-                          {album.edition_name}
+                          {album.editionName}
                         </span>
                       </div>
                       {album.isDefault && (

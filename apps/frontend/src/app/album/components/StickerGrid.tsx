@@ -221,7 +221,7 @@ export default function StickerGrid({
                     : 0;
                   return (
                     <StickerCard
-                      key={sticker.albumCode}
+                      key={sticker.id}
                       sticker={sticker}
                       ownedVariants={ownedVariants}
                       crossAlbumNeededBy={totalQuantity > 1 ? crossAlbumNeeded?.get(sticker.albumCode) : undefined}
