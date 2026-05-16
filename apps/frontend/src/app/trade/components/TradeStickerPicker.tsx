@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import { HeartIcon } from '@/components/HeartIcon';
 
 export interface TradePickerItem {
   variantId: string;
@@ -533,13 +534,14 @@ export default function TradeStickerPicker({
                   {favouriteCodes.size > 0 && (
                     <button
                       onClick={() => setWantFavouritedOnly((v) => !v)}
-                      className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
+                      className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
                         wantFavouritedOnly
                           ? 'bg-amber-500 text-white border-amber-500'
                           : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                       }`}
                     >
-                      ★ Favourited
+                      <HeartIcon filled className="w-3 h-3" />
+                      Favourited
                     </button>
                   )}
                 </div>
@@ -607,10 +609,11 @@ export default function TradeStickerPicker({
                               </span>
                               {isFavourited && (
                                 <span
-                                  className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none"
+                                  className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none"
                                   title="In your favourites"
                                 >
-                                  ★ want
+                                  <HeartIcon filled className="w-2 h-2" />
+                                  want
                                 </span>
                               )}
                             </div>
@@ -741,8 +744,8 @@ export default function TradeStickerPicker({
                       </span>
                     )}
                     {favouriteCodes.has(w.albumCode) && (
-                      <span className="shrink-0 text-[9px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none">
-                        ★
+                      <span className="shrink-0 inline-flex items-center text-amber-700 bg-amber-50 border border-amber-200 px-1 py-px rounded leading-none" title="In your favourites">
+                        <HeartIcon filled className="w-2 h-2" />
                       </span>
                     )}
                     {w.allVariants.length > 1 && (

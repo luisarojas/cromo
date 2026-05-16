@@ -1,5 +1,7 @@
 'use client';
 
+import { HeartIcon } from '@/components/HeartIcon';
+
 interface ActionBtnProps {
   onClick: () => void;
   disabled?: boolean;
@@ -118,9 +120,7 @@ export default function MassActionBar({
               colorClass={favouriteState === 'all' ? 'text-red-400 hover:bg-red-50' : 'text-gray-400 hover:bg-gray-100'}
               label={favouriteState === 'all' ? 'Unfav' : 'Fav'}
             >
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill={favouriteState === 'all' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={favouriteState === 'all' ? 0 : 1.5}>
-                <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
-              </svg>
+              <HeartIcon filled={favouriteState === 'all'} className="w-4 h-4" />
             </ActionBtn>
 
             <div className="h-6 w-px bg-gray-100 mx-0.5" />

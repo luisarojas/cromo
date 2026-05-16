@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import MultiSelect from './MultiSelect';
+import { HeartIcon } from '@/components/HeartIcon';
 
 export interface FilterState {
   group?: string[];
@@ -213,9 +214,7 @@ export default function FilterBar({
                   : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700'
               }`}
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill={filters.favouritesOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.5}>
-                <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
-              </svg>
+              <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
               Only
             </button>
           </div>

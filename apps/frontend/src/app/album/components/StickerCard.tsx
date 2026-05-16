@@ -2,6 +2,7 @@
 
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
+import { HeartIcon } from '@/components/HeartIcon';
 import { variantRarity, variantShort, variantSwatch } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
 
@@ -214,9 +215,7 @@ export default function StickerCard({
           aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
           aria-pressed={isFavourited}
         >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill={isFavourited ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isFavourited ? 0 : 1.5}>
-            <path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" />
-          </svg>
+          <HeartIcon filled={isFavourited} className="w-3.5 h-3.5" />
         </span>
       )}
     </button>
