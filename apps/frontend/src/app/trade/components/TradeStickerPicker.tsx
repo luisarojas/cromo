@@ -659,7 +659,7 @@ export default function TradeStickerPicker({
                   <span className="text-xs font-semibold text-gray-800">{o.albumCode}</span>
                   {suggestedSet.has(o.albumCode) && (
                     <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
-                      they want
+                      they need
                     </span>
                   )}
                   <div className="flex items-center gap-0.5">
