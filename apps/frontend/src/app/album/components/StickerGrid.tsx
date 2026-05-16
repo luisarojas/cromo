@@ -33,6 +33,7 @@ interface Props {
   selectionMode?: boolean;
   selectedCodes?: Set<string>;
   onToggleSelect?: (albumCode: string) => void;
+  onRangeSelect?: (albumCodes: string[]) => void;
 }
 
 const COLS = 4;
@@ -58,9 +59,11 @@ export default function StickerGrid({
   selectionMode,
   selectedCodes,
   onToggleSelect,
+  onRangeSelect,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
+  const lastClickedIndexRef = useRef<number | null>(null);
   const { addToast } = useToast();
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
@@ -73,6 +76,10 @@ export default function StickerGrid({
     measureElement: (el) => el?.getBoundingClientRect().height ?? 160,
     scrollMargin: listRef.current?.offsetTop ?? 0,
   });
+
+  useEffect(() => {
+    if (!selectionMode) lastClickedIndexRef.current = null;
+  }, [selectionMode]);
 
   // Keep popover anchored to its tile while the user scrolls
   const isPopoverOpen = popover !== null;
@@ -233,7 +240,17 @@ export default function StickerGrid({
                       }
                       selectionMode={selectionMode}
                       isSelected={selectedCodes?.has(sticker.albumCode)}
-                      onToggleSelect={onToggleSelect ? () => onToggleSelect(sticker.albumCode) : undefined}
+                      onToggleSelect={onToggleSelect ? (shiftKey: boolean) => {
+                        const currentIndex = startIdx + rowStickers.indexOf(sticker);
+                        if (shiftKey && lastClickedIndexRef.current !== null && onRangeSelect) {
+                          const from = Math.min(lastClickedIndexRef.current, currentIndex);
+                          const to = Math.max(lastClickedIndexRef.current, currentIndex);
+                          onRangeSelect(stickers.slice(from, to + 1).map((s) => s.albumCode));
+                        } else {
+                          lastClickedIndexRef.current = currentIndex;
+                          onToggleSelect(sticker.albumCode);
+                        }
+                      } : undefined}
                     />
                   );
                 })}

@@ -591,6 +591,14 @@ export default function AlbumDetailPage() {
     });
   }, []);
 
+  const handleRangeSelect = useCallback((albumCodes: string[]) => {
+    setSelectedCodes((prev) => {
+      const next = new Set(prev);
+      for (const code of albumCodes) next.add(code);
+      return next;
+    });
+  }, []);
+
   const handleSelectAll = useCallback(() => {
     setSelectedCodes(new Set(displayedStickers.map((s) => s.albumCode)));
   }, [displayedStickers]);
@@ -1057,6 +1065,7 @@ export default function AlbumDetailPage() {
               selectionMode={selectionMode}
               selectedCodes={selectedCodes}
               onToggleSelect={handleToggleSelect}
+              onRangeSelect={handleRangeSelect}
             />
           </div>
         ) : null}

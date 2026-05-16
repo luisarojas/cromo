@@ -17,7 +17,7 @@ interface Props {
   onOpenPopover: (anchor: HTMLElement) => void;
   selectionMode?: boolean;
   isSelected?: boolean;
-  onToggleSelect?: () => void;
+  onToggleSelect?: (shiftKey: boolean) => void;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -54,7 +54,7 @@ export default function StickerCard({
       type="button"
       onClick={(e) => {
         if (selectionMode && onToggleSelect) {
-          onToggleSelect();
+          onToggleSelect(e.shiftKey);
         } else {
           onOpenPopover(e.currentTarget);
         }
