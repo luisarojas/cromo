@@ -22,13 +22,13 @@ interface Props {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  player: 'bg-blue-100 text-blue-700',
-  badge: 'bg-purple-100 text-purple-700',
+  player: 'bg-blue-100 text-blue-600',
+  badge: 'bg-purple-100 text-purple-600',
   team_photo: 'bg-yellow-100 text-yellow-700',
-  intro: 'bg-teal-100 text-teal-700',
-  museum: 'bg-orange-100 text-orange-700',
-  coca_cola_special: 'bg-red-100 text-red-700',
-  extra: 'bg-pink-100 text-pink-700',
+  intro: 'bg-teal-100 text-teal-600',
+  museum: 'bg-orange-100 text-orange-600',
+  coca_cola_special: 'bg-red-100 text-red-600',
+  extra: 'bg-pink-100 text-pink-600',
 };
 
 export default function StickerCard({
@@ -107,17 +107,12 @@ export default function StickerCard({
         )
       )}
 
-      <div className="text-lg font-extrabold text-gray-800 leading-none mb-1 mt-0.5">
-        {sticker.albumCode}
-      </div>
-
-      <div className="text-xs font-medium text-gray-700 truncate leading-tight mb-1">
-        {sticker.playerName ?? sticker.teamName ?? '—'}
-      </div>
-
-      {sticker.fifaCode && (
-        <div className="flex items-center gap-1 mb-1">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+      <div className="flex items-center gap-1.5 mb-1 mt-0.5">
+        <span className="text-lg font-extrabold text-gray-800 leading-none">
+          {sticker.albumCode}
+        </span>
+        {sticker.fifaCode && (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={flagUrl(sticker.fifaCode) ?? undefined}
             alt={sticker.fifaCode}
@@ -126,16 +121,15 @@ export default function StickerCard({
             className="rounded-[2px] object-cover flex-shrink-0"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
           />
-          {sticker.playerName && (
-            <span className="text-[10px] text-gray-500 truncate leading-tight">
-              {sticker.fifaCode}
-            </span>
-          )}
-        </div>
-      )}
+        )}
+      </div>
+
+      <div className="text-xs font-medium text-gray-700 truncate leading-tight mb-1">
+        {sticker.playerName ?? sticker.teamName ?? '—'}
+      </div>
 
       <span
-        className={`inline-block self-start rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${typeColor}`}
+        className={`mt-2 inline-block self-start rounded-full px-1.5 py-px text-[9px] font-medium uppercase ${typeColor}`}
       >
         {(sticker.stickerType ?? '').replace('_', ' ')}
       </span>
