@@ -13,6 +13,8 @@ import {
   deleteAccountApi,
   logoutApi,
 } from '@/lib/api';
+import CityAutocomplete from '@/components/CityAutocomplete';
+import type { City } from '@/lib/api';
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
@@ -314,6 +316,45 @@ function ChangePasswordSection() {
   );
 }
 
+// ─── Location ────────────────────────────────────────────────────────────────
+
+function LocationSection() {
+  const token = useAuthStore((s) => s.token);
+  const cities = usePreferencesStore((s) => s.cities);
+  const setCities = usePreferencesStore((s) => s.setCities);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  async function handleCitiesChange(next: City[]) {
+    if (!token) return;
+    setCities(next);
+    setSaving(true);
+    setStatus(null);
+    try {
+      await patchUserPreferences({ cities: next }, token);
+      setStatus({ type: 'success', message: 'Locations saved.' });
+    } catch {
+      setStatus({ type: 'error', message: 'Failed to save locations. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SectionCard
+      title="Your Locations"
+      description="Add cities where you're based or frequently visit. Trade matches can be filtered to show only nearby partners."
+    >
+      <div className="flex flex-col gap-3">
+        <CityAutocomplete cities={cities} onChange={handleCitiesChange} />
+        {saving && <p className="text-xs text-gray-400">Saving…</p>}
+        {status && <StatusMessage type={status.type} message={status.message} />}
+        <p className="text-xs text-gray-400">Up to 5 cities. Search and select from the dropdown.</p>
+      </div>
+    </SectionCard>
+  );
+}
+
 // ─── Delete Account ───────────────────────────────────────────────────────────
 
 function DeleteAccountSection() {
@@ -448,6 +489,7 @@ function AccountSettingsTab() {
       <ChangeUsernameSection />
       <ChangeEmailSection />
       <ChangePasswordSection />
+      <LocationSection />
       <DeleteAccountSection />
     </div>
   );

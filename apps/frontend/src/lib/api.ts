@@ -713,8 +713,14 @@ export async function setTradeFlags(
 // User preferences endpoints
 // ---------------------------------------------------------------------------
 
+export interface City {
+  label: string;
+  placeId: number;
+}
+
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean;
+  cities: City[];
 }
 
 export async function fetchUserPreferences(token: string): Promise<UserPreferences> {
@@ -833,6 +839,7 @@ export interface TradeMatch {
   theyHave: string[];             // album codes they have that you need
   theyHaveVariantIds: string[]; // all variant IDs they have as dupes for those stickers
   youHave: string[];              // album codes you have that they need
+  cities: City[];                 // cities the matched user has set
 }
 
 export interface TradeItemDetail {

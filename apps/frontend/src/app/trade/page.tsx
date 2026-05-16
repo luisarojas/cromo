@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
+import { usePreferencesStore } from '@/store/preferences';
 import {
   fetchUserAlbums,
   fetchTradeMatches,
@@ -90,8 +91,11 @@ function TradePageContent() {
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
 
+  const myCities = usePreferencesStore((s) => s.cities);
+
   const rawTab = searchParams.get('tab');
   const [tab, setTab] = useState<Tab>(rawTab === 'my' ? 'my' : 'find');
+  const [nearbyOnly, setNearbyOnly] = useState(false);
 
   // Deep link: /trade?recipient=<userId> auto-runs Find Matches and opens the
   // propose modal for that user. Cleared once handled so a manual refresh
@@ -340,6 +344,10 @@ function TradePageContent() {
     }
   }
 
+  const visibleMatches = nearbyOnly && myCities.length > 0
+    ? matches.filter((m) => m.cities.some((c) => myCities.some((mc) => mc.placeId === c.placeId)))
+    : matches;
+
   if (!hydrated || (!token && hydrated)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
@@ -441,10 +449,29 @@ function TradePageContent() {
 
           {!matchesLoading && matches.length > 0 && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-500 mb-2">
-                Found {matches.length} potential {matches.length === 1 ? 'partner' : 'partners'}
-              </p>
-              {matches.map((match) => (
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <p className="text-sm text-gray-500">
+                  Found {matches.length} potential {matches.length === 1 ? 'partner' : 'partners'}
+                  {nearbyOnly && myCities.length > 0 && ` · ${visibleMatches.length} nearby`}
+                </p>
+                {myCities.length > 0 && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={nearbyOnly}
+                      onChange={(e) => setNearbyOnly(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                    />
+                    <span className="text-sm text-gray-600">Nearby only</span>
+                  </label>
+                )}
+              </div>
+              {visibleMatches.length === 0 && nearbyOnly && (
+                <p className="text-sm text-gray-500 text-center py-6">
+                  No matches share your cities. Try disabling &quot;Nearby only&quot; or add more cities in Settings.
+                </p>
+              )}
+              {visibleMatches.map((match) => (
                 <div
                   key={match.userId}
                   className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex items-center gap-4"
@@ -464,6 +491,22 @@ function TradePageContent() {
                       <span>They have {match.theyHave.length} you need</span>
                       <span>You have {match.youHave.length} they need</span>
                     </div>
+                    {match.cities.length > 0 && (
+                      <div className="mt-1 flex gap-1 flex-wrap">
+                        {match.cities.map((city) => (
+                          <span
+                            key={city.placeId}
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              myCities.some((mc) => mc.placeId === city.placeId)
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}
+                          >
+                            {city.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => openProposeModal(match)}

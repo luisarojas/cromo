@@ -10,6 +10,7 @@ export interface TradeMatch {
   they_have: string[];
   they_have_variant_ids: string[];
   you_have: string[];
+  cities: { label: string; placeId: number }[];
 }
 
 /**
@@ -37,6 +38,7 @@ export async function getTradeMatches(
     they_have: string[];
     they_have_variant_ids: string[];
     you_have: string[];
+    cities: { label: string; placeId: number }[];
   }>(
     `WITH requester_album AS (
        SELECT album_type_id FROM user_albums WHERE id = $2
@@ -129,9 +131,11 @@ export async function getTradeMatches(
        oc.mutual_overlap,
        COALESCE(oc.they_have, ARRAY[]::text[]) AS they_have,
        COALESCE(oc.they_have_variant_ids, ARRAY[]::text[]) AS they_have_variant_ids,
-       COALESCE(oc.you_have, ARRAY[]::text[]) AS you_have
+       COALESCE(oc.you_have, ARRAY[]::text[]) AS you_have,
+       COALESCE(us3.cities, '[]'::jsonb) AS cities
      FROM overlap_counts oc
      JOIN users u ON u.id = oc.user_id
+     LEFT JOIN user_settings us3 ON us3.user_id = oc.user_id
      ORDER BY oc.mutual_overlap DESC`,
     [userId, albumId]
   );
@@ -145,6 +149,7 @@ export async function getTradeMatches(
     they_have: r.they_have ?? [],
     they_have_variant_ids: r.they_have_variant_ids ?? [],
     you_have: r.you_have ?? [],
+    cities: r.cities ?? [],
   }));
 
   await redis.set(cacheKey, JSON.stringify(result), 'EX', 120);

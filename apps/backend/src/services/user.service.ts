@@ -137,21 +137,34 @@ export async function updatePassword(db: Pool, userId: string): Promise<void> {
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
 
+export interface City {
+  label: string;
+  placeId: number;
+}
+
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean;
+  cities: City[];
 }
 
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
-  const result = await db.query<{ duplicates_count_all_variants: boolean }>(
-    `SELECT duplicates_count_all_variants FROM user_settings WHERE user_id = $1`,
+  const result = await db.query<{
+    duplicates_count_all_variants: boolean;
+    cities: City[];
+  }>(
+    `SELECT duplicates_count_all_variants, cities FROM user_settings WHERE user_id = $1`,
     [userId]
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    return { duplicatesCountAllVariants: false };
+    return { duplicatesCountAllVariants: false, cities: [] };
   }
 
-  return { duplicatesCountAllVariants: result.rows[0]!.duplicates_count_all_variants };
+  const row = result.rows[0]!;
+  return {
+    duplicatesCountAllVariants: row.duplicates_count_all_variants,
+    cities: row.cities ?? [],
+  };
 }
 
 export async function updatePreferences(
@@ -159,11 +172,25 @@ export async function updatePreferences(
   userId: string,
   patch: Partial<UserPreferences>
 ): Promise<UserPreferences> {
-  if (patch.duplicatesCountAllVariants === undefined) return getPreferences(db, userId);
+  const setClauses: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
 
+  if (patch.duplicatesCountAllVariants !== undefined) {
+    setClauses.push(`duplicates_count_all_variants = $${idx++}`);
+    values.push(patch.duplicatesCountAllVariants);
+  }
+  if (patch.cities !== undefined) {
+    setClauses.push(`cities = $${idx++}::jsonb`);
+    values.push(JSON.stringify(patch.cities));
+  }
+
+  if (setClauses.length === 0) return getPreferences(db, userId);
+
+  values.push(userId);
   await db.query(
-    `UPDATE user_settings SET duplicates_count_all_variants = $1 WHERE user_id = $2`,
-    [patch.duplicatesCountAllVariants, userId]
+    `UPDATE user_settings SET ${setClauses.join(', ')} WHERE user_id = $${idx}`,
+    values
   );
 
   return getPreferences(db, userId);

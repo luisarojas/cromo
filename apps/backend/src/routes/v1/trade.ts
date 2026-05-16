@@ -71,6 +71,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
                     mutual_overlap: { type: 'integer' },
                     they_have:      { type: 'array', items: { type: 'string' } },
                     you_have:       { type: 'array', items: { type: 'string' } },
+                    cities:         { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
                   },
                 },
               },

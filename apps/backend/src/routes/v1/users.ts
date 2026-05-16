@@ -3,8 +3,14 @@ import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import * as userService from '../../services/user.service.js';
 
+const CitySchema = z.object({
+  label: z.string().min(1).max(200),
+  placeId: z.number().int().positive(),
+});
+
 const PatchPreferencesBody = z.object({
   duplicatesCountAllVariants: z.boolean().optional(),
+  cities: z.array(CitySchema).max(10).optional(),
 });
 
 const UpdateUsernameBody = z.object({
@@ -47,6 +53,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               duplicatesCountAllVariants: { type: 'boolean' },
+              cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
             },
           },
         },
@@ -78,6 +85,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             duplicatesCountAllVariants: { type: 'boolean' },
+            cities: { type: 'array', items: { type: 'string' } },
           },
         },
         response: {
@@ -85,6 +93,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               duplicatesCountAllVariants: { type: 'boolean' },
+              cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
             },
           },
         },

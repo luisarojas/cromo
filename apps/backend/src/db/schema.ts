@@ -114,6 +114,7 @@ export const userSettings = pgTable('user_settings', {
   marketingConsentVersion: text('marketing_consent_version'),
   showTrustScorePublic: boolean('show_trust_score_public').default(true),
   duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(false),
+  cities: jsonb('cities').$type<{ label: string; placeId: number }[]>().notNull().default(sql`'[]'::jsonb`),
 }, (table) => ({
   profileVisibilityCheck: check('user_settings_profile_visibility_check', sql`${table.profileVisibility} IN ('private', 'public')`),
 }));
