@@ -1095,7 +1095,7 @@ export default function AlbumDetailPage() {
 
       {showScrollTop && (
         <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })}
           className={`fixed ${selectionMode ? 'bottom-20' : 'bottom-6'} right-6 z-50 p-3 rounded-full bg-white border border-gray-200 shadow-md text-gray-500 hover:text-gray-800 hover:shadow-lg transition-all`}
           aria-label="Scroll to top"
         >
