@@ -16,7 +16,12 @@ interface Props {
   editions: AlbumEditionOption[];
   defaultEdition?: string;
   allStickers?: Sticker[];
-  onConfirm: (data: { alias: string | null; edition: string; settings: AlbumSettings }) => Promise<void>;
+  onConfirm: (data: {
+    alias: string | null;
+    edition: string;
+    settings: AlbumSettings;
+    isTradeInventoryPublic: boolean;
+  }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
 }
@@ -38,6 +43,9 @@ export default function AlbumFormModal({
   );
   const [settings, setSettings] = useState<AlbumSettings>(
     album?.settings ?? DEFAULT_SETTINGS
+  );
+  const [isTradeInventoryPublic, setIsTradeInventoryPublic] = useState<boolean>(
+    album?.isTradeInventoryPublic ?? false
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +78,12 @@ export default function AlbumFormModal({
     setBusy(true);
     setError(null);
     try {
-      await onConfirm({ alias: alias.trim() || null, edition, settings });
+      await onConfirm({
+        alias: alias.trim() || null,
+        edition,
+        settings,
+        isTradeInventoryPublic,
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save album');
@@ -181,6 +194,24 @@ export default function AlbumFormModal({
                 </span>
               </label>
             ))}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-gray-100 pt-4">
+            <span className="text-xs font-medium text-gray-600">Public trading inventory</span>
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isTradeInventoryPublic}
+                onChange={(e) => setIsTradeInventoryPublic(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+              />
+              <span className="text-sm text-gray-700">
+                Show this album&apos;s offered &amp; wanted stickers on my public profile
+                <span className="block text-xs text-gray-400 mt-0.5">
+                  Per-sticker force hide / force show rules still apply.
+                </span>
+              </span>
+            </label>
           </div>
 
           {error && (

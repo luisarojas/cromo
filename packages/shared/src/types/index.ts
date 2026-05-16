@@ -22,7 +22,6 @@ export interface User {
 
 export interface UserSettings {
   userId: string
-  collectionVisibility: 'private' | 'public' | 'friends'
   profileVisibility: 'private' | 'public'
   tradeMatchingEnabled: boolean
   emailTradeRequests: boolean

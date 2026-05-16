@@ -22,6 +22,8 @@ export async function invalidateUserCaches(redis: Redis, userId: string): Promis
     `user:${userId}:duplicates:*`,
     `user:${userId}:album_summaries*`,
     `user:${userId}:album_stats*`,
+    `user:${userId}:public_profile*`,
+    `user:${userId}:public_wanted:*`,
   ];
   await Promise.all(patterns.map((p) => scanAndDelete(redis, p)));
 }

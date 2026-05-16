@@ -20,6 +20,7 @@ export interface UserAlbum {
   alias: string | null;
   is_default: boolean;
   settings: AlbumSettings;
+  is_trade_inventory_public: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -49,7 +50,9 @@ const ALBUM_SELECT = `
   SELECT ua.id, ua.user_id, ua.album_type_id,
          at.key AS album_type_key, at.name AS album_type_name,
          ua.album_edition_id, ae.key AS edition, ae.name AS edition_name,
-         ua.alias, ua.is_default, ua.settings, ua.created_at, ua.updated_at
+         ua.alias, ua.is_default, ua.settings,
+         ua.is_trade_inventory_public,
+         ua.created_at, ua.updated_at
   FROM user_albums ua
   JOIN album_types at ON at.id = ua.album_type_id
   JOIN album_editions ae ON ae.id = ua.album_edition_id`;
@@ -108,7 +111,12 @@ export async function createAlbum(
   db: Pool,
   redis: Redis,
   userId: string,
-  input: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> }
+  input: {
+    alias?: string | null;
+    edition?: string;
+    settings?: Partial<AlbumSettings>;
+    isTradeInventoryPublic?: boolean;
+  }
 ): Promise<UserAlbum> {
   const { rows: countRows } = await db.query<{ count: string }>(
     'SELECT COUNT(*) AS count FROM user_albums WHERE user_id = $1',
@@ -123,10 +131,11 @@ export async function createAlbum(
   const editionKey = input.edition ?? DEFAULT_ALBUM_EDITION_KEY;
   const alias = input.alias ?? null;
   const settings = input.settings ? JSON.stringify(input.settings) : null;
+  const isTradeInventoryPublic = input.isTradeInventoryPublic ?? false;
 
   const { rows } = await db.query<UserAlbum>(
     `WITH ins AS (
-       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default, settings)
+       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default, settings, is_trade_inventory_public)
        VALUES (
          $1,
          (SELECT id FROM album_types WHERE key = $5),
@@ -135,12 +144,13 @@ export async function createAlbum(
           WHERE at.key = $5 AND ae.key = $2),
          $3,
          false,
-         COALESCE($4::jsonb, '{"includeAllStickers":true,"includeCocaCola":true,"includeNonAlbumMuseum":true}'::jsonb)
+         COALESCE($4::jsonb, '{"includeAllStickers":true,"includeCocaCola":true,"includeNonAlbumMuseum":true}'::jsonb),
+         $6
        )
        RETURNING *
      )
      ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-    [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY]
+    [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY, isTradeInventoryPublic]
   );
   await invalidateUserCaches(redis, userId);
   return rows[0]!;
@@ -151,9 +161,19 @@ export async function updateAlbum(
   redis: Redis,
   userId: string,
   albumId: string,
-  patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> }
+  patch: {
+    alias?: string | null;
+    edition?: string;
+    settings?: Partial<AlbumSettings>;
+    isTradeInventoryPublic?: boolean;
+  }
 ): Promise<UserAlbum | null> {
-  if ('alias' in patch === false && patch.edition === undefined && patch.settings === undefined) {
+  if (
+    'alias' in patch === false &&
+    patch.edition === undefined &&
+    patch.settings === undefined &&
+    patch.isTradeInventoryPublic === undefined
+  ) {
     return getAlbum(db, userId, albumId);
   }
 
@@ -176,6 +196,10 @@ export async function updateAlbum(
   if (patch.settings !== undefined) {
     values.push(JSON.stringify(patch.settings));
     setClauses.push(`settings = settings || $${values.length}::jsonb`);
+  }
+  if (patch.isTradeInventoryPublic !== undefined) {
+    values.push(patch.isTradeInventoryPublic);
+    setClauses.push(`is_trade_inventory_public = $${values.length}`);
   }
 
   const { rows } = await db.query<UserAlbum>(

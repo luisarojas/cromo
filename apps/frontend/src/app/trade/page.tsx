@@ -93,6 +93,13 @@ function TradePageContent() {
   const rawTab = searchParams.get('tab');
   const [tab, setTab] = useState<Tab>(rawTab === 'my' ? 'my' : 'find');
 
+  // Deep link: /trade?recipient=<userId> auto-runs Find Matches and opens the
+  // propose modal for that user. Cleared once handled so a manual refresh
+  // doesn't re-trigger.
+  const recipientHint = searchParams.get('recipient');
+  const recipientHandledRef = useRef(false);
+  const [recipientNotFound, setRecipientNotFound] = useState(false);
+
   function switchTab(next: Tab) {
     setTab(next);
     const params = new URLSearchParams(searchParams.toString());
@@ -194,6 +201,27 @@ function TradePageContent() {
     openProposeModal(draft.match);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, selectedAlbumId]);
+
+  // Deep-link from a public profile: auto-run Find Matches once the album is
+  // selected, then auto-open the propose modal for that recipient.
+  useEffect(() => {
+    if (recipientHandledRef.current || !recipientHint || !token || !selectedAlbumId) return;
+    if (matchesLoading || matchesSearched) return;
+    void handleFindMatches();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipientHint, token, selectedAlbumId]);
+
+  useEffect(() => {
+    if (recipientHandledRef.current || !recipientHint || !matchesSearched) return;
+    const target = matches.find((m) => m.userId === recipientHint);
+    recipientHandledRef.current = true;
+    if (target) {
+      openProposeModal(target);
+    } else {
+      setRecipientNotFound(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches, matchesSearched, recipientHint]);
 
   async function handleFindMatches() {
     if (!token || !selectedAlbumId) return;
@@ -387,6 +415,13 @@ function TradePageContent() {
           {matchesError && (
             <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">
               {matchesError}
+            </div>
+          )}
+
+          {recipientNotFound && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 mb-4">
+              No mutual overlap found with that user in this album yet. Try a different album, or
+              check their public profile for what they offer and want.
             </div>
           )}
 

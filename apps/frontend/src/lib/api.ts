@@ -510,6 +510,7 @@ export interface UserAlbum {
   alias: string | null;
   isDefault: boolean;
   settings: AlbumSettings;
+  isTradeInventoryPublic: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -532,7 +533,7 @@ export async function fetchUserAlbums(
 
 export async function createUserAlbum(
   userId: string,
-  body: { alias?: string | null; edition?: string; settings?: AlbumSettings },
+  body: { alias?: string | null; edition?: string; settings?: AlbumSettings; isTradeInventoryPublic?: boolean },
   token: string,
 ): Promise<UserAlbumWithStats> {
   return apiFetch<UserAlbumWithStats>(
@@ -545,7 +546,7 @@ export async function createUserAlbum(
 export async function updateUserAlbum(
   userId: string,
   albumId: string,
-  patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings> },
+  patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings>; isTradeInventoryPublic?: boolean },
   token: string,
 ): Promise<UserAlbumWithStats> {
   return apiFetch<UserAlbumWithStats>(
@@ -902,18 +903,40 @@ export interface PublicList {
   createdAt: string;
 }
 
+export interface PublicInventoryItem {
+  stickerVariantId: string;
+  number: number;
+  albumCode: string;
+  playerName: string | null;
+  stickerType: string;
+  teamName: string | null;
+  variantType: string;
+  quantity: number | null;
+}
+
+export interface PublicProfileAlbum {
+  albumId: string;
+  albumTypeName: string;
+  editionName: string;
+  alias: string | null;
+  isDefault: boolean;
+  offered: PublicInventoryItem[];
+  wantedCount: number;
+}
+
 export interface PublicProfile {
+  userId: string;
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   memberSince: string;
-  collectionStats?: {
-    total: number;
-    owned: number;
-    missing: number;
-    duplicates: number;
-    percentage: number;
-  };
+  tradingInventory: PublicProfileAlbum[];
+}
+
+export interface PublicWantedPage {
+  items: PublicInventoryItem[];
+  nextCursor: number | null;
+  total: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1072,4 +1095,15 @@ export async function fetchPublicList(shareToken: string): Promise<PublicList> {
 
 export async function fetchPublicProfile(username: string): Promise<PublicProfile> {
   return apiFetch<PublicProfile>(`/api/v1/profiles/${encodeURIComponent(username)}`);
+}
+
+export async function fetchPublicWanted(
+  username: string,
+  albumId: string,
+  params: { cursor?: number; limit?: number } = {},
+): Promise<PublicWantedPage> {
+  const qs = toQueryString(params as Record<string, string | number | undefined>);
+  return apiFetch<PublicWantedPage>(
+    `/api/v1/profiles/${encodeURIComponent(username)}/albums/${albumId}/wanted${qs}`,
+  );
 }

@@ -82,12 +82,16 @@ export const userAlbums = pgTable('user_albums', {
   alias: text('alias'),
   isDefault: boolean('is_default').notNull().default(false),
   settings: jsonb('settings').$type<AlbumSettings>().notNull().default(DEFAULT_ALBUM_SETTINGS),
+  isTradeInventoryPublic: boolean('is_trade_inventory_public').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
   userIdIdx: index('idx_user_albums_user_id').on(table.userId),
   albumTypeIdx: index('idx_user_albums_album_type_id').on(table.albumTypeId),
   albumEditionIdx: index('idx_user_albums_album_edition_id').on(table.albumEditionId),
+  publicTradeInventoryIdx: index('idx_user_albums_public_trade_inventory')
+    .on(table.userId)
+    .where(sql`is_trade_inventory_public`),
   aliasLengthCheck: check('user_albums_alias_length', sql`${table.alias} IS NULL OR (char_length(${table.alias}) BETWEEN 1 AND 100)`),
   // Composite FK ensures the chosen edition belongs to the chosen album type.
   editionMatchesType: foreignKey({
@@ -101,7 +105,6 @@ export const userAlbums = pgTable('user_albums', {
 
 export const userSettings = pgTable('user_settings', {
   userId: uuid('user_id').primaryKey().references(() => users.id),
-  collectionVisibility: text('collection_visibility').default('private'),
   profileVisibility: text('profile_visibility').default('public'),
   tradeMatchingEnabled: boolean('trade_matching_enabled').default(true),
   emailTradeRequests: boolean('email_trade_requests').default(true),
@@ -112,7 +115,6 @@ export const userSettings = pgTable('user_settings', {
   showTrustScorePublic: boolean('show_trust_score_public').default(true),
   duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(false),
 }, (table) => ({
-  collectionVisibilityCheck: check('user_settings_collection_visibility_check', sql`${table.collectionVisibility} IN ('private', 'friends', 'public')`),
   profileVisibilityCheck: check('user_settings_profile_visibility_check', sql`${table.profileVisibility} IN ('private', 'public')`),
 }));
 

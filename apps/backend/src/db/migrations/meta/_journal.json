@@ -63,6 +63,12 @@
       "when": 1748044800000,
       "tag": "0011_camelcase_album_settings",
       "breakpoints": true
+    },{
+      "idx": 11,
+      "version": "7",
+      "when": 1748131200000,
+      "tag": "0012_public_trading_inventory",
+      "breakpoints": true
     }
   ]
 }
