@@ -10,8 +10,8 @@ import { usePreferencesStore } from '@/store/preferences';
 const TEST_USERS = [
   { email: 'alice@test.local', label: 'Alice', description: 'Partial collection (1–200)' },
   { email: 'bob@test.local', label: 'Bob', description: 'Partial collection (150–400)' },
-  { email: 'charlie@test.local', label: 'Charlie', description: 'Empty collection' },
-  { email: 'diana@test.local', label: 'Diana', description: 'Empty collection' },
+  { email: 'charlie@test.local', label: 'Charlie', description: 'Partial collection (1–100)' },
+  { email: 'diana@test.local', label: 'Diana', description: 'Partial collection (250–400)' },
   { email: 'admin@test.local', label: 'Admin', description: 'Admin access' },
 ];
 
