@@ -30,6 +30,12 @@ export default function NavBar() {
         </Link>
 
         <div className="flex gap-4 text-sm font-medium">
+          <Link
+            href="/guide"
+            className="text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Guide
+          </Link>
           {user && (
             <>
               <Link
