@@ -11,6 +11,7 @@ import {
   type PublicInventoryItem,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import ShareProfileButton from '@/components/ShareProfileButton';
 
 type InventoryTab = 'offered' | 'wanted';
 
@@ -290,14 +291,17 @@ export default function PublicProfilePage() {
             )}
             <div className="text-xs text-gray-400 mt-1">Member since {memberSince}</div>
           </div>
-          {canStartTrade && hasAlbums && (
-            <Link
-              href={`/trade?tab=find&recipient=${encodeURIComponent(profile.userId)}`}
-              className="shrink-0 inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              Start a trade
-            </Link>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            <ShareProfileButton username={profile.username} />
+            {canStartTrade && hasAlbums && (
+              <Link
+                href={`/trade?tab=find&recipient=${encodeURIComponent(profile.userId)}`}
+                className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              >
+                Start a trade
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
