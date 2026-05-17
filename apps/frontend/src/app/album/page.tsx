@@ -7,6 +7,7 @@ import {
   fetchUserAlbums,
   fetchAlbumStats,
   fetchAlbumEditions,
+  fetchAlbumFormats,
   fetchAllStickersCached,
   createUserAlbum,
   updateUserAlbum,
@@ -15,6 +16,7 @@ import {
   albumDisplayName,
   DEFAULT_ALBUM_TYPE_KEY,
   type AlbumEditionOption,
+  type AlbumFormatOption,
   type AlbumSettings,
   type AlbumStats,
   type Sticker,
@@ -46,6 +48,7 @@ export default function AlbumsPage() {
 
   const [albumStats, setAlbumStats] = useState<Map<string, AlbumStats>>(new Map());
   const [editions, setEditions] = useState<AlbumEditionOption[]>([]);
+  const [formats, setFormats] = useState<AlbumFormatOption[]>([]);
   // Loaded lazily when opening the modal so it can show sticker-count hints.
   const [modalStickers, setModalStickers] = useState<Sticker[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,14 +77,16 @@ export default function AlbumsPage() {
       setLoading(true);
       setError(null);
       try {
-        const [userAlbums, statsList, editionList] = await Promise.all([
+        const [userAlbums, statsList, editionList, formatList] = await Promise.all([
           fetchUserAlbums(usr.id, tok),
           fetchAlbumStats(usr.id, tok),
           fetchAlbumEditions(DEFAULT_ALBUM_TYPE_KEY),
+          fetchAlbumFormats(DEFAULT_ALBUM_TYPE_KEY),
         ]);
         if (cancelled) return;
         setAlbums(userAlbums);
         setEditions(editionList);
+        setFormats(formatList);
 
         if (userAlbums.length === 1) {
           router.replace(`/album/${userAlbums[0].id}`);
@@ -123,7 +128,7 @@ export default function AlbumsPage() {
   }, [ensureModalStickers]);
 
   const handleAddAlbum = useCallback(
-    async (data: { alias: string | null; edition: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
+    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
@@ -135,7 +140,7 @@ export default function AlbumsPage() {
   );
 
   const handleSaveAlbum = useCallback(
-    async (data: { alias: string | null; edition: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
+    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
@@ -249,9 +254,19 @@ export default function AlbumsPage() {
                             {album.albumTypeName}
                           </p>
                         )}
-                        <span className={`inline-block mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
-                          {album.editionName}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+                            {album.editionName}
+                          </span>
+                          <span className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                            {album.formatName}
+                          </span>
+                        </div>
+                        {album.notes && (
+                          <p className="text-[11px] text-gray-400 italic truncate mt-1">
+                            {album.notes}
+                          </p>
+                        )}
                       </div>
                       {album.isDefault && (
                         <svg
@@ -323,6 +338,7 @@ export default function AlbumsPage() {
         <AlbumFormModal
           mode="create"
           editions={editions}
+          formats={formats}
           allStickers={modalStickers ?? undefined}
           onConfirm={handleAddAlbum}
           onClose={() => setShowAddModal(false)}
@@ -334,6 +350,7 @@ export default function AlbumsPage() {
           mode="edit"
           album={editingAlbum}
           editions={editions}
+          formats={formats}
           allStickers={modalStickers ?? undefined}
           onConfirm={handleSaveAlbum}
           onDelete={handleDeleteAlbum}

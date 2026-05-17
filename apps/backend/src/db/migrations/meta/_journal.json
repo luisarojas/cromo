@@ -99,6 +99,12 @@
       "when": 1748563200000,
       "tag": "0017_rename_include_all_stickers",
       "breakpoints": true
+    },{
+      "idx": 17,
+      "version": "7",
+      "when": 1748649600000,
+      "tag": "0018_album_formats",
+      "breakpoints": true
     }
   ]
 }

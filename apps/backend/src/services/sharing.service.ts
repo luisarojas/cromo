@@ -55,6 +55,7 @@ export interface PublicProfileAlbum {
   album_id: string;
   album_type_name: string;
   edition_name: string;
+  format_name: string;
   alias: string | null;
   is_default: boolean;
   offered: PublicInventoryItem[];
@@ -362,6 +363,7 @@ export async function getPublicProfile(
     album_id: string;
     album_type_name: string;
     edition_name: string;
+    format_name: string;
     alias: string | null;
     is_default: boolean;
     wanted_count: string;
@@ -374,11 +376,13 @@ export async function getPublicProfile(
               ua.created_at,
               at.name            AS album_type_name,
               ae.name            AS edition_name,
+              af.name            AS format_name,
               (ua.settings->>'includeExtras')::boolean   AS inc_extras,
               (ua.settings->>'includeCocaCola')::boolean AS inc_coca
        FROM user_albums ua
        JOIN album_types at    ON at.id = ua.album_type_id
        JOIN album_editions ae ON ae.id = ua.album_edition_id
+       JOIN album_formats af  ON af.id = ua.album_format_id
        WHERE ua.user_id = $1
          AND ua.is_trade_inventory_public = true
      ),
@@ -407,6 +411,7 @@ export async function getPublicProfile(
      SELECT pa.album_id,
             pa.album_type_name,
             pa.edition_name,
+            pa.format_name,
             pa.alias,
             pa.is_default,
             COALESCE(wc.wanted_count, '0') AS wanted_count
@@ -470,6 +475,7 @@ export async function getPublicProfile(
     album_id: a.album_id,
     album_type_name: a.album_type_name,
     edition_name: a.edition_name,
+    format_name: a.format_name,
     alias: a.alias,
     is_default: a.is_default,
     offered: offeredByAlbum.get(a.album_id) ?? [],

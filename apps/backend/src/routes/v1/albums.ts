@@ -22,7 +22,11 @@ const albumShape = {
     album_edition_id:            { type: 'string' },
     edition:                     { type: 'string' },
     edition_name:                { type: 'string' },
+    album_format_id:             { type: 'string' },
+    format:                      { type: 'string' },
+    format_name:                 { type: 'string' },
     alias:                       { type: 'string', nullable: true },
+    notes:                       { type: 'string', nullable: true },
     is_default:                  { type: 'boolean' },
     settings:                    albumSettingsShape,
     is_trade_inventory_public:   { type: 'boolean' },
@@ -211,7 +215,9 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             alias:                     { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
+            notes:                     { type: 'string', nullable: true, maxLength: 500 },
             edition:                   { type: 'string' },
+            format:                    { type: 'string' },
             settings:                  albumSettingsShape,
             isTradeInventoryPublic:    { type: 'boolean' },
           },
@@ -222,7 +228,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean }; isTradeInventoryPublic?: boolean };
+      const body = request.body as { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean }; isTradeInventoryPublic?: boolean };
       const album = await albumsService.createAlbum(fastify.db, fastify.redis, userId, body);
       const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);
       return reply.status(201).send({ ...album, stats });
@@ -238,7 +244,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: [verifyToken],
       schema: {
         tags: ['Albums'],
-        summary: 'Update album alias and/or edition',
+        summary: 'Update album alias, edition, format, notes, and/or settings',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
@@ -249,7 +255,9 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             alias:                     { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
+            notes:                     { type: 'string', nullable: true, maxLength: 500 },
             edition:                   { type: 'string' },
+            format:                    { type: 'string' },
             settings:                  albumSettingsShape,
             isTradeInventoryPublic:    { type: 'boolean' },
           },
@@ -260,7 +268,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean }; isTradeInventoryPublic?: boolean };
+      const body = request.body as { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean }; isTradeInventoryPublic?: boolean };
       const album = await albumsService.updateAlbum(fastify.db, fastify.redis, userId, albumId, body);
       if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
       const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);
@@ -527,6 +535,81 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
          JOIN album_types at ON at.id = ae.album_type_id
          WHERE at.key = $1
          ORDER BY ae.created_at ASC`,
+        [typeKey],
+      );
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album type not found.' });
+      }
+
+      await fastify.redis.set(cacheKey, JSON.stringify(rows), 'EX', 86400);
+      return reply.status(200).send({ items: rows });
+    }
+  );
+
+  /**
+   * GET /api/v1/album-types/:typeKey/formats
+   * Public — returns every format for an album type, each annotated with the
+   * editions it's available for. Lets the client filter the format dropdown
+   * client-side when the user picks an edition (rather than re-fetching).
+   */
+  fastify.get(
+    '/api/v1/album-types/:typeKey/formats',
+    {
+      schema: {
+        tags: ['Albums'],
+        summary: 'List formats for an album type (with per-edition availability)',
+        params: {
+          type: 'object',
+          required: ['typeKey'],
+          properties: { typeKey: { type: 'string', maxLength: 64 } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    key:      { type: 'string' },
+                    name:     { type: 'string' },
+                    editions: { type: 'array', items: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { typeKey } = request.params as { typeKey: string };
+      const cacheKey = `album_formats:${typeKey}`;
+      const cached = await fastify.redis.get(cacheKey);
+      if (cached) return reply.status(200).send({ items: JSON.parse(cached) });
+
+      // Both `af` and (via the junction) `ae` are constrained to the same
+      // album_type_id, so the query is naturally scoped to `typeKey`.
+      const { rows } = await fastify.db.query<{ key: string; name: string; editions: string[] }>(
+        `SELECT af.key,
+                af.name,
+                COALESCE(
+                  ARRAY_AGG(ae.key ORDER BY ae.created_at) FILTER (WHERE ae.key IS NOT NULL),
+                  '{}'
+                ) AS editions
+         FROM album_formats af
+         JOIN album_types at ON at.id = af.album_type_id
+         LEFT JOIN album_edition_formats aef
+                ON aef.album_format_id = af.id
+               AND aef.album_type_id   = af.album_type_id
+         LEFT JOIN album_editions ae
+                ON ae.id = aef.album_edition_id
+               AND ae.album_type_id = af.album_type_id
+         WHERE at.key = $1
+         GROUP BY af.id, af.key, af.name, af.created_at
+         ORDER BY af.created_at ASC`,
         [typeKey],
       );
 

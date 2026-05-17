@@ -332,7 +332,7 @@ export default function PublicProfilePage() {
                     >
                       {albumLabel(album)}
                       <span className="ml-1.5 text-xs text-gray-400">
-                        {album.editionName}
+                        {album.editionName} · {album.formatName}
                       </span>
                     </button>
                   );

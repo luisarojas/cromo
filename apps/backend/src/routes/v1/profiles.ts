@@ -57,6 +57,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
                     album_id:        { type: 'string' },
                     album_type_name: { type: 'string' },
                     edition_name:    { type: 'string' },
+                    format_name:     { type: 'string' },
                     alias:           { type: 'string', nullable: true },
                     is_default:      { type: 'boolean' },
                     offered:         { type: 'array', items: inventoryItemShape },

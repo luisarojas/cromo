@@ -31,16 +31,19 @@ ON CONFLICT (user_id) DO NOTHING;
 
 -- ─── Primary albums (North American edition) ──────────────────────────────────
 
-INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, is_default)
+INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default)
 WITH album_ids AS (
   SELECT
     (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026') AS type_id,
     (SELECT ae.id FROM album_editions ae
      JOIN album_types at ON at.id = ae.album_type_id
-     WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'north_america') AS edition_id
+     WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'north_america') AS edition_id,
+    (SELECT af.id FROM album_formats af
+     JOIN album_types at ON at.id = af.album_type_id
+     WHERE at.key = 'fifa_world_cup_2026' AND af.key = 'softcover_standard') AS format_id
 )
 SELECT
-  id::UUID, user_id::UUID, type_id, edition_id, true
+  id::UUID, user_id::UUID, type_id, edition_id, format_id, true
 FROM (
   VALUES
     ('00000000-0000-0000-0001-000000000001', '00000000-0000-0000-0000-000000000001'),
@@ -54,15 +57,18 @@ ON CONFLICT (id) DO NOTHING;
 -- ─── Second albums (International edition) ────────────────────────────────────
 -- Alice and Bob each own two albums to exercise multi-album workflows.
 
-INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, is_default, alias)
+INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default, alias)
 WITH album_ids AS (
   SELECT
     (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026') AS type_id,
     (SELECT ae.id FROM album_editions ae
      JOIN album_types at ON at.id = ae.album_type_id
-     WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'international') AS edition_id
+     WHERE at.key = 'fifa_world_cup_2026' AND ae.key = 'international') AS edition_id,
+    (SELECT af.id FROM album_formats af
+     JOIN album_types at ON at.id = af.album_type_id
+     WHERE at.key = 'fifa_world_cup_2026' AND af.key = 'softcover_standard') AS format_id
 )
-SELECT id::UUID, user_id::UUID, type_id, edition_id, false, alias
+SELECT id::UUID, user_id::UUID, type_id, edition_id, format_id, false, alias
 FROM (
   VALUES
     ('00000000-0000-0000-0001-000000000012', '00000000-0000-0000-0000-000000000002', 'Alice International'),

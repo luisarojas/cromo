@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { AlbumEditionOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
+import type { AlbumEditionOption, AlbumFormatOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
   includeExtras: true,
@@ -13,11 +13,15 @@ interface Props {
   mode: 'create' | 'edit';
   album?: UserAlbum;
   editions: AlbumEditionOption[];
+  formats: AlbumFormatOption[];
   defaultEdition?: string;
+  defaultFormat?: string;
   allStickers?: Sticker[];
   onConfirm: (data: {
     alias: string | null;
+    notes: string | null;
     edition: string;
+    format: string;
     settings: AlbumSettings;
     isTradeInventoryPublic: boolean;
   }) => Promise<void>;
@@ -29,7 +33,9 @@ export default function AlbumFormModal({
   mode,
   album,
   editions,
+  formats,
   defaultEdition,
+  defaultFormat,
   allStickers,
   onConfirm,
   onDelete,
@@ -37,9 +43,37 @@ export default function AlbumFormModal({
 }: Props) {
   const firstEditionKey = editions[0]?.key ?? '';
   const [alias, setAlias] = useState(album?.alias ?? '');
+  const [notes, setNotes] = useState(album?.notes ?? '');
   const [edition, setEdition] = useState<string>(
     album?.edition ?? defaultEdition ?? firstEditionKey
   );
+  // Formats available for the selected edition. Editions and formats are
+  // many-to-many (e.g. "Metallised Softcover" only exists for Switzerland),
+  // so the dropdown narrows whenever the edition changes.
+  const availableFormats = useMemo(
+    () => formats.filter((f) => f.editions.includes(edition)),
+    [formats, edition]
+  );
+  const [format, setFormat] = useState<string>(() => {
+    const initial = album?.format ?? defaultFormat ?? '';
+    if (initial && formats.some((f) => f.key === initial && f.editions.includes(album?.edition ?? defaultEdition ?? firstEditionKey))) {
+      return initial;
+    }
+    return formats.find((f) => f.editions.includes(album?.edition ?? defaultEdition ?? firstEditionKey))?.key ?? '';
+  });
+
+  // When the edition changes, if the current format is no longer valid for the
+  // new edition, fall back to the first available one (or empty if none).
+  useEffect(() => {
+    if (availableFormats.length === 0) {
+      setFormat('');
+      return;
+    }
+    if (!availableFormats.some((f) => f.key === format)) {
+      setFormat(availableFormats[0].key);
+    }
+  }, [availableFormats, format]);
+
   const [settings, setSettings] = useState<AlbumSettings>(
     album?.settings ?? DEFAULT_SETTINGS
   );
@@ -75,7 +109,9 @@ export default function AlbumFormModal({
     try {
       await onConfirm({
         alias: alias.trim() || null,
+        notes: notes.trim() || null,
         edition,
+        format,
         settings,
         isTradeInventoryPublic,
       });
@@ -165,6 +201,42 @@ export default function AlbumFormModal({
             </select>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600" htmlFor="album-format">
+              Format
+            </label>
+            <select
+              id="album-format"
+              value={format}
+              onChange={(e) => setFormat(e.target.value)}
+              disabled={availableFormats.length === 0}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-gray-50 disabled:text-gray-400"
+            >
+              {availableFormats.length === 0 ? (
+                <option value="">No formats available for this edition</option>
+              ) : (
+                availableFormats.map((f) => (
+                  <option key={f.key} value={f.key}>{f.name}</option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-gray-600" htmlFor="album-notes">
+              Notes <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            <input
+              id="album-notes"
+              type="text"
+              maxLength={500}
+              placeholder="e.g. Limited Hardcover serial 1234/5000"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium text-gray-600">Sticker visibility</span>
             {(
@@ -223,7 +295,7 @@ export default function AlbumFormModal({
             </button>
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || !format}
               className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {busy ? busyLabel : submitLabel}

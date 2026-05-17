@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
-import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY } from '../constants.js';
+import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY, DEFAULT_ALBUM_FORMAT_KEY } from '../constants.js';
 import { invalidateUserCaches } from './cache.js';
 import { recomputeAlbumStats } from './album-stats.service.js';
 
@@ -18,7 +18,11 @@ export interface UserAlbum {
   album_edition_id: string;
   edition: string;        // edition key, e.g. 'north_america'
   edition_name: string;
+  album_format_id: string;
+  format: string;         // format key, e.g. 'softcover_standard'
+  format_name: string;
   alias: string | null;
+  notes: string | null;
   is_default: boolean;
   settings: AlbumSettings;
   is_trade_inventory_public: boolean;
@@ -51,12 +55,14 @@ const ALBUM_SELECT = `
   SELECT ua.id, ua.user_id, ua.album_type_id,
          at.key AS album_type_key, at.name AS album_type_name,
          ua.album_edition_id, ae.key AS edition, ae.name AS edition_name,
-         ua.alias, ua.is_default, ua.settings,
+         ua.album_format_id,  af.key AS format,  af.name AS format_name,
+         ua.alias, ua.notes, ua.is_default, ua.settings,
          ua.is_trade_inventory_public,
          ua.created_at, ua.updated_at
   FROM user_albums ua
   JOIN album_types at ON at.id = ua.album_type_id
-  JOIN album_editions ae ON ae.id = ua.album_edition_id`;
+  JOIN album_editions ae ON ae.id = ua.album_edition_id
+  JOIN album_formats af  ON af.id = ua.album_format_id`;
 
 export async function listAlbums(db: Pool, userId: string): Promise<UserAlbum[]> {
   const { rows } = await db.query<UserAlbum>(
@@ -114,7 +120,9 @@ export async function createAlbum(
   userId: string,
   input: {
     alias?: string | null;
+    notes?: string | null;
     edition?: string;
+    format?: string;
     settings?: Partial<AlbumSettings>;
     isTradeInventoryPublic?: boolean;
   }
@@ -130,29 +138,49 @@ export async function createAlbum(
   }
 
   const editionKey = input.edition ?? DEFAULT_ALBUM_EDITION_KEY;
+  const formatKey = input.format ?? DEFAULT_ALBUM_FORMAT_KEY;
   const alias = input.alias ?? null;
+  const notes = input.notes ?? null;
   const settings = input.settings ? JSON.stringify(input.settings) : null;
   const isTradeInventoryPublic = input.isTradeInventoryPublic ?? false;
 
-  const { rows } = await db.query<UserAlbum>(
-    `WITH ins AS (
-       INSERT INTO user_albums (user_id, album_type_id, album_edition_id, alias, is_default, settings, is_trade_inventory_public)
-       VALUES (
-         $1,
-         (SELECT id FROM album_types WHERE key = $5),
-         (SELECT ae.id FROM album_editions ae
-          JOIN album_types at ON at.id = ae.album_type_id
-          WHERE at.key = $5 AND ae.key = $2),
-         $3,
-         false,
-         COALESCE($4::jsonb, '{"includeExtras":true,"includeCocaCola":true}'::jsonb),
-         $6
+  let rows: UserAlbum[];
+  try {
+    ({ rows } = await db.query<UserAlbum>(
+      `WITH ins AS (
+         INSERT INTO user_albums (user_id, album_type_id, album_edition_id, album_format_id, alias, notes, is_default, settings, is_trade_inventory_public)
+         VALUES (
+           $1,
+           (SELECT id FROM album_types WHERE key = $5),
+           (SELECT ae.id FROM album_editions ae
+            JOIN album_types at ON at.id = ae.album_type_id
+            WHERE at.key = $5 AND ae.key = $2),
+           (SELECT af.id FROM album_formats af
+            JOIN album_types at ON at.id = af.album_type_id
+            WHERE at.key = $5 AND af.key = $7),
+           $3,
+           $8,
+           false,
+           COALESCE($4::jsonb, '{"includeExtras":true,"includeCocaCola":true}'::jsonb),
+           $6
+         )
+         RETURNING *
        )
-       RETURNING *
-     )
-     ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-    [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY, isTradeInventoryPublic]
-  );
+       ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
+      [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY, isTradeInventoryPublic, formatKey, notes]
+    ));
+  } catch (err) {
+    // Composite FK on (edition, format) rejects illegal combinations like
+    // "North America + Metallised Softcover". Surface a 400 rather than 500.
+    if (err instanceof Error && /user_albums_edition_format_valid/.test(err.message)) {
+      const e = new Error(
+        `Format "${formatKey}" is not available for edition "${editionKey}".`,
+      ) as Error & { statusCode: number };
+      e.statusCode = 400;
+      throw e;
+    }
+    throw err;
+  }
   // New album starts empty but total_count depends on edition + settings.
   await recomputeAlbumStats(db, [rows[0]!.id]);
   await invalidateUserCaches(redis, userId);
@@ -166,14 +194,18 @@ export async function updateAlbum(
   albumId: string,
   patch: {
     alias?: string | null;
+    notes?: string | null;
     edition?: string;
+    format?: string;
     settings?: Partial<AlbumSettings>;
     isTradeInventoryPublic?: boolean;
   }
 ): Promise<UserAlbum | null> {
   if (
     'alias' in patch === false &&
+    'notes' in patch === false &&
     patch.edition === undefined &&
+    patch.format === undefined &&
     patch.settings === undefined &&
     patch.isTradeInventoryPublic === undefined
   ) {
@@ -187,12 +219,25 @@ export async function updateAlbum(
     values.push(patch.alias);
     setClauses.push(`alias = $${values.length}`);
   }
+  if ('notes' in patch) {
+    values.push(patch.notes);
+    setClauses.push(`notes = $${values.length}`);
+  }
   if (patch.edition !== undefined) {
     values.push(patch.edition);
     setClauses.push(
       `album_edition_id = (
          SELECT ae.id FROM album_editions ae
          WHERE ae.album_type_id = user_albums.album_type_id AND ae.key = $${values.length}
+       )`
+    );
+  }
+  if (patch.format !== undefined) {
+    values.push(patch.format);
+    setClauses.push(
+      `album_format_id = (
+         SELECT af.id FROM album_formats af
+         WHERE af.album_type_id = user_albums.album_type_id AND af.key = $${values.length}
        )`
     );
   }
@@ -205,15 +250,27 @@ export async function updateAlbum(
     setClauses.push(`is_trade_inventory_public = $${values.length}`);
   }
 
-  const { rows } = await db.query<UserAlbum>(
-    `WITH upd AS (
-       UPDATE user_albums SET ${setClauses.join(', ')}
-       WHERE id = $1 AND user_id = $2
-       RETURNING *
-     )
-     ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM upd ua')}`,
-    values
-  );
+  let rows: UserAlbum[];
+  try {
+    ({ rows } = await db.query<UserAlbum>(
+      `WITH upd AS (
+         UPDATE user_albums SET ${setClauses.join(', ')}
+         WHERE id = $1 AND user_id = $2
+         RETURNING *
+       )
+       ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM upd ua')}`,
+      values
+    ));
+  } catch (err) {
+    if (err instanceof Error && /user_albums_edition_format_valid/.test(err.message)) {
+      const e = new Error(
+        `Format "${patch.format ?? '(current)'}" is not available for edition "${patch.edition ?? '(current)'}".`,
+      ) as Error & { statusCode: number };
+      e.statusCode = 400;
+      throw e;
+    }
+    throw err;
+  }
   if (rows[0]) {
     // Settings or edition change can shift total_count and which stickers
     // fall under the per-album CTE. Recompute defensively on every patch.

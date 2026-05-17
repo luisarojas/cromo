@@ -195,9 +195,14 @@ export default function DashboardPage() {
                         <h3 className="font-semibold text-gray-800 text-sm truncate leading-snug group-hover:text-blue-700 transition-colors">
                           {albumDisplayName(album)}
                         </h3>
-                        <span className={`inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
-                          {album.editionName}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
+                            {album.editionName}
+                          </span>
+                          <span className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                            {album.formatName}
+                          </span>
+                        </div>
                       </div>
                       {album.isDefault && (
                         <svg className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-label="Default album">

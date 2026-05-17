@@ -529,6 +529,27 @@ export async function fetchAlbumEditions(albumTypeKey: string): Promise<AlbumEdi
 }
 
 // ---------------------------------------------------------------------------
+// Album formats catalog
+// ---------------------------------------------------------------------------
+// Formats are the physical binding/material of the album (softcover, hardcover,
+// metallised softcover, etc.) and are constrained per edition: each format
+// carries the list of edition keys it is sold in, so the UI can filter the
+// format dropdown when the user picks an edition without an extra round-trip.
+
+export interface AlbumFormatOption {
+  key: string;
+  name: string;
+  editions: string[];
+}
+
+export async function fetchAlbumFormats(albumTypeKey: string): Promise<AlbumFormatOption[]> {
+  const { items } = await apiFetch<{ items: AlbumFormatOption[] }>(
+    `/api/v1/album-types/${encodeURIComponent(albumTypeKey)}/formats`,
+  );
+  return items;
+}
+
+// ---------------------------------------------------------------------------
 // Album endpoints
 // ---------------------------------------------------------------------------
 
@@ -555,7 +576,7 @@ export async function fetchUserAlbums(
 
 export async function createUserAlbum(
   userId: string,
-  body: { alias?: string | null; edition?: string; settings?: AlbumSettings; isTradeInventoryPublic?: boolean },
+  body: { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: AlbumSettings; isTradeInventoryPublic?: boolean },
   token: string,
 ): Promise<UserAlbumWithStats> {
   return apiFetch<UserAlbumWithStats>(
@@ -568,7 +589,7 @@ export async function createUserAlbum(
 export async function updateUserAlbum(
   userId: string,
   albumId: string,
-  patch: { alias?: string | null; edition?: string; settings?: Partial<AlbumSettings>; isTradeInventoryPublic?: boolean },
+  patch: { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: Partial<AlbumSettings>; isTradeInventoryPublic?: boolean },
   token: string,
 ): Promise<UserAlbumWithStats> {
   return apiFetch<UserAlbumWithStats>(
@@ -976,6 +997,7 @@ export interface PublicProfileAlbum {
   albumId: string;
   albumTypeName: string;
   editionName: string;
+  formatName: string;
   alias: string | null;
   isDefault: boolean;
   offered: PublicInventoryItem[];

@@ -194,7 +194,11 @@ export interface UserAlbumDto {
   albumEditionId: string
   edition: string
   editionName: string
+  albumFormatId: string
+  format: string
+  formatName: string
   alias: string | null
+  notes: string | null
   isDefault: boolean
   settings: AlbumSettings
   isTradeInventoryPublic: boolean

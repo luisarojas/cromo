@@ -7,12 +7,13 @@ import {
   userAlbums,
   albumTypes,
   albumEditions,
+  albumFormats,
   emailVerificationTokens,
   passwordResetTokens,
   auditLog,
 } from '../db/schema.js';
 import { env } from '../env.js';
-import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY } from '../constants.js';
+import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY, DEFAULT_ALBUM_FORMAT_KEY } from '../constants.js';
 import type { Redis } from 'ioredis';
 import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
@@ -98,25 +99,30 @@ export async function register(
 
     await tx.insert(userSettings).values({ userId: id });
 
-    // Look up album_type_id and album_edition_id for the default album
+    // Look up album_type_id, album_edition_id, and album_format_id for the default album
     const [albumIds] = await tx
       .select({
         typeId: albumTypes.id,
         editionId: albumEditions.id,
+        formatId: albumFormats.id,
       })
       .from(albumEditions)
       .innerJoin(albumTypes, eq(albumTypes.id, albumEditions.albumTypeId))
-      .where(sql`${albumTypes.key} = ${DEFAULT_ALBUM_TYPE_KEY} AND ${albumEditions.key} = ${DEFAULT_ALBUM_EDITION_KEY}`)
+      .innerJoin(albumFormats, eq(albumFormats.albumTypeId, albumTypes.id))
+      .where(sql`${albumTypes.key} = ${DEFAULT_ALBUM_TYPE_KEY}
+              AND ${albumEditions.key} = ${DEFAULT_ALBUM_EDITION_KEY}
+              AND ${albumFormats.key}  = ${DEFAULT_ALBUM_FORMAT_KEY}`)
       .limit(1);
 
     if (!albumIds) {
-      throw new Error('Default album type/edition not found — did migrations + seeds run?');
+      throw new Error('Default album type/edition/format not found — did migrations + seeds run?');
     }
 
     await tx.insert(userAlbums).values({
       userId: id,
       albumTypeId: albumIds.typeId,
       albumEditionId: albumIds.editionId,
+      albumFormatId: albumIds.formatId,
       isDefault: true,
     });
 

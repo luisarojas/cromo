@@ -12,6 +12,7 @@ import {
   unique,
   check,
   foreignKey,
+  primaryKey,
   inet,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -62,6 +63,51 @@ export const albumEditions = pgTable('album_editions', {
   albumTypeIdx: index('idx_album_editions_album_type_id').on(table.albumTypeId),
 }));
 
+// ─── album_formats ────────────────────────────────────────────────────────────
+// Physical binding/material of the album (softcover, hardcover, etc.). Distinct
+// from album_editions (which is the regional content variant). The available
+// formats for a given edition are constrained via album_edition_formats.
+
+export const albumFormats = pgTable('album_formats', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id, { onDelete: 'cascade' }),
+  key: text('key').notNull(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  typeKeyUnique: unique('album_formats_album_type_id_key_unique').on(table.albumTypeId, table.key),
+  idTypeUnique: unique('album_formats_id_album_type_id_unique').on(table.id, table.albumTypeId),
+  albumTypeIdx: index('idx_album_formats_album_type_id').on(table.albumTypeId),
+}));
+
+// ─── album_edition_formats ────────────────────────────────────────────────────
+// Junction table: which formats are available for each edition. Used so the
+// UI can scope the format dropdown to the currently selected edition, and so
+// user_albums can FK the (edition, format) pair to prevent illegal combos.
+
+export const albumEditionFormats = pgTable('album_edition_formats', {
+  albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id, { onDelete: 'cascade' }),
+  albumEditionId: uuid('album_edition_id').notNull(),
+  albumFormatId: uuid('album_format_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.albumEditionId, table.albumFormatId] }),
+  editionIdx: index('idx_album_edition_formats_edition_id').on(table.albumEditionId),
+  formatIdx: index('idx_album_edition_formats_format_id').on(table.albumFormatId),
+  typeIdx: index('idx_album_edition_formats_type_id').on(table.albumTypeId),
+  // Composite FKs prove the edition and format both belong to the same type.
+  editionMatchesType: foreignKey({
+    name: 'album_edition_formats_edition_matches_type',
+    columns: [table.albumEditionId, table.albumTypeId],
+    foreignColumns: [albumEditions.id, albumEditions.albumTypeId],
+  }).onDelete('cascade'),
+  formatMatchesType: foreignKey({
+    name: 'album_edition_formats_format_matches_type',
+    columns: [table.albumFormatId, table.albumTypeId],
+    foreignColumns: [albumFormats.id, albumFormats.albumTypeId],
+  }).onDelete('cascade'),
+}));
+
 // ─── user_albums ──────────────────────────────────────────────────────────────
 
 import type { AlbumSettings } from '@stickfolio/shared';
@@ -78,7 +124,9 @@ export const userAlbums = pgTable('user_albums', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id),
   albumEditionId: uuid('album_edition_id').notNull(),
+  albumFormatId: uuid('album_format_id').notNull(),
   alias: text('alias'),
+  notes: text('notes'),
   isDefault: boolean('is_default').notNull().default(false),
   settings: jsonb('settings').$type<AlbumSettings>().notNull().default(DEFAULT_ALBUM_SETTINGS),
   isTradeInventoryPublic: boolean('is_trade_inventory_public').notNull().default(false),
@@ -91,15 +139,31 @@ export const userAlbums = pgTable('user_albums', {
   userIdIdx: index('idx_user_albums_user_id').on(table.userId),
   albumTypeIdx: index('idx_user_albums_album_type_id').on(table.albumTypeId),
   albumEditionIdx: index('idx_user_albums_album_edition_id').on(table.albumEditionId),
+  albumFormatIdx: index('idx_user_albums_album_format_id').on(table.albumFormatId),
   publicTradeInventoryIdx: index('idx_user_albums_public_trade_inventory')
     .on(table.userId)
     .where(sql`is_trade_inventory_public`),
   aliasLengthCheck: check('user_albums_alias_length', sql`${table.alias} IS NULL OR (char_length(${table.alias}) BETWEEN 1 AND 100)`),
+  notesLengthCheck: check('user_albums_notes_length', sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 500`),
   // Composite FK ensures the chosen edition belongs to the chosen album type.
   editionMatchesType: foreignKey({
     name: 'user_albums_edition_matches_type',
     columns: [table.albumEditionId, table.albumTypeId],
     foreignColumns: [albumEditions.id, albumEditions.albumTypeId],
+  }),
+  // Composite FK ensures the chosen format belongs to the chosen album type.
+  formatMatchesType: foreignKey({
+    name: 'user_albums_format_matches_type',
+    columns: [table.albumFormatId, table.albumTypeId],
+    foreignColumns: [albumFormats.id, albumFormats.albumTypeId],
+  }),
+  // Composite FK ensures the (edition, format) pair is a valid combination
+  // per album_edition_formats. E.g. a North American edition cannot pick the
+  // Switzerland-only "metallised softcover" format.
+  editionFormatValid: foreignKey({
+    name: 'user_albums_edition_format_valid',
+    columns: [table.albumEditionId, table.albumFormatId],
+    foreignColumns: [albumEditionFormats.albumEditionId, albumEditionFormats.albumFormatId],
   }),
 }));
 
@@ -457,6 +521,10 @@ export type AlbumType = typeof albumTypes.$inferSelect;
 export type NewAlbumType = typeof albumTypes.$inferInsert;
 export type AlbumEdition = typeof albumEditions.$inferSelect;
 export type NewAlbumEdition = typeof albumEditions.$inferInsert;
+export type AlbumFormat = typeof albumFormats.$inferSelect;
+export type NewAlbumFormat = typeof albumFormats.$inferInsert;
+export type AlbumEditionFormat = typeof albumEditionFormats.$inferSelect;
+export type NewAlbumEditionFormat = typeof albumEditionFormats.$inferInsert;
 export type UserAlbum = typeof userAlbums.$inferSelect;
 export type NewUserAlbum = typeof userAlbums.$inferInsert;
 export type UserSettings = typeof userSettings.$inferSelect;
