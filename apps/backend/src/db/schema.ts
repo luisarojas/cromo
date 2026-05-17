@@ -83,6 +83,9 @@ export const userAlbums = pgTable('user_albums', {
   isDefault: boolean('is_default').notNull().default(false),
   settings: jsonb('settings').$type<AlbumSettings>().notNull().default(DEFAULT_ALBUM_SETTINGS),
   isTradeInventoryPublic: boolean('is_trade_inventory_public').notNull().default(false),
+  ownedCount: integer('owned_count').notNull().default(0),
+  duplicateCount: integer('duplicate_count').notNull().default(0),
+  totalCount: integer('total_count').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
@@ -241,6 +244,17 @@ export const userStickers = pgTable('user_stickers', {
   stickerVariantIdx: index('idx_user_stickers_sticker_variant_id').on(table.stickerVariantId),
   duplicatesIdx: index('idx_user_stickers_duplicates').on(table.albumId).where(sql`quantity > 1`),
   quantityCheck: check('user_stickers_quantity_check', sql`${table.quantity} >= 0`),
+}));
+
+// ─── user_sticker_favourites ──────────────────────────────────────────────────
+
+export const userStickerFavourites = pgTable('user_sticker_favourites', {
+  albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
+  stickerId: uuid('sticker_id').notNull().references(() => stickers.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  pk: uniqueIndex('user_sticker_favourites_pkey').on(table.albumId, table.stickerId),
+  albumIdx: index('idx_user_sticker_favourites_album_id').on(table.albumId),
 }));
 
 // ─── trade_requests ───────────────────────────────────────────────────────────
@@ -457,6 +471,7 @@ export type TeamAlbumPage = typeof teamAlbumPages.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
 export type StickerVariant = typeof stickerVariants.$inferSelect;
 export type UserSticker = typeof userStickers.$inferSelect; // ownership via albumId
+export type UserStickerFavourite = typeof userStickerFavourites.$inferSelect;
 export type TradeRequest = typeof tradeRequests.$inferSelect;
 export type TradeItem = typeof tradeItems.$inferSelect;
 export type TradeMessage = typeof tradeMessages.$inferSelect;

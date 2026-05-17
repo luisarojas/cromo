@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as albumsService from '../../services/albums.service.js';
+import * as favouritesService from '../../services/favourites.service.js';
 
 const albumSettingsShape = {
   type: 'object',
@@ -366,6 +367,119 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
       );
       return reply.status(204).send();
     }
+  );
+
+  /**
+   * GET /api/v1/users/:userId/albums/:albumId/favourites
+   * Returns the album_codes the user has favourited inside this album.
+   */
+  fastify.get(
+    '/api/v1/users/:userId/albums/:albumId/favourites',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: "List a user's favourited stickers in an album",
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { items: { type: 'array', items: { type: 'string' } } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const items = await favouritesService.listFavourites(fastify.db, albumId);
+      return reply.status(200).send({ items });
+    },
+  );
+
+  /**
+   * PUT /api/v1/users/:userId/albums/:albumId/favourites
+   * Replace the full favourites set in one statement. The body lists sticker
+   * IDs (UUIDs), not album_codes — keeps the API canonical even though the
+   * frontend often refers to stickers by album_code.
+   */
+  fastify.put(
+    '/api/v1/users/:userId/albums/:albumId/favourites',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: "Replace the user's favourite stickers for an album",
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['stickerIds'],
+          properties: {
+            stickerIds: {
+              type: 'array',
+              items: { type: 'string' },
+              maxItems: 5000,
+            },
+          },
+        },
+        response: { 204: { type: 'null', description: 'Favourites updated' } },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const { stickerIds } = request.body as { stickerIds: string[] };
+      await favouritesService.setFavourites(fastify.db, albumId, stickerIds);
+      return reply.status(204).send();
+    },
+  );
+
+  /**
+   * POST /api/v1/users/:userId/albums/:albumId/favourites/:stickerId/toggle
+   */
+  fastify.post(
+    '/api/v1/users/:userId/albums/:albumId/favourites/:stickerId/toggle',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: 'Toggle a single sticker as favourited in an album',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId', 'stickerId'],
+          properties: {
+            userId: { type: 'string' },
+            albumId: { type: 'string' },
+            stickerId: { type: 'string' },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { favourited: { type: 'boolean' } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId, stickerId } = request.params as {
+        userId: string; albumId: string; stickerId: string;
+      };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+      const result = await favouritesService.toggleFavourite(fastify.db, albumId, stickerId);
+      return reply.status(200).send(result);
+    },
   );
 
   /**

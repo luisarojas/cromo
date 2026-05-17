@@ -13,7 +13,8 @@ import {
 } from '../db/schema.js';
 import { env } from '../env.js';
 import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY } from '../constants.js';
-import { sendVerificationEmail, sendPasswordResetEmail } from './email.service.js';
+import type { Redis } from 'ioredis';
+import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,7 +68,8 @@ function statusError(message: string, statusCode: number): Error & { statusCode:
  */
 export async function register(
   db: Drizzle,
-  input: RegisterInput
+  redis: Redis,
+  input: RegisterInput,
 ): Promise<{ userId: string; email: string; username: string }> {
   const normalizedEmail = input.email.toLowerCase().trim();
   const normalizedUsername = input.username.toLowerCase().trim();
@@ -126,9 +128,11 @@ export async function register(
     return id;
   });
 
-  // Send verification email (don't block registration if email fails)
-  sendVerificationEmail(normalizedEmail, normalizedUsername, verificationToken).catch((err) => {
-    console.error('[auth] Failed to send verification email:', err);
+  await enqueue(redis, {
+    type: 'email:verify',
+    email: normalizedEmail,
+    username: normalizedUsername,
+    token: verificationToken,
   });
 
   return { userId, email: normalizedEmail, username: normalizedUsername };
@@ -221,7 +225,7 @@ export async function verifyEmail(db: Drizzle, token: string): Promise<void> {
 /**
  * resendVerification — deletes existing tokens for a user, creates a new one, re-sends email.
  */
-export async function resendVerification(db: Drizzle, email: string): Promise<void> {
+export async function resendVerification(db: Drizzle, redis: Redis, email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
   const [user] = await db
@@ -240,8 +244,11 @@ export async function resendVerification(db: Drizzle, email: string): Promise<vo
     await tx.insert(emailVerificationTokens).values({ token, userId: user.id });
   });
 
-  sendVerificationEmail(normalizedEmail, user.username, token).catch((err) => {
-    console.error('[auth] Failed to resend verification email:', err);
+  await enqueue(redis, {
+    type: 'email:verify',
+    email: normalizedEmail,
+    username: user.username,
+    token,
   });
 }
 
@@ -249,7 +256,7 @@ export async function resendVerification(db: Drizzle, email: string): Promise<vo
  * forgotPassword — generates a reset token and emails it.
  * Always responds the same way regardless of whether email exists (anti-enumeration).
  */
-export async function forgotPassword(db: Drizzle, email: string): Promise<void> {
+export async function forgotPassword(db: Drizzle, redis: Redis, email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
   const [user] = await db
@@ -271,8 +278,11 @@ export async function forgotPassword(db: Drizzle, email: string): Promise<void> 
     return;
   }
 
-  sendPasswordResetEmail(normalizedEmail, user.username, token).catch((err) => {
-    console.error('[auth] Failed to send password reset email:', err);
+  await enqueue(redis, {
+    type: 'email:reset',
+    email: normalizedEmail,
+    username: user.username,
+    token,
   });
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
 import { HeartIcon } from '@/components/HeartIcon';
+import CashInput from './CashInput';
 
 export interface TradePickerItem {
   variantId: string;
@@ -699,16 +700,7 @@ export default function TradeStickerPicker({
                 {selectedOffers.length} {selectedOffers.length === 1 ? 'item' : 'items'}
               </span>
             )}
-            <span className="text-xs text-gray-400">+ CA$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={offerCashInput}
-              onChange={(e) => setOfferCashInput(e.target.value)}
-              placeholder="0.00"
-              className="w-20 rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
+            <CashInput value={offerCashInput} onChange={setOfferCashInput} accent="blue" />
           </div>
         </div>
 
@@ -782,16 +774,7 @@ export default function TradeStickerPicker({
                 {selectedWantCount} {selectedWantCount === 1 ? 'item' : 'items'}
               </span>
             )}
-            <span className="text-xs text-gray-400">+ CA$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={wantCashInput}
-              onChange={(e) => setWantCashInput(e.target.value)}
-              placeholder="0.00"
-              className="w-20 rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-            />
+            <CashInput value={wantCashInput} onChange={setWantCashInput} accent="emerald" />
           </div>
         </div>
       </div>

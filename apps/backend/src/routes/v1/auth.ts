@@ -103,7 +103,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       try {
-        const { userId } = await authService.register(fastify.drizzle, parsed.data);
+        const { userId } = await authService.register(fastify.drizzle, fastify.redis, parsed.data);
         return reply.status(201).send({
           message: 'Registration successful. Please check your email to verify your account.',
           userId,
@@ -340,7 +340,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(204).send(); // Anti-enumeration: always 204
       }
 
-      await authService.resendVerification(fastify.drizzle, parsed.data.email);
+      await authService.resendVerification(fastify.drizzle, fastify.redis, parsed.data.email);
       return reply.status(204).send();
     }
   );
@@ -372,7 +372,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(204).send(); // Anti-enumeration
       }
 
-      await authService.forgotPassword(fastify.drizzle, parsed.data.email);
+      await authService.forgotPassword(fastify.drizzle, fastify.redis, parsed.data.email);
       return reply.status(204).send();
     }
   );

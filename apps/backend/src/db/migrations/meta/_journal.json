@@ -69,6 +69,24 @@
       "when": 1748131200000,
       "tag": "0012_public_trading_inventory",
       "breakpoints": true
+    },{
+      "idx": 12,
+      "version": "7",
+      "when": 1748217600000,
+      "tag": "0013_location_cities",
+      "breakpoints": true
+    },{
+      "idx": 13,
+      "version": "7",
+      "when": 1748304000000,
+      "tag": "0014_cities_jsonb",
+      "breakpoints": true
+    },{
+      "idx": 14,
+      "version": "7",
+      "when": 1748390400000,
+      "tag": "0015_indexes_and_stats",
+      "breakpoints": true
     }
   ]
 }

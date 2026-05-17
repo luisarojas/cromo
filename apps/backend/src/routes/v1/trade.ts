@@ -6,6 +6,7 @@ import type { JwtPayload } from '../../middleware/auth.js';
 import { env } from '../../env.js';
 import * as tradeService from '../../services/trade.service.js';
 import * as messagingService from '../../services/messaging.service.js';
+import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -183,7 +184,13 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
+      const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
       try {
+        const cached = await lookupIdempotent<{ id: string }>(
+          fastify.redis, 'trade:create', request.userId!, idempotencyKey,
+        );
+        if (cached) return reply.status(201).send(cached);
+
         const result = await tradeService.createTrade(
           fastify.db,
           fastify.redis,
@@ -194,6 +201,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           parsed.data.wantCash,
           parsed.data.requesterAlbumId
         );
+        await storeIdempotent(fastify.redis, 'trade:create', request.userId!, idempotencyKey, result);
         return reply.status(201).send(result);
       } catch (err) {
         const e = err as Error & { statusCode?: number };

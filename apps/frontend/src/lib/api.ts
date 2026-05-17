@@ -13,6 +13,20 @@ export type {
   UserRole,
 } from '@stickfolio/shared';
 
+// Canonical wire types. Older code in this file used inline interface
+// definitions; new code should import from @stickfolio/shared so backend
+// and frontend stay in sync.
+import type {
+  AuthUser as SharedAuthUser,
+  UserAlbumDto,
+  AlbumStatsDto,
+  AlbumSummaryDto,
+  CollectionStatsDto,
+  FilterOptionsDto,
+  PagedResult as SharedPagedResult,
+  UserAlbumWithStats as SharedUserAlbumWithStats,
+} from '@stickfolio/shared';
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -20,14 +34,7 @@ const BASE_URL =
 // Auth API
 // ---------------------------------------------------------------------------
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string | null;
-  role: string;
-  emailVerifiedAt: string | null;
-}
+export type AuthUser = SharedAuthUser;
 
 export async function loginApi(
   email: string,
@@ -242,19 +249,8 @@ export interface DuplicateItem {
   groupName: string | null;
 }
 
-export interface CollectionStats {
-  total: number;
-  owned: number;
-  missing: number;
-  duplicates: number;
-  percentage: number;
-}
-
-export interface PagedResult<T> {
-  items: T[];
-  nextCursor: number | null;
-  total: number;
-}
+export type CollectionStats = CollectionStatsDto;
+export type PagedResult<T> = SharedPagedResult<T>;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -443,6 +439,40 @@ export async function fetchCollection(
   );
 }
 
+export type FilterOptions = FilterOptionsDto;
+
+export interface CollectionPage extends PagedResult<CollectionItem> {
+  stats: CollectionStats;
+  totalExtraCopies: number;
+  filterOptions: FilterOptions;
+}
+
+/**
+ * fetchCollectionPage — bundled response (items + stats + filter options +
+ * extra-copies count) so the album page can stop running 3 useMemo passes
+ * over the full catalog on every keystroke.
+ */
+export async function fetchCollectionPage(
+  userId: string,
+  params: {
+    albumId?: string;
+    team?: string;
+    group?: string;
+    type?: string;
+    variant?: string;
+    cursor?: number;
+    limit?: number;
+  },
+  token: string,
+): Promise<CollectionPage> {
+  const qs = toQueryString({ ...params, bundle: 'page' });
+  return apiFetch<CollectionPage>(
+    `/api/v1/users/${userId}/collection${qs}`,
+    {},
+    token,
+  );
+}
+
 export async function fetchStats(
   userId: string,
   token?: string,
@@ -505,22 +535,7 @@ export async function fetchAlbumEditions(albumTypeKey: string): Promise<AlbumEdi
 // AlbumSettings is re-exported from @stickfolio/shared at the top of this file.
 import type { AlbumSettings } from '@stickfolio/shared';
 
-export interface UserAlbum {
-  id: string;
-  userId: string;
-  albumTypeId: string;
-  albumTypeKey: string;
-  albumTypeName: string;
-  albumEditionId: string;
-  edition: string;
-  editionName: string;
-  alias: string | null;
-  isDefault: boolean;
-  settings: AlbumSettings;
-  isTradeInventoryPublic: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+export type UserAlbum = UserAlbumDto;
 
 export function albumDisplayName(album: UserAlbum): string {
   return album.alias ?? album.albumTypeName;
@@ -587,11 +602,7 @@ export async function setDefaultUserAlbum(
   );
 }
 
-export interface AlbumSummary {
-  albumId: string;
-  ownedAlbumCodes: string[];
-  duplicateAlbumCodes: string[];
-}
+export type AlbumSummary = AlbumSummaryDto;
 
 export async function fetchAlbumSummaries(
   userId: string,
@@ -605,18 +616,8 @@ export async function fetchAlbumSummaries(
   return items;
 }
 
-export interface AlbumStats {
-  albumId: string;
-  total: number;
-  owned: number;
-  missing: number;
-  duplicates: number;
-  percentage: number;
-}
-
-export interface UserAlbumWithStats extends UserAlbum {
-  stats: AlbumStats;
-}
+export type AlbumStats = AlbumStatsDto;
+export type UserAlbumWithStats = SharedUserAlbumWithStats;
 
 export async function fetchAlbumStats(
   userId: string,
@@ -628,6 +629,49 @@ export async function fetchAlbumStats(
     token,
   );
   return items;
+}
+
+// ---------------------------------------------------------------------------
+// Favourites
+// ---------------------------------------------------------------------------
+
+export async function fetchFavourites(
+  userId: string,
+  albumId: string,
+  token: string,
+): Promise<string[]> {
+  const { items } = await apiFetch<{ items: string[] }>(
+    `/api/v1/users/${userId}/albums/${albumId}/favourites`,
+    {},
+    token,
+  );
+  return items;
+}
+
+export async function replaceFavourites(
+  userId: string,
+  albumId: string,
+  stickerIds: string[],
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/albums/${albumId}/favourites`,
+    { method: 'PUT', body: JSON.stringify({ stickerIds }) },
+    token,
+  );
+}
+
+export async function toggleFavourite(
+  userId: string,
+  albumId: string,
+  stickerId: string,
+  token: string,
+): Promise<{ favourited: boolean }> {
+  return apiFetch<{ favourited: boolean }>(
+    `/api/v1/users/${userId}/albums/${albumId}/favourites/${stickerId}/toggle`,
+    { method: 'POST' },
+    token,
+  );
 }
 
 export async function moveSticker(

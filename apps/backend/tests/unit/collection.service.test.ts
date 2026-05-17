@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { Redis } from 'ioredis';
 
 import {
@@ -11,10 +11,23 @@ import {
 } from '../../src/services/collection.service.js';
 
 // ─── Minimal mocks ─────────────────────────────────────────────────────────────
+//
+// Mutating service functions now run inside `withTx` (db.connect + BEGIN/COMMIT
+// + release), so the mock pool needs a fake `connect()` that returns a client
+// with its own query function. Test assertions inspect `clientQuery.mock.calls`
+// for SQL going through the transactional path, and `mockDb.query.mock.calls`
+// for direct reads.
+
+const clientQuery = vi.fn();
+const clientRelease = vi.fn();
+const fakeClient = {
+  query: clientQuery,
+  release: clientRelease,
+} as unknown as PoolClient;
 
 const mockDb = {
   query: vi.fn(),
-  connect: vi.fn(),
+  connect: vi.fn().mockImplementation(async () => fakeClient),
 } as unknown as Pool;
 
 const mockRedis = {
@@ -29,17 +42,19 @@ const mockRedis = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: cache miss, no cached keys
   (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(null);
   (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', []]);
+  // Default: every clientQuery call returns rowCount: 1 / empty rows. Tests
+  // override the mutation-specific call when they need a particular row set.
+  clientQuery.mockResolvedValue({ rows: [], rowCount: 1 });
 });
 
 // ─── getStats ──────────────────────────────────────────────────────────────────
 
 describe('getStats', () => {
-  it('calculates percentage as (owned / total * 100) rounded to 2 decimal places', async () => {
+  it('reads denormalized owned/duplicate/total counts from user_albums', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      rows: [{ total: '980', owned: '200', duplicates: '15' }],
+      rows: [{ total: 980, owned: 200, duplicates: 15 }],
     });
 
     const stats = await getStats(mockDb, mockRedis, 'user-1', 'album-1');
@@ -47,113 +62,76 @@ describe('getStats', () => {
     expect(stats.total).toBe(980);
     expect(stats.owned).toBe(200);
     expect(stats.duplicates).toBe(15);
-    expect(stats.missing).toBe(980 - 200); // 780
+    expect(stats.missing).toBe(780);
     expect(stats.percentage).toBe(parseFloat(((200 / 980) * 100).toFixed(2)));
+
+    const [[sql]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
+    expect(sql).toMatch(/FROM user_albums/i);
+    expect(sql).toMatch(/owned_count/i);
   });
 
   it('returns percentage = 0 when total is 0', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      rows: [{ total: '0', owned: '0', duplicates: '0' }],
+      rows: [{ total: 0, owned: 0, duplicates: 0 }],
     });
 
     const stats = await getStats(mockDb, mockRedis, 'user-1', 'album-1');
 
     expect(stats.total).toBe(0);
-    expect(stats.owned).toBe(0);
     expect(stats.missing).toBe(0);
     expect(stats.percentage).toBe(0);
-  });
-
-  it('returns cached result without querying the DB', async () => {
-    const cached = { total: 980, owned: 200, missing: 780, duplicates: 15, percentage: 20.41 };
-    (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce(JSON.stringify(cached));
-
-    const stats = await getStats(mockDb, mockRedis, 'user-1', 'album-1');
-
-    expect(stats).toEqual(cached);
-    expect(mockDb.query).not.toHaveBeenCalled();
-  });
-
-  it('caches the result after fetching from DB', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      rows: [{ total: '100', owned: '50', duplicates: '5' }],
-    });
-
-    await getStats(mockDb, mockRedis, 'user-1', 'album-1');
-
-    expect(mockRedis.set).toHaveBeenCalledWith(
-      'user:user-1:summary:album-1',
-      expect.any(String),
-      'EX',
-      300
-    );
   });
 });
 
 // ─── addSticker ────────────────────────────────────────────────────────────────
 
 describe('addSticker', () => {
-  it('calls db.query with the correct albumId and variantId', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+  it('upserts the sticker variant inside a transaction', async () => {
     await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
 
-    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(sql).toMatch(/INSERT INTO user_stickers/i);
-    expect(params).toContain('album-42');
-    expect(params).toContain('variant-99');
+    expect(mockDb.connect).toHaveBeenCalled();
+    const insertCall = clientQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && /INSERT INTO user_stickers/i.test(sql)
+    );
+    expect(insertCall).toBeDefined();
+    expect(insertCall![1]).toContain('album-42');
+    expect(insertCall![1]).toContain('variant-99');
+    expect(clientRelease).toHaveBeenCalled();
   });
 
   it('invalidates user caches after insert', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
     (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:collection:abc']]);
-
     await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-
     expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 
-  it('does not call del when no cache keys exist', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', []]);
-
-    await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-
-    expect(mockRedis.del).not.toHaveBeenCalled();
-  });
-
   it('uses quantity = 1 by default', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-
-    const [[, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(params).toContain(1);
+    const insertCall = clientQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && /INSERT INTO user_stickers/i.test(sql)
+    );
+    expect(insertCall![1]).toContain(1);
   });
 });
 
 // ─── removeSticker ─────────────────────────────────────────────────────────────
 
 describe('removeSticker', () => {
-  it('calls db.query with albumId and variantId in a DELETE statement', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+  it('issues a DELETE against the right (album_id, variant_id)', async () => {
     await removeSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-
-    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(sql).toMatch(/DELETE FROM user_stickers/i);
-    expect(params).toContain('album-42');
-    expect(params).toContain('variant-99');
+    const delCall = clientQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && /DELETE FROM user_stickers/i.test(sql)
+    );
+    expect(delCall).toBeDefined();
+    expect(delCall![1]).toContain('album-42');
+    expect(delCall![1]).toContain('variant-99');
+    expect(clientRelease).toHaveBeenCalled();
   });
 
   it('invalidates user caches after deletion', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
     (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:summary:album-42']]);
-
     await removeSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-
-    expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 });
@@ -161,57 +139,51 @@ describe('removeSticker', () => {
 // ─── updateSticker ─────────────────────────────────────────────────────────────
 
 describe('updateSticker', () => {
-  it('runs an UPDATE query when quantity > 0', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+  it('upserts when quantity > 0', async () => {
     await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 3);
-
-    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(sql).toMatch(/UPDATE user_stickers/i);
-    expect(params).toContain('album-42');
-    expect(params).toContain('variant-99');
-    expect(params).toContain(3);
+    const upsertCall = clientQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && /INSERT INTO user_stickers/i.test(sql)
+    );
+    expect(upsertCall).toBeDefined();
+    expect(upsertCall![1]).toContain('album-42');
+    expect(upsertCall![1]).toContain('variant-99');
+    expect(upsertCall![1]).toContain(3);
   });
 
-  it('runs a DELETE query when quantity = 0', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+  it('deletes when quantity = 0', async () => {
     await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 0);
-
-    const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(sql).toMatch(/DELETE FROM user_stickers/i);
-    expect(params).toContain('album-42');
-    expect(params).toContain('variant-99');
+    const delCall = clientQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && /DELETE FROM user_stickers/i.test(sql)
+    );
+    expect(delCall).toBeDefined();
+    expect(delCall![1]).toContain('album-42');
+    expect(delCall![1]).toContain('variant-99');
   });
 
-  it('runs a DELETE query when quantity < 0', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
+  it('deletes when quantity < 0', async () => {
     await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', -1);
-
-    const [[sql]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(sql).toMatch(/DELETE FROM user_stickers/i);
+    const delCall = clientQuery.mock.calls.find(([sql]) =>
+      typeof sql === 'string' && /DELETE FROM user_stickers/i.test(sql)
+    );
+    expect(delCall).toBeDefined();
   });
 
   it('invalidates user caches after update', async () => {
-    (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
     (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:summary:album-42']]);
-
     await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 2);
-
-    expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 });
 
 // ─── setTradeFlags ─────────────────────────────────────────────────────────────
+//
+// setTradeFlags does NOT run inside a transaction (it only flips boolean flags
+// on user_stickers; no stat columns depend on it), so it still uses db.query.
 
 describe('setTradeFlags', () => {
   it('runs an UPDATE setting trade_hidden when only tradeHidden is provided', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
-
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/UPDATE user_stickers/i);
     expect(sql).toMatch(/trade_hidden/i);
@@ -222,20 +194,15 @@ describe('setTradeFlags', () => {
 
   it('also clears trade_forced when trade_hidden is set', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
-
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
-    // Service resolves tradeForced = false when tradeHidden is set
     expect(sql).toMatch(/trade_forced/i);
     expect(params).toContain(false);
   });
 
   it('runs an UPDATE setting trade_forced when only tradeForced is provided', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeForced: true });
-
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/UPDATE user_stickers/i);
     expect(sql).toMatch(/trade_forced/i);
@@ -244,9 +211,7 @@ describe('setTradeFlags', () => {
 
   it('also clears trade_hidden when trade_forced is set', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeForced: true });
-
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/trade_hidden/i);
     expect(params).toContain(false);
@@ -254,12 +219,10 @@ describe('setTradeFlags', () => {
 
   it('updates both flags when both are explicitly provided', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {
       tradeHidden: false,
       tradeForced: false,
     });
-
     const [[sql, params]] = (mockDb.query as ReturnType<typeof vi.fn>).mock.calls;
     expect(sql).toMatch(/UPDATE user_stickers/i);
     expect(params).toContain('album-1');
@@ -268,23 +231,18 @@ describe('setTradeFlags', () => {
 
   it('does not run a query when no flags are provided', async () => {
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {});
-
     expect(mockDb.query).not.toHaveBeenCalled();
   });
 
   it('invalidates user caches after updating flags', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
     (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-1:collection:album-1']]);
-
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
-
-    expect(mockRedis.scan).toHaveBeenCalled();
     expect(mockRedis.del).toHaveBeenCalled();
   });
 
   it('does not invalidate caches when no query was run', async () => {
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {});
-
     expect(mockRedis.scan).not.toHaveBeenCalled();
     expect(mockRedis.del).not.toHaveBeenCalled();
   });

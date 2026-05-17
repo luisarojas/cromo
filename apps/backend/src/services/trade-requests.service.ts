@@ -2,6 +2,20 @@ import type { Pool, PoolClient } from 'pg';
 import type { Redis } from 'ioredis';
 import { invalidateUserCaches } from './cache.js';
 import { publishTradeEvent } from './messaging.service.js';
+import { recomputeAlbumStats } from './album-stats.service.js';
+
+async function invalidateMatchesFor(redis: Redis, userIds: string[]): Promise<void> {
+  for (const userId of userIds) {
+    let cursor = '0';
+    do {
+      const [next, keys] = await redis.scan(
+        cursor, 'MATCH', `trade:matches:${userId}:*`, 'COUNT', 100,
+      );
+      cursor = next;
+      if (keys.length > 0) await redis.del(...keys);
+    } while (cursor !== '0');
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,12 +85,20 @@ function statusError(message: string, statusCode: number): Error & { statusCode:
   return err;
 }
 
-async function assertVariantExists(db: Pool, variantId: string): Promise<void> {
-  const { rows } = await db.query<{ id: string }>(
-    `SELECT id FROM sticker_variants WHERE id = $1`,
-    [variantId]
+async function assertVariantsExist(
+  client: PoolClient | Pool,
+  variantIds: string[],
+): Promise<void> {
+  if (variantIds.length === 0) return;
+  const { rows } = await client.query<{ id: string }>(
+    `SELECT id FROM sticker_variants WHERE id = ANY($1::uuid[])`,
+    [variantIds],
   );
-  if (rows.length === 0) throw statusError(`Unknown sticker variant: ${variantId}`, 400);
+  if (rows.length !== new Set(variantIds).size) {
+    const found = new Set(rows.map((r) => r.id));
+    const missing = variantIds.find((v) => !found.has(v));
+    throw statusError(`Unknown sticker variant: ${missing}`, 400);
+  }
 }
 
 async function assertParticipant(
@@ -117,17 +139,11 @@ export async function createTrade(
   items: TradeItemInput[],
   offerCash: number = 0,
   wantCash: number = 0,
-  requesterAlbumId?: string
+  requesterAlbumId?: string,
 ): Promise<{ id: string }> {
   if (userId === recipientId) {
     throw statusError('You cannot trade with yourself.', 400);
   }
-
-  const { rows: recipientRows } = await db.query<{ id: string }>(
-    `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
-    [recipientId]
-  );
-  if (recipientRows.length === 0) throw statusError('Recipient not found.', 404);
 
   const hasOffer = items.some((i) => i.direction === 'offer') || offerCash > 0;
   const hasWant = items.some((i) => i.direction === 'want') || wantCash > 0;
@@ -135,65 +151,101 @@ export async function createTrade(
     throw statusError('Trade must include at least one offer and one request (stickers or cash).', 400);
   }
 
-  // Resolve requester's album. If not specified, use their default.
-  let resolvedRequesterAlbumId: string;
-  let albumTypeId: string;
-
-  if (requesterAlbumId) {
-    const { rows } = await db.query<{ id: string; album_type_id: string }>(
-      `SELECT id, album_type_id FROM user_albums WHERE id = $1 AND user_id = $2`,
-      [requesterAlbumId, userId]
+  const tradeId = await withTradeTx(db, async (client) => {
+    const { rows: recipientRows } = await client.query<{ id: string }>(
+      `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [recipientId],
     );
-    if (rows.length === 0) throw statusError('Requester album not found.', 400);
-    resolvedRequesterAlbumId = rows[0]!.id;
-    albumTypeId = rows[0]!.album_type_id;
-  } else {
-    const { rows } = await db.query<{ id: string; album_type_id: string }>(
-      `SELECT id, album_type_id FROM user_albums
-       WHERE user_id = $1 AND is_default = true LIMIT 1`,
-      [userId]
+    if (recipientRows.length === 0) throw statusError('Recipient not found.', 404);
+
+    // Resolve requester's album. If not specified, use their default.
+    let resolvedRequesterAlbumId: string;
+    let albumTypeId: string;
+
+    if (requesterAlbumId) {
+      const { rows } = await client.query<{ id: string; album_type_id: string }>(
+        `SELECT id, album_type_id FROM user_albums WHERE id = $1 AND user_id = $2`,
+        [requesterAlbumId, userId],
+      );
+      if (rows.length === 0) throw statusError('Requester album not found.', 400);
+      resolvedRequesterAlbumId = rows[0]!.id;
+      albumTypeId = rows[0]!.album_type_id;
+    } else {
+      const { rows } = await client.query<{ id: string; album_type_id: string }>(
+        `SELECT id, album_type_id FROM user_albums
+         WHERE user_id = $1 AND is_default = true LIMIT 1`,
+        [userId],
+      );
+      if (rows.length === 0) throw statusError('Requester has no default album.', 422);
+      resolvedRequesterAlbumId = rows[0]!.id;
+      albumTypeId = rows[0]!.album_type_id;
+    }
+
+    const { rows: recAlbumRows } = await client.query<{ id: string }>(
+      `SELECT id FROM user_albums
+       WHERE user_id = $1 AND album_type_id = $2
+       ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
+      [recipientId, albumTypeId],
     );
-    if (rows.length === 0) throw statusError('Requester has no default album.', 422);
-    resolvedRequesterAlbumId = rows[0]!.id;
-    albumTypeId = rows[0]!.album_type_id;
-  }
+    if (recAlbumRows.length === 0) {
+      throw statusError('Recipient has no compatible album for this trade.', 422);
+    }
+    const resolvedRecipientAlbumId = recAlbumRows[0]!.id;
 
-  // Recipient's album of the same type (prefer default, then most recently updated).
-  const { rows: recAlbumRows } = await db.query<{ id: string }>(
-    `SELECT id FROM user_albums
-     WHERE user_id = $1 AND album_type_id = $2
-     ORDER BY is_default DESC, updated_at DESC LIMIT 1`,
-    [recipientId, albumTypeId]
-  );
-  if (recAlbumRows.length === 0) {
-    throw statusError('Recipient has no compatible album for this trade.', 422);
-  }
-  const resolvedRecipientAlbumId = recAlbumRows[0]!.id;
+    // Lock the variants we're about to reference so a concurrent admin delete
+    // can't pull them out between assertion and insert.
+    await assertVariantsExist(client, items.map((i) => i.variantId));
 
-  const tradeId = crypto.randomUUID();
-  await db.query(
-    `INSERT INTO trade_requests
-       (id, requester_id, recipient_id, requester_album_id, recipient_album_id,
-        status, counter_count, offer_cash, want_cash, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, 'pending', 0, $6, $7, NOW(), NOW())`,
-    [tradeId, userId, recipientId, resolvedRequesterAlbumId, resolvedRecipientAlbumId, offerCash, wantCash]
-  );
-
-  for (const item of items) {
-    await assertVariantExists(db, item.variantId);
-    await db.query(
-      `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [crypto.randomUUID(), tradeId, item.variantId, item.direction, item.quantity]
+    const newTradeId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO trade_requests
+         (id, requester_id, recipient_id, requester_album_id, recipient_album_id,
+          status, counter_count, offer_cash, want_cash, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', 0, $6, $7, NOW(), NOW())`,
+      [newTradeId, userId, recipientId, resolvedRequesterAlbumId, resolvedRecipientAlbumId, offerCash, wantCash],
     );
-  }
 
-  await Promise.all([
-    redis.del(`trade:matches:${userId}:*`),
-    redis.del(`trade:matches:${recipientId}:*`),
-  ]);
+    if (items.length > 0) {
+      const itemIds = items.map(() => crypto.randomUUID());
+      await client.query(
+        `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
+         SELECT * FROM UNNEST(
+           $1::uuid[], $2::uuid[], $3::uuid[], $4::text[], $5::int[]
+         )`,
+        [
+          itemIds,
+          items.map(() => newTradeId),
+          items.map((i) => i.variantId),
+          items.map((i) => i.direction),
+          items.map((i) => i.quantity),
+        ],
+      );
+    }
+
+    return newTradeId;
+  });
+
+  await invalidateMatchesFor(redis, [userId, recipientId]);
 
   return { id: tradeId };
+}
+
+async function withTradeTx<T>(
+  db: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -233,9 +285,12 @@ export async function listTrades(
 export async function getTrade(
   db: Pool,
   userId: string,
-  tradeId: string
+  tradeId: string,
 ): Promise<TradeDetail | null> {
-  const { rows: tradeRows } = await db.query<Omit<TradeDetail, 'items' | 'messages'>>(
+  // Single round trip: header + items + messages aggregated with jsonb_agg.
+  // Replaces 3 sequential queries (header, items, last-50 messages) — listing
+  // 28 trades on the UI previously did 84 round trips.
+  const { rows } = await db.query<TradeDetail & { items: TradeItemRow[]; messages: TradeMessage[] }>(
     `SELECT
        tr.id,
        tr.requester_id, ru.username AS requester_username,
@@ -244,46 +299,52 @@ export async function getTrade(
        re.display_name AS recipient_display_name, re.avatar_url AS recipient_avatar_url,
        tr.status, tr.counter_count, tr.offer_cash, tr.want_cash,
        tr.accepted_at, tr.completed_at, tr.cancelled_at, tr.expires_at,
-       tr.created_at, tr.updated_at
+       tr.created_at, tr.updated_at,
+       COALESCE(items.items, '[]'::jsonb) AS items,
+       COALESCE(msgs.messages, '[]'::jsonb) AS messages
      FROM trade_requests tr
      JOIN users ru ON ru.id = tr.requester_id
      JOIN users re ON re.id = tr.recipient_id
+     LEFT JOIN LATERAL (
+       SELECT jsonb_agg(jsonb_build_object(
+         'id', ti.id,
+         'trade_id', ti.trade_id,
+         'sticker_variant_id', ti.sticker_variant_id,
+         'direction', ti.direction,
+         'quantity', ti.quantity,
+         'number', s.number,
+         'album_code', s.album_code,
+         'player_name', s.player_name,
+         'sticker_type', s.sticker_type,
+         'variant_type', sv.variant_type,
+         'team_name', t.name
+       ) ORDER BY ti.direction, s.number) AS items
+       FROM trade_items ti
+       JOIN sticker_variants sv ON sv.id = ti.sticker_variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
+       LEFT JOIN teams t ON t.id = s.team_id
+       WHERE ti.trade_id = tr.id
+     ) items ON true
+     LEFT JOIN LATERAL (
+       SELECT jsonb_agg(m ORDER BY m.sent_at ASC) AS messages
+       FROM (
+         SELECT
+           tm.id, tm.trade_id, tm.sender_id,
+           u.username AS sender_username,
+           u.display_name AS sender_display_name,
+           tm.body, tm.sent_at
+         FROM trade_messages tm
+         JOIN users u ON u.id = tm.sender_id
+         WHERE tm.trade_id = tr.id
+         ORDER BY tm.sent_at DESC
+         LIMIT 50
+       ) m
+     ) msgs ON true
      WHERE tr.id = $1 AND (tr.requester_id = $2 OR tr.recipient_id = $2)`,
-    [tradeId, userId]
+    [tradeId, userId],
   );
 
-  if (tradeRows.length === 0) return null;
-  const trade = tradeRows[0]!;
-
-  const { rows: itemRows } = await db.query<TradeItemRow>(
-    `SELECT
-       ti.id, ti.trade_id, ti.sticker_variant_id, ti.direction, ti.quantity,
-       s.number, s.album_code, s.player_name, s.sticker_type,
-       sv.variant_type, t.name AS team_name
-     FROM trade_items ti
-     JOIN sticker_variants sv ON sv.id = ti.sticker_variant_id
-     JOIN stickers s ON s.id = sv.sticker_id
-     LEFT JOIN teams t ON t.id = s.team_id
-     WHERE ti.trade_id = $1
-     ORDER BY ti.direction, s.number`,
-    [tradeId]
-  );
-
-  const { rows: msgRows } = await db.query<TradeMessage>(
-    `SELECT
-       tm.id, tm.trade_id, tm.sender_id,
-       u.username AS sender_username,
-       u.display_name AS sender_display_name,
-       tm.body, tm.sent_at
-     FROM trade_messages tm
-     JOIN users u ON u.id = tm.sender_id
-     WHERE tm.trade_id = $1
-     ORDER BY tm.sent_at DESC
-     LIMIT 50`,
-    [tradeId]
-  );
-
-  return { ...trade, items: itemRows, messages: msgRows.reverse() };
+  return rows[0] ?? null;
 }
 
 /**
@@ -340,46 +401,78 @@ export async function counterTrade(
   tradeId: string,
   items: TradeItemInput[],
   offerCash: number = 0,
-  wantCash: number = 0
+  wantCash: number = 0,
 ): Promise<void> {
-  const trade = await assertParticipant(db, userId, tradeId);
-  if (trade.status !== 'pending') throw statusError(`Trade cannot be countered in status '${trade.status}'.`, 409);
-  if (trade.counter_count >= 5) throw statusError('Counter limit reached.', 409);
-
   const hasOffer = items.some((i) => i.direction === 'offer') || offerCash > 0;
   const hasWant = items.some((i) => i.direction === 'want') || wantCash > 0;
   if (!hasOffer || !hasWant) {
     throw statusError('Counter offer must include at least one offer and one request (stickers or cash).', 400);
   }
 
-  const newRequesterId = userId;
-  const newRecipientId = trade.requester_id === userId ? trade.recipient_id : trade.requester_id;
-
-  await db.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
-
-  for (const item of items) {
-    await assertVariantExists(db, item.variantId);
-    await db.query(
-      `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [crypto.randomUUID(), tradeId, item.variantId, item.direction, item.quantity]
+  const { newCounter } = await withTradeTx(db, async (client) => {
+    // Lock the trade row so two concurrent counter-offers can't both pass the
+    // status / counter_count check.
+    const { rows: lockedRows } = await client.query<{
+      requester_id: string;
+      recipient_id: string;
+      status: string;
+      counter_count: number;
+    }>(
+      `SELECT requester_id, recipient_id, status, counter_count
+       FROM trade_requests WHERE id = $1 FOR UPDATE`,
+      [tradeId],
     );
-  }
+    if (lockedRows.length === 0) throw statusError('Trade not found.', 404);
+    const locked = lockedRows[0]!;
+    if (locked.requester_id !== userId && locked.recipient_id !== userId) {
+      throw statusError('You are not a participant in this trade.', 403);
+    }
+    if (locked.status !== 'pending') {
+      throw statusError(`Trade cannot be countered in status '${locked.status}'.`, 409);
+    }
+    if (locked.counter_count >= 5) throw statusError('Counter limit reached.', 409);
 
-  await db.query(
-    `UPDATE trade_requests
-     SET requester_id = $2, recipient_id = $3,
-         requester_album_id = recipient_album_id,
-         recipient_album_id = requester_album_id,
-         counter_count = counter_count + 1,
-         offer_cash = $4, want_cash = $5,
-         updated_at = NOW()
-     WHERE id = $1`,
-    [tradeId, newRequesterId, newRecipientId, offerCash, wantCash]
-  );
+    await assertVariantsExist(client, items.map((i) => i.variantId));
+
+    await client.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
+
+    if (items.length > 0) {
+      const itemIds = items.map(() => crypto.randomUUID());
+      await client.query(
+        `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
+         SELECT * FROM UNNEST(
+           $1::uuid[], $2::uuid[], $3::uuid[], $4::text[], $5::int[]
+         )`,
+        [
+          itemIds,
+          items.map(() => tradeId),
+          items.map((i) => i.variantId),
+          items.map((i) => i.direction),
+          items.map((i) => i.quantity),
+        ],
+      );
+    }
+
+    const newRequesterId = userId;
+    const newRecipientId = locked.requester_id === userId ? locked.recipient_id : locked.requester_id;
+
+    await client.query(
+      `UPDATE trade_requests
+       SET requester_id = $2, recipient_id = $3,
+           requester_album_id = recipient_album_id,
+           recipient_album_id = requester_album_id,
+           counter_count = counter_count + 1,
+           offer_cash = $4, want_cash = $5,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [tradeId, newRequesterId, newRecipientId, offerCash, wantCash],
+    );
+
+    return { newCounter: locked.counter_count + 1 };
+  });
 
   await publishTradeEvent(redis, tradeId, 'status_changed', {
-    trade_id: tradeId, status: 'pending', counter_count: trade.counter_count + 1,
+    trade_id: tradeId, status: 'pending', counter_count: newCounter,
   });
 }
 
@@ -514,11 +607,15 @@ export async function completeTrade(
       [requesterAlbumId, recipientAlbumId]
     );
 
+    // Refresh denormalized owned_count / duplicate_count for both albums.
+    await recomputeAlbumStats(client, [requesterAlbumId, recipientAlbumId]);
+
     await client.query('COMMIT');
 
     await Promise.all([
       invalidateUserCaches(redis, requesterId),
       invalidateUserCaches(redis, recipientId),
+      invalidateMatchesFor(redis, [requesterId, recipientId]),
     ]);
 
     await publishTradeEvent(redis, tradeId, 'status_changed', {

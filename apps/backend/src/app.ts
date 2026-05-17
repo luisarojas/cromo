@@ -10,6 +10,7 @@ import { helmetPlugin } from './plugins/helmet.js';
 import { swaggerPlugin } from './plugins/swagger.js';
 import { databasePluginWrapped } from './plugins/database.js';
 import { redisPluginWrapped } from './plugins/redis.js';
+import { startWorker } from './services/jobs.service.js';
 
 import { healthRoutes } from './routes/v1/health.js';
 import { versionRoutes } from './routes/v1/version.js';
@@ -84,6 +85,17 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(databasePluginWrapped);
   await fastify.register(redisPluginWrapped);
 
+  // ── Background job worker ────────────────────────────────────────────────
+  // Single in-process consumer drains Redis-backed job queue. Tests skip the
+  // worker since they never enqueue, and SMTP transport would dangle.
+  if (env.NODE_ENV !== 'test') {
+    const stopWorker = startWorker(fastify.redis, {
+      info: (msg) => fastify.log.info(msg),
+      error: (err, msg) => fastify.log.error({ err }, msg ?? '[jobs]'),
+    });
+    fastify.addHook('onClose', async () => { await stopWorker(); });
+  }
+
   // ── Routes ────────────────────────────────────────────────────────────────
   await fastify.register(healthRoutes);
   await fastify.register(versionRoutes);
@@ -98,16 +110,19 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(profileRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
-  fastify.setErrorHandler<FastifyError>((error, _request, reply) => {
+  fastify.setErrorHandler<FastifyError>((error, request, reply) => {
     const statusCode = error.statusCode ?? 500;
-    fastify.log.error(error);
-    reply.status(statusCode).send({
+    // Bind the request id so production logs can be correlated with the
+    // X-Request-ID response header the client sees.
+    request.log.error({ err: error, reqId: request.id, statusCode }, 'request failed');
+    reply.header('x-request-id', request.id).status(statusCode).send({
       statusCode,
       error: error.name ?? 'Internal Server Error',
       message:
         env.NODE_ENV === 'production' && statusCode === 500
           ? 'An unexpected error occurred.'
           : error.message,
+      requestId: request.id,
     });
   });
 

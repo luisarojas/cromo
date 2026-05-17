@@ -168,4 +168,77 @@ export interface ApiError {
   statusCode: number
   error: string
   message: string
+  requestId?: string
+}
+
+// ─── Wire types shared between Fastify routes and the Next.js client ─────
+// These are intentionally narrower than the database row types: they only
+// include the fields the API actually returns. Drizzle's `$inferSelect`
+// types stay inside apps/backend/src/db/schema.ts because frontend code
+// should not see e.g. hashedEmail or other server-only columns.
+
+export interface AuthUser {
+  id: string
+  email: string
+  username: string
+  displayName: string | null
+  role: string
+  emailVerifiedAt: string | null
+}
+
+export interface UserAlbumDto {
+  id: string
+  userId: string
+  albumTypeId: string
+  albumTypeKey: string
+  albumTypeName: string
+  albumEditionId: string
+  edition: string
+  editionName: string
+  alias: string | null
+  isDefault: boolean
+  settings: AlbumSettings
+  isTradeInventoryPublic: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AlbumStatsDto {
+  albumId: string
+  total: number
+  owned: number
+  missing: number
+  duplicates: number
+  percentage: number
+}
+
+export interface UserAlbumWithStats extends UserAlbumDto {
+  stats: AlbumStatsDto
+}
+
+export interface AlbumSummaryDto {
+  albumId: string
+  ownedAlbumCodes: string[]
+  duplicateAlbumCodes: string[]
+}
+
+export interface CollectionStatsDto {
+  total: number
+  owned: number
+  missing: number
+  duplicates: number
+  percentage: number
+}
+
+export interface FilterOptionsDto {
+  groups: string[]
+  teams: { fifaCode: string; name: string }[]
+  types: string[]
+  variants: string[]
+}
+
+export interface PagedResult<T> {
+  items: T[]
+  nextCursor: number | null
+  total: number
 }

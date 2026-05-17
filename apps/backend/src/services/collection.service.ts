@@ -1,6 +1,7 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { Redis } from 'ioredis';
 import { hashFilters, invalidateUserCaches } from './cache.js';
+import { recomputeAlbumStats } from './album-stats.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,15 @@ export interface PaginatedResult<T> {
   items: T[];
   nextCursor: number | null;
   total: number;
+}
+
+import type { FilterOptionsDto } from '@stickfolio/shared';
+export type FilterOptions = FilterOptionsDto;
+
+export interface CollectionPage extends PaginatedResult<CollectionItem> {
+  stats: CollectionStats;
+  totalExtraCopies: number;
+  filterOptions: FilterOptions;
 }
 
 export { invalidateUserCaches } from './cache.js';
@@ -337,60 +347,139 @@ export async function getDuplicates(
 }
 
 /**
- * getStats — completion statistics for a specific album.
- * Cached for 5 minutes.
+ * getStats — completion statistics for an album. Reads the denormalized
+ * owned_count / duplicate_count / total_count maintained by every write.
  */
 export async function getStats(
   db: Pool,
-  redis: Redis,
-  userId: string,
+  _redis: Redis,
+  _userId: string,
   albumId: string
 ): Promise<CollectionStats> {
-  const cacheKey = `user:${userId}:summary:${albumId}`;
-
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached) as CollectionStats;
-  }
-
   const { rows } = await db.query<{
-    total: string;
-    owned: string;
-    duplicates: string;
+    total: number;
+    owned: number;
+    duplicates: number;
   }>(
-    `WITH album_stats AS (
-       SELECT
-         COUNT(DISTINCT sv.sticker_id) FILTER (WHERE us.quantity > 0) AS owned,
-         COUNT(*)                      FILTER (WHERE us.quantity > 1) AS duplicates
-       FROM user_stickers us
-       JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
-       WHERE us.album_id = $1
-     )
-     SELECT
-       (SELECT COUNT(*) FROM stickers)::text AS total,
-       owned::text,
-       duplicates::text
-     FROM album_stats`,
-    [albumId]
+    `SELECT total_count AS total,
+            owned_count AS owned,
+            duplicate_count AS duplicates
+     FROM user_albums WHERE id = $1`,
+    [albumId],
   );
 
   const row = rows[0];
-  const total = parseInt(row?.total ?? '0', 10);
-  const owned = parseInt(row?.owned ?? '0', 10);
-  const duplicates = parseInt(row?.duplicates ?? '0', 10);
+  const total = row?.total ?? 0;
+  const owned = row?.owned ?? 0;
+  const duplicates = row?.duplicates ?? 0;
   const missing = total - owned;
   const percentage = total > 0 ? parseFloat(((owned / total) * 100).toFixed(2)) : 0;
 
-  const stats: CollectionStats = { total, owned, missing, duplicates, percentage };
-
-  await redis.set(cacheKey, JSON.stringify(stats), 'EX', 300);
-
-  return stats;
+  return { total, owned, missing, duplicates, percentage };
 }
 
 /**
- * addSticker — upsert a sticker variant into an album.
- * Invalidates all user caches.
+ * getFilterOptions — distinct (group, team, type, variant) values currently
+ * present in the user's collection for the given album. Lets the frontend skip
+ * three useMemo passes over the full sticker catalog.
+ */
+export async function getFilterOptions(
+  db: Pool,
+  albumId: string,
+): Promise<FilterOptions> {
+  const { rows } = await db.query<{
+    groups: string[] | null;
+    teams: { fifa_code: string; name: string }[] | null;
+    types: string[] | null;
+    variants: string[] | null;
+  }>(
+    `SELECT
+       array_remove(array_agg(DISTINCT t.group_name), NULL) AS groups,
+       COALESCE(
+         jsonb_agg(DISTINCT jsonb_build_object('fifa_code', t.fifa_code, 'name', t.name))
+           FILTER (WHERE t.fifa_code IS NOT NULL),
+         '[]'::jsonb
+       ) AS teams,
+       array_remove(array_agg(DISTINCT s.sticker_type), NULL) AS types,
+       array_remove(array_agg(DISTINCT sv.variant_type), NULL) AS variants
+     FROM user_stickers us
+     JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+     JOIN stickers s ON s.id = sv.sticker_id
+     LEFT JOIN teams t ON t.id = s.team_id
+     WHERE us.album_id = $1 AND us.quantity > 0`,
+    [albumId],
+  );
+
+  const row = rows[0];
+  const rawTeams = (row?.teams ?? []) as unknown as { fifa_code: string; name: string }[];
+  return {
+    groups: (row?.groups ?? []).sort(),
+    teams: rawTeams.map((t) => ({ fifaCode: t.fifa_code, name: t.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    types: row?.types ?? [],
+    variants: row?.variants ?? [],
+  };
+}
+
+/**
+ * getTotalExtraCopies — sum of (quantity - 1) across all sticker_variants in
+ * an album. Used by the UI's "Duplicates (12 / +37)" tab label.
+ */
+export async function getTotalExtraCopies(
+  db: Pool,
+  albumId: string,
+): Promise<number> {
+  const { rows } = await db.query<{ extra: number | null }>(
+    `SELECT COALESCE(SUM(GREATEST(quantity - 1, 0)), 0)::int AS extra
+     FROM user_stickers WHERE album_id = $1`,
+    [albumId],
+  );
+  return rows[0]?.extra ?? 0;
+}
+
+/**
+ * getCollectionPage — single endpoint returning collection items + stats +
+ * filter options + extra-copies count for a given album. Replaces 3 round
+ * trips (getCollection + getStats + client-side filter computation).
+ */
+export async function getCollectionPage(
+  db: Pool,
+  redis: Redis,
+  userId: string,
+  albumId: string,
+  filters: CollectionFilters,
+): Promise<CollectionPage> {
+  const [page, stats, filterOptions, totalExtraCopies] = await Promise.all([
+    getCollection(db, redis, userId, albumId, filters),
+    getStats(db, redis, userId, albumId),
+    getFilterOptions(db, albumId),
+    getTotalExtraCopies(db, albumId),
+  ]);
+
+  return { ...page, stats, filterOptions, totalExtraCopies };
+}
+
+async function withTx<T>(
+  db: Pool,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * addSticker — upsert a sticker variant into an album. Wrapped in a
+ * transaction so the upsert + denormalized stats refresh stay consistent.
  */
 export async function addSticker(
   db: Pool,
@@ -400,14 +489,17 @@ export async function addSticker(
   variantId: string,
   quantity = 1
 ): Promise<void> {
-  await db.query(
-    `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (album_id, sticker_variant_id)
-     DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
-                   updated_at = NOW()`,
-    [albumId, variantId, quantity]
-  );
+  await withTx(db, async (client) => {
+    await client.query(
+      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (album_id, sticker_variant_id)
+       DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
+                     updated_at = NOW()`,
+      [albumId, variantId, quantity]
+    );
+    await recomputeAlbumStats(client, [albumId]);
+  });
 
   await invalidateUserCaches(redis, userId);
 }
@@ -424,19 +516,23 @@ export async function updateSticker(
   variantId: string,
   quantity: number
 ): Promise<void> {
-  if (quantity <= 0) {
-    await db.query(
-      `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
-      [albumId, variantId]
-    );
-  } else {
-    await db.query(
-      `UPDATE user_stickers
-       SET quantity = $3, updated_at = NOW()
-       WHERE album_id = $1 AND sticker_variant_id = $2`,
-      [albumId, variantId, quantity]
-    );
-  }
+  await withTx(db, async (client) => {
+    if (quantity <= 0) {
+      await client.query(
+        `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [albumId, variantId]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (album_id, sticker_variant_id)
+         DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()`,
+        [albumId, variantId, quantity]
+      );
+    }
+    await recomputeAlbumStats(client, [albumId]);
+  });
 
   await invalidateUserCaches(redis, userId);
 }
@@ -490,10 +586,13 @@ export async function removeSticker(
   albumId: string,
   variantId: string
 ): Promise<void> {
-  await db.query(
-    `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
-    [albumId, variantId]
-  );
+  await withTx(db, async (client) => {
+    await client.query(
+      `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+      [albumId, variantId]
+    );
+    await recomputeAlbumStats(client, [albumId]);
+  });
 
   await invalidateUserCaches(redis, userId);
 }

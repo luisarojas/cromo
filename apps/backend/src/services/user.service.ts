@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
+import type { Redis } from 'ioredis';
 import crypto from 'node:crypto';
-import { sendVerificationEmail } from './email.service.js';
+import { enqueue } from './jobs.service.js';
 
 function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
@@ -45,8 +46,9 @@ export async function updateUsername(
 
 export async function updateEmail(
   db: Pool,
+  redis: Redis,
   userId: string,
-  newEmail: string
+  newEmail: string,
 ): Promise<{ email: string }> {
   const normalizedEmail = newEmail.toLowerCase().trim();
   const hashedEmail = hashEmail(normalizedEmail);
@@ -91,8 +93,11 @@ export async function updateEmail(
 
     await client.query('COMMIT');
 
-    sendVerificationEmail(normalizedEmail, username, token).catch((e) => {
-      console.error('[user] Failed to send verification email after email change:', e);
+    await enqueue(redis, {
+      type: 'email:verify',
+      email: normalizedEmail,
+      username,
+      token,
     });
 
     return { email: normalizedEmail };

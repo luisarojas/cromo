@@ -3,6 +3,7 @@ import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as collectionService from '../../services/collection.service.js';
 import * as albumsService from '../../services/albums.service.js';
 import { validateImageBuffer, saveAvatar } from '../../services/upload.service.js';
+import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
 
 async function resolveAlbum(
   fastify: FastifyInstance,
@@ -50,6 +51,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
             variant: { type: 'string', maxLength: 32 },
             cursor:  { type: 'integer' },
             limit:   { type: 'integer', minimum: 1, maximum: 1000, default: 50 },
+            bundle:  { type: 'string', enum: ['page'] },
           },
         },
         response: {
@@ -95,10 +97,21 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const q = request.query as {
         albumId?: string; team?: string; group?: string; type?: string;
         variant?: string; cursor?: number; limit?: number;
+        bundle?: 'page';
       };
 
       const albumId = await resolveAlbum(fastify, reply, userId, q.albumId);
       if (!albumId) return;
+
+      // Opt-in bundled response: items + stats + filter options + extra-copies
+      // count in a single round trip. Used by the album detail page so the UI
+      // can stop running three useMemo passes over the full catalog.
+      if (q.bundle === 'page') {
+        const result = await collectionService.getCollectionPage(
+          fastify.db, fastify.redis, userId, albumId, q,
+        );
+        return reply.status(200).send(result);
+      }
 
       const result = await collectionService.getCollection(
         fastify.db, fastify.redis, userId, albumId, q
@@ -339,9 +352,16 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const albumId = await resolveAlbum(fastify, reply, userId, bodyAlbumId);
       if (!albumId) return;
 
+      const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
+      const cached = await lookupIdempotent<{ ok: true }>(
+        fastify.redis, 'collection:add', userId, idempotencyKey,
+      );
+      if (cached) return reply.status(204).send();
+
       await collectionService.addSticker(
         fastify.db, fastify.redis, userId, albumId, variantId, quantity
       );
+      await storeIdempotent(fastify.redis, 'collection:add', userId, idempotencyKey, { ok: true });
       return reply.status(204).send();
     }
   );

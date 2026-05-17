@@ -245,7 +245,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
       try {
-        const result = await userService.updateEmail(fastify.db, request.userId!, parsed.data.email);
+        const result = await userService.updateEmail(fastify.db, fastify.redis, request.userId!, parsed.data.email);
         return reply.status(200).send(result);
       } catch (err) {
         const e = err as Error & { statusCode?: number };
