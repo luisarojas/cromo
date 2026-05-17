@@ -6,9 +6,8 @@ import * as favouritesService from '../../services/favourites.service.js';
 const albumSettingsShape = {
   type: 'object',
   properties: {
-    includeAllStickers:    { type: 'boolean' },
-    includeCocaCola:       { type: 'boolean' },
-    includeNonAlbumMuseum: { type: 'boolean' },
+    includeExtras:   { type: 'boolean' },
+    includeCocaCola: { type: 'boolean' },
   },
 } as const;
 
@@ -223,7 +222,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeAllStickers?: boolean; includeCocaCola?: boolean; includeNonAlbumMuseum?: boolean }; isTradeInventoryPublic?: boolean };
+      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean }; isTradeInventoryPublic?: boolean };
       const album = await albumsService.createAlbum(fastify.db, fastify.redis, userId, body);
       const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);
       return reply.status(201).send({ ...album, stats });
@@ -261,7 +260,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeAllStickers?: boolean; includeCocaCola?: boolean; includeNonAlbumMuseum?: boolean }; isTradeInventoryPublic?: boolean };
+      const body = request.body as { alias?: string | null; edition?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean }; isTradeInventoryPublic?: boolean };
       const album = await albumsService.updateAlbum(fastify.db, fastify.redis, userId, albumId, body);
       if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
       const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);

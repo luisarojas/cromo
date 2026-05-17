@@ -67,9 +67,8 @@ export const albumEditions = pgTable('album_editions', {
 import type { AlbumSettings } from '@stickfolio/shared';
 
 const DEFAULT_ALBUM_SETTINGS: AlbumSettings = {
-  includeAllStickers: true,
+  includeExtras: true,
   includeCocaCola: true,
-  includeNonAlbumMuseum: true,
 };
 
 export type { AlbumSettings };

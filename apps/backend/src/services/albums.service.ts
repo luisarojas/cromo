@@ -145,7 +145,7 @@ export async function createAlbum(
           WHERE at.key = $5 AND ae.key = $2),
          $3,
          false,
-         COALESCE($4::jsonb, '{"includeAllStickers":true,"includeCocaCola":true,"includeNonAlbumMuseum":true}'::jsonb),
+         COALESCE($4::jsonb, '{"includeExtras":true,"includeCocaCola":true}'::jsonb),
          $6
        )
        RETURNING *

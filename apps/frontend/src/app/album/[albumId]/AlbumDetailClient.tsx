@@ -323,16 +323,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const settingsFilteredStickers = useMemo<Sticker[]>(() => {
     const albumSettings = activeAlbum?.settings;
     if (!albumSettings) return stickers;
-    const edition = activeAlbum.edition;
-    const ek = toEditionKey(edition);
     return stickers.filter((s) => {
       if (s.stickerType === 'coca_cola_special') return albumSettings.includeCocaCola;
-      const hasPage =
-        (s.stickerPages?.[ek]?.pageStart != null && s.stickerPages?.[ek]?.pageEnd != null) ||
-        (s.stickerType !== 'extra' && s.teamPages?.[ek] != null);
-      if (s.stickerType === 'museum' && !hasPage) return albumSettings.includeNonAlbumMuseum;
-      if (hasPage) return true;
-      return albumSettings.includeAllStickers;
+      if (s.stickerType === 'extra') return albumSettings.includeExtras;
+      return true;
     });
   }, [stickers, activeAlbum]);
 
@@ -807,9 +801,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   {(() => {
                     const s = activeAlbum.settings;
                     const chips = [
-                      s.includeCocaCola        && 'Coca-Cola',
-                      s.includeNonAlbumMuseum && 'Museum (no album)',
-                      s.includeAllStickers     && 'Unlisted stickers',
+                      s.includeCocaCola && 'Coca-Cola',
+                      s.includeExtras   && 'Extras',
                     ].filter(Boolean) as string[];
                     return chips.length > 0 ? (
                       <div className="flex flex-wrap gap-1 mt-1.5">

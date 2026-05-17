@@ -2,9 +2,8 @@ export type UserRole = 'user' | 'admin'
 export type Locale = 'en' | 'es'
 
 export interface AlbumSettings {
-  includeAllStickers: boolean
+  includeExtras: boolean
   includeCocaCola: boolean
-  includeNonAlbumMuseum: boolean
 }
 
 export interface User {

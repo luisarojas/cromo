@@ -3,12 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AlbumEditionOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
-import { toEditionKey } from '@/lib/api';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
-  includeAllStickers: true,
+  includeExtras: true,
   includeCocaCola: true,
-  includeNonAlbumMuseum: true,
 };
 
 interface Props {
@@ -55,18 +53,13 @@ export default function AlbumFormModal({
 
   const stickerCounts = useMemo(() => {
     if (!allStickers?.length) return null;
-    let coca_cola = 0, non_album_museum = 0, other_no_spot = 0;
-    const ek = toEditionKey(edition);
+    let coca_cola = 0, extras = 0;
     for (const s of allStickers) {
-      const hasPage =
-        (s.stickerPages?.[ek]?.pageStart != null && s.stickerPages?.[ek]?.pageEnd != null) ||
-        (s.stickerType !== 'extra' && s.teamPages?.[ek] != null);
-      if (s.stickerType === 'coca_cola_special') { coca_cola++; continue; }
-      if (s.stickerType === 'museum' && !hasPage) { non_album_museum++; continue; }
-      if (!hasPage) other_no_spot++;
+      if (s.stickerType === 'coca_cola_special') coca_cola++;
+      else if (s.stickerType === 'extra') extras++;
     }
-    return { includeAllStickers: other_no_spot, includeCocaCola: coca_cola, includeNonAlbumMuseum: non_album_museum };
-  }, [allStickers, edition]);
+    return { includeExtras: extras, includeCocaCola: coca_cola };
+  }, [allStickers]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -176,9 +169,8 @@ export default function AlbumFormModal({
             <span className="text-xs font-medium text-gray-600">Sticker visibility</span>
             {(
               [
-                { key: 'includeAllStickers', label: 'Stickers without a spot in my edition' },
+                { key: 'includeExtras',   label: 'Extra stickers' },
                 { key: 'includeCocaCola', label: 'Coca-Cola stickers' },
-                { key: 'includeNonAlbumMuseum', label: 'Museum stickers not placed in any album' },
               ] as { key: keyof AlbumSettings; label: string }[]
             ).map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">

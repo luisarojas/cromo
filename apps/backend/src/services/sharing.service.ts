@@ -374,10 +374,8 @@ export async function getPublicProfile(
               ua.created_at,
               at.name            AS album_type_name,
               ae.name            AS edition_name,
-              ae.key             AS edition_key,
-              (ua.settings->>'includeAllStickers')::boolean    AS inc_all,
-              (ua.settings->>'includeCocaCola')::boolean       AS inc_coca,
-              (ua.settings->>'includeNonAlbumMuseum')::boolean AS inc_museum
+              (ua.settings->>'includeExtras')::boolean   AS inc_extras,
+              (ua.settings->>'includeCocaCola')::boolean AS inc_coca
        FROM user_albums ua
        JOIN album_types at    ON at.id = ua.album_type_id
        JOIN album_editions ae ON ae.id = ua.album_edition_id
@@ -388,14 +386,10 @@ export async function getPublicProfile(
        SELECT pa.album_id, s.id AS sticker_id
        FROM public_albums pa
        JOIN stickers s ON s.album_type_id = pa.album_type_id
-       LEFT JOIN sticker_album_pages sap ON sap.sticker_id = s.id AND sap.edition = pa.edition_key
-       LEFT JOIN team_album_pages    tap ON tap.team_id    = s.team_id AND tap.edition = pa.edition_key
        WHERE CASE
          WHEN s.sticker_type = 'coca_cola_special' THEN pa.inc_coca
-         WHEN s.sticker_type = 'museum'
-              AND sap.page_start IS NULL AND tap.page_start IS NULL THEN pa.inc_museum
-         WHEN sap.page_start IS NOT NULL OR tap.page_start IS NOT NULL THEN true
-         ELSE pa.inc_all
+         WHEN s.sticker_type = 'extra' THEN pa.inc_extras
+         ELSE true
        END
      ),
      wanted_counts AS (
@@ -497,8 +491,8 @@ export async function getPublicProfile(
 /**
  * getPublicAlbumWanted — paginated Wanted list for one public album.
  *
- * Applies the album's sticker-visibility filters (includeAllStickers,
- * includeCocaCola, includeNonAlbumMuseum). Each item references the
+ * Applies the album's sticker-visibility filters (includeExtras,
+ * includeCocaCola). Each item references the
  * lowest-rarity-rank variant for the sticker (the canonical "base" variant in
  * practice), giving callers a real sticker_variant_id they can hand to the
  * trade composer.
@@ -546,12 +540,9 @@ export async function getPublicAlbumWanted(
     `WITH album_info AS (
        SELECT ua.id              AS album_id,
               ua.album_type_id,
-              ae.key             AS edition_key,
-              (ua.settings->>'includeAllStickers')::boolean    AS inc_all,
-              (ua.settings->>'includeCocaCola')::boolean       AS inc_coca,
-              (ua.settings->>'includeNonAlbumMuseum')::boolean AS inc_museum
+              (ua.settings->>'includeExtras')::boolean   AS inc_extras,
+              (ua.settings->>'includeCocaCola')::boolean AS inc_coca
        FROM user_albums ua
-       JOIN album_editions ae ON ae.id = ua.album_edition_id
        WHERE ua.id = $1
      ),
      filtered_stickers AS (
@@ -559,14 +550,10 @@ export async function getPublicAlbumWanted(
               s.sticker_type, s.team_id
        FROM album_info ai
        JOIN stickers s ON s.album_type_id = ai.album_type_id
-       LEFT JOIN sticker_album_pages sap ON sap.sticker_id = s.id AND sap.edition = ai.edition_key
-       LEFT JOIN team_album_pages    tap ON tap.team_id    = s.team_id AND tap.edition = ai.edition_key
        WHERE CASE
          WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
-         WHEN s.sticker_type = 'museum'
-              AND sap.page_start IS NULL AND tap.page_start IS NULL THEN ai.inc_museum
-         WHEN sap.page_start IS NOT NULL OR tap.page_start IS NOT NULL THEN true
-         ELSE ai.inc_all
+         WHEN s.sticker_type = 'extra' THEN ai.inc_extras
+         ELSE true
        END
      ),
      missing_stickers AS (
@@ -611,25 +598,18 @@ export async function getPublicAlbumWanted(
   const { rows: countRows } = await db.query<{ total: string }>(
     `WITH album_info AS (
        SELECT ua.album_type_id,
-              ae.key AS edition_key,
-              (ua.settings->>'includeAllStickers')::boolean    AS inc_all,
-              (ua.settings->>'includeCocaCola')::boolean       AS inc_coca,
-              (ua.settings->>'includeNonAlbumMuseum')::boolean AS inc_museum
+              (ua.settings->>'includeExtras')::boolean   AS inc_extras,
+              (ua.settings->>'includeCocaCola')::boolean AS inc_coca
        FROM user_albums ua
-       JOIN album_editions ae ON ae.id = ua.album_edition_id
        WHERE ua.id = $1
      )
      SELECT COUNT(*)::text AS total
      FROM album_info ai
      JOIN stickers s ON s.album_type_id = ai.album_type_id
-     LEFT JOIN sticker_album_pages sap ON sap.sticker_id = s.id AND sap.edition = ai.edition_key
-     LEFT JOIN team_album_pages    tap ON tap.team_id    = s.team_id AND tap.edition = ai.edition_key
      WHERE CASE
        WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
-       WHEN s.sticker_type = 'museum'
-            AND sap.page_start IS NULL AND tap.page_start IS NULL THEN ai.inc_museum
-       WHEN sap.page_start IS NOT NULL OR tap.page_start IS NOT NULL THEN true
-       ELSE ai.inc_all
+       WHEN s.sticker_type = 'extra' THEN ai.inc_extras
+       ELSE true
      END
        AND NOT EXISTS (
          SELECT 1 FROM user_stickers us
