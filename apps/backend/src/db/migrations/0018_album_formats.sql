@@ -73,10 +73,10 @@ WHERE at.key = 'fifa_world_cup_2026'
 ON CONFLICT (album_edition_id, album_format_id) DO NOTHING;
 
 -- ─── user_albums: wipe and add format columns ─────────────────────────────────
--- Cascades clean up user_stickers, favourites, and trades that referenced these
--- albums. Safe because CLAUDE.md flags backward compat as not required.
+-- trade_requests FKs to user_albums lack ON DELETE CASCADE, so clear the
+-- dependency chain manually before wiping user_albums.
 
-DELETE FROM user_albums;
+TRUNCATE user_albums CASCADE;
 
 ALTER TABLE user_albums
   ADD COLUMN album_format_id UUID NOT NULL,
