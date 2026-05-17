@@ -11,13 +11,16 @@ import {
   fetchCollection,
   createTrade,
   setTradeFlags,
+  patchUserPreferences,
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
   type TradeSummary,
   type CollectionItem,
+  type City,
 } from '@/lib/api';
 import TradeStickerPicker, { type TradePickerItem } from './components/TradeStickerPicker';
+import CityAutocomplete from '@/components/CityAutocomplete';
 
 type Tab = 'find' | 'my';
 
@@ -92,6 +95,24 @@ function TradePageContent() {
   const hydrated = useAuthStore((s) => s.hydrated);
 
   const myCities = usePreferencesStore((s) => s.cities);
+  const setCities = usePreferencesStore((s) => s.setCities);
+
+  const [citiesSaving, setCitiesSaving] = useState(false);
+  const [citiesError, setCitiesError] = useState<string | null>(null);
+
+  async function handleCitiesChange(next: City[]) {
+    if (!token) return;
+    setCities(next);
+    setCitiesSaving(true);
+    setCitiesError(null);
+    try {
+      await patchUserPreferences({ cities: next }, token);
+    } catch {
+      setCitiesError('Failed to save. Please try again.');
+    } finally {
+      setCitiesSaving(false);
+    }
+  }
 
   const rawTab = searchParams.get('tab');
   const [tab, setTab] = useState<Tab>(rawTab === 'my' ? 'my' : 'find');
@@ -417,6 +438,13 @@ function TradePageContent() {
               >
                 {matchesLoading ? 'Searching...' : 'Find Matches'}
               </button>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <label className="block text-xs font-medium text-gray-600 mb-2">Your cities</label>
+              <CityAutocomplete cities={myCities} onChange={handleCitiesChange} />
+              {citiesSaving && <p className="mt-1.5 text-xs text-gray-400">Saving…</p>}
+              {citiesError && <p className="mt-1.5 text-xs text-red-500">{citiesError}</p>}
+              <p className="mt-1.5 text-xs text-gray-400">Used to filter trade matches by location.</p>
             </div>
           </div>
 
