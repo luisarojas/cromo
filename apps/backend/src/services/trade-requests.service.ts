@@ -550,6 +550,155 @@ export async function counterTrade(
 }
 
 /**
+ * editTrade — the current requester edits their pending counter-offer in place.
+ * Replaces items and cash without swapping roles or incrementing counter_count.
+ * Only valid when counter_count > 0 (i.e. a counter was already submitted).
+ */
+export async function editTrade(
+  db: Pool,
+  redis: Redis,
+  userId: string,
+  tradeId: string,
+  items: TradeItemInput[],
+  offerCash: number = 0,
+  wantCash: number = 0,
+): Promise<void> {
+  const hasOffer = items.some((i) => i.direction === 'offer') || offerCash > 0;
+  const hasWant = items.some((i) => i.direction === 'want') || wantCash > 0;
+  if (!hasOffer || !hasWant) {
+    throw statusError('Trade must include at least one offer and one request (stickers or cash).', 400);
+  }
+
+  const { counterCount } = await withTradeTx(db, async (client) => {
+    const { rows: lockedRows } = await client.query<{
+      requester_id: string;
+      recipient_id: string;
+      status: string;
+      counter_count: number;
+      offer_cash: number;
+      want_cash: number;
+    }>(
+      `SELECT requester_id, recipient_id, status, counter_count, offer_cash, want_cash
+       FROM trade_requests WHERE id = $1 FOR UPDATE`,
+      [tradeId],
+    );
+    if (lockedRows.length === 0) throw statusError('Trade not found.', 404);
+    const locked = lockedRows[0]!;
+    if (locked.requester_id !== userId) {
+      throw statusError('Only the current requester can edit a counter-offer.', 403);
+    }
+    if (locked.status !== 'pending') {
+      throw statusError(`Trade cannot be edited in status '${locked.status}'.`, 409);
+    }
+    if (locked.counter_count === 0) {
+      throw statusError('Only counter-offers can be edited.', 409);
+    }
+
+    await assertVariantsExist(client, items.map((i) => i.variantId));
+
+    // Snapshot old items for the diff message
+    const { rows: oldItemRows } = await client.query<{
+      sticker_variant_id: string;
+      direction: string;
+      quantity: number;
+      album_code: string;
+    }>(
+      `SELECT ti.sticker_variant_id, ti.direction, ti.quantity, s.album_code
+       FROM trade_items ti
+       JOIN sticker_variants sv ON sv.id = ti.sticker_variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
+       WHERE ti.trade_id = $1`,
+      [tradeId],
+    );
+
+    const newVariantIds = items.map((i) => i.variantId);
+    const { rows: newCodeRows } = newVariantIds.length > 0
+      ? await client.query<{ variant_id: string; album_code: string }>(
+          `SELECT sv.id AS variant_id, s.album_code
+           FROM sticker_variants sv
+           JOIN stickers s ON s.id = sv.sticker_id
+           WHERE sv.id = ANY($1::uuid[])`,
+          [newVariantIds],
+        )
+      : { rows: [] as { variant_id: string; album_code: string }[] };
+    const newCodeMap = new Map(newCodeRows.map((r) => [r.variant_id, r.album_code]));
+
+    await client.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
+
+    if (items.length > 0) {
+      const itemIds = items.map(() => crypto.randomUUID());
+      await client.query(
+        `INSERT INTO trade_items (id, trade_id, sticker_variant_id, direction, quantity)
+         SELECT * FROM UNNEST(
+           $1::uuid[], $2::uuid[], $3::uuid[], $4::text[], $5::int[]
+         )`,
+        [
+          itemIds,
+          items.map(() => tradeId),
+          items.map((i) => i.variantId),
+          items.map((i) => i.direction),
+          items.map((i) => i.quantity),
+        ],
+      );
+    }
+
+    await client.query(
+      `UPDATE trade_requests
+       SET offer_cash = $2, want_cash = $3, updated_at = NOW()
+       WHERE id = $1`,
+      [tradeId, offerCash, wantCash],
+    );
+
+    // Build diff system message
+    const oldOfferIds = new Set(oldItemRows.filter((i) => i.direction === 'offer').map((i) => i.sticker_variant_id));
+    const oldWantIds  = new Set(oldItemRows.filter((i) => i.direction === 'want').map((i) => i.sticker_variant_id));
+    const newOfferItems = items.filter((i) => i.direction === 'offer');
+    const newWantItems  = items.filter((i) => i.direction === 'want');
+    const newOfferIds = new Set(newOfferItems.map((i) => i.variantId));
+    const newWantIds  = new Set(newWantItems.map((i) => i.variantId));
+
+    function fmtCash(cents: number) { return `CA$${(cents / 100).toFixed(2)}`; }
+    function fmtItem(code: string, qty: number) { return qty > 1 ? `${code} ×${qty}` : code; }
+
+    const addedOffer   = newOfferItems.filter((i) => !oldOfferIds.has(i.variantId))
+      .map((i) => `+${fmtItem(newCodeMap.get(i.variantId) ?? '?', i.quantity)}`);
+    const removedOffer = oldItemRows.filter((i) => i.direction === 'offer' && !newOfferIds.has(i.sticker_variant_id))
+      .map((i) => `−${i.album_code}`);
+    const addedWant    = newWantItems.filter((i) => !oldWantIds.has(i.variantId))
+      .map((i) => `+${newCodeMap.get(i.variantId) ?? '?'}`);
+    const removedWant  = oldItemRows.filter((i) => i.direction === 'want' && !newWantIds.has(i.sticker_variant_id))
+      .map((i) => `−${i.album_code}`);
+
+    function cashDiff(oldCents: number, newCents: number): string | null {
+      if (oldCents === newCents) return null;
+      if (oldCents === 0) return `+${fmtCash(newCents)} cash`;
+      if (newCents === 0) return `−${fmtCash(oldCents)} cash`;
+      return `cash ${fmtCash(oldCents)} → ${fmtCash(newCents)}`;
+    }
+
+    const offerParts = [...addedOffer, ...removedOffer];
+    const offerCashDiff = cashDiff(locked.offer_cash, offerCash);
+    if (offerCashDiff) offerParts.push(offerCashDiff);
+
+    const wantParts = [...addedWant, ...removedWant];
+    const wantCashDiff = cashDiff(locked.want_cash, wantCash);
+    if (wantCashDiff) wantParts.push(wantCashDiff);
+
+    const msgLines = [`Counter offer #${locked.counter_count} updated.`];
+    if (offerParts.length > 0) msgLines.push(`Offering: ${offerParts.join(', ')}`);
+    if (wantParts.length > 0) msgLines.push(`Requesting: ${wantParts.join(', ')}`);
+
+    await sendSystemMessage(client, redis, tradeId, msgLines.join('\n'));
+
+    return { counterCount: locked.counter_count };
+  });
+
+  await publishTradeEvent(redis, tradeId, 'status_changed', {
+    trade_id: tradeId, status: 'pending', counter_count: counterCount,
+  });
+}
+
+/**
  * cancelTrade — a participant cancels an accepted or pending trade.
  */
 export async function cancelTrade(

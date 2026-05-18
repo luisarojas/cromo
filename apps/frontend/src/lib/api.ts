@@ -1093,6 +1093,22 @@ export async function counterTrade(
   );
 }
 
+export async function editTrade(
+  id: string,
+  body: {
+    items: { variantId: string; direction: 'offer' | 'want'; quantity: number }[];
+    offerCash?: number;
+    wantCash?: number;
+  },
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/trade/requests/${id}/edit`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
 export async function cancelTrade(id: string, token: string): Promise<void> {
   return apiFetch<void>(
     `/api/v1/trade/requests/${id}/cancel`,

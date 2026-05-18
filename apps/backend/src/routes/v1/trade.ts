@@ -370,6 +370,69 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /**
+   * POST /api/v1/trade/requests/:id/edit
+   * Requester edits their pending counter-offer in place (no role swap, no counter_count bump).
+   */
+  fastify.post(
+    `${prefix}/requests/:id/edit`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Trade'],
+        summary: 'Edit a pending counter-offer',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['items'],
+          properties: {
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['variantId', 'direction'],
+                properties: {
+                  variantId: { type: 'string' },
+                  direction: { type: 'string', enum: ['offer', 'want'] },
+                  quantity:  { type: 'integer', minimum: 1, default: 1 },
+                },
+              },
+            },
+            offerCash: { type: 'integer', minimum: 0, default: 0 },
+            wantCash:  { type: 'integer', minimum: 0, default: 0 },
+          },
+        },
+        response: { 204: { type: 'null' } },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const parsed = CounterTradeBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: parsed.error.issues.map((i) => i.message).join('; '),
+        });
+      }
+      try {
+        await tradeService.editTrade(
+          fastify.db, fastify.redis, request.userId!, id, parsed.data.items,
+          parsed.data.offerCash, parsed.data.wantCash
+        );
+        return reply.status(204).send();
+      } catch (err) {
+        const e = err as Error & { statusCode?: number };
+        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      }
+    }
+  );
+
+  /**
    * POST /api/v1/trade/requests/:id/cancel
    */
   fastify.post(

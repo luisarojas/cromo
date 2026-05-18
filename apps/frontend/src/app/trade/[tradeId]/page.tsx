@@ -10,6 +10,7 @@ import {
   cancelTrade,
   completeTrade,
   counterTrade,
+  editTrade,
   sendTradeMessage,
   fetchCollection,
   type TradeDetail,
@@ -108,6 +109,17 @@ export default function TradeDetailPage() {
   const [counterOfferItemsLoading, setCounterOfferItemsLoading] = useState(false);
   const counterOfferItemsLoadedRef = useRef(false);
 
+  // Edit counter-offer form
+  const [showEdit, setShowEdit] = useState(false);
+  const [editItems, setEditItems] = useState<TradePickerItem[]>([]);
+  const [editOfferCash, setEditOfferCash] = useState(0);
+  const [editWantCash, setEditWantCash] = useState(0);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editOfferItems, setEditOfferItems] = useState<CollectionItem[]>([]);
+  const [editOfferItemsLoading, setEditOfferItemsLoading] = useState(false);
+  const editOfferItemsLoadedRef = useRef(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -188,6 +200,17 @@ export default function TradeDetailPage() {
       .finally(() => setCounterOfferItemsLoading(false));
   }, [showCounter, token, user]);
 
+  // Load user's collection once when edit form first opens
+  useEffect(() => {
+    if (!showEdit || !token || !user || editOfferItemsLoadedRef.current) return;
+    editOfferItemsLoadedRef.current = true;
+    setEditOfferItemsLoading(true);
+    fetchCollection(user.id, { limit: 1000 }, token)
+      .then((result) => setEditOfferItems(result.items))
+      .catch(() => {})
+      .finally(() => setEditOfferItemsLoading(false));
+  }, [showEdit, token, user]);
+
   async function runAction(action: () => Promise<void>, onSuccess?: () => void) {
     if (!token) return;
     setActionLoading(true);
@@ -260,6 +283,43 @@ export default function TradeDetailPage() {
       setCounterError(err instanceof Error ? err.message : 'Failed to submit counter offer');
     } finally {
       setCounterSubmitting(false);
+    }
+  }
+
+  async function handleEdit() {
+    if (!token || !trade) return;
+
+    const hasOffer = editItems.some((i) => i.direction === 'offer') || editOfferCash > 0;
+    const hasWant = editItems.some((i) => i.direction === 'want') || editWantCash > 0;
+
+    if (!hasOffer || !hasWant) {
+      setEditError('Add at least one sticker or cash amount to offer and to request.');
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      await editTrade(
+        tradeId,
+        {
+          items: editItems.map((i) => ({ variantId: i.variantId, direction: i.direction, quantity: i.quantity })),
+          offerCash: editOfferCash,
+          wantCash: editWantCash,
+        },
+        token,
+      );
+      const updated = await fetchTrade(tradeId, token);
+      setTrade(updated);
+      setMessages(updated.messages);
+      setShowEdit(false);
+      setEditItems([]);
+      setEditOfferCash(0);
+      setEditWantCash(0);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to update counter offer');
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -346,6 +406,7 @@ export default function TradeDetailPage() {
     ((isRequester || isRecipient) && trade.status === 'accepted');
   const canComplete = (isRequester || isRecipient) && trade.status === 'accepted';
   const canCounter = isRecipient && trade.status === 'pending';
+  const canEdit = isRequester && trade.status === 'pending' && trade.counterCount > 0;
   const isTerminal = ['completed', 'declined', 'cancelled', 'expired'].includes(trade.status);
 
   return (
@@ -470,6 +531,15 @@ export default function TradeDetailPage() {
                 Counter Offer
               </button>
             )}
+            {canEdit && (
+              <button
+                onClick={() => setShowEdit((v) => !v)}
+                disabled={actionLoading}
+                className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                Edit Offer
+              </button>
+            )}
             {canComplete && (
               <button
                 onClick={handleComplete}
@@ -529,6 +599,53 @@ export default function TradeDetailPage() {
                 <button
                   onClick={() => { setShowCounter(false); setCounterItems([]); setCounterOfferCash(0); setCounterWantCash(0); }}
                   disabled={counterSubmitting}
+                  className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Edit counter-offer form */}
+          {showEdit && token && (
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
+              <h3 className="text-sm font-medium text-gray-700">Edit Counter Offer</h3>
+              <TradeStickerPicker
+                key="edit"
+                offerItems={editOfferItems}
+                offerItemsLoading={editOfferItemsLoading}
+                suggestedOfferCodes={offeredItems.map((i) => i.albumCode)}
+                suggestedWantCodes={wantedItems.map((i) => i.albumCode)}
+                suggestedWantVariantIds={wantedItems.map((i) => i.stickerVariantId)}
+                initialOfferVariants={offeredItems.map((i) => ({ variantId: i.stickerVariantId, quantity: i.quantity }))}
+                initialWantVariantIds={wantedItems.map((i) => i.stickerVariantId)}
+                initialOfferCash={trade.offerCash}
+                initialWantCash={trade.wantCash}
+                token={token}
+                partnerName={trade.recipientUsername}
+                onChange={(items, offerCash, wantCash) => {
+                  setEditItems(items);
+                  setEditOfferCash(offerCash);
+                  setEditWantCash(wantCash);
+                }}
+              />
+              {editError && (
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                  {editError}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleEdit}
+                  disabled={editSubmitting}
+                  className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                >
+                  {editSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={() => { setShowEdit(false); setEditItems([]); setEditOfferCash(0); setEditWantCash(0); }}
+                  disabled={editSubmitting}
                   className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >
                   Cancel
