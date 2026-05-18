@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   fetchStats,
   fetchUserAlbums,
   fetchAlbumStats,
+  updateUserAlbum,
+  deleteUserAlbum,
   albumDisplayName,
   type CollectionStats,
   type AlbumStats,
@@ -34,6 +36,13 @@ export default function DashboardPage() {
   const [albumStats, setAlbumStats] = useState<Map<string, AlbumStats>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [filterType, setFilterType] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -69,6 +78,81 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, router]);
 
+  const albumTypes = useMemo(
+    () => [...new Set(albums.map((a) => a.albumTypeName))],
+    [albums],
+  );
+
+  const displayedAlbums = useMemo(() => {
+    let result = filterType === 'all'
+      ? albums
+      : albums.filter((a) => a.albumTypeName === filterType);
+    if (sortOrder !== 'none') {
+      result = [...result].sort((a, b) => {
+        const pa = albumStats.get(a.id)?.percentage ?? 0;
+        const pb = albumStats.get(b.id)?.percentage ?? 0;
+        return sortOrder === 'asc' ? pa - pb : pb - pa;
+      });
+    }
+    return result;
+  }, [albums, filterType, sortOrder, albumStats]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === displayedAlbums.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(displayedAlbums.map((a) => a.id)));
+    }
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setConfirmBulkDelete(false);
+  }
+
+  async function bulkSetTrade(value: boolean) {
+    if (!user || !token || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        [...selectedIds].map((id) =>
+          updateUserAlbum(user.id, id, { isTradeInventoryPublic: value }, token),
+        ),
+      );
+      const userAlbums = await fetchUserAlbums(user.id, token);
+      setAlbums(userAlbums);
+      exitSelectMode();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkDelete() {
+    if (!user || !token || selectedIds.size === 0) return;
+    setBulkBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => deleteUserAlbum(user.id, id, token)));
+      const [userAlbums, statsList] = await Promise.all([
+        fetchUserAlbums(user.id, token),
+        fetchAlbumStats(user.id, token),
+      ]);
+      setAlbums(userAlbums);
+      setAlbumStats(new Map(statsList.map((s) => [s.albumId, s])));
+      exitSelectMode();
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   if (!hydrated || (!token && hydrated)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
@@ -87,6 +171,8 @@ export default function DashboardPage() {
       ? `You've completed ${albumDisplayName(defaultAlbum)}!`
       : `${defaultAlbumStats.missing} stickers left to complete ${albumDisplayName(defaultAlbum)}`;
   }
+
+  const allSelected = displayedAlbums.length > 0 && selectedIds.size === displayedAlbums.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -117,10 +203,10 @@ export default function DashboardPage() {
                 <div key={i} className="h-20 rounded-xl bg-gray-200 animate-pulse" />
               ))
             : [
-                { label: 'Total',      value: stats?.total      ?? 0, color: 'text-gray-800', bg: 'bg-white',     border: 'border-gray-200'  },
-                { label: 'Owned',      value: stats?.owned      ?? 0, color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-100' },
-                { label: 'Missing',    value: stats?.missing    ?? 0, color: 'text-red-500',   bg: 'bg-red-50',    border: 'border-red-100'   },
-                { label: 'Duplicates', value: stats?.duplicates ?? 0, color: 'text-amber-500', bg: 'bg-amber-50',  border: 'border-amber-100' },
+                { label: 'Total',      value: stats?.total      ?? 0, color: 'text-gray-800',   bg: 'bg-white',     border: 'border-gray-200'  },
+                { label: 'Owned',      value: stats?.owned      ?? 0, color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-100' },
+                { label: 'Missing',    value: stats?.missing    ?? 0, color: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'   },
+                { label: 'Duplicates', value: stats?.duplicates ?? 0, color: 'text-amber-500',  bg: 'bg-amber-50',  border: 'border-amber-100' },
               ].map(({ label, value, color, bg, border }) => (
                 <div
                   key={label}
@@ -153,15 +239,99 @@ export default function DashboardPage() {
 
         {/* Albums */}
         <div className="mb-8">
+          {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Albums</h2>
-            <Link
-              href="/album"
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              Manage →
-            </Link>
+            <div className="flex items-center gap-3">
+              {selectMode ? (
+                <button
+                  onClick={exitSelectMode}
+                  className="text-xs text-gray-500 hover:text-gray-700 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              ) : (
+                <>
+                  {albums.length > 0 && (
+                    <button
+                      onClick={() => setSelectMode(true)}
+                      className="text-xs text-gray-500 hover:text-gray-700 font-medium transition-colors"
+                    >
+                      Select
+                    </button>
+                  )}
+                  <Link
+                    href="/album"
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                  >
+                    Manage →
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Filter + sort controls */}
+          {!loading && albums.length > 0 && (
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {albumTypes.length > 1 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => setFilterType('all')}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                      filterType === 'all'
+                        ? 'bg-gray-800 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {albumTypes.map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setFilterType(type)}
+                      className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                        filterType === type
+                          ? 'bg-gray-800 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={() =>
+                  setSortOrder((o) => (o === 'none' ? 'desc' : o === 'desc' ? 'asc' : 'none'))
+                }
+                className={`ml-auto flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                  sortOrder !== 'none'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Completion
+                {sortOrder === 'desc' && <span>↓</span>}
+                {sortOrder === 'asc' && <span>↑</span>}
+              </button>
+            </div>
+          )}
+
+          {/* Select-all row */}
+          {selectMode && displayedAlbums.length > 0 && (
+            <div className="flex items-center gap-3 mb-2 px-1">
+              <button
+                onClick={toggleSelectAll}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </button>
+              {selectedIds.size > 0 && (
+                <span className="text-xs text-gray-400">{selectedIds.size} selected</span>
+              )}
+            </div>
+          )}
 
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -181,15 +351,13 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {albums.map((album) => {
+              {displayedAlbums.map((album) => {
                 const st = albumStats.get(album.id);
                 const colors = EDITION_COLORS[album.edition] ?? { bg: 'bg-gray-100', text: 'text-gray-600', bar: 'bg-gray-500' };
-                return (
-                  <Link
-                    key={album.id}
-                    href={`/album/${album.id}`}
-                    className="group block bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all p-4"
-                  >
+                const isSelected = selectedIds.has(album.id);
+
+                const cardContent = (
+                  <>
                     <div className="flex items-start justify-between gap-2 mb-2.5">
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-800 text-sm truncate leading-snug group-hover:text-blue-700 transition-colors">
@@ -204,10 +372,22 @@ export default function DashboardPage() {
                           </span>
                         </div>
                       </div>
-                      {album.isDefault && (
-                        <svg className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-label="Default album">
-                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
+                      {selectMode ? (
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                          isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'
+                        }`}>
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M2 6l3 3 5-5" />
+                            </svg>
+                          )}
+                        </div>
+                      ) : (
+                        album.isDefault && (
+                          <svg className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-label="Default album">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        )
                       )}
                     </div>
 
@@ -233,6 +413,32 @@ export default function DashboardPage() {
                         <div className="h-1.5 rounded-full bg-gray-100 animate-pulse" />
                       </div>
                     )}
+                  </>
+                );
+
+                if (selectMode) {
+                  return (
+                    <div
+                      key={album.id}
+                      onClick={() => toggleSelect(album.id)}
+                      className={`group block bg-white rounded-xl border shadow-sm transition-all p-4 cursor-pointer select-none ${
+                        isSelected
+                          ? 'border-blue-400 ring-2 ring-blue-200'
+                          : 'border-gray-200 hover:shadow-md hover:border-blue-200'
+                      }`}
+                    >
+                      {cardContent}
+                    </div>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={album.id}
+                    href={`/album/${album.id}`}
+                    className="group block bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all p-4"
+                  >
+                    {cardContent}
                   </Link>
                 );
               })}
@@ -277,6 +483,62 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* Bulk action bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-lg">
+          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium text-gray-700 mr-auto">
+              {selectedIds.size} album{selectedIds.size > 1 ? 's' : ''} selected
+            </span>
+            {!confirmBulkDelete ? (
+              <>
+                <button
+                  onClick={() => bulkSetTrade(true)}
+                  disabled={bulkBusy}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+                >
+                  Make trade public
+                </button>
+                <button
+                  onClick={() => bulkSetTrade(false)}
+                  disabled={bulkBusy}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  Make trade private
+                </button>
+                <button
+                  onClick={() => setConfirmBulkDelete(true)}
+                  disabled={bulkBusy}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                >
+                  Delete
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-red-600">
+                  Delete {selectedIds.size} album{selectedIds.size > 1 ? 's' : ''}? This cannot be undone.
+                </span>
+                <button
+                  onClick={() => setConfirmBulkDelete(false)}
+                  disabled={bulkBusy}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={bulkDelete}
+                  disabled={bulkBusy}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {bulkBusy ? 'Deleting…' : 'Confirm delete'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
