@@ -1202,3 +1202,46 @@ export async function fetchPublicWanted(
     `/api/v1/profiles/${encodeURIComponent(username)}/albums/${albumId}/wanted${qs}`,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Wanted variants — explicit per-variant wishlist
+// ---------------------------------------------------------------------------
+
+export async function fetchAlbumWantedVariants(
+  userId: string,
+  albumId: string,
+  token: string,
+): Promise<string[]> {
+  const data = await apiFetch<{ variantIds: string[] }>(
+    `/api/v1/users/${userId}/albums/${albumId}/wanted-variants`,
+    {},
+    token,
+  );
+  return data.variantIds;
+}
+
+export async function addAlbumWantedVariant(
+  userId: string,
+  albumId: string,
+  variantId: string,
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/albums/${albumId}/wanted-variants`,
+    { method: 'POST', body: JSON.stringify({ variantId }) },
+    token,
+  );
+}
+
+export async function removeAlbumWantedVariant(
+  userId: string,
+  albumId: string,
+  variantId: string,
+  token: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/v1/users/${userId}/albums/${albumId}/wanted-variants/${variantId}`,
+    { method: 'DELETE' },
+    token,
+  );
+}

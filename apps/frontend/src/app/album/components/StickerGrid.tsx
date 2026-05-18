@@ -272,6 +272,7 @@ export default function StickerGrid({
           }
           anchorRect={popover.rect}
           albumId={albumId}
+          userId={userId}
           token={token}
           onClose={() => setPopover(null)}
           onAdjust={(variantId, variantType, delta) =>

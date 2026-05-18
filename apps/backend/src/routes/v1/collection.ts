@@ -557,4 +557,105 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       }
     }
   );
+
+  /**
+   * GET /api/v1/users/:userId/albums/:albumId/wanted-variants
+   */
+  fastify.get(
+    '/api/v1/users/:userId/albums/:albumId/wanted-variants',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Collection'],
+        summary: 'List explicitly wanted variant IDs for an album',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { variantIds: { type: 'array', items: { type: 'string' } } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'collection')) return;
+
+      const variantIds = await collectionService.getWantedVariants(fastify.db, userId, albumId);
+      return reply.status(200).send({ variantIds });
+    },
+  );
+
+  /**
+   * POST /api/v1/users/:userId/albums/:albumId/wanted-variants
+   */
+  fastify.post(
+    '/api/v1/users/:userId/albums/:albumId/wanted-variants',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Collection'],
+        summary: 'Mark a sticker variant as explicitly wanted',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['variantId'],
+          properties: { variantId: { type: 'string' } },
+        },
+        response: { 204: { type: 'null' } },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'collection')) return;
+
+      const { variantId } = request.body as { variantId: string };
+      await collectionService.addWantedVariant(fastify.db, userId, albumId, variantId);
+      return reply.status(204).send();
+    },
+  );
+
+  /**
+   * DELETE /api/v1/users/:userId/albums/:albumId/wanted-variants/:variantId
+   */
+  fastify.delete(
+    '/api/v1/users/:userId/albums/:albumId/wanted-variants/:variantId',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Collection'],
+        summary: 'Remove a sticker variant from the explicit wanted list',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId', 'variantId'],
+          properties: {
+            userId:    { type: 'string' },
+            albumId:   { type: 'string' },
+            variantId: { type: 'string' },
+          },
+        },
+        response: { 204: { type: 'null' } },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId, variantId } = request.params as {
+        userId: string; albumId: string; variantId: string;
+      };
+      if (!assertAccess(request, reply, userId, 'collection')) return;
+
+      await collectionService.removeWantedVariant(fastify.db, userId, albumId, variantId);
+      return reply.status(204).send();
+    },
+  );
 }

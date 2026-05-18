@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchStickerVariants, type Sticker, type StickerVariant } from '@/lib/api';
+import {
+  fetchStickerVariants,
+  fetchAlbumWantedVariants,
+  addAlbumWantedVariant,
+  removeAlbumWantedVariant,
+  type Sticker,
+  type StickerVariant,
+} from '@/lib/api';
 import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
@@ -19,6 +26,7 @@ interface Props {
   ownedVariants: Map<string, OwnedVariantEntry>; // keyed by variantType
   anchorRect: DOMRect;
   albumId: string;
+  userId: string;
   token: string;
   onClose: () => void;
   onAdjust: (variantId: string, variantType: string, delta: 1 | -1) => Promise<void>;
@@ -36,6 +44,7 @@ export default function VariantPopover({
   ownedVariants,
   anchorRect,
   albumId,
+  userId,
   token,
   onClose,
   onAdjust,
@@ -48,6 +57,7 @@ export default function VariantPopover({
   const ref = useRef<HTMLDivElement>(null);
   const [allVariants, setAllVariants] = useState<StickerVariant[] | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [wantedVariantIds, setWantedVariantIds] = useState<Set<string>>(new Set());
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [showMovePicker, setShowMovePicker] = useState(false);
   const [moveVariantId, setMoveVariantId] = useState<string | null>(null);
@@ -62,14 +72,17 @@ export default function VariantPopover({
   const albums = useAlbumsStore((s) => s.albums);
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
-  // Fetch all variants on mount so we can hide the "Add another variant" button
-  // immediately when the user already owns every available variant.
+  // Fetch all variants and current wanted state on mount.
   useEffect(() => {
     async function load() {
       setLoadingVariants(true);
       try {
-        const items = await fetchStickerVariants(sticker.albumCode, token);
+        const [items, wanted] = await Promise.all([
+          fetchStickerVariants(sticker.albumCode, token),
+          fetchAlbumWantedVariants(userId, albumId, token),
+        ]);
         setAllVariants(items);
+        setWantedVariantIds(new Set(wanted));
       } catch (err) {
         console.error('Failed to fetch variants', err);
       } finally {
@@ -77,7 +90,7 @@ export default function VariantPopover({
       }
     }
     load();
-  }, [sticker.albumCode, token]);
+  }, [sticker.albumCode, userId, albumId, token]);
 
   // Close on outside click / Esc
   useEffect(() => {
@@ -170,6 +183,24 @@ export default function VariantPopover({
     try {
       await onMoveFrom(moveFromVariantId, moveFromSourceAlbumId, moveFromQuantity);
       setShowMoveFromPicker(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleToggleWanted(variantId: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (wantedVariantIds.has(variantId)) {
+        await removeAlbumWantedVariant(userId, albumId, variantId, token);
+        setWantedVariantIds((prev) => { const s = new Set(prev); s.delete(variantId); return s; });
+      } else {
+        await addAlbumWantedVariant(userId, albumId, variantId, token);
+        setWantedVariantIds((prev) => new Set([...prev, variantId]));
+      }
+    } catch (err) {
+      console.error('Failed to update wanted', err);
     } finally {
       setBusy(false);
     }
@@ -451,45 +482,80 @@ export default function VariantPopover({
         </>
       )}
 
-      {/* Add other variant */}
-      {!showAddPicker && !loadingVariants && unownedVariants.length === 0 ? null :
-      !showAddPicker ? (
-        <button
-          onClick={openAddPicker}
-          className="text-xs font-medium text-blue-600 hover:text-blue-700 self-start"
-          disabled={loadingVariants}
-        >
-          + Add other variant
-        </button>
-      ) : loadingVariants ? (
+      {/* Unowned variants: add + want-it */}
+      {loadingVariants ? (
         <div className="text-xs text-gray-400">Loading variants…</div>
-      ) : unownedVariants.length === 0 ? (
+      ) : unownedVariants.length === 0 && ownedVariants.size > 0 ? (
         <div className="text-xs text-gray-500 italic">
           You already own every variant of this sticker.
         </div>
-      ) : (
-        <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
-          {unownedVariants.map((v) => (
+      ) : unownedVariants.length > 0 ? (
+        <>
+          {!showAddPicker && (
             <button
-              key={v.id}
-              onClick={() => handleAddNew(v.id, v.variantType)}
-              disabled={busy}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-blue-50 disabled:opacity-50 text-left"
+              onClick={openAddPicker}
+              className="text-xs font-medium text-blue-600 hover:text-blue-700 self-start"
             >
-              <span
-                className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variantType)}`}
-                aria-hidden
-              />
-              <span className="flex-1 text-xs text-gray-700 truncate">
-                {VARIANT_META[v.variantType]?.label ?? v.variantType}
-              </span>
-              <span className="text-[10px] text-gray-400">
-                {variantRarity(v.variantType)}
-              </span>
+              + Add other variant
             </button>
-          ))}
-        </div>
-      )}
+          )}
+          {showAddPicker && (
+            <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+              {unownedVariants.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => handleAddNew(v.id, v.variantType)}
+                  disabled={busy}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-blue-50 disabled:opacity-50 text-left"
+                >
+                  <span
+                    className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variantType)}`}
+                    aria-hidden
+                  />
+                  <span className="flex-1 text-xs text-gray-700 truncate">
+                    {VARIANT_META[v.variantType]?.label ?? v.variantType}
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    {variantRarity(v.variantType)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="h-px bg-gray-100" />
+          <div className="flex flex-col gap-1">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              Want it
+            </div>
+            {unownedVariants.map((v) => {
+              const wanted = wantedVariantIds.has(v.id);
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => handleToggleWanted(v.id)}
+                  disabled={busy}
+                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left disabled:opacity-50 transition-colors ${
+                    wanted
+                      ? 'bg-amber-50 hover:bg-amber-100'
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <span
+                    className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variantType)}`}
+                    aria-hidden
+                  />
+                  <span className="flex-1 text-xs text-gray-700 truncate">
+                    {VARIANT_META[v.variantType]?.label ?? v.variantType}
+                  </span>
+                  <span className={`text-[10px] font-medium ${wanted ? 'text-amber-600' : 'text-gray-400'}`}>
+                    {wanted ? '★ Wanted' : '☆ Want it'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 

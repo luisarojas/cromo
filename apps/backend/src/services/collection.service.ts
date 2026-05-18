@@ -596,3 +596,45 @@ export async function removeSticker(
 
   await invalidateUserCaches(redis, userId);
 }
+
+// ─── Wanted variants ──────────────────────────────────────────────────────────
+
+export async function getWantedVariants(
+  db: Pool,
+  userId: string,
+  albumId: string,
+): Promise<string[]> {
+  const { rows } = await db.query<{ sticker_variant_id: string }>(
+    `SELECT sticker_variant_id FROM user_wanted_variants
+     WHERE user_id = $1 AND album_id = $2`,
+    [userId, albumId],
+  );
+  return rows.map((r) => r.sticker_variant_id);
+}
+
+export async function addWantedVariant(
+  db: Pool,
+  userId: string,
+  albumId: string,
+  variantId: string,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO user_wanted_variants (user_id, sticker_variant_id, album_id)
+     VALUES ($1, $2, $3)
+     ON CONFLICT DO NOTHING`,
+    [userId, variantId, albumId],
+  );
+}
+
+export async function removeWantedVariant(
+  db: Pool,
+  userId: string,
+  albumId: string,
+  variantId: string,
+): Promise<void> {
+  await db.query(
+    `DELETE FROM user_wanted_variants
+     WHERE user_id = $1 AND sticker_variant_id = $2 AND album_id = $3`,
+    [userId, variantId, albumId],
+  );
+}
