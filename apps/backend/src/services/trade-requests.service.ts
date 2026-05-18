@@ -103,6 +103,72 @@ async function assertVariantsExist(
   }
 }
 
+async function assertNotOfferedInAcceptedTrade(
+  client: PoolClient | Pool,
+  userId: string,
+  variantIds: string[],
+): Promise<void> {
+  if (variantIds.length === 0) return;
+  const { rows } = await client.query<{ sticker_variant_id: string }>(
+    `SELECT ti.sticker_variant_id
+     FROM trade_items ti
+     JOIN trade_requests tr ON tr.id = ti.trade_id
+     WHERE tr.status = 'accepted'
+       AND (
+         (tr.requester_id = $1 AND ti.direction = 'offer')
+         OR (tr.recipient_id = $1 AND ti.direction = 'want')
+       )
+       AND ti.sticker_variant_id = ANY($2::uuid[])
+     LIMIT 1`,
+    [userId, variantIds],
+  );
+  if (rows.length > 0) {
+    throw statusError('One or more stickers are already committed to an accepted trade.', 409);
+  }
+}
+
+async function notifyAffectedTrades(
+  db: Pool,
+  redis: Redis,
+  completedTradeId: string,
+  givers: { userId: string; variantIds: string[] }[],
+): Promise<void> {
+  const affectedTradeIds = new Set<string>();
+
+  for (const { userId, variantIds } of givers) {
+    if (variantIds.length === 0) continue;
+    const { rows } = await db.query<{ trade_id: string }>(
+      `SELECT DISTINCT ti.trade_id
+       FROM trade_items ti
+       JOIN trade_requests tr ON tr.id = ti.trade_id
+       WHERE tr.status IN ('pending', 'accepted')
+         AND tr.id != $1
+         AND (
+           (tr.requester_id = $2 AND ti.direction = 'offer')
+           OR (tr.recipient_id = $2 AND ti.direction = 'want')
+         )
+         AND ti.sticker_variant_id = ANY($3::uuid[])
+         AND COALESCE(
+           (SELECT us.quantity FROM user_stickers us
+            WHERE us.album_id = CASE
+              WHEN tr.requester_id = $2 THEN tr.requester_album_id
+              ELSE tr.recipient_album_id
+            END
+            AND us.sticker_variant_id = ti.sticker_variant_id),
+           0
+         ) < ti.quantity`,
+      [completedTradeId, userId, variantIds],
+    );
+    for (const row of rows) affectedTradeIds.add(row.trade_id);
+  }
+
+  await Promise.all(
+    Array.from(affectedTradeIds).map((id) =>
+      sendSystemMessage(db, redis, id, 'One or more stickers in this trade are no longer available.')
+    )
+  );
+}
+
 async function assertParticipant(
   db: Pool,
   userId: string,
@@ -197,6 +263,11 @@ export async function createTrade(
     // Lock the variants we're about to reference so a concurrent admin delete
     // can't pull them out between assertion and insert.
     await assertVariantsExist(client, items.map((i) => i.variantId));
+
+    const offerVariantIds = items.filter((i) => i.direction === 'offer').map((i) => i.variantId);
+    const wantVariantIds  = items.filter((i) => i.direction === 'want').map((i) => i.variantId);
+    await assertNotOfferedInAcceptedTrade(client, userId, offerVariantIds);
+    await assertNotOfferedInAcceptedTrade(client, recipientId, wantVariantIds);
 
     const newTradeId = crypto.randomUUID();
     await client.query(
@@ -443,6 +514,18 @@ export async function counterTrade(
 
     await assertVariantsExist(client, items.map((i) => i.variantId));
 
+    // After a counter the submitter becomes the new requester; check their offered
+    // stickers aren't locked in another accepted trade, and likewise for the other party.
+    const counterOtherUserId = locked.requester_id === userId ? locked.recipient_id : locked.requester_id;
+    await assertNotOfferedInAcceptedTrade(
+      client, userId,
+      items.filter((i) => i.direction === 'offer').map((i) => i.variantId),
+    );
+    await assertNotOfferedInAcceptedTrade(
+      client, counterOtherUserId,
+      items.filter((i) => i.direction === 'want').map((i) => i.variantId),
+    );
+
     // Snapshot old items (with display labels) before deleting them
     const { rows: oldItemRows } = await client.query<{
       sticker_variant_id: string;
@@ -602,6 +685,15 @@ export async function editTrade(
     }
 
     await assertVariantsExist(client, items.map((i) => i.variantId));
+
+    await assertNotOfferedInAcceptedTrade(
+      client, userId,
+      items.filter((i) => i.direction === 'offer').map((i) => i.variantId),
+    );
+    await assertNotOfferedInAcceptedTrade(
+      client, locked.recipient_id,
+      items.filter((i) => i.direction === 'want').map((i) => i.variantId),
+    );
 
     // Snapshot old items for the diff message
     const { rows: oldItemRows } = await client.query<{
@@ -894,6 +986,11 @@ export async function completeTrade(
     await publishTradeEvent(redis, tradeId, 'status_changed', {
       trade_id: tradeId, status: 'completed',
     });
+
+    await notifyAffectedTrades(db, redis, tradeId, [
+      { userId: requesterId, variantIds: items.filter((i) => i.direction === 'offer').map((i) => i.sticker_variant_id) },
+      { userId: recipientId, variantIds: items.filter((i) => i.direction === 'want').map((i) => i.sticker_variant_id) },
+    ]);
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
