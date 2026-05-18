@@ -1180,9 +1180,24 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
 export async function fetchPublicWanted(
   username: string,
   albumId: string,
-  params: { cursor?: number; limit?: number } = {},
+  params: {
+    cursor?: number;
+    limit?: number;
+    stickerTypes?: string[];
+    teams?: string[];
+    variantTypes?: string[];
+    search?: string;
+  } = {},
 ): Promise<PublicWantedPage> {
-  const qs = toQueryString(params as Record<string, string | number | undefined>);
+  const { cursor, limit, stickerTypes, teams, variantTypes, search } = params;
+  const parts: string[] = [];
+  if (cursor !== undefined) parts.push(`cursor=${cursor}`);
+  if (limit !== undefined) parts.push(`limit=${limit}`);
+  if (stickerTypes?.length) parts.push(`stickerType=${encodeURIComponent(stickerTypes.join(','))}`);
+  if (teams?.length) parts.push(`team=${encodeURIComponent(teams.join(','))}`);
+  if (variantTypes?.length) parts.push(`variantType=${encodeURIComponent(variantTypes.join(','))}`);
+  if (search?.trim()) parts.push(`q=${encodeURIComponent(search.trim())}`);
+  const qs = parts.length ? `?${parts.join('&')}` : '';
   return apiFetch<PublicWantedPage>(
     `/api/v1/profiles/${encodeURIComponent(username)}/albums/${albumId}/wanted${qs}`,
   );

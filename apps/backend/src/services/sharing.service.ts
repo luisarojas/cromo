@@ -77,6 +77,13 @@ export interface PublicWantedPage {
   total: number;
 }
 
+export interface WantedFilters {
+  stickerTypes?: string[];
+  teams?: string[];
+  variantTypes?: string[];
+  search?: string;
+}
+
 type ListType = 'missing' | 'duplicates' | 'full_collection';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -494,17 +501,64 @@ export async function getPublicProfile(
   };
 }
 
+// Appends filter WHERE clauses to `params` starting at `startIdx`.
+// Returns the SQL fragments and the next available param index.
+function buildFilterClauses(
+  params: unknown[],
+  filters: WantedFilters,
+  startIdx: number,
+): {
+  stickerTypeClause: string;
+  searchClause: string;
+  variantTypeClause: string;
+  teamClause: string;
+  nextIdx: number;
+} {
+  let idx = startIdx;
+
+  let stickerTypeClause = '';
+  if (filters.stickerTypes?.length) {
+    params.push(filters.stickerTypes);
+    stickerTypeClause = `AND s.sticker_type = ANY($${idx++}::text[])`;
+  }
+
+  let searchClause = '';
+  if (filters.search?.trim()) {
+    params.push(`%${filters.search.trim()}%`);
+    const i = idx++;
+    searchClause = `AND (s.album_code ILIKE $${i} OR s.player_name ILIKE $${i})`;
+  }
+
+  let variantTypeClause = '';
+  if (filters.variantTypes?.length) {
+    params.push(filters.variantTypes);
+    variantTypeClause = `AND cv.variant_type = ANY($${idx++}::text[])`;
+  }
+
+  const namedTeams = (filters.teams ?? []).filter((t) => t !== 'Other');
+  const includeOther = filters.teams?.includes('Other') ?? false;
+  let teamClause = '';
+  if (filters.teams?.length) {
+    if (namedTeams.length && includeOther) {
+      params.push(namedTeams);
+      teamClause = `AND (t.name = ANY($${idx++}::text[]) OR t.name IS NULL)`;
+    } else if (namedTeams.length) {
+      params.push(namedTeams);
+      teamClause = `AND t.name = ANY($${idx++}::text[])`;
+    } else {
+      teamClause = `AND t.name IS NULL`;
+    }
+  }
+
+  return { stickerTypeClause, searchClause, variantTypeClause, teamClause, nextIdx: idx };
+}
+
 /**
  * getPublicAlbumWanted — paginated Wanted list for one public album.
  *
- * Applies the album's sticker-visibility filters (includeExtras,
- * includeCocaCola). Each item references the
- * lowest-rarity-rank variant for the sticker (the canonical "base" variant in
- * practice), giving callers a real sticker_variant_id they can hand to the
- * trade composer.
- *
- * Cursor is the previous page's last `number` (stickers within an album_type
- * have a unique number).
+ * Supports optional server-side filtering by sticker type, team, variant type,
+ * and free-text search. When filters are supplied the cache key includes them
+ * so each unique filter combination is cached independently.
  */
 export async function getPublicAlbumWanted(
   db: Pool,
@@ -512,7 +566,8 @@ export async function getPublicAlbumWanted(
   username: string,
   albumId: string,
   cursor: number | null,
-  limit: number
+  limit: number,
+  filters: WantedFilters = {}
 ): Promise<PublicWantedPage | null> {
   const pageSize = Math.min(Math.max(limit | 0, 1), PUBLIC_WANTED_MAX_LIMIT);
 
@@ -530,7 +585,6 @@ export async function getPublicAlbumWanted(
   const { id: userId, profile_visibility } = userRows[0]!;
   if (profile_visibility === 'private') return null;
 
-  // Confirm the album belongs to this user AND is flagged public.
   const { rowCount } = await db.query(
     `SELECT 1 FROM user_albums
      WHERE id = $1 AND user_id = $2 AND is_trade_inventory_public = true`,
@@ -538,9 +592,34 @@ export async function getPublicAlbumWanted(
   );
   if ((rowCount ?? 0) === 0) return null;
 
-  const cacheKey = `user:${userId}:public_wanted:${albumId}:${cursor ?? 'start'}:${pageSize}`;
+  const filterKey =
+    (filters.stickerTypes?.length ?? 0) > 0 ||
+    (filters.teams?.length ?? 0) > 0 ||
+    (filters.variantTypes?.length ?? 0) > 0 ||
+    !!filters.search?.trim()
+      ? ':' +
+        JSON.stringify({
+          t: [...(filters.stickerTypes ?? [])].sort(),
+          m: [...(filters.teams ?? [])].sort(),
+          v: [...(filters.variantTypes ?? [])].sort(),
+          q: filters.search?.trim() ?? '',
+        })
+      : '';
+  const cacheKey = `user:${userId}:public_wanted:${albumId}:${cursor ?? 'start'}:${pageSize}${filterKey}`;
   const cached = await redis.get(cacheKey);
   if (cached) return JSON.parse(cached) as PublicWantedPage;
+
+  // Page query: $1=albumId, $2=cursor, then filter params, then $N=limit
+  const pageParams: unknown[] = [albumId, cursor];
+  const { stickerTypeClause, searchClause, variantTypeClause, teamClause, nextIdx: pageLimitIdx } =
+    buildFilterClauses(pageParams, filters, 3);
+  pageParams.push(pageSize + 1);
+
+  // Count query: $1=albumId, then the same filter params (no cursor)
+  const countParams: unknown[] = [albumId];
+  const { stickerTypeClause: cStickerType, searchClause: cSearch,
+          variantTypeClause: cVariant, teamClause: cTeam } =
+    buildFilterClauses(countParams, filters, 2);
 
   const { rows: items } = await db.query<PublicInventoryItem & { number: number }>(
     `WITH album_info AS (
@@ -561,6 +640,8 @@ export async function getPublicAlbumWanted(
          WHEN s.sticker_type = 'extra' THEN ai.inc_extras
          ELSE true
        END
+       ${stickerTypeClause}
+       ${searchClause}
      ),
      missing_stickers AS (
        SELECT fs.*
@@ -592,9 +673,11 @@ export async function getPublicAlbumWanted(
      JOIN canonical_variant cv ON cv.sticker_id = ms.sticker_id
      LEFT JOIN teams t         ON t.id = ms.team_id
      WHERE ($2::int IS NULL OR ms.number > $2)
+     ${variantTypeClause}
+     ${teamClause}
      ORDER BY ms.number
-     LIMIT $3`,
-    [albumId, cursor, pageSize + 1]
+     LIMIT $${pageLimitIdx}`,
+    pageParams
   );
 
   const hasMore = items.length > pageSize;
@@ -608,23 +691,45 @@ export async function getPublicAlbumWanted(
               (ua.settings->>'includeCocaCola')::boolean AS inc_coca
        FROM user_albums ua
        WHERE ua.id = $1
-     )
-     SELECT COUNT(*)::text AS total
-     FROM album_info ai
-     JOIN stickers s ON s.album_type_id = ai.album_type_id
-     WHERE CASE
-       WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
-       WHEN s.sticker_type = 'extra' THEN ai.inc_extras
-       ELSE true
-     END
-       AND NOT EXISTS (
+     ),
+     filtered_stickers AS (
+       SELECT s.id AS sticker_id, s.sticker_type, s.album_code, s.player_name, s.team_id
+       FROM album_info ai
+       JOIN stickers s ON s.album_type_id = ai.album_type_id
+       WHERE CASE
+         WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
+         WHEN s.sticker_type = 'extra' THEN ai.inc_extras
+         ELSE true
+       END
+       ${cStickerType}
+       ${cSearch}
+     ),
+     missing_stickers AS (
+       SELECT fs.*
+       FROM filtered_stickers fs
+       WHERE NOT EXISTS (
          SELECT 1 FROM user_stickers us
          JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id
-         WHERE sv2.sticker_id = s.id
+         WHERE sv2.sticker_id = fs.sticker_id
            AND us.album_id = $1
            AND us.quantity > 0
-       )`,
-    [albumId]
+       )
+     ),
+     canonical_variant AS (
+       SELECT DISTINCT ON (sv.sticker_id)
+         sv.sticker_id, sv.variant_type
+       FROM sticker_variants sv
+       WHERE sv.sticker_id IN (SELECT sticker_id FROM missing_stickers)
+       ORDER BY sv.sticker_id, sv.rarity_rank ASC
+     )
+     SELECT COUNT(*)::text AS total
+     FROM missing_stickers ms
+     JOIN canonical_variant cv ON cv.sticker_id = ms.sticker_id
+     LEFT JOIN teams t ON t.id = ms.team_id
+     WHERE 1=1
+     ${cVariant}
+     ${cTeam}`,
+    countParams
   );
 
   const result: PublicWantedPage = {

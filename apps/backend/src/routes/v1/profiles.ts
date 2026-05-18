@@ -1,6 +1,11 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import * as sharingService from '../../services/sharing.service.js';
 
+function parseCSV(val: string | undefined): string[] | undefined {
+  if (!val?.trim()) return undefined;
+  return val.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 // Public, unauthenticated endpoints — tighter rate limit than the global
 // 100/min to make scraping more expensive. The same limiter store is shared
 // with the global config, so legitimate same-IP browsing of a few profiles
@@ -117,8 +122,12 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
         querystring: {
           type: 'object',
           properties: {
-            cursor: { type: 'integer' },
-            limit:  { type: 'integer', minimum: 1, maximum: 500 },
+            cursor:       { type: 'integer' },
+            limit:        { type: 'integer', minimum: 1, maximum: 500 },
+            stickerType:  { type: 'string' },
+            team:         { type: 'string' },
+            variantType:  { type: 'string' },
+            q:            { type: 'string' },
           },
         },
         response: {
@@ -135,7 +144,14 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { username, albumId } = request.params as { username: string; albumId: string };
-      const { cursor, limit } = request.query as { cursor?: number; limit?: number };
+      const { cursor, limit, stickerType, team, variantType, q } = request.query as {
+        cursor?: number;
+        limit?: number;
+        stickerType?: string;
+        team?: string;
+        variantType?: string;
+        q?: string;
+      };
 
       try {
         const page = await sharingService.getPublicAlbumWanted(
@@ -144,7 +160,13 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
           username,
           albumId,
           cursor ?? null,
-          limit ?? 100
+          limit ?? 100,
+          {
+            stickerTypes: parseCSV(stickerType),
+            teams:        parseCSV(team),
+            variantTypes: parseCSV(variantType),
+            search:       q,
+          }
         );
         if (!page) {
           return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found or not public.' });
