@@ -316,25 +316,36 @@ export default function PublicProfilePage() {
     selectedTypes.size + selectedTeams.size + selectedVariants.size;
 
   function buildListText(): string {
-    const albumName = activeAlbum ? albumLabel(activeAlbum) : '';
-    const tabLabel = activeTab === 'offered' ? 'Offers' : 'Needs';
-    const header = `${tabLabel} | ${albumName} (@${username})`;
+    if (!activeAlbum) return '';
 
-    function itemCode(item: PublicInventoryItem): string {
-      const qty = activeTab === 'offered' && (item.quantity ?? 0) > 1 ? ` ×${item.quantity}` : '';
-      return `${item.albumCode}${qty}`;
+    const albumName = albumLabel(activeAlbum);
+    const profileUrl = `${window.location.origin}/profile/${username}`;
+
+    function formatSection(items: PublicInventoryItem[], isOffered: boolean): string {
+      function itemCode(item: PublicInventoryItem): string {
+        const qty = isOffered && (item.quantity ?? 0) > 1 ? ` ×${item.quantity}` : '';
+        return `${item.albumCode}${qty}`;
+      }
+      if (groupBy === 'none') return items.map(itemCode).join(', ');
+      const grouped = groupItems(items, groupBy);
+      return sortGroupKeys([...grouped.keys()])
+        .map((key) => `${key}: ${(grouped.get(key) ?? []).map(itemCode).join(', ')}`)
+        .join('\n');
     }
 
-    if (groupBy === 'none') {
-      return `${header}\n${filteredItems.map(itemCode).join(', ')}`;
+    const parts: string[] = [];
+
+    if (activeAlbum.offered.length > 0) {
+      parts.push(`Offers | ${albumName}\n${formatSection(activeAlbum.offered, true)}`);
     }
 
-    const lines: string[] = [header];
-    for (const key of sortedGroupKeys) {
-      const groupItemsList = groupedItems.get(key) ?? [];
-      lines.push(`${key}: ${groupItemsList.map(itemCode).join(', ')}`);
+    const wantedItems = wantedByAlbum[activeAlbum.albumId]?.items ?? [];
+    if (wantedItems.length > 0) {
+      parts.push(`Needs | ${albumName}\n${formatSection(wantedItems, false)}`);
     }
-    return lines.join('\n');
+
+    parts.push(profileUrl);
+    return parts.join('\n\n');
   }
 
   function toggleInSet(setter: typeof setSelectedTypes, value: string) {
