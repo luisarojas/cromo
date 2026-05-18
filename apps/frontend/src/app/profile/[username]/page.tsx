@@ -315,6 +315,40 @@ export default function PublicProfilePage() {
   const activeFilterCount =
     selectedTypes.size + selectedTeams.size + selectedVariants.size;
 
+  const [listCopied, setListCopied] = useState(false);
+
+  function buildListText(): string {
+    const albumName = activeAlbum ? albumLabel(activeAlbum) : '';
+    const tabLabel = activeTab === 'offered' ? 'Offers' : 'Needs';
+    const header = `${tabLabel} | ${albumName} (@${username})`;
+
+    function itemCode(item: PublicInventoryItem): string {
+      const qty = activeTab === 'offered' && (item.quantity ?? 0) > 1 ? ` ×${item.quantity}` : '';
+      return `${item.albumCode}${qty}`;
+    }
+
+    if (groupBy === 'none') {
+      return `${header}\n${filteredItems.map(itemCode).join(', ')}`;
+    }
+
+    const lines: string[] = [header];
+    for (const key of sortedGroupKeys) {
+      const groupItemsList = groupedItems.get(key) ?? [];
+      lines.push(`${key}: ${groupItemsList.map(itemCode).join(', ')}`);
+    }
+    return lines.join('\n');
+  }
+
+  async function handleCopyList() {
+    try {
+      await navigator.clipboard.writeText(buildListText());
+      setListCopied(true);
+      setTimeout(() => setListCopied(false), 2000);
+    } catch {
+      // silent fail
+    }
+  }
+
   function toggleInSet(setter: typeof setSelectedTypes, value: string) {
     setter((prev) => {
       const next = new Set(prev);
@@ -554,6 +588,27 @@ export default function PublicProfilePage() {
                   <option value="none">None</option>
                 </select>
               </label>
+              <button
+                type="button"
+                onClick={() => void handleCopyList()}
+                disabled={filteredItems.length === 0}
+                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                {listCopied ? 'Copied!' : 'Copy list'}
+              </button>
             </div>
 
             {/* Filter panel */}
