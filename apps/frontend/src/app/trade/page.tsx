@@ -386,6 +386,14 @@ function TradePageContent() {
         </p>
       </div>
 
+      <div className="mb-6">
+        <label className="block text-xs font-medium text-gray-600 mb-2">Your cities</label>
+        <CityAutocomplete cities={myCities} onChange={handleCitiesChange} />
+        {citiesSaving && <p className="mt-1.5 text-xs text-gray-400">Saving…</p>}
+        {citiesError && <p className="mt-1.5 text-xs text-red-500">{citiesError}</p>}
+        <p className="mt-1.5 text-xs text-gray-400">Used to filter trade matches by location.</p>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-200">
         <button
@@ -438,13 +446,6 @@ function TradePageContent() {
               >
                 {matchesLoading ? 'Searching...' : 'Find Matches'}
               </button>
-            </div>
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <label className="block text-xs font-medium text-gray-600 mb-2">Your cities</label>
-              <CityAutocomplete cities={myCities} onChange={handleCitiesChange} />
-              {citiesSaving && <p className="mt-1.5 text-xs text-gray-400">Saving…</p>}
-              {citiesError && <p className="mt-1.5 text-xs text-red-500">{citiesError}</p>}
-              <p className="mt-1.5 text-xs text-gray-400">Used to filter trade matches by location.</p>
             </div>
           </div>
 

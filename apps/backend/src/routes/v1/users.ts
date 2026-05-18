@@ -85,7 +85,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             duplicatesCountAllVariants: { type: 'boolean' },
-            cities: { type: 'array', items: { type: 'string' } },
+            cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
           },
         },
         response: {
