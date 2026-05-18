@@ -271,10 +271,12 @@ export default function TradeDetailPage() {
     setMessages((prev) => [...prev, optimisticMsg]);
     try {
       const sent = await sendTradeMessage(tradeId, body, token);
-      // Replace optimistic message with real one
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimisticMsg.id ? sent : m)),
-      );
+      // Replace optimistic message with real one; also remove any SSE-added copy
+      // that arrived before this response was processed (race condition).
+      setMessages((prev) => {
+        const without = prev.filter((m) => m.id !== optimisticMsg.id && m.id !== sent.id);
+        return [...without, sent];
+      });
     } catch {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
