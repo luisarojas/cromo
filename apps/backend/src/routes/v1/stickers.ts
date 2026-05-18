@@ -7,6 +7,32 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
   const prefix = '/api/v1/stickers';
 
   /**
+   * GET /api/v1/stickers/version
+   * Opaque catalog version. The frontend keys its localStorage cache off this
+   * value so a backend catalog reseed invalidates every browser automatically
+   * (replaces the manual STICKER_CACHE_KEY bump). Public — no auth required.
+   */
+  fastify.get(
+    `${prefix}/version`,
+    {
+      schema: {
+        tags: ['Stickers'],
+        summary: 'Opaque catalog version for client cache keying',
+        response: {
+          200: {
+            type: 'object',
+            properties: { version: { type: 'string' } },
+          },
+        },
+      },
+    },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const version = await stickersService.getCatalogVersion(fastify.db, fastify.redis);
+      return reply.status(200).send({ version });
+    }
+  );
+
+  /**
    * GET /api/v1/stickers
    * Public — no auth required.
    */

@@ -341,10 +341,15 @@ export async function listTrades(
        tr.requester_completed_at, tr.recipient_completed_at,
        tr.cancelled_at, tr.expires_at,
        tr.created_at, tr.updated_at,
-       (SELECT COUNT(*) FROM trade_messages tm WHERE tm.trade_id = tr.id)::int AS message_count
+       COALESCE(mc.message_count, 0)::int AS message_count
      FROM trade_requests tr
      JOIN users ru ON ru.id = tr.requester_id
      JOIN users re ON re.id = tr.recipient_id
+     LEFT JOIN (
+       SELECT trade_id, COUNT(*) AS message_count
+       FROM trade_messages
+       GROUP BY trade_id
+     ) mc ON mc.trade_id = tr.id
      WHERE (tr.requester_id = $1 OR tr.recipient_id = $1)
        AND ($2::text IS NULL OR tr.status = $2)
      ORDER BY tr.updated_at DESC`,
@@ -973,6 +978,26 @@ export async function completeTrade(
     );
 
     await recomputeAlbumStats(client, [requesterAlbumId, recipientAlbumId]);
+
+    // Audit trail — recorded inside the trade tx so a dispute query can
+    // reconstruct who completed what and when. metadata holds the variant set
+    // since trade_items is the source of truth and may be archived later.
+    const auditMeta = JSON.stringify({
+      tradeId,
+      items: items.map((i) => ({
+        stickerVariantId: i.sticker_variant_id,
+        direction: i.direction,
+        quantity: i.quantity,
+      })),
+    });
+    await client.query(
+      `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'trade_completed', $2::jsonb)`,
+      [requesterId, auditMeta]
+    );
+    await client.query(
+      `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'trade_completed', $2::jsonb)`,
+      [recipientId, auditMeta]
+    );
 
     await client.query('COMMIT');
 

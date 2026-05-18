@@ -48,6 +48,15 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     `${prefix}/matches`,
     {
       preHandler: [verifyToken],
+      config: {
+        // /trade/matches runs a heavy CTE that's only cached for 2 min.
+        // Cap per-user request rate so a logged-in client can't hammer the DB.
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request) => request.userId ?? request.ip,
+        },
+      },
       schema: {
         tags: ['Trade'],
         summary: 'Get trade match suggestions for a user album',
@@ -709,10 +718,20 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
-      // ── Subscribe to Redis channel ─────────────────────────────────────────
-      // Must use a duplicate client — ioredis blocks subscribed connections
-      const subscriber = fastify.redis.duplicate();
-      await subscriber.subscribe(`trade:channel:${tradeId}`);
+      // ── Subscribe via shared trade bus ─────────────────────────────────────
+      // The tradeBus plugin holds a single Redis pSubscribe connection and
+      // fans messages out in-process. This replaces the old pattern of
+      // `fastify.redis.duplicate()` per SSE connection, which allocated one
+      // Redis client per open trade-detail tab.
+      const SSE_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+      let idleTimer: NodeJS.Timeout | null = null;
+      const resetIdleTimer = (): void => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          if (!reply.raw.writableEnded) reply.raw.end();
+        }, SSE_IDLE_TIMEOUT_MS);
+      };
+      resetIdleTimer();
 
       const heartbeat = setInterval(() => {
         if (!reply.raw.writableEnded) {
@@ -720,26 +739,27 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }, 30000);
 
-      subscriber.on('message', (_channel: string, message: string) => {
+      const unsubscribe = fastify.tradeBus.subscribe(tradeId, (message: string) => {
         if (reply.raw.writableEnded) return;
-
         try {
           const parsed = JSON.parse(message) as { type: string; id?: string; [key: string]: unknown };
           const eventType = parsed.type ?? 'message';
           const eventId = parsed.id ?? crypto.randomUUID();
           const data = JSON.stringify(camelizeKeys(parsed));
           reply.raw.write(`event: ${eventType}\nid: ${eventId}\ndata: ${data}\n\n`);
+          resetIdleTimer();
         } catch {
           // Ignore malformed messages
         }
       });
 
       // ── Cleanup on client disconnect ───────────────────────────────────────
-      request.raw.on('close', () => {
+      const cleanup = (): void => {
         clearInterval(heartbeat);
-        subscriber.unsubscribe().catch(() => undefined);
-        subscriber.quit().catch(() => undefined);
-      });
+        if (idleTimer) clearTimeout(idleTimer);
+        unsubscribe();
+      };
+      request.raw.on('close', cleanup);
 
       // Keep the handler alive — the response ends when the client disconnects
       await new Promise<void>((resolve) => {

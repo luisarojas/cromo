@@ -159,6 +159,41 @@ export async function getStickerVariants(
   return rows;
 }
 
+/**
+ * getCatalogVersion — opaque version string derived from the latest catalog
+ * mutation. The frontend keys its localStorage entry off this so a backend
+ * catalog reseed automatically invalidates every browser, replacing the
+ * manual STICKER_CACHE_KEY bump documented in CLAUDE.md.
+ *
+ * Cached in Redis for 5 min so the version probe doesn't hit the catalog
+ * tables on every page load. invalidate by deleting the key when seeding.
+ */
+const CATALOG_VERSION_CACHE_KEY = 'stickfolio:catalog_version';
+const CATALOG_VERSION_TTL_S = 300;
+
+export async function getCatalogVersion(db: Pool, redis: Redis): Promise<string> {
+  const cached = await redis.get(CATALOG_VERSION_CACHE_KEY);
+  if (cached) return cached;
+
+  const { rows } = await db.query<{ version: string }>(
+    `SELECT to_char(
+       GREATEST(
+         COALESCE((SELECT MAX(updated_at) FROM stickers), 'epoch'::timestamptz),
+         COALESCE((SELECT MAX(updated_at) FROM stickers), 'epoch'::timestamptz)
+       ),
+       'YYYYMMDDHH24MISSMS'
+     ) || ':' || (
+       (SELECT COUNT(*) FROM stickers)::text
+       || '.' ||
+       (SELECT COUNT(*) FROM sticker_variants)::text
+     ) AS version`
+  );
+
+  const version = rows[0]?.version ?? '0';
+  await redis.set(CATALOG_VERSION_CACHE_KEY, version, 'EX', CATALOG_VERSION_TTL_S);
+  return version;
+}
+
 export interface StickerLookupRow {
   album_code: string;
   player_name: string | null;

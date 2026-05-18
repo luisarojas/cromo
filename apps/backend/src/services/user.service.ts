@@ -41,6 +41,12 @@ export async function updateUsername(
     throw err;
   }
 
+  await db.query(
+    `INSERT INTO audit_log (user_id, action, metadata)
+     VALUES ($1, 'username_changed', $2::jsonb)`,
+    [userId, JSON.stringify({ to: normalized })]
+  );
+
   return { username: result.rows[0]!.username };
 }
 
@@ -89,6 +95,12 @@ export async function updateEmail(
     await client.query(
       'INSERT INTO email_verification_tokens (token, user_id) VALUES ($1, $2)',
       [token, userId]
+    );
+
+    await client.query(
+      `INSERT INTO audit_log (user_id, action, metadata)
+       VALUES ($1, 'email_changed', $2::jsonb)`,
+      [userId, JSON.stringify({ to: normalizedEmail })]
     );
 
     await client.query('COMMIT');

@@ -10,6 +10,7 @@ import { helmetPlugin } from './plugins/helmet.js';
 import { swaggerPlugin } from './plugins/swagger.js';
 import { databasePluginWrapped } from './plugins/database.js';
 import { redisPluginWrapped } from './plugins/redis.js';
+import { tradeBusPluginWrapped } from './plugins/tradeBus.js';
 import { startWorker } from './services/jobs.service.js';
 
 import { healthRoutes } from './routes/v1/health.js';
@@ -88,6 +89,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── Database & Redis (run migrations before routes) ───────────────────────
   await fastify.register(databasePluginWrapped);
   await fastify.register(redisPluginWrapped);
+  await fastify.register(tradeBusPluginWrapped);
 
   // ── Background job worker ────────────────────────────────────────────────
   // Single in-process consumer drains Redis-backed job queue. Tests skip the

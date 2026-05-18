@@ -117,6 +117,18 @@
       "when": 1748822400000,
       "tag": "0020_system_messages",
       "breakpoints": true
+    },{
+      "idx": 20,
+      "version": "7",
+      "when": 1748908800000,
+      "tag": "0021_dual_complete_confirmation",
+      "breakpoints": true
+    },{
+      "idx": 21,
+      "version": "7",
+      "when": 1748995200000,
+      "tag": "0022_sticker_type_check_and_count_sync",
+      "breakpoints": true
     }
   ]
 }

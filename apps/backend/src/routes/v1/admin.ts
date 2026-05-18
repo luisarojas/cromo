@@ -385,6 +385,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           ]
         );
 
+        // Bust the catalog version cache so every browser refetches.
+        await fastify.redis.del('stickfolio:catalog_version').catch(() => undefined);
+
         return reply.status(200).send(updated);
       } catch (err) {
         const e = err as Error & { statusCode?: number };

@@ -13,9 +13,9 @@ export type {
   UserRole,
 } from '@stickfolio/shared';
 
-// Canonical wire types. Older code in this file used inline interface
-// definitions; new code should import from @stickfolio/shared so backend
-// and frontend stay in sync.
+// Canonical wire types. Every interface that describes a JSON response
+// body lives in @stickfolio/shared and is re-exported here as the public
+// API surface for frontend consumers.
 import type {
   AuthUser as SharedAuthUser,
   UserAlbumDto,
@@ -25,6 +25,26 @@ import type {
   FilterOptionsDto,
   PagedResult as SharedPagedResult,
   UserAlbumWithStats as SharedUserAlbumWithStats,
+  Sticker as SharedSticker,
+  StickerVariant as SharedStickerVariant,
+  StickerLookup as SharedStickerLookup,
+  CollectionItem as SharedCollectionItem,
+  MissingItem as SharedMissingItem,
+  DuplicateItem as SharedDuplicateItem,
+  City as SharedCity,
+  UserPreferences as SharedUserPreferences,
+  TradeMatch as SharedTradeMatch,
+  TradeItemDetail as SharedTradeItemDetail,
+  TradeMessage as SharedTradeMessage,
+  TradeSummary as SharedTradeSummary,
+  TradeDetail as SharedTradeDetail,
+  ShareLink as SharedShareLink,
+  PublicListItem as SharedPublicListItem,
+  PublicList as SharedPublicList,
+  PublicInventoryItem as SharedPublicInventoryItem,
+  PublicProfileAlbum as SharedPublicProfileAlbum,
+  PublicProfile as SharedPublicProfile,
+  PublicWantedPage as SharedPublicWantedPage,
 } from '@stickfolio/shared';
 
 const BASE_URL =
@@ -197,58 +217,11 @@ export function toEditionKey(edition: string): string {
   return edition.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 }
 
-export interface Sticker {
-  id: string;
-  number: number;
-  albumCode: string;
-  playerName: string | null;
-  position: string | null;
-  stickerType: string;
-  isFoil: boolean;
-  teamName: string | null;
-  fifaCode: string | null;
-  groupName: string | null;
-  baseVariantId: string | null;
-  teamPages: Record<string, [number, number]> | null;
-  stickerPages: Record<string, { pageStart: number | null; pageEnd: number | null; description: string | null }> | null;
-}
-
-export interface CollectionItem extends Sticker {
-  userStickerId: string;
-  stickerVariantId: string;
-  variantType: string;
-  quantity: number;
-  tradeHidden: boolean;
-  tradeForced: boolean;
-}
-
-// MissingItem is now sticker-shaped (a sticker the user owns zero variants of).
-// baseVariantId is included for the default "+ Add" action.
-export type MissingItem = Sticker;
-
-export interface StickerVariant {
-  id: string;
-  stickerId: string;
-  variantType: string;
-  rarity_rank: number;
-  availability: string;
-}
-
-export interface DuplicateItem {
-  userStickerId: string;
-  stickerVariantId: string;
-  variantType: string;
-  quantity: number;
-  number: number;
-  albumCode: string;
-  playerName: string | null;
-  stickerType: string;
-  isFoil: boolean;
-  teamName: string | null;
-  fifaCode: string | null;
-  groupName: string | null;
-}
-
+export type Sticker = SharedSticker;
+export type CollectionItem = SharedCollectionItem;
+export type MissingItem = SharedMissingItem;
+export type StickerVariant = SharedStickerVariant;
+export type DuplicateItem = SharedDuplicateItem;
 export type CollectionStats = CollectionStatsDto;
 export type PagedResult<T> = SharedPagedResult<T>;
 
@@ -320,22 +293,63 @@ function toQueryString(
 }
 
 // ---------------------------------------------------------------------------
-// Sticker catalog — with localStorage cache (24h TTL, version-keyed)
+// Sticker catalog — localStorage cache keyed off the backend's catalog version.
+//
+// The frontend probes /api/v1/stickers/version on every load (cheap: a single
+// MAX(updated_at) query, cached in Redis for 5 min) and uses the result as the
+// cache key. A backend catalog reseed (or any admin edit) bumps the version,
+// which invalidates every browser automatically — no manual STICKER_CACHE_KEY
+// bump required.
 // ---------------------------------------------------------------------------
 
-const STICKER_CACHE_KEY = 'stickfolio:sticker_catalog:v11';
+const STICKER_CACHE_PREFIX = 'stickfolio:sticker_catalog';
+const STICKER_VERSION_KEY  = 'stickfolio:sticker_catalog:version';
 const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(STICKER_CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { data: Sticker[]; fetchedAt: number };
-        if (Date.now() - parsed.fetchedAt < STICKER_CACHE_TTL_MS) return parsed.data;
-      }
-    } catch {}
+async function fetchCatalogVersion(token?: string): Promise<string> {
+  try {
+    const { version } = await apiFetch<{ version: string }>(
+      '/api/v1/stickers/version', {}, token
+    );
+    return version || 'unversioned';
+  } catch {
+    return 'unversioned';
   }
+}
+
+function readCachedCatalog(version: string): Sticker[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(`${STICKER_CACHE_PREFIX}:${version}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: Sticker[]; fetchedAt: number };
+    if (Date.now() - parsed.fetchedAt > STICKER_CACHE_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedCatalog(version: string, data: Sticker[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const previous = localStorage.getItem(STICKER_VERSION_KEY);
+    if (previous && previous !== version) {
+      localStorage.removeItem(`${STICKER_CACHE_PREFIX}:${previous}`);
+    }
+    localStorage.setItem(STICKER_VERSION_KEY, version);
+    localStorage.setItem(
+      `${STICKER_CACHE_PREFIX}:${version}`,
+      JSON.stringify({ data, fetchedAt: Date.now() })
+    );
+  } catch {}
+}
+
+export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
+  const version = await fetchCatalogVersion(token);
+
+  const cached = readCachedCatalog(version);
+  if (cached) return cached;
 
   const all: Sticker[] = [];
   let cursor: number | undefined = undefined;
@@ -347,12 +361,7 @@ export async function fetchAllStickersCached(token?: string): Promise<Sticker[]>
     if (all.length >= 1200) break;
   }
 
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(STICKER_CACHE_KEY, JSON.stringify({ data: all, fetchedAt: Date.now() }));
-    } catch {}
-  }
-
+  writeCachedCatalog(version, all);
   return all;
 }
 
@@ -394,12 +403,7 @@ export async function fetchStickerVariants(
   return items;
 }
 
-export interface StickerLookup {
-  albumCode: string;
-  playerName: string | null;
-  teamName: string | null;
-  variants: StickerVariant[];
-}
+export type StickerLookup = SharedStickerLookup;
 
 export async function fetchStickersBulk(
   codes: string[],
@@ -778,15 +782,8 @@ export async function setTradeFlags(
 // User preferences endpoints
 // ---------------------------------------------------------------------------
 
-export interface City {
-  label: string;
-  placeId: number;
-}
-
-export interface UserPreferences {
-  duplicatesCountAllVariants: boolean;
-  cities: City[];
-}
+export type City = SharedCity;
+export type UserPreferences = SharedUserPreferences;
 
 export async function fetchUserPreferences(token: string): Promise<UserPreferences> {
   return apiFetch<UserPreferences>('/api/v1/users/me/preferences', {}, token);
@@ -895,133 +892,18 @@ export async function patchAdminSticker(
 // Trade & sharing types
 // ---------------------------------------------------------------------------
 
-export interface TradeMatch {
-  userId: string;
-  username: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  mutualOverlap: number;
-  theyHave: string[];             // album codes they have that you need
-  theyHaveVariantIds: string[]; // all variant IDs they have as dupes for those stickers
-  youHave: string[];              // album codes you have that they need
-  cities: City[];                 // cities the matched user has set
-}
-
-export interface TradeItemDetail {
-  id: string;
-  stickerVariantId: string;
-  variantType: string;
-  direction: 'offer' | 'want';
-  quantity: number;
-  stickerNumber: number;
-  albumCode: string;
-  playerName: string | null;
-  stickerType: string;
-  teamName: string | null;
-}
-
-export interface TradeMessage {
-  id: string;
-  tradeId: string;
-  senderId: string | null;
-  senderUsername: string | null;
-  senderDisplayName: string | null;
-  body: string;
-  sentAt: string;
-  isSystem: boolean;
-}
-
-export interface TradeSummary {
-  id: string;
-  requesterId: string;
-  requesterUsername: string;
-  recipientId: string;
-  recipientUsername: string;
-  status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'completed' | 'expired';
-  counterCount: number;
-  offerCash: number;
-  wantCash: number;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
-}
-
-export interface TradeDetail extends TradeSummary {
-  items: TradeItemDetail[];
-  messages: TradeMessage[];
-  acceptedAt: string | null;
-  completedAt: string | null;
-  requesterCompletedAt: string | null;
-  recipientCompletedAt: string | null;
-  cancelledAt: string | null;
-  expiresAt: string | null;
-}
-
-export interface ShareLink {
-  id: string;
-  userId: string;
-  listType: 'missing' | 'duplicates' | 'full_collection';
-  shareToken: string;
-  expiresAt: string | null;
-  createdAt: string;
-  url: string;
-}
-
-export interface PublicListItem {
-  stickerVariantId: string;
-  number: number;
-  albumCode: string;
-  playerName: string | null;
-  stickerType: string;
-  teamName: string | null;
-  variantType: string;
-  quantity?: number;
-}
-
-export interface PublicList {
-  owner: { username: string; displayName: string | null };
-  listType: string;
-  items: PublicListItem[];
-  createdAt: string;
-}
-
-export interface PublicInventoryItem {
-  stickerVariantId: string;
-  number: number;
-  albumCode: string;
-  playerName: string | null;
-  stickerType: string;
-  teamName: string | null;
-  variantType: string;
-  quantity: number | null;
-}
-
-export interface PublicProfileAlbum {
-  albumId: string;
-  albumTypeKey: string;
-  albumTypeName: string;
-  editionName: string;
-  formatName: string;
-  alias: string | null;
-  isDefault: boolean;
-  offered: PublicInventoryItem[];
-  wantedCount: number;
-}
-
-export interface PublicProfile {
-  userId: string;
-  username: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  memberSince: string;
-  tradingInventory: PublicProfileAlbum[];
-}
-
-export interface PublicWantedPage {
-  items: PublicInventoryItem[];
-  nextCursor: number | null;
-  total: number;
-}
+export type TradeMatch = SharedTradeMatch;
+export type TradeItemDetail = SharedTradeItemDetail;
+export type TradeMessage = SharedTradeMessage;
+export type TradeSummary = SharedTradeSummary;
+export type TradeDetail = SharedTradeDetail;
+export type ShareLink = SharedShareLink;
+export type PublicListItem = SharedPublicListItem;
+export type PublicList = SharedPublicList;
+export type PublicInventoryItem = SharedPublicInventoryItem;
+export type PublicProfileAlbum = SharedPublicProfileAlbum;
+export type PublicProfile = SharedPublicProfile;
+export type PublicWantedPage = SharedPublicWantedPage;
 
 // ---------------------------------------------------------------------------
 // Trade API endpoints

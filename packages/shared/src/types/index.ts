@@ -48,18 +48,6 @@ export interface Team {
   flagUrl: string | null
 }
 
-export interface Sticker {
-  id: string
-  number: number
-  albumCode: string
-  teamId: string | null
-  playerName: string | null
-  position: Position | null
-  stickerType: StickerType
-  isFoil: boolean
-  notes: string | null
-}
-
 export type VariantType =
   | 'base'
   | 'blue'
@@ -88,22 +76,6 @@ export type Availability =
   | 'coca_cola'
   | 'swiss_edition'
 
-export interface StickerVariant {
-  id: string
-  stickerId: string
-  variantType: VariantType
-  rarityRank: number
-  availability: Availability
-}
-
-export interface UserSticker {
-  id: string
-  userId: string
-  stickerVariantId: string
-  quantity: number
-  acquiredAt: string
-}
-
 export type TradeStatus =
   | 'pending'
   | 'accepted'
@@ -112,58 +84,9 @@ export type TradeStatus =
   | 'completed'
   | 'expired'
 
-export interface TradeRequest {
-  id: string
-  requesterId: string
-  recipientId: string
-  status: TradeStatus
-  counterCount: number
-  offerCash: number
-  wantCash: number
-  acceptedAt: string | null
-  completedAt: string | null
-  requesterCompletedAt: string | null
-  recipientCompletedAt: string | null
-  cancelledAt: string | null
-  expiresAt: string | null
-  createdAt: string
-  updatedAt: string
-}
-
 export type TradeDirection = 'offer' | 'want'
 
-export interface TradeItem {
-  id: string
-  tradeId: string
-  stickerVariantId: string
-  direction: TradeDirection
-  quantity: number
-}
-
-export interface TradeMessage {
-  id: string
-  tradeId: string
-  senderId: string
-  body: string
-  sentAt: string
-}
-
 export type ListType = 'missing' | 'duplicates' | 'full_collection'
-
-export interface PublicList {
-  id: string
-  userId: string
-  listType: ListType
-  shareToken: string
-  expiresAt: string | null
-  createdAt: string
-}
-
-export interface PaginatedResponse<T> {
-  data: T[]
-  nextCursor: string | null
-  total: number
-}
 
 export interface ApiError {
   statusCode: number
@@ -173,10 +96,8 @@ export interface ApiError {
 }
 
 // ─── Wire types shared between Fastify routes and the Next.js client ─────
-// These are intentionally narrower than the database row types: they only
-// include the fields the API actually returns. Drizzle's `$inferSelect`
-// types stay inside apps/backend/src/db/schema.ts because frontend code
-// should not see e.g. hashedEmail or other server-only columns.
+// These describe the JSON the backend serializer (camelizeKeys) emits and the
+// shapes the frontend consumes. They are the source of truth for both sides.
 
 export interface AuthUser {
   id: string
@@ -244,6 +165,209 @@ export interface FilterOptionsDto {
 
 export interface PagedResult<T> {
   items: T[]
+  nextCursor: number | null
+  total: number
+}
+
+// Sticker as it appears on the wire — includes joined catalog data.
+export interface Sticker {
+  id: string
+  number: number
+  albumCode: string
+  playerName: string | null
+  position: string | null
+  stickerType: string
+  isFoil: boolean
+  teamName: string | null
+  fifaCode: string | null
+  groupName: string | null
+  baseVariantId: string | null
+  teamPages: Record<string, [number, number]> | null
+  stickerPages: Record<
+    string,
+    { pageStart: number | null; pageEnd: number | null; description: string | null }
+  > | null
+}
+
+export interface StickerVariant {
+  id: string
+  stickerId: string
+  variantType: string
+  rarityRank: number
+  availability: string
+}
+
+export interface StickerLookup {
+  albumCode: string
+  playerName: string | null
+  teamName: string | null
+  variants: StickerVariant[]
+}
+
+export interface CollectionItem extends Sticker {
+  userStickerId: string
+  stickerVariantId: string
+  variantType: string
+  quantity: number
+  tradeHidden: boolean
+  tradeForced: boolean
+}
+
+export type MissingItem = Sticker
+
+export interface DuplicateItem {
+  userStickerId: string
+  stickerVariantId: string
+  variantType: string
+  quantity: number
+  number: number
+  albumCode: string
+  playerName: string | null
+  stickerType: string
+  isFoil: boolean
+  teamName: string | null
+  fifaCode: string | null
+  groupName: string | null
+}
+
+export interface City {
+  label: string
+  placeId: number
+}
+
+export interface UserPreferences {
+  duplicatesCountAllVariants: boolean
+  cities: City[]
+}
+
+// ─── Trade wire types ──────────────────────────────────────────────────────
+
+export interface TradeMatch {
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  mutualOverlap: number
+  theyHave: string[]
+  theyHaveVariantIds: string[]
+  youHave: string[]
+  cities: City[]
+}
+
+export interface TradeItemDetail {
+  id: string
+  stickerVariantId: string
+  variantType: string
+  direction: TradeDirection
+  quantity: number
+  stickerNumber: number
+  albumCode: string
+  playerName: string | null
+  stickerType: string
+  teamName: string | null
+}
+
+export interface TradeMessage {
+  id: string
+  tradeId: string
+  senderId: string | null
+  senderUsername: string | null
+  senderDisplayName: string | null
+  body: string
+  sentAt: string
+  isSystem: boolean
+}
+
+export interface TradeSummary {
+  id: string
+  requesterId: string
+  requesterUsername: string
+  recipientId: string
+  recipientUsername: string
+  status: TradeStatus
+  counterCount: number
+  offerCash: number
+  wantCash: number
+  createdAt: string
+  updatedAt: string
+  messageCount: number
+}
+
+export interface TradeDetail extends TradeSummary {
+  items: TradeItemDetail[]
+  messages: TradeMessage[]
+  acceptedAt: string | null
+  completedAt: string | null
+  requesterCompletedAt: string | null
+  recipientCompletedAt: string | null
+  cancelledAt: string | null
+  expiresAt: string | null
+}
+
+// ─── Sharing / public profile wire types ───────────────────────────────────
+
+export interface ShareLink {
+  id: string
+  userId: string
+  listType: ListType
+  shareToken: string
+  expiresAt: string | null
+  createdAt: string
+  url: string
+}
+
+export interface PublicListItem {
+  stickerVariantId: string
+  number: number
+  albumCode: string
+  playerName: string | null
+  stickerType: string
+  teamName: string | null
+  variantType: string
+  quantity?: number
+}
+
+export interface PublicList {
+  owner: { username: string; displayName: string | null }
+  listType: string
+  items: PublicListItem[]
+  createdAt: string
+}
+
+export interface PublicInventoryItem {
+  stickerVariantId: string
+  number: number
+  albumCode: string
+  playerName: string | null
+  stickerType: string
+  teamName: string | null
+  variantType: string
+  quantity: number | null
+}
+
+export interface PublicProfileAlbum {
+  albumId: string
+  albumTypeKey: string
+  albumTypeName: string
+  editionName: string
+  formatName: string
+  alias: string | null
+  isDefault: boolean
+  offered: PublicInventoryItem[]
+  wantedCount: number
+}
+
+export interface PublicProfile {
+  userId: string
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  memberSince: string
+  tradingInventory: PublicProfileAlbum[]
+}
+
+export interface PublicWantedPage {
+  items: PublicInventoryItem[]
   nextCursor: number | null
   total: number
 }
