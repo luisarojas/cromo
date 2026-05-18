@@ -59,6 +59,8 @@ export interface TradeSummary {
   want_cash: number;
   accepted_at: string | null;
   completed_at: string | null;
+  requester_completed_at: string | null;
+  recipient_completed_at: string | null;
   cancelled_at: string | null;
   expires_at: string | null;
   created_at: string;
@@ -264,7 +266,9 @@ export async function listTrades(
        tr.recipient_id, re.username AS recipient_username,
        re.display_name AS recipient_display_name, re.avatar_url AS recipient_avatar_url,
        tr.status, tr.counter_count, tr.offer_cash, tr.want_cash,
-       tr.accepted_at, tr.completed_at, tr.cancelled_at, tr.expires_at,
+       tr.accepted_at, tr.completed_at,
+       tr.requester_completed_at, tr.recipient_completed_at,
+       tr.cancelled_at, tr.expires_at,
        tr.created_at, tr.updated_at,
        (SELECT COUNT(*) FROM trade_messages tm WHERE tm.trade_id = tr.id)::int AS message_count
      FROM trade_requests tr
@@ -298,7 +302,9 @@ export async function getTrade(
        tr.recipient_id, re.username AS recipient_username,
        re.display_name AS recipient_display_name, re.avatar_url AS recipient_avatar_url,
        tr.status, tr.counter_count, tr.offer_cash, tr.want_cash,
-       tr.accepted_at, tr.completed_at, tr.cancelled_at, tr.expires_at,
+       tr.accepted_at, tr.completed_at,
+       tr.requester_completed_at, tr.recipient_completed_at,
+       tr.cancelled_at, tr.expires_at,
        tr.created_at, tr.updated_at,
        COALESCE(items.items, '[]'::jsonb) AS items,
        COALESCE(msgs.messages, '[]'::jsonb) AS messages
@@ -724,8 +730,9 @@ export async function cancelTrade(
 }
 
 /**
- * completeTrade — mark trade as completed and update inventories atomically.
- * Relies on stored requester/recipient album IDs (NOT NULL since migration 0010).
+ * completeTrade — record the caller's completion confirmation.
+ * The trade finalises (stickers transfer, status → completed) only when both
+ * requester and recipient have each called this endpoint.
  */
 export async function completeTrade(
   db: Pool,
@@ -745,8 +752,11 @@ export async function completeTrade(
       requester_album_id: string;
       recipient_album_id: string;
       status: string;
+      requester_completed_at: string | null;
+      recipient_completed_at: string | null;
     }>(
-      `SELECT requester_id, recipient_id, requester_album_id, recipient_album_id, status
+      `SELECT requester_id, recipient_id, requester_album_id, recipient_album_id,
+              status, requester_completed_at, recipient_completed_at
        FROM trade_requests WHERE id = $1 FOR UPDATE`,
       [tradeId]
     );
@@ -761,6 +771,47 @@ export async function completeTrade(
     const { requester_id: requesterId, recipient_id: recipientId,
             requester_album_id: requesterAlbumId, recipient_album_id: recipientAlbumId } = locked;
 
+    const isRequester = userId === requesterId;
+    const confirmColumn = isRequester ? 'requester_completed_at' : 'recipient_completed_at';
+    const alreadyConfirmed = isRequester
+      ? locked.requester_completed_at !== null
+      : locked.recipient_completed_at !== null;
+
+    if (alreadyConfirmed) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    await client.query(
+      `UPDATE trade_requests SET ${confirmColumn} = NOW(), updated_at = NOW() WHERE id = $1`,
+      [tradeId]
+    );
+
+    // Re-read to check whether the other side had already confirmed.
+    const { rows: updated } = await client.query<{
+      requester_completed_at: string | null;
+      recipient_completed_at: string | null;
+    }>(
+      `SELECT requester_completed_at, recipient_completed_at FROM trade_requests WHERE id = $1`,
+      [tradeId]
+    );
+    const bothConfirmed =
+      updated[0]!.requester_completed_at !== null &&
+      updated[0]!.recipient_completed_at !== null;
+
+    if (!bothConfirmed) {
+      await client.query('COMMIT');
+      await sendSystemMessage(db, redis, tradeId,
+        `Waiting for the other participant to confirm completion.`);
+      await publishTradeEvent(redis, tradeId, 'confirmation_updated', {
+        trade_id: tradeId,
+        requester_completed_at: updated[0]!.requester_completed_at,
+        recipient_completed_at: updated[0]!.recipient_completed_at,
+      });
+      return;
+    }
+
+    // Both confirmed — validate inventory and finalise.
     const { rows: items } = await client.query<{
       sticker_variant_id: string; direction: string; quantity: number;
     }>(
@@ -768,8 +819,6 @@ export async function completeTrade(
       [tradeId]
     );
 
-    // Validate that each side still holds sufficient quantity, locking those rows
-    // so a concurrent trade cannot drain them between now and the transfer below.
     for (const item of items) {
       const albumId = item.direction === 'offer' ? requesterAlbumId : recipientAlbumId;
       const { rows: stock } = await client.query<{ quantity: number }>(
@@ -826,13 +875,11 @@ export async function completeTrade(
       );
     }
 
-    // Clean up zero-quantity rows for the two affected albums.
     await client.query(
       `DELETE FROM user_stickers WHERE album_id IN ($1, $2) AND quantity <= 0`,
       [requesterAlbumId, recipientAlbumId]
     );
 
-    // Refresh denormalized owned_count / duplicate_count for both albums.
     await recomputeAlbumStats(client, [requesterAlbumId, recipientAlbumId]);
 
     await client.query('COMMIT');

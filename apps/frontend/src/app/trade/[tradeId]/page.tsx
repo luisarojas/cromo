@@ -176,6 +176,20 @@ export default function TradeDetailPage() {
       } catch {}
     });
 
+    es.addEventListener('confirmation_updated', (ev) => {
+      try {
+        const payload = JSON.parse(ev.data) as {
+          requesterCompletedAt: string | null;
+          recipientCompletedAt: string | null;
+        };
+        setTrade((prev) => prev ? {
+          ...prev,
+          requesterCompletedAt: payload.requesterCompletedAt,
+          recipientCompletedAt: payload.recipientCompletedAt,
+        } : prev);
+      } catch {}
+    });
+
     return () => {
       es.close();
     };
@@ -401,7 +415,11 @@ export default function TradeDetailPage() {
   const canCancel =
     (isRequester && trade.status === 'pending') ||
     ((isRequester || isRecipient) && trade.status === 'accepted');
-  const canComplete = (isRequester || isRecipient) && trade.status === 'accepted';
+  const iHaveConfirmedComplete = trade.status === 'accepted' && (
+    (isRequester && trade.requesterCompletedAt !== null) ||
+    (isRecipient && trade.recipientCompletedAt !== null)
+  );
+  const canComplete = (isRequester || isRecipient) && trade.status === 'accepted' && !iHaveConfirmedComplete;
   const canCounter = isRecipient && trade.status === 'pending';
   const canEdit = isRequester && trade.status === 'pending' && trade.counterCount > 0;
   const isTerminal = ['completed', 'declined', 'cancelled', 'expired'].includes(trade.status);
@@ -545,6 +563,11 @@ export default function TradeDetailPage() {
               >
                 Mark Complete
               </button>
+            )}
+            {iHaveConfirmedComplete && (
+              <span className="rounded-md px-4 py-2 text-sm font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
+                Waiting for other participant to confirm
+              </span>
             )}
             {canCancel && (
               <button

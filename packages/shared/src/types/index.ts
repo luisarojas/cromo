@@ -122,6 +122,8 @@ export interface TradeRequest {
   wantCash: number
   acceptedAt: string | null
   completedAt: string | null
+  requesterCompletedAt: string | null
+  recipientCompletedAt: string | null
   cancelledAt: string | null
   expiresAt: string | null
   createdAt: string
