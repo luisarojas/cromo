@@ -794,6 +794,11 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                       </span>
                     )}
                     {activeAlbum.editionName} Edition · {activeAlbum.formatName}
+                    {activeAlbum.albumTypeKey === 'fifa_world_cup_2026' && (
+                      <Link href="/guide/wc-2026" className="ml-2 text-blue-600 hover:text-blue-800 hover:underline">
+                        View Guide →
+                      </Link>
+                    )}
                     {activeAlbum.isDefault && (
                       <span className="ml-2 inline-flex items-center gap-1 text-amber-500">
                         <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">

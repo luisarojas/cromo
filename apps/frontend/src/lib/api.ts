@@ -995,6 +995,7 @@ export interface PublicInventoryItem {
 
 export interface PublicProfileAlbum {
   albumId: string;
+  albumTypeKey: string;
   albumTypeName: string;
   editionName: string;
   formatName: string;

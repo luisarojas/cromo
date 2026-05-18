@@ -53,6 +53,7 @@ export interface PublicInventoryItem {
 
 export interface PublicProfileAlbum {
   album_id: string;
+  album_type_key: string;
   album_type_name: string;
   edition_name: string;
   format_name: string;
@@ -368,6 +369,7 @@ export async function getPublicProfile(
   // Batched query #1: public albums + wanted-count (respecting AlbumSettings filters).
   const { rows: albumRows } = await db.query<{
     album_id: string;
+    album_type_key: string;
     album_type_name: string;
     edition_name: string;
     format_name: string;
@@ -381,6 +383,7 @@ export async function getPublicProfile(
               ua.alias,
               ua.is_default,
               ua.created_at,
+              at.key             AS album_type_key,
               at.name            AS album_type_name,
               ae.name            AS edition_name,
               af.name            AS format_name,
@@ -416,6 +419,7 @@ export async function getPublicProfile(
        GROUP BY fs.album_id
      )
      SELECT pa.album_id,
+            pa.album_type_key,
             pa.album_type_name,
             pa.edition_name,
             pa.format_name,
@@ -480,6 +484,7 @@ export async function getPublicProfile(
 
   const trading_inventory: PublicProfileAlbum[] = albumRows.map((a) => ({
     album_id: a.album_id,
+    album_type_key: a.album_type_key,
     album_type_name: a.album_type_name,
     edition_name: a.edition_name,
     format_name: a.format_name,

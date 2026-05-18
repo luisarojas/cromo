@@ -304,6 +304,15 @@ export default function AlbumsPage() {
                     )}
                   </Link>
 
+                  {album.albumTypeKey === 'fifa_world_cup_2026' && (
+                    <Link
+                      href="/guide/wc-2026"
+                      className="block px-5 py-2 text-[11px] text-blue-600 hover:text-blue-800 border-t border-gray-100 bg-blue-50/40 hover:bg-blue-50 transition-colors"
+                    >
+                      View WC 2026 Collection Guide →
+                    </Link>
+                  )}
+
                   {/* Hover actions */}
                   <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {!album.isDefault && (

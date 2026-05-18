@@ -416,30 +416,44 @@ export default function DashboardPage() {
                   </>
                 );
 
+                const guideLink = album.albumTypeKey === 'fifa_world_cup_2026' && (
+                  <Link
+                    href="/guide/wc-2026"
+                    onClick={(e) => e.stopPropagation()}
+                    className="block px-4 py-2 text-[11px] text-blue-600 hover:text-blue-800 border-t border-gray-100 bg-blue-50/40 hover:bg-blue-50 transition-colors"
+                  >
+                    View WC 2026 Collection Guide →
+                  </Link>
+                );
+
                 if (selectMode) {
                   return (
                     <div
                       key={album.id}
-                      onClick={() => toggleSelect(album.id)}
-                      className={`group block bg-white rounded-xl border shadow-sm transition-all p-4 cursor-pointer select-none ${
+                      className={`group bg-white rounded-xl border shadow-sm transition-all overflow-hidden cursor-pointer select-none ${
                         isSelected
                           ? 'border-blue-400 ring-2 ring-blue-200'
                           : 'border-gray-200 hover:shadow-md hover:border-blue-200'
                       }`}
                     >
-                      {cardContent}
+                      <div onClick={() => toggleSelect(album.id)} className="p-4">
+                        {cardContent}
+                      </div>
+                      {guideLink}
                     </div>
                   );
                 }
 
                 return (
-                  <Link
+                  <div
                     key={album.id}
-                    href={`/album/${album.id}`}
-                    className="group block bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all p-4"
+                    className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all overflow-hidden"
                   >
-                    {cardContent}
-                  </Link>
+                    <Link href={`/album/${album.id}`} className="block p-4">
+                      {cardContent}
+                    </Link>
+                    {guideLink}
+                  </div>
                 );
               })}
             </div>

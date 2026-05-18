@@ -60,6 +60,7 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
                   type: 'object',
                   properties: {
                     album_id:        { type: 'string' },
+                    album_type_key:  { type: 'string' },
                     album_type_name: { type: 'string' },
                     edition_name:    { type: 'string' },
                     format_name:     { type: 'string' },
