@@ -1,15 +1,26 @@
 FROM node:22-alpine
 
+RUN corepack enable && corepack prepare pnpm@10.33.3 --activate
+
 WORKDIR /app
 
-# Install dependencies first (layer cache)
-COPY package.json ./
-RUN npm install
+# Copy workspace manifests for dependency resolution
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/backend/package.json ./apps/backend/
 
-# Copy source
-COPY tsconfig.json ./
-COPY src/ ./src/
+# Install all workspace dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy shared package source
+COPY packages/shared/src/ ./packages/shared/src/
+
+# Copy backend config and source (src/ is overridden by volume mount at runtime)
+COPY apps/backend/tsconfig.json ./apps/backend/
+COPY apps/backend/src/ ./apps/backend/src/
+
+WORKDIR /app/apps/backend
 
 EXPOSE 3001
 
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "dev"]

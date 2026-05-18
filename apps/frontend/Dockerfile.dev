@@ -1,16 +1,27 @@
 FROM node:22-alpine
 
+RUN corepack enable && corepack prepare pnpm@10.33.3 --activate
+
 WORKDIR /app
 
-# Install dependencies first (layer cache)
-COPY package.json package-lock.json* ./
-RUN npm install
+# Copy workspace manifests for dependency resolution
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/frontend/package.json ./apps/frontend/
 
-# Copy config files (source is mounted via docker-compose volume at runtime)
-COPY next.config.ts tsconfig.json tailwind.config.ts postcss.config.js ./
-COPY public/ ./public/
-COPY src/ ./src/
+# Install all workspace dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy shared package source
+COPY packages/shared/src/ ./packages/shared/src/
+
+# Copy frontend config and source (src/ is overridden by volume mount at runtime)
+COPY apps/frontend/next.config.ts apps/frontend/tsconfig.json apps/frontend/tailwind.config.ts apps/frontend/postcss.config.js ./apps/frontend/
+COPY apps/frontend/public/ ./apps/frontend/public/
+COPY apps/frontend/src/ ./apps/frontend/src/
+
+WORKDIR /app/apps/frontend
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "dev"]
