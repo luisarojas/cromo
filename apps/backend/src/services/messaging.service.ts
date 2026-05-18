@@ -6,11 +6,12 @@ import type { Redis } from 'ioredis';
 export interface MessageRow {
   id: string;
   trade_id: string;
-  sender_id: string;
-  sender_username: string;
+  sender_id: string | null;
+  sender_username: string | null;
   sender_display_name: string | null;
   body: string;
   sent_at: string;
+  is_system: boolean;
 }
 
 interface MessagePageResult {
@@ -98,7 +99,8 @@ export async function sendMessage(
        (SELECT username FROM users WHERE id = $3)     AS sender_username,
        (SELECT display_name FROM users WHERE id = $3) AS sender_display_name,
        body,
-       sent_at`,
+       sent_at,
+       is_system`,
     [messageId, tradeId, userId, body]
   );
 
@@ -122,6 +124,37 @@ export async function sendMessage(
   }
 
   return message;
+}
+
+/**
+ * sendSystemMessage — insert a system notification into trade_messages (no sender).
+ * Intended to be called from within an existing db client / transaction.
+ */
+export async function sendSystemMessage(
+  client: { query: Pool['query'] },
+  redis: Redis,
+  tradeId: string,
+  body: string,
+): Promise<void> {
+  const messageId = crypto.randomUUID();
+  const { rows } = await client.query<MessageRow>(
+    `INSERT INTO trade_messages (id, trade_id, sender_id, body, sent_at, is_system)
+     VALUES ($1, $2, NULL, $3, NOW(), TRUE)
+     RETURNING id, trade_id, sender_id, NULL AS sender_username, NULL AS sender_display_name,
+               body, sent_at, is_system`,
+    [messageId, tradeId, body],
+  );
+  const message = rows[0]!;
+  await publishTradeEvent(redis, tradeId, 'new_message', {
+    id: message.id,
+    trade_id: message.trade_id,
+    sender_id: null,
+    sender_username: null,
+    sender_display_name: null,
+    body: message.body,
+    sent_at: message.sent_at,
+    is_system: true,
+  });
 }
 
 /**
@@ -163,9 +196,10 @@ export async function getMessages(
        u.username      AS sender_username,
        u.display_name  AS sender_display_name,
        tm.body,
-       tm.sent_at
+       tm.sent_at,
+       tm.is_system
      FROM trade_messages tm
-     JOIN users u ON u.id = tm.sender_id
+     LEFT JOIN users u ON u.id = tm.sender_id
      WHERE tm.trade_id = $1
        AND ($2::timestamptz IS NULL OR tm.sent_at > $2::timestamptz)
      ORDER BY tm.sent_at ASC

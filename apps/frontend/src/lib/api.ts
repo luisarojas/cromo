@@ -923,11 +923,12 @@ export interface TradeItemDetail {
 export interface TradeMessage {
   id: string;
   tradeId: string;
-  senderId: string;
-  senderUsername: string;
+  senderId: string | null;
+  senderUsername: string | null;
   senderDisplayName: string | null;
   body: string;
   sentAt: string;
+  isSystem: boolean;
 }
 
 export interface TradeSummary {

@@ -51,6 +51,16 @@ function ItemCard({ item }: { item: TradeItemDetail }) {
 }
 
 function MessageBubble({ msg, isMe }: { msg: TradeMessage; isMe: boolean }) {
+  if (msg.isSystem) {
+    return (
+      <div className="flex flex-col items-center gap-0.5 py-1">
+        <div className="text-[10px] text-gray-400">{new Date(msg.sentAt).toLocaleString()}</div>
+        <div className="rounded-md bg-gray-100 border border-gray-200 px-3 py-2 text-xs text-gray-500 text-center whitespace-pre-line max-w-sm">
+          {msg.body}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
       <div className="text-xs text-gray-400">
@@ -217,7 +227,7 @@ export default function TradeDetailPage() {
   }
 
   async function handleCounter() {
-    if (!token) return;
+    if (!token || !trade) return;
 
     const hasOffer = counterItems.some((i) => i.direction === 'offer') || counterOfferCash > 0;
     const hasWant = counterItems.some((i) => i.direction === 'want') || counterWantCash > 0;
@@ -267,6 +277,7 @@ export default function TradeDetailPage() {
       senderDisplayName: user?.displayName ?? null,
       body,
       sentAt: new Date().toISOString(),
+      isSystem: false,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     try {
@@ -487,15 +498,20 @@ export default function TradeDetailPage() {
                 key="counter"
                 offerItems={counterOfferItems}
                 offerItemsLoading={counterOfferItemsLoading}
-                suggestedOfferCodes={[]}
-                suggestedWantCodes={[]}
+                suggestedOfferCodes={wantedItems.map((i) => i.albumCode)}
+                suggestedWantCodes={offeredItems.map((i) => i.albumCode)}
+                suggestedWantVariantIds={offeredItems.map((i) => i.stickerVariantId)}
+                initialOfferVariants={wantedItems.map((i) => ({ variantId: i.stickerVariantId, quantity: i.quantity }))}
+                initialWantVariantIds={offeredItems.map((i) => i.stickerVariantId)}
+                initialOfferCash={trade.wantCash}
+                initialWantCash={trade.offerCash}
                 token={token}
                 partnerName={isRequester ? trade.recipientUsername : trade.requesterUsername}
                 onChange={(items, offerCash, wantCash) => {
-                setCounterItems(items);
-                setCounterOfferCash(offerCash);
-                setCounterWantCash(wantCash);
-              }}
+                  setCounterItems(items);
+                  setCounterOfferCash(offerCash);
+                  setCounterWantCash(wantCash);
+                }}
               />
               {counterError && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
@@ -505,7 +521,7 @@ export default function TradeDetailPage() {
               <div className="flex gap-2">
                 <button
                   onClick={handleCounter}
-                  disabled={counterSubmitting || counterItems.length === 0}
+                  disabled={counterSubmitting}
                   className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   {counterSubmitting ? 'Submitting...' : 'Submit Counter'}

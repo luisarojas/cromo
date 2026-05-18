@@ -610,11 +610,12 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           const { rows: replayRows } = await fastify.db.query<{
             id: string;
             trade_id: string;
-            sender_id: string;
-            sender_username: string;
+            sender_id: string | null;
+            sender_username: string | null;
             sender_display_name: string | null;
             body: string;
             sent_at: string;
+            is_system: boolean;
           }>(
             `SELECT
                tm.id,
@@ -623,9 +624,10 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
                u.username      AS sender_username,
                u.display_name  AS sender_display_name,
                tm.body,
-               tm.sent_at
+               tm.sent_at,
+               tm.is_system
              FROM trade_messages tm
-             JOIN users u ON u.id = tm.sender_id
+             LEFT JOIN users u ON u.id = tm.sender_id
              WHERE tm.trade_id = $1
                AND tm.sent_at > (
                  SELECT sent_at FROM trade_messages WHERE id = $2 LIMIT 1

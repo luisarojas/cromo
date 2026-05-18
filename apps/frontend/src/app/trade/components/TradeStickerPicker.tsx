@@ -419,7 +419,7 @@ export default function TradeStickerPicker({
             )}
           </div>
 
-          <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
+          <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
             {offerItemsLoading ? (
               [...Array(4)].map((_, i) => (
                 <div key={i} className="h-11 rounded-lg bg-white/60 animate-pulse" />
@@ -580,7 +580,7 @@ export default function TradeStickerPicker({
                 )}
               </div>
 
-              <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
+              <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
                 {filteredSuggestions.map((w) => {
                   const isFavourited = favouriteCodes.has(w.albumCode);
                   return (
