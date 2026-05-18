@@ -48,7 +48,7 @@ export default function NavBar() {
                 href="/album"
                 className="text-gray-600 hover:text-gray-900 transition-colors"
               >
-                Albums
+                Collection
               </Link>
               <Link
                 href="/trade"
