@@ -54,11 +54,8 @@ function ItemCard({ item }: { item: TradeItemDetail }) {
 function MessageBubble({ msg, isMe }: { msg: TradeMessage; isMe: boolean }) {
   if (msg.isSystem) {
     return (
-      <div className="flex flex-col items-center gap-0.5 py-1">
-        <div className="text-[10px] text-gray-400">{new Date(msg.sentAt).toLocaleString()}</div>
-        <div className="rounded-md bg-gray-100 border border-gray-200 px-3 py-2 text-xs text-gray-500 text-center whitespace-pre-line max-w-sm">
-          {msg.body}
-        </div>
+      <div className="py-0.5 text-center">
+        <span className="text-[10px] text-gray-400 whitespace-pre-line leading-snug">{msg.body}</span>
       </div>
     );
   }

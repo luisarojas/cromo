@@ -367,6 +367,7 @@ export async function acceptTrade(
      WHERE id = $1`,
     [tradeId]
   );
+  await sendSystemMessage(db, redis, tradeId, 'Trade accepted.');
   await publishTradeEvent(redis, tradeId, 'status_changed', { trade_id: tradeId, status: 'accepted' });
 }
 
@@ -718,6 +719,7 @@ export async function cancelTrade(
      WHERE id = $1`,
     [tradeId]
   );
+  await sendSystemMessage(db, redis, tradeId, 'Trade cancelled.');
   await publishTradeEvent(redis, tradeId, 'status_changed', { trade_id: tradeId, status: 'cancelled' });
 }
 
@@ -788,6 +790,7 @@ export async function completeTrade(
           invalidateUserCaches(redis, requesterId),
           invalidateUserCaches(redis, recipientId),
         ]);
+        await sendSystemMessage(db, redis, tradeId, 'Trade cancelled — one or more stickers are no longer available.');
         await publishTradeEvent(redis, tradeId, 'status_changed', {
           trade_id: tradeId, status: 'cancelled',
         });
@@ -840,6 +843,7 @@ export async function completeTrade(
       invalidateMatchesFor(redis, [requesterId, recipientId]),
     ]);
 
+    await sendSystemMessage(db, redis, tradeId, 'Trade completed.');
     await publishTradeEvent(redis, tradeId, 'status_changed', {
       trade_id: tradeId, status: 'completed',
     });
