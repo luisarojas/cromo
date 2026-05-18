@@ -5,11 +5,13 @@ import { QRCodeSVG } from 'qrcode.react';
 
 interface ShareProfileButtonProps {
   username: string;
+  getListText?: () => string;
 }
 
-export default function ShareProfileButton({ username }: ShareProfileButtonProps) {
+export default function ShareProfileButton({ username, getListText }: ShareProfileButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [listCopied, setListCopied] = useState(false);
   const [profileUrl, setProfileUrl] = useState('');
   const [canNativeShare, setCanNativeShare] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -44,6 +46,17 @@ export default function ShareProfileButton({ username }: ShareProfileButtonProps
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // fallback: select the input
+    }
+  }
+
+  async function handleCopyList() {
+    if (!getListText) return;
+    try {
+      await navigator.clipboard.writeText(getListText());
+      setListCopied(true);
+      setTimeout(() => setListCopied(false), 2000);
+    } catch {
+      // silent fail
     }
   }
 
@@ -130,6 +143,16 @@ export default function ShareProfileButton({ username }: ShareProfileButtonProps
                 {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
+
+            {/* Copy list as text */}
+            {getListText && (
+              <button
+                onClick={() => void handleCopyList()}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {listCopied ? 'Copied!' : 'Copy list as text'}
+              </button>
+            )}
 
             {/* Native share */}
             {canNativeShare && (
