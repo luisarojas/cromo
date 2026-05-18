@@ -7,6 +7,7 @@ import { env } from '../../env.js';
 import * as tradeService from '../../services/trade.service.js';
 import * as messagingService from '../../services/messaging.service.js';
 import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
+import { camelizeKeys } from '../../utils/casing.js';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -635,7 +636,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           );
 
           for (const msg of replayRows) {
-            const data = JSON.stringify(msg);
+            const data = JSON.stringify(camelizeKeys(msg));
             reply.raw.write(`event: new_message\nid: ${msg.id}\ndata: ${data}\n\n`);
           }
         } catch {
@@ -661,7 +662,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           const parsed = JSON.parse(message) as { type: string; id?: string; [key: string]: unknown };
           const eventType = parsed.type ?? 'message';
           const eventId = parsed.id ?? crypto.randomUUID();
-          const data = JSON.stringify(parsed);
+          const data = JSON.stringify(camelizeKeys(parsed));
           reply.raw.write(`event: ${eventType}\nid: ${eventId}\ndata: ${data}\n\n`);
         } catch {
           // Ignore malformed messages

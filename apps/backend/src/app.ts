@@ -47,7 +47,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   // normalises every response payload to camelCase so the wire format matches
   // the canonical types in @stickfolio/shared. Response schemas in routes are
   // now documentation only (fast-json-stringify is bypassed).
+  // setSerializerCompiler runs for routes with a response schema;
+  // setReplySerializer is the fallback for routes without one (otherwise
+  // Fastify's default JSON.stringify would leak snake_case).
   fastify.setSerializerCompiler(() => (data) => JSON.stringify(camelizeKeys(data)));
+  fastify.setReplySerializer((payload) => JSON.stringify(camelizeKeys(payload)));
 
   // ── Security plugins ─────────────────────────────────────────────────────
   await helmetPlugin(fastify);
