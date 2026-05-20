@@ -8,6 +8,7 @@ import {
   fetchStickerByAlbumCode,
   fetchStickerVariants,
   fetchUserAlbums,
+  fetchAllStickers,
   addSticker,
   albumDisplayName,
   type ScanResult,
@@ -16,6 +17,7 @@ import {
   type StickerVariant,
   type UserAlbum,
 } from '@/lib/api';
+import { variantLabel } from '@/app/album/components/variantMeta';
 
 // ─── Confidence helpers ───────────────────────────────────────────────────────
 
@@ -39,18 +41,6 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
       {pct}% confidence
     </span>
   );
-}
-
-// ─── Single scan state ────────────────────────────────────────────────────────
-
-interface ScanState {
-  status: 'idle' | 'scanning' | 'done' | 'error';
-  result?: ScanResult;
-  sticker?: Sticker;
-  variants?: StickerVariant[];
-  selectedVariantId?: string;
-  error?: string;
-  added?: boolean;
 }
 
 // ─── Camera modal ─────────────────────────────────────────────────────────────
@@ -216,139 +206,240 @@ function DropZone({
   );
 }
 
-// ─── Single scan result panel ─────────────────────────────────────────────────
+// ─── ComboBox ─────────────────────────────────────────────────────────────────
 
-function ScanResultPanel({
-  state,
-  albums,
-  selectedAlbumId,
-  onVariantChange,
-  onAlbumChange,
-  onAddToCollection,
+interface ComboOption {
+  value: string;
+  label: string;
+}
+
+function ComboBox({
+  value,
+  options,
+  onSelect,
+  placeholder = 'Search…',
+  disabled = false,
 }: {
-  state: ScanState;
-  albums: UserAlbum[];
-  selectedAlbumId?: string;
-  onVariantChange: (variantId: string) => void;
-  onAlbumChange: (albumId: string) => void;
-  onAddToCollection: () => void;
+  value: string;
+  options: ComboOption[];
+  onSelect: (opt: ComboOption) => void;
+  placeholder?: string;
+  disabled?: boolean;
 }) {
-  if (state.status === 'scanning') {
-    return (
-      <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
-        <span className="animate-spin">⏳</span> Identifying sticker…
-      </div>
-    );
-  }
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  if (state.status === 'error') {
-    return (
-      <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-4">
-        {state.error ?? 'Failed to identify sticker. Please try again.'}
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
-  if (state.status !== 'done' || !state.result) return null;
-
-  const { result, sticker, variants, selectedVariantId, added } = state;
-  const tier = confidenceTier(result.confidence);
+  const filtered = query
+    ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+    : options;
 
   return (
-    <div className="mt-4 space-y-4">
-      {/* Identification result */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm">Identified Sticker</h3>
-          <ConfidenceBadge confidence={result.confidence} />
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={open ? query : value}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+      />
+      {open && !disabled && filtered.length > 0 && (
+        <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-sm">
+          {filtered.slice(0, 100).map((opt) => (
+            <li
+              key={opt.value}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onSelect(opt); setQuery(''); setOpen(false); }}
+              className="px-3 py-2 cursor-pointer hover:bg-blue-50 truncate"
+            >
+              {opt.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── Scan form state ──────────────────────────────────────────────────────────
+
+interface ScanForm {
+  albumCode: string;
+  playerName: string;
+  teamFifaCode: string;
+  teamName: string;
+  stickerNumber: number | null;
+  borderVariantType: string;
+  sticker: Sticker | undefined;
+  variants: StickerVariant[];
+  selectedVariantId: string;
+  confidence: number;
+  reasoning: string;
+  added: boolean;
+}
+
+// ─── Scan result form ─────────────────────────────────────────────────────────
+
+function ScanResultForm({
+  form,
+  catalog,
+  albums,
+  selectedAlbumId,
+  onAlbumCodeSelect,
+  onPlayerSelect,
+  onTeamSelect,
+  onBorderSelect,
+  onAlbumChange,
+  onAdd,
+}: {
+  form: ScanForm;
+  catalog: Sticker[];
+  albums: UserAlbum[];
+  selectedAlbumId?: string;
+  onAlbumCodeSelect: (albumCode: string) => void;
+  onPlayerSelect: (albumCode: string) => void;
+  onTeamSelect: (fifaCode: string) => void;
+  onBorderSelect: (variantType: string) => void;
+  onAlbumChange: (albumId: string) => void;
+  onAdd: () => void;
+}) {
+  const filteredCatalog = form.teamFifaCode
+    ? catalog.filter((s) => s.fifaCode === form.teamFifaCode)
+    : catalog;
+
+  const albumCodeOptions: ComboOption[] = filteredCatalog.map((s) => ({
+    value: s.albumCode,
+    label: s.playerName ? `${s.albumCode} — ${s.playerName}` : s.albumCode,
+  }));
+
+  const playerOptions: ComboOption[] = filteredCatalog
+    .filter((s) => s.playerName)
+    .map((s) => ({ value: s.albumCode, label: s.playerName! }));
+
+  const teamOptions: ComboOption[] = Array.from(
+    new Map(
+      catalog
+        .filter((s) => s.fifaCode && s.teamName)
+        .map((s) => [s.fifaCode!, s] as [string, Sticker])
+    ).values()
+  )
+    .map((s) => ({ value: s.fifaCode!, label: `${s.teamName} (${s.fifaCode})` }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const borderOptions: ComboOption[] = form.variants.map((v) => ({
+    value: v.variantType,
+    label: variantLabel(v.variantType),
+  }));
+
+  const selectedVariant = form.variants.find((v) => v.id === form.selectedVariantId);
+  const borderDisplayValue = selectedVariant ? variantLabel(selectedVariant.variantType) : '';
+
+  const teamDisplayValue = form.teamName
+    ? `${form.teamName} (${form.teamFifaCode})`
+    : form.teamFifaCode;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-gray-900">Identified Sticker</span>
+        <ConfidenceBadge confidence={form.confidence} />
+      </div>
+
+      {form.reasoning && (
+        <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2">{form.reasoning}</p>
+      )}
+
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600 block">Album code</label>
+          <ComboBox
+            value={form.albumCode}
+            options={albumCodeOptions}
+            onSelect={(opt) => onAlbumCodeSelect(opt.value)}
+            placeholder="Search album code…"
+            disabled={form.added}
+          />
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-          {result.albumCode && (
-            <>
-              <dt className="text-gray-500">Album code</dt>
-              <dd className="font-mono font-medium text-gray-800">{result.albumCode}</dd>
-            </>
-          )}
-          {result.stickerNumber !== null && (
-            <>
-              <dt className="text-gray-500">Sticker #</dt>
-              <dd className="font-medium text-gray-800">{result.stickerNumber}</dd>
-            </>
-          )}
-          {result.playerName && (
-            <>
-              <dt className="text-gray-500">Player</dt>
-              <dd className="text-gray-800">{result.playerName}</dd>
-            </>
-          )}
-          {result.teamFifaCode && (
-            <>
-              <dt className="text-gray-500">Team</dt>
-              <dd className="font-mono text-gray-800">{result.teamFifaCode}</dd>
-            </>
-          )}
-          {result.borderColor && (
-            <>
-              <dt className="text-gray-500">Border</dt>
-              <dd className="capitalize text-gray-800">{result.borderColor}</dd>
-            </>
-          )}
-        </dl>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600 block">Player</label>
+          <ComboBox
+            value={form.playerName}
+            options={playerOptions}
+            onSelect={(opt) => onPlayerSelect(opt.value)}
+            placeholder="Search player…"
+            disabled={form.added}
+          />
+        </div>
 
-        {result.reasoning && (
-          <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2">
-            {result.reasoning}
-          </p>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600 block">Team</label>
+          <ComboBox
+            value={teamDisplayValue}
+            options={teamOptions}
+            onSelect={(opt) => onTeamSelect(opt.value)}
+            placeholder="Search team…"
+            disabled={form.added}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600 block">Sticker #</label>
+          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {form.stickerNumber ?? '—'}
+          </div>
+        </div>
+
+        {form.variants.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600 block">Border</label>
+            <ComboBox
+              value={borderDisplayValue}
+              options={borderOptions}
+              onSelect={(opt) => onBorderSelect(opt.value)}
+              placeholder="Select border…"
+              disabled={form.added}
+            />
+          </div>
         )}
       </div>
 
-      {/* Low confidence warning */}
-      {tier === 'low' && (
+      {form.albumCode && !form.sticker && (
+        <div className="rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-sm p-3">
+          Could not find sticker <span className="font-mono font-medium">{form.albumCode}</span> in the catalog.
+        </div>
+      )}
+
+      {confidenceTier(form.confidence) === 'low' && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm p-3">
           Low confidence — please verify the sticker details before adding to your collection.
         </div>
       )}
 
-      {/* Variant selector */}
-      {sticker && variants && variants.length > 0 && (
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600 block">
-            Select variant
-          </label>
-          <select
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
-            value={selectedVariantId ?? ''}
-            onChange={(e) => onVariantChange(e.target.value)}
-            disabled={added}
-          >
-            {variants.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.variantType}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Album code not found */}
-      {!sticker && result.albumCode && (
-        <div className="rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-sm p-3">
-          Could not find sticker <span className="font-mono font-medium">{result.albumCode}</span> in the catalog. Add it manually from your collection view.
-        </div>
-      )}
-
-      {/* Album selector + Add to collection */}
-      {sticker && selectedVariantId && (
+      {form.sticker && form.selectedVariantId && (
         <div className="space-y-2">
           {albums.length > 1 && (
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600 block">Add to album</label>
               <select
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                 value={selectedAlbumId ?? ''}
                 onChange={(e) => onAlbumChange(e.target.value)}
-                disabled={added}
+                disabled={form.added}
               >
                 {albums.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -359,15 +450,15 @@ function ScanResultPanel({
             </div>
           )}
           <button
-            onClick={onAddToCollection}
-            disabled={added}
+            onClick={onAdd}
+            disabled={form.added}
             className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-              added
+              form.added
                 ? 'bg-green-600 text-white cursor-default'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
-            {added ? '✓ Added to collection' : 'Add to collection'}
+            {form.added ? '✓ Added to collection' : 'Add to collection'}
           </button>
         </div>
       )}
@@ -380,10 +471,18 @@ function ScanResultPanel({
 function SingleScanMode() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
-  const [state, setState] = useState<ScanState>({ status: 'idle' });
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
+  const [scanError, setScanError] = useState<string | undefined>();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<Sticker[]>([]);
   const [albums, setAlbums] = useState<UserAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
+  const [form, setForm] = useState<ScanForm | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchAllStickers(token).then(setCatalog).catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!user || !token) return;
@@ -402,60 +501,142 @@ function SingleScanMode() {
       if (!file || !token) return;
 
       setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
-      setState({ status: 'scanning' });
+      setScanStatus('scanning');
+      setForm(null);
+      setScanError(undefined);
 
       let result: ScanResult;
       try {
         result = await scanIdentify(file, token);
       } catch (err) {
-        const e = err as { message?: string };
-        setState({ status: 'error', error: e.message });
+        setScanError((err as { message?: string }).message);
+        setScanStatus('error');
         return;
       }
 
-      // Try to look up the sticker in the catalog
       let sticker: Sticker | undefined;
-      let variants: StickerVariant[] | undefined;
-      let selectedVariantId: string | undefined;
+      let variants: StickerVariant[] = [];
+      let selectedVariantId = '';
+
       if (result.albumCode) {
         try {
           sticker = await fetchStickerByAlbumCode(result.albumCode, token);
           variants = await fetchStickerVariants(result.albumCode, token);
-          selectedVariantId = variants[0]?.id;
-        } catch {
-          // Sticker not found in catalog — user will be told to add manually
-        }
+          selectedVariantId = (result.borderColor
+            ? variants.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
+            : undefined
+          )?.id ?? variants[0]?.id ?? '';
+        } catch { /* sticker not in catalog */ }
       }
 
-      setState({
-        status: 'done',
-        result,
+      const catalogEntry = catalog.find((s) => s.albumCode === result.albumCode);
+
+      setForm({
+        albumCode: result.albumCode ?? '',
+        playerName: result.playerName ?? '',
+        teamFifaCode: result.teamFifaCode ?? catalogEntry?.fifaCode ?? '',
+        teamName: catalogEntry?.teamName ?? sticker?.teamName ?? '',
+        stickerNumber: result.stickerNumber,
+        borderVariantType: result.borderColor ?? '',
         sticker,
         variants,
         selectedVariantId,
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        added: false,
       });
+      setScanStatus('done');
     },
-    [token],
+    [token, catalog],
   );
 
-  const handleVariantChange = (variantId: string) => {
-    setState((s) => ({ ...s, selectedVariantId: variantId }));
-  };
+  const handleAlbumCodeSelect = useCallback(
+    async (albumCode: string) => {
+      if (!token) return;
+      const s = catalog.find((c) => c.albumCode === albumCode);
+      if (!s) return;
+      try {
+        const variants = await fetchStickerVariants(albumCode, token);
+        setForm((f) => {
+          if (!f) return f;
+          const selectedVariantId = (f.borderVariantType
+            ? variants.find((v) => v.variantType.toLowerCase().startsWith(f.borderVariantType.toLowerCase()))
+            : undefined
+          )?.id ?? variants[0]?.id ?? '';
+          return {
+            ...f,
+            albumCode: s.albumCode,
+            playerName: s.playerName ?? '',
+            teamFifaCode: s.fifaCode ?? '',
+            teamName: s.teamName ?? '',
+            stickerNumber: s.number,
+            sticker: s,
+            variants,
+            selectedVariantId,
+          };
+        });
+      } catch { /* ignore */ }
+    },
+    [catalog, token],
+  );
+
+  const handleTeamSelect = useCallback(
+    (fifaCode: string) => {
+      const teamName = catalog.find((s) => s.fifaCode === fifaCode)?.teamName ?? fifaCode;
+      setForm((f) => {
+        if (!f) return f;
+        const playerBelongsToTeam = catalog.find((c) => c.albumCode === f.albumCode)?.fifaCode === fifaCode;
+        return {
+          ...f,
+          teamFifaCode: fifaCode,
+          teamName,
+          ...(playerBelongsToTeam ? {} : {
+            albumCode: '',
+            playerName: '',
+            stickerNumber: null,
+            sticker: undefined,
+            variants: [],
+            selectedVariantId: '',
+          }),
+        };
+      });
+    },
+    [catalog],
+  );
+
+  const handleBorderSelect = useCallback(
+    (variantType: string) => {
+      setForm((f) => {
+        if (!f) return f;
+        const variant = f.variants.find((v) => v.variantType === variantType);
+        if (!variant) return f;
+        return { ...f, borderVariantType: variantType, selectedVariantId: variant.id };
+      });
+    },
+    [],
+  );
 
   const handleAdd = async () => {
-    if (!user || !token || !state.selectedVariantId) return;
+    if (!user || !token || !form?.selectedVariantId) return;
     try {
-      await addSticker(user.id, state.selectedVariantId, 1, token, selectedAlbumId);
-      setState((s) => ({ ...s, added: true }));
+      await addSticker(user.id, form.selectedVariantId, 1, token, selectedAlbumId);
+      setForm((f) => f ? { ...f, added: true } : f);
     } catch (err) {
-      const e = err as { message?: string };
-      setState((s) => ({ ...s, error: e.message }));
+      setScanError((err as { message?: string }).message);
     }
+  };
+
+  const reset = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setScanStatus('idle');
+    setForm(null);
+    setScanError(undefined);
   };
 
   return (
     <div className="space-y-4">
-      {state.status === 'idle' ? (
+      {scanStatus === 'idle' ? (
         <DropZone onFiles={handleFile} />
       ) : (
         <>
@@ -466,36 +647,40 @@ function SingleScanMode() {
               className="w-full rounded-xl object-contain max-h-72 border border-gray-200 bg-gray-50"
             />
           )}
-          <ScanResultPanel
-            state={state}
-            albums={albums}
-            selectedAlbumId={selectedAlbumId}
-            onVariantChange={handleVariantChange}
-            onAlbumChange={setSelectedAlbumId}
-            onAddToCollection={handleAdd}
-          />
-          {state.status === 'done' && (
-            <button
-              onClick={() => {
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                setPreviewUrl(null);
-                setState({ status: 'idle' });
-              }}
-              className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
-            >
-              Scan another sticker
-            </button>
+
+          {scanStatus === 'scanning' && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
+              <span className="animate-spin">⏳</span> Identifying sticker…
+            </div>
           )}
-          {state.status === 'error' && (
+
+          {scanStatus === 'error' && (
+            <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-4">
+              {scanError ?? 'Failed to identify sticker. Please try again.'}
+            </div>
+          )}
+
+          {scanStatus === 'done' && form && (
+            <ScanResultForm
+              form={form}
+              catalog={catalog}
+              albums={albums}
+              selectedAlbumId={selectedAlbumId}
+              onAlbumCodeSelect={handleAlbumCodeSelect}
+              onPlayerSelect={handleAlbumCodeSelect}
+              onTeamSelect={handleTeamSelect}
+              onBorderSelect={handleBorderSelect}
+              onAlbumChange={setSelectedAlbumId}
+              onAdd={handleAdd}
+            />
+          )}
+
+          {(scanStatus === 'done' || scanStatus === 'error') && (
             <button
-              onClick={() => {
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                setPreviewUrl(null);
-                setState({ status: 'idle' });
-              }}
+              onClick={reset}
               className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
             >
-              Try again
+              {form?.added ? 'Scan another sticker' : scanStatus === 'error' ? 'Try again' : 'Scan another sticker'}
             </button>
           )}
         </>
@@ -554,7 +739,6 @@ function BatchScanMode() {
     try {
       const entries = await scanBatch(items.map((i) => i.file), token);
 
-      // Look up stickers for successful entries
       const updated = await Promise.all(
         items.map(async (item, idx) => {
           const entry = entries.find((e) => e.index === idx);
@@ -562,13 +746,11 @@ function BatchScanMode() {
           try {
             const sticker = await fetchStickerByAlbumCode(entry.result.albumCode, token);
             const variants = await fetchStickerVariants(entry.result.albumCode, token);
-            return {
-              ...item,
-              entry,
-              sticker,
-              variants,
-              selectedVariantId: variants[0]?.id,
-            };
+            const selectedVariantId = (entry.result.borderColor
+              ? variants.find((v) => v.variantType.toLowerCase().startsWith(entry.result!.borderColor!.toLowerCase()))
+              : undefined
+            )?.id ?? variants[0]?.id;
+            return { ...item, entry, sticker, variants, selectedVariantId };
           } catch {
             return { ...item, entry };
           }
@@ -594,9 +776,7 @@ function BatchScanMode() {
     try {
       await addSticker(user.id, item.selectedVariantId, 1, token, selectedAlbumId);
       setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, added: true } : it)));
-    } catch {
-      // ignore per-item add errors silently
-    }
+    } catch { /* ignore per-item errors silently */ }
   };
 
   const handleAddAll = async () => {
@@ -675,7 +855,7 @@ function BatchScanMode() {
                           >
                             {item.variants.map((v) => (
                               <option key={v.id} value={v.id}>
-                                {v.variantType}
+                                {variantLabel(v.variantType)}
                               </option>
                             ))}
                           </select>
@@ -761,7 +941,6 @@ export default function ScanPage() {
         Upload a photo of a sticker and AI will identify it for you.
       </p>
 
-      {/* Mode toggle */}
       <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-6 text-sm font-medium">
         <button
           onClick={() => setMode('single')}

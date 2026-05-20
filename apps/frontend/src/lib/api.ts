@@ -617,7 +617,7 @@ export async function fetchUserAlbumsWithStats(
   type?: string,
 ): Promise<UserAlbumWithStats[]> {
   const qs = toQueryString({
-    withStats: true,
+    withStats: '1',
     ...(sort && sort !== 'default' ? { sort } : {}),
     ...(type && type !== 'all' ? { type } : {}),
   });
