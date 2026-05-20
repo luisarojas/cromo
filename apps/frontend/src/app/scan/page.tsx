@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import {
   scanIdentify,
@@ -50,6 +50,86 @@ interface ScanState {
   added?: boolean;
 }
 
+// ─── Camera modal ─────────────────────────────────────────────────────────────
+
+function CameraModal({ onCapture, onClose }: { onCapture: (file: File) => void; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+      .then((stream) => {
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().then(() => setReady(true));
+        }
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message || 'Camera access denied');
+      });
+    return () => {
+      cancelled = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
+  const capture = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      onCapture(new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.92);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl overflow-hidden w-full max-w-sm">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <span className="font-medium text-sm text-gray-900">Take a photo</span>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            aria-label="Close camera"
+          >
+            ✕
+          </button>
+        </div>
+        {error ? (
+          <div className="p-6 text-center text-sm text-red-600">{error}</div>
+        ) : (
+          <div className="bg-black">
+            <video ref={videoRef} className="w-full" playsInline muted />
+            <canvas ref={canvasRef} className="hidden" />
+          </div>
+        )}
+        {ready && !error && (
+          <div className="p-4">
+            <button
+              onClick={capture}
+              className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+            >
+              Capture
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Drop zone ────────────────────────────────────────────────────────────────
 
 function DropZone({
@@ -63,6 +143,7 @@ function DropZone({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
@@ -73,38 +154,62 @@ function DropZone({
   );
 
   return (
-    <div
-      className={`relative border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-        dragging
-          ? 'border-blue-400 bg-blue-50'
-          : disabled
-          ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
-          : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-blue-50'
-      }`}
-      onClick={() => !disabled && inputRef.current?.click()}
-      onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragging(false);
-        if (!disabled) handleFiles(e.dataTransfer.files);
-      }}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        multiple={multiple}
-        className="sr-only"
-        onChange={(e) => handleFiles(e.target.files)}
-        disabled={disabled}
-      />
-      <div className="text-4xl mb-3">📷</div>
-      <p className="text-sm font-medium text-gray-700">
-        {multiple ? 'Drop sticker images here' : 'Drop a sticker image here'}
-      </p>
-      <p className="text-xs text-gray-400 mt-1">or click to browse — JPEG, PNG, or WebP, max 10 MB</p>
-    </div>
+    <>
+      <div
+        className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+          dragging
+            ? 'border-blue-400 bg-blue-50'
+            : disabled
+            ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
+            : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-blue-50'
+        }`}
+        onClick={() => !disabled && inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (!disabled) handleFiles(e.dataTransfer.files);
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple={multiple}
+          className="sr-only"
+          onChange={(e) => handleFiles(e.target.files)}
+          disabled={disabled}
+        />
+        <div className="text-4xl mb-3">📷</div>
+        <p className="text-sm font-medium text-gray-700">
+          {multiple ? 'Drop sticker images here' : 'Drop a sticker image here'}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">or click to browse — JPEG, PNG, or WebP, max 10 MB</p>
+
+        <div className="mt-4 flex items-center gap-2 px-2">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); if (!disabled) setCameraOpen(true); }}
+          disabled={disabled}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          Use camera
+        </button>
+      </div>
+
+      {cameraOpen && (
+        <CameraModal
+          onCapture={(file) => { setCameraOpen(false); onFiles([file]); }}
+          onClose={() => setCameraOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -247,12 +352,14 @@ function SingleScanMode() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
   const [state, setState] = useState<ScanState>({ status: 'idle' });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const handleFile = useCallback(
     async (files: File[]) => {
       const file = files[0];
       if (!file || !token) return;
 
+      setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
       setState({ status: 'scanning' });
 
       let result: ScanResult;
@@ -306,19 +413,47 @@ function SingleScanMode() {
 
   return (
     <div className="space-y-4">
-      <DropZone onFiles={handleFile} disabled={state.status === 'scanning'} />
-      <ScanResultPanel
-        state={state}
-        onVariantChange={handleVariantChange}
-        onAddToCollection={handleAdd}
-      />
-      {state.status === 'done' && (
-        <button
-          onClick={() => setState({ status: 'idle' })}
-          className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
-        >
-          Scan another sticker
-        </button>
+      {state.status === 'idle' ? (
+        <DropZone onFiles={handleFile} />
+      ) : (
+        <>
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt="Scanned sticker"
+              className="w-full rounded-xl object-contain max-h-72 border border-gray-200 bg-gray-50"
+            />
+          )}
+          <ScanResultPanel
+            state={state}
+            onVariantChange={handleVariantChange}
+            onAddToCollection={handleAdd}
+          />
+          {state.status === 'done' && (
+            <button
+              onClick={() => {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(null);
+                setState({ status: 'idle' });
+              }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              Scan another sticker
+            </button>
+          )}
+          {state.status === 'error' && (
+            <button
+              onClick={() => {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(null);
+                setState({ status: 'idle' });
+              }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
+            >
+              Try again
+            </button>
+          )}
+        </>
       )}
     </div>
   );

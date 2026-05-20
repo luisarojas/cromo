@@ -52,7 +52,6 @@ services:
       JWT_SECRET: local-dev-secret-not-for-production
       AUTH_MODE: local
       CLAUDE_API_KEY: mock
-      CLAUDE_API_MODE: mock
       S3_MODE: local
       EMAIL_PROVIDER: mailpit
       SMTP_HOST: mailpit

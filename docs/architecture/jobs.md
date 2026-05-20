@@ -105,5 +105,5 @@ Workers are deployed as a second ECS service in cloud — same Docker image as t
 
 Locally, the API container starts the BullMQ worker in-process (controlled by `WORKER_INPROCESS=true` in `.env.local`). This avoids running a second Docker service for dev iteration. Bull Board UI is reachable at `http://localhost:3001/admin/queues` — convenient for inspecting jobs while developing.
 
-When `EMAIL_PROVIDER=mailpit`, the email worker delivers to Mailpit. When `CLAUDE_API_MODE=mock`, the scan worker returns the mock response. No code path differences — only env vars.
+When `EMAIL_PROVIDER=mailpit`, the email worker delivers to Mailpit. When `CLAUDE_API_KEY=mock`, the scan worker returns the mock response. No code path differences — only env vars.
 
