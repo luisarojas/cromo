@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { env } from '../env.js';
 
 export interface ScanResult {
@@ -63,7 +64,8 @@ export async function identifySticker(
     return MOCK_RESULTS;
   }
 
-  const base64Image = imageBuffer.toString('base64');
+  const normalizedBuffer = await sharp(imageBuffer).rotate().toBuffer();
+  const base64Image = normalizedBuffer.toString('base64');
 
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
