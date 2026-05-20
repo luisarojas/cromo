@@ -40,7 +40,7 @@ FRONT side — extract:
 - stickerNumber: null (not on the front)
 
 BACK side — extract:
-- albumCode: the album code printed on the back (e.g. "BRA5", "FWC3")
+- albumCode: the album code printed on the back — always starts with letters followed by digits (e.g. "BRA5", "FWC3", "MF1"). Never a year like "2026".
 - stickerNumber: the sticker number printed on the back (integer)
 - playerName: null (not on the back)
 - teamFifaCode: null (not on the back)
@@ -124,7 +124,7 @@ export async function identifySticker(
     const p = item as Record<string, unknown>;
     return {
       stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
-      albumCode: typeof p['albumCode'] === 'string' ? p['albumCode'] : null,
+      albumCode: typeof p['albumCode'] === 'string' && /^[A-Za-z]/.test(p['albumCode']) ? p['albumCode'] : null,
       playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
       teamFifaCode: typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null,
       borderColor: typeof p['borderColor'] === 'string' ? p['borderColor'] : null,

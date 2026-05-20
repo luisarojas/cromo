@@ -274,192 +274,16 @@ function ComboBox({
   );
 }
 
-// ─── Scan form state ──────────────────────────────────────────────────────────
-
-interface ScanForm {
-  albumCode: string;
-  playerName: string;
-  teamFifaCode: string;
-  teamName: string;
-  stickerNumber: number | null;
-  borderVariantType: string;
-  sticker: Sticker | undefined;
-  variants: StickerVariant[];
-  selectedVariantId: string;
-  confidence: number;
-  reasoning: string;
-  added: boolean;
-}
-
-// ─── Scan result form ─────────────────────────────────────────────────────────
-
-function ScanResultForm({
-  form,
-  catalog,
-  albums,
-  selectedAlbumId,
-  onAlbumCodeSelect,
-  onPlayerSelect,
-  onBorderSelect,
-  onAlbumChange,
-  onAdd,
-}: {
-  form: ScanForm;
-  catalog: Sticker[];
-  albums: UserAlbum[];
-  selectedAlbumId?: string;
-  onAlbumCodeSelect: (albumCode: string) => void;
-  onPlayerSelect: (albumCode: string) => void;
-  onBorderSelect: (variantType: string) => void;
-  onAlbumChange: (albumId: string) => void;
-  onAdd: () => void;
-}) {
-  const filteredCatalog = catalog;
-
-  const albumCodeOptions: ComboOption[] = filteredCatalog.map((s) => ({
-    value: s.albumCode,
-    label: s.playerName ? `${s.albumCode} — ${s.playerName}` : s.albumCode,
-  }));
-
-  const playerOptions: ComboOption[] = filteredCatalog
-    .filter((s) => s.playerName)
-    .map((s) => {
-      const suffix =
-        s.stickerType === 'coca_cola_special' ? ' · Coca-Cola'
-        : s.stickerType === 'extra' ? ' · Extra'
-        : '';
-      return { value: s.albumCode, label: `${s.playerName!}${suffix}` };
-    });
-
-  const borderOptions: ComboOption[] = form.variants.map((v) => ({
-    value: v.variantType,
-    label: variantLabel(v.variantType),
-  }));
-
-  const selectedVariant = form.variants.find((v) => v.id === form.selectedVariantId);
-  const borderDisplayValue = selectedVariant ? variantLabel(selectedVariant.variantType) : '';
-
-  const teamDisplayValue = form.teamName
-    ? `${form.teamName} (${form.teamFifaCode})`
-    : form.teamFifaCode;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-gray-900">Identified Sticker</span>
-        <ConfidenceBadge confidence={form.confidence} />
-      </div>
-
-      {form.reasoning && (
-        <p className="text-xs text-gray-400 italic border-t border-gray-100 pt-2">{form.reasoning}</p>
-      )}
-
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600 block">Album code</label>
-          <ComboBox
-            value={form.albumCode}
-            options={albumCodeOptions}
-            onSelect={(opt) => onAlbumCodeSelect(opt.value)}
-            placeholder="Search album code…"
-            disabled={form.added}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600 block">Player</label>
-          <ComboBox
-            value={form.playerName}
-            options={playerOptions}
-            onSelect={(opt) => onPlayerSelect(opt.value)}
-            placeholder="Search player…"
-            disabled={form.added}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600 block">Team</label>
-          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {teamDisplayValue || '—'}
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600 block">Sticker #</label>
-          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            {form.stickerNumber ?? '—'}
-          </div>
-        </div>
-
-        {form.variants.length > 0 && (
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600 block">Border</label>
-            <ComboBox
-              value={borderDisplayValue}
-              options={borderOptions}
-              onSelect={(opt) => onBorderSelect(opt.value)}
-              placeholder="Select border…"
-              disabled={form.added}
-            />
-          </div>
-        )}
-      </div>
-
-      {form.albumCode && !form.sticker && (
-        <div className="rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-sm p-3">
-          Could not find sticker <span className="font-mono font-medium">{form.albumCode}</span> in the catalog.
-        </div>
-      )}
-
-      {confidenceTier(form.confidence) === 'low' && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm p-3">
-          Low confidence — please verify the sticker details before adding to your collection.
-        </div>
-      )}
-
-      {form.sticker && form.selectedVariantId && (
-        <div className="space-y-2">
-          {albums.length > 1 && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600 block">Add to album</label>
-              <select
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-                value={selectedAlbumId ?? ''}
-                onChange={(e) => onAlbumChange(e.target.value)}
-                disabled={form.added}
-              >
-                {albums.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {albumDisplayName(a)}{a.isDefault ? ' (default)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <button
-            onClick={onAdd}
-            disabled={form.added}
-            className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-              form.added
-                ? 'bg-green-600 text-white cursor-default'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {form.added ? '✓ Added to collection' : 'Add to collection'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Scan mode ───────────────────────────────────────────────────────────────
 
 interface ScanCard {
   sourcePreview: string;
   albumCode: string;
   playerName: string;
+  teamFifaCode: string;
+  teamName: string;
   stickerNumber: number | null;
+  borderVariantType: string;
   sticker?: Sticker;
   variants: StickerVariant[];
   selectedVariantId: string;
@@ -494,7 +318,10 @@ async function buildScanCard(
     sourcePreview,
     albumCode: result.albumCode ?? '',
     playerName: result.playerName ?? catalogEntry?.playerName ?? '',
+    teamFifaCode: result.teamFifaCode ?? catalogEntry?.fifaCode ?? '',
+    teamName: catalogEntry?.teamName ?? sticker?.teamName ?? '',
     stickerNumber: result.stickerNumber,
+    borderVariantType: result.borderColor ?? '',
     sticker,
     variants,
     selectedVariantId,
@@ -512,7 +339,6 @@ function ScanMode() {
   const [catalog, setCatalog] = useState<Sticker[]>([]);
   const [albums, setAlbums] = useState<UserAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
-  const [form, setForm] = useState<ScanForm | null>(null);
   const [staged, setStaged] = useState<{ file: File; preview: string }[]>([]);
   const [resultCards, setResultCards] = useState<ScanCard[]>([]);
 
@@ -536,7 +362,6 @@ function ScanMode() {
     async (files: File[]) => {
       if (!token) return;
       setScanError(undefined);
-      setForm(null);
       setResultCards([]);
 
       if (files.length === 1) {
@@ -555,40 +380,8 @@ function ScanMode() {
           return;
         }
 
-        if (results.length === 1) {
-          const result = results[0]!;
-          let sticker: Sticker | undefined;
-          let variants: StickerVariant[] = [];
-          let selectedVariantId = '';
-          if (result.albumCode) {
-            try {
-              sticker = await fetchStickerByAlbumCode(result.albumCode, token);
-              variants = await fetchStickerVariants(result.albumCode, token);
-              selectedVariantId = (result.borderColor
-                ? variants.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
-                : undefined
-              )?.id ?? variants[0]?.id ?? '';
-            } catch { /* sticker not in catalog */ }
-          }
-          const catalogEntry = catalog.find((s) => s.albumCode === result.albumCode);
-          setForm({
-            albumCode: result.albumCode ?? '',
-            playerName: result.playerName ?? '',
-            teamFifaCode: result.teamFifaCode ?? catalogEntry?.fifaCode ?? '',
-            teamName: catalogEntry?.teamName ?? sticker?.teamName ?? '',
-            stickerNumber: result.stickerNumber,
-            borderVariantType: result.borderColor ?? '',
-            sticker,
-            variants,
-            selectedVariantId,
-            confidence: result.confidence,
-            reasoning: result.reasoning,
-            added: false,
-          });
-        } else {
-          const cards = await Promise.all(results.map((r) => buildScanCard(url, r, token, catalog)));
-          setResultCards(cards);
-        }
+        const cards = await Promise.all(results.map((r) => buildScanCard(url, r, token, catalog)));
+        setResultCards(cards);
         setStatus('done');
       } else {
         setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
@@ -618,21 +411,21 @@ function ScanMode() {
     }
   };
 
-  const handleAlbumCodeSelect = useCallback(
-    async (albumCode: string) => {
+  const handleCardAlbumCodeSelect = useCallback(
+    async (idx: number, albumCode: string) => {
       if (!token) return;
       const s = catalog.find((c) => c.albumCode === albumCode);
       if (!s) return;
       try {
         const variants = await fetchStickerVariants(albumCode, token);
-        setForm((f) => {
-          if (!f) return f;
-          const selectedVariantId = (f.borderVariantType
-            ? variants.find((v) => v.variantType.toLowerCase().startsWith(f.borderVariantType.toLowerCase()))
+        setResultCards((prev) => prev.map((card, i) => {
+          if (i !== idx) return card;
+          const selectedVariantId = (card.borderVariantType
+            ? variants.find((v) => v.variantType.toLowerCase().startsWith(card.borderVariantType.toLowerCase()))
             : undefined
           )?.id ?? variants[0]?.id ?? '';
           return {
-            ...f,
+            ...card,
             albumCode: s.albumCode,
             playerName: s.playerName ?? '',
             teamFifaCode: s.fifaCode ?? '',
@@ -642,39 +435,23 @@ function ScanMode() {
             variants,
             selectedVariantId,
           };
-        });
+        }));
       } catch { /* ignore */ }
     },
     [catalog, token],
   );
 
-  const handleBorderSelect = useCallback(
-    (variantType: string) => {
-      setForm((f) => {
-        if (!f) return f;
-        const variant = f.variants.find((v) => v.variantType === variantType);
-        if (!variant) return f;
-        return { ...f, borderVariantType: variantType, selectedVariantId: variant.id };
-      });
+  const handleCardBorderSelect = useCallback(
+    (idx: number, variantType: string) => {
+      setResultCards((prev) => prev.map((card, i) => {
+        if (i !== idx) return card;
+        const variant = card.variants.find((v) => v.variantType === variantType);
+        if (!variant) return card;
+        return { ...card, borderVariantType: variantType, selectedVariantId: variant.id };
+      }));
     },
     [],
   );
-
-  const handleAdd = async () => {
-    if (!user || !token || !form?.selectedVariantId) return;
-    try {
-      await addSticker(user.id, form.selectedVariantId, 1, token, selectedAlbumId);
-      setForm((f) => f ? { ...f, added: true } : f);
-    } catch (err) {
-      setScanError((err as { message?: string }).message);
-    }
-  };
-
-  const handleVariantChange = (idx: number, variantId: string) => {
-    setResultCards((prev) =>
-      prev.map((card, i) => (i === idx ? { ...card, selectedVariantId: variantId } : card)),
-    );
-  };
 
   const handleAddItem = async (idx: number) => {
     const card = resultCards[idx];
@@ -701,7 +478,6 @@ function ScanMode() {
     setStaged([]);
     setResultCards([]);
     setStatus('idle');
-    setForm(null);
     setScanError(undefined);
   };
 
@@ -759,76 +535,112 @@ function ScanMode() {
             </div>
           )}
 
-          {/* Single sticker result — rich combobox form */}
-          {status === 'done' && form && resultCards.length === 0 && (
-            <ScanResultForm
-              form={form}
-              catalog={catalog}
-              albums={albums}
-              selectedAlbumId={selectedAlbumId}
-              onAlbumCodeSelect={handleAlbumCodeSelect}
-              onPlayerSelect={handleAlbumCodeSelect}
-              onBorderSelect={handleBorderSelect}
-              onAlbumChange={setSelectedAlbumId}
-              onAdd={handleAdd}
-            />
-          )}
-
-          {/* Multi-sticker results (multi-sticker image or batch) */}
+          {/* Sticker results */}
           {status === 'done' && resultCards.length > 0 && (
             <div className="space-y-3">
-              {resultCards.map((card, idx) => (
-                <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="flex gap-3">
-                    <img
-                      src={card.sourcePreview}
-                      alt={`Sticker ${idx + 1}`}
-                      className="w-16 h-16 rounded-lg object-cover border border-gray-100 shrink-0"
-                    />
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold text-sm text-gray-900">
-                          {card.albumCode || '—'}
-                        </span>
-                        {card.stickerNumber !== null && (
-                          <span className="text-xs text-gray-500">#{card.stickerNumber}</span>
-                        )}
-                        <ConfidenceBadge confidence={card.confidence} />
-                      </div>
-                      {card.playerName && (
-                        <p className="text-sm text-gray-700">{card.playerName}</p>
-                      )}
-                      {card.variants.length > 0 && (
-                        <select
-                          className="text-xs rounded border border-gray-300 bg-white px-2 py-1"
-                          value={card.selectedVariantId}
-                          onChange={(e) => handleVariantChange(idx, e.target.value)}
+              {resultCards.map((card, idx) => {
+                const albumCodeOptions: ComboOption[] = catalog.map((s) => ({
+                  value: s.albumCode,
+                  label: s.playerName ? `${s.albumCode} — ${s.playerName}` : s.albumCode,
+                }));
+                const playerOptions: ComboOption[] = catalog
+                  .filter((s) => s.playerName)
+                  .map((s) => {
+                    const suffix =
+                      s.stickerType === 'coca_cola_special' ? ' · Coca-Cola'
+                      : s.stickerType === 'extra' ? ' · Extra'
+                      : '';
+                    return { value: s.albumCode, label: `${s.playerName!}${suffix}` };
+                  });
+                const borderOptions: ComboOption[] = card.variants.map((v) => ({
+                  value: v.variantType,
+                  label: variantLabel(v.variantType),
+                }));
+                const selectedVariant = card.variants.find((v) => v.id === card.selectedVariantId);
+                const borderDisplayValue = selectedVariant ? variantLabel(selectedVariant.variantType) : '';
+                const teamDisplayValue = card.teamName
+                  ? `${card.teamName} (${card.teamFifaCode})`
+                  : card.teamFifaCode;
+
+                return (
+                  <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={card.sourcePreview}
+                        alt={`Sticker ${idx + 1}`}
+                        className="w-12 h-12 rounded-lg object-cover border border-gray-100 shrink-0"
+                      />
+                      <ConfidenceBadge confidence={card.confidence} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-600 block">Album code</label>
+                        <ComboBox
+                          value={card.albumCode}
+                          options={albumCodeOptions}
+                          onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
+                          placeholder="Search album code…"
                           disabled={card.added}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-gray-600 block">Player</label>
+                        <ComboBox
+                          value={card.playerName}
+                          options={playerOptions}
+                          onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
+                          placeholder="Search player…"
+                          disabled={card.added}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-600 block">Team</label>
+                          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 truncate">
+                            {teamDisplayValue || '—'}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-600 block">Sticker #</label>
+                          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                            {card.stickerNumber ?? '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {card.variants.length > 0 && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-600 block">Border</label>
+                          <ComboBox
+                            value={borderDisplayValue}
+                            options={borderOptions}
+                            onSelect={(opt) => handleCardBorderSelect(idx, opt.value)}
+                            placeholder="Select border…"
+                            disabled={card.added}
+                          />
+                        </div>
+                      )}
+
+                      {card.sticker && card.selectedVariantId && (
+                        <button
+                          onClick={() => handleAddItem(idx)}
+                          disabled={card.added}
+                          className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                            card.added
+                              ? 'bg-green-600 text-white cursor-default'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
                         >
-                          {card.variants.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {variantLabel(v.variantType)}
-                            </option>
-                          ))}
-                        </select>
+                          {card.added ? '✓ Added to collection' : 'Add to collection'}
+                        </button>
                       )}
                     </div>
-                    {card.sticker && card.selectedVariantId && (
-                      <button
-                        onClick={() => handleAddItem(idx)}
-                        disabled={card.added}
-                        className={`self-center shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                          card.added
-                            ? 'bg-green-600 text-white cursor-default'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {card.added ? '✓' : 'Add'}
-                      </button>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {resultCards.some((c) => c.sticker && c.selectedVariantId && !c.added) && (
                 <div className="space-y-2">
