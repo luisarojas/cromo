@@ -42,7 +42,7 @@ INSERT INTO album_formats (album_type_id, key, name)
 SELECT t.id, f.key, f.name
 FROM album_types t
 CROSS JOIN (VALUES
-  ('softcover_standard',  'Softcover (Standard)'),
+  ('softcover_standard',  'Softcover'),
   ('hardcover',           'Hardcover'),
   ('limited_hardcover',   'Limited Hardcover (Treasure Box)'),
   ('silver_hardcover',    'Silver Hardcover'),

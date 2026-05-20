@@ -206,7 +206,7 @@ export default function WC2026GuidePage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               <tr className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-gray-900">Softcover (Standard)</td>
+                <td className="px-4 py-3 font-medium text-gray-900">Softcover</td>
                 <td className="px-4 py-3 text-gray-600">
                   Global — supermarkets, newsstands, most retailers
                 </td>
