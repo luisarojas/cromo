@@ -82,7 +82,12 @@ export async function listStickers(
                FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages,
               COUNT(*) OVER () AS total_count
        FROM sticker_full s
-       LEFT JOIN sticker_variants sv ON sv.sticker_id = s.sticker_id AND sv.variant_type = 'base'
+       LEFT JOIN LATERAL (
+         SELECT id FROM sticker_variants
+         WHERE sticker_id = s.sticker_id
+           AND variant_type IN ('base_border', 'base_borderless')
+         ORDER BY rarity_rank LIMIT 1
+       ) sv ON true
        WHERE ($1::text IS NULL OR s.fifa_code = $1)
          AND ($2::text IS NULL OR s.group_name = $2)
          AND ($3::text IS NULL OR s.sticker_type = $3)
@@ -129,7 +134,12 @@ export async function getStickerByAlbumCode(
             (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
              FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages
      FROM sticker_full s
-     LEFT JOIN sticker_variants sv ON sv.sticker_id = s.sticker_id AND sv.variant_type = 'base'
+     LEFT JOIN LATERAL (
+       SELECT id FROM sticker_variants
+       WHERE sticker_id = s.sticker_id
+         AND variant_type IN ('base_border', 'base_borderless')
+       ORDER BY rarity_rank LIMIT 1
+     ) sv ON true
      WHERE s.album_code = $1`,
     [albumCode]
   );
@@ -152,7 +162,12 @@ export async function getStickerByPlayerName(
             (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
              FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages
      FROM sticker_full s
-     LEFT JOIN sticker_variants sv ON sv.sticker_id = s.sticker_id AND sv.variant_type = 'base'
+     LEFT JOIN LATERAL (
+       SELECT id FROM sticker_variants
+       WHERE sticker_id = s.sticker_id
+         AND variant_type IN ('base_border', 'base_borderless')
+       ORDER BY rarity_rank LIMIT 1
+     ) sv ON true
      WHERE s.player_name ILIKE $1
      LIMIT 1`,
     [playerName]

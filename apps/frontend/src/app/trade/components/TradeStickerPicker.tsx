@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
-import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import { variantLabel, variantSwatch, isBaseVariant } from '@/app/album/components/variantMeta';
 import { HeartIcon } from '@/components/HeartIcon';
 import CashInput from './CashInput';
 
@@ -168,7 +168,7 @@ export default function TradeStickerPicker({
       teamName: null as string | null,
       allVariants: [] as StickerVariant[],
       variantId: '',
-      variantType: 'base',
+      variantType: 'base_border',
       loading: true,
       error: null as string | null,
       fromSuggestion: true,
@@ -189,20 +189,20 @@ export default function TradeStickerPicker({
             const filteredVariants = partnerVariantIdSet.size > 0
               ? result.variants.filter((v) => partnerVariantIdSet.has(v.id))
               : [];
-            const baseVariant = result.variants.find((v) => v.variantType === 'base') ?? result.variants[0];
+            const baseVariant = result.variants.find((v) => isBaseVariant(v.variantType)) ?? result.variants[0];
             const variants = filteredVariants.length > 0
               ? filteredVariants
               : baseVariant
                 ? [baseVariant]
                 : result.variants;
-            const base = variants.find((v) => v.variantType === 'base') ?? variants[0];
+            const base = variants.find((v) => isBaseVariant(v.variantType)) ?? variants[0];
             return {
               ...w,
               playerName: result.playerName,
               teamName: result.teamName,
               allVariants: variants,
               variantId: base?.id ?? '',
-              variantType: base?.variantType ?? 'base',
+              variantType: base?.variantType ?? 'base_border',
               loading: false,
               error: null,
             };

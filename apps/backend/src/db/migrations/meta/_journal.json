@@ -171,6 +171,12 @@
       "when": 1749513600000,
       "tag": "0028_trust_safety",
       "breakpoints": true
+    },{
+      "idx": 29,
+      "version": "7",
+      "when": 1749600000000,
+      "tag": "0029_rename_base_variant",
+      "breakpoints": true
     }
   ]
 }

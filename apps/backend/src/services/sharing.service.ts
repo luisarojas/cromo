@@ -320,11 +320,16 @@ export async function getPublicList(
          s.player_name,
          s.sticker_type,
          t.name AS team_name,
-         COALESCE(sv.variant_type, 'base') AS variant_type,
+         COALESCE(sv.variant_type, 'base_border') AS variant_type,
          NULL::int AS quantity
        FROM stickers s
        LEFT JOIN teams t ON t.id = s.team_id
-       LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'
+       LEFT JOIN LATERAL (
+         SELECT id, variant_type FROM sticker_variants
+         WHERE sticker_id = s.id
+           AND variant_type IN ('base_border', 'base_borderless')
+         ORDER BY rarity_rank LIMIT 1
+       ) sv ON true
        WHERE NOT EXISTS (
          SELECT 1 FROM user_stickers us
          JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id

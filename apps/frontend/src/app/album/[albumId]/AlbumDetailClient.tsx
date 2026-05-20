@@ -43,7 +43,7 @@ import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import FilterBar, { type FilterState } from '../components/FilterBar';
-import { ALL_VARIANT_TYPES } from '../components/variantMeta';
+import { ALL_VARIANT_TYPES, isBaseVariant } from '../components/variantMeta';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import AlbumFormModal from '../components/AlbumFormModal';
@@ -527,7 +527,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         addToast('All selected stickers already own that variant.');
         return;
       }
-      if (variantType === 'base') {
+      if (isBaseVariant(variantType)) {
         await runBatched(selectedStickerList, 10, async (sticker) => {
           if (!sticker.baseVariantId) return;
           await addSticker(usr.id, sticker.baseVariantId, 1, tok, albumId);

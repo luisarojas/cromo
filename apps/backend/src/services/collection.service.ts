@@ -242,8 +242,12 @@ export async function getMissing(
               COUNT(*) OVER () AS total_count
        FROM stickers s
        LEFT JOIN teams t ON s.team_id = t.id
-       LEFT JOIN sticker_variants base_sv
-         ON base_sv.sticker_id = s.id AND base_sv.variant_type = 'base'
+       LEFT JOIN LATERAL (
+         SELECT id FROM sticker_variants
+         WHERE sticker_id = s.id
+           AND variant_type IN ('base_border', 'base_borderless')
+         ORDER BY rarity_rank LIMIT 1
+       ) base_sv ON true
        WHERE NOT EXISTS (
          SELECT 1
          FROM user_stickers us

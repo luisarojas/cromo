@@ -82,7 +82,7 @@ export async function getTradeMatches(
      my_missing AS (
        SELECT sv.id AS variant_id
        FROM sticker_variants sv
-       WHERE sv.variant_type = 'base'
+       WHERE sv.variant_type IN ('base_border', 'base_borderless')
          AND NOT EXISTS (
            SELECT 1 FROM user_stickers us
            WHERE us.album_id = $2

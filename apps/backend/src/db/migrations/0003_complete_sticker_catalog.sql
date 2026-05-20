@@ -41,7 +41,7 @@ ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   position     = EXCLUDED.position;
 
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'base', 1, 'coca_cola'
+SELECT id, 'base_border', 1, 'coca_cola'
 FROM stickers
 WHERE sticker_type = 'coca_cola_special'
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
@@ -120,7 +120,7 @@ ON CONFLICT (album_type_id, album_code) DO UPDATE SET
 
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id,
-       unnest(ARRAY['base', 'blue', 'red', 'purple', 'green', 'black_1of1']),
+       unnest(ARRAY['base_border', 'blue', 'red', 'purple', 'green', 'black_1of1']),
        unnest(ARRAY[1, 2, 3, 4, 5, 6]),
        'retail'
 FROM stickers

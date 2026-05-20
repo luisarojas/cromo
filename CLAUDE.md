@@ -20,3 +20,18 @@ Rules to follow:
 - **Exception: raw socket writes.** SSE handlers use `reply.raw.write(...)` to push events directly to the socket, which bypasses both Fastify serializers. Any handler that writes raw bytes (or publishes payloads consumed by such a handler) must explicitly call `camelizeKeys(payload)` before `JSON.stringify`. See the SSE handler in `apps/backend/src/routes/v1/trade.ts` for the canonical pattern.
 
 If both `setSerializerCompiler` and `setReplySerializer` need to be kept in sync (e.g. when changing the casing strategy), update both — losing one silently regresses every route on the wrong side of the schema/no-schema split.
+
+### Migration Journal — Always Update on New SQL Files
+Every new file added under `apps/backend/src/db/migrations/*.sql` must have a corresponding entry added to `apps/backend/src/db/migrations/meta/_journal.json`. The entry follows this shape:
+
+```json
+{
+  "idx": <next integer after the current last entry>,
+  "version": "7",
+  "when": <previous entry's "when" + 86400000>,
+  "tag": "<filename without .sql>",
+  "breakpoints": true
+}
+```
+
+Never create a migration SQL file without updating the journal in the same change.
