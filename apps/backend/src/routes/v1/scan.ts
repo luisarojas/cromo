@@ -146,9 +146,9 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         : '.jpg';
       const tempPath = await saveScanTemp(uploaded.buffer, ext);
 
-      let result;
+      let results;
       try {
-        result = await identifySticker(uploaded.buffer, uploaded.mimeType);
+        results = await identifySticker(uploaded.buffer, uploaded.mimeType);
       } catch (err) {
         request.log.error({ err }, 'identifySticker failed');
         await deleteScanTemp(tempPath);
@@ -160,7 +160,8 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await deleteScanTemp(tempPath);
-      return reply.status(200).send(await enrichFromCatalog(fastify.db, result));
+      const enriched = await Promise.all(results.map((r) => enrichFromCatalog(fastify.db, r)));
+      return reply.status(200).send(enriched);
     },
   );
 
@@ -189,7 +190,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       if (!await guardFeature(fastify, 'FEATURE_BATCH_SCANNING', reply)) return;
 
       const parts = request.files();
-      const results: Array<{ index: number; result?: ReturnType<typeof identifySticker> extends Promise<infer R> ? R : never; error?: string }> = [];
+      const results: Array<{ index: number; results?: ScanResult[]; error?: string }> = [];
       let index = 0;
       const tempPaths: string[] = [];
 
@@ -213,8 +214,9 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
               : '.jpg';
             const tempPath = await saveScanTemp(buffer, ext);
             tempPaths.push(tempPath);
-            const scanResult = await enrichFromCatalog(fastify.db, await identifySticker(buffer, mimeType));
-            results.push({ index, result: scanResult });
+            const scanResults = await identifySticker(buffer, mimeType);
+            const enriched = await Promise.all(scanResults.map((r) => enrichFromCatalog(fastify.db, r)));
+            results.push({ index, results: enriched });
           } catch (err) {
             const e = err as { message?: string };
             results.push({ index, error: e.message ?? 'Failed to process image.' });

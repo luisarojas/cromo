@@ -303,12 +303,12 @@ async function apiFetch<T>(
 }
 
 function toQueryString(
-  params: Record<string, string | number | undefined>,
+  params: Record<string, string | number | boolean | undefined>,
 ): string {
   const parts: string[] = [];
   for (const [key, val] of Object.entries(params)) {
     if (val !== undefined && val !== '') {
-      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
     }
   }
   return parts.length ? `?${parts.join('&')}` : '';
@@ -617,7 +617,7 @@ export async function fetchUserAlbumsWithStats(
   type?: string,
 ): Promise<UserAlbumWithStats[]> {
   const qs = toQueryString({
-    withStats: '1',
+    withStats: true,
     ...(sort && sort !== 'default' ? { sort } : {}),
     ...(type && type !== 'all' ? { type } : {}),
   });
@@ -1443,11 +1443,11 @@ export interface ScanResult {
 
 export interface BatchScanEntry {
   index: number;
-  result?: ScanResult;
+  results?: ScanResult[];
   error?: string;
 }
 
-export async function scanIdentify(file: File, token: string): Promise<ScanResult> {
+export async function scanIdentify(file: File, token: string): Promise<ScanResult[]> {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${BASE_URL}/api/v1/scan/identify`, {
@@ -1459,7 +1459,7 @@ export async function scanIdentify(file: File, token: string): Promise<ScanResul
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API error ${res.status}: ${text}`);
   }
-  return res.json() as Promise<ScanResult>;
+  return res.json() as Promise<ScanResult[]>;
 }
 
 export async function scanBatch(files: File[], token: string): Promise<BatchScanEntry[]> {

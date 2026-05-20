@@ -12,7 +12,6 @@ import {
   addSticker,
   albumDisplayName,
   type ScanResult,
-  type BatchScanEntry,
   type Sticker,
   type StickerVariant,
   type UserAlbum,
@@ -454,18 +453,68 @@ function ScanResultForm({
   );
 }
 
-// ─── Single scan mode ─────────────────────────────────────────────────────────
+// ─── Scan mode ───────────────────────────────────────────────────────────────
 
-function SingleScanMode() {
+interface ScanCard {
+  sourcePreview: string;
+  albumCode: string;
+  playerName: string;
+  stickerNumber: number | null;
+  sticker?: Sticker;
+  variants: StickerVariant[];
+  selectedVariantId: string;
+  confidence: number;
+  added: boolean;
+}
+
+async function buildScanCard(
+  sourcePreview: string,
+  result: ScanResult,
+  token: string,
+  catalog: Sticker[],
+): Promise<ScanCard> {
+  let sticker: Sticker | undefined;
+  let variants: StickerVariant[] = [];
+  let selectedVariantId = '';
+
+  if (result.albumCode) {
+    try {
+      sticker = await fetchStickerByAlbumCode(result.albumCode, token);
+      variants = await fetchStickerVariants(result.albumCode, token);
+      selectedVariantId = (result.borderColor
+        ? variants.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
+        : undefined
+      )?.id ?? variants[0]?.id ?? '';
+    } catch { /* sticker not in catalog */ }
+  }
+
+  const catalogEntry = catalog.find((s) => s.albumCode === result.albumCode);
+
+  return {
+    sourcePreview,
+    albumCode: result.albumCode ?? '',
+    playerName: result.playerName ?? catalogEntry?.playerName ?? '',
+    stickerNumber: result.stickerNumber,
+    sticker,
+    variants,
+    selectedVariantId,
+    confidence: result.confidence,
+    added: false,
+  };
+}
+
+function ScanMode() {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
-  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'previewing' | 'scanning' | 'done' | 'error'>('idle');
   const [scanError, setScanError] = useState<string | undefined>();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<Sticker[]>([]);
   const [albums, setAlbums] = useState<UserAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
   const [form, setForm] = useState<ScanForm | null>(null);
+  const [staged, setStaged] = useState<{ file: File; preview: string }[]>([]);
+  const [resultCards, setResultCards] = useState<ScanCard[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -483,60 +532,91 @@ function SingleScanMode() {
       .catch(() => {});
   }, [user, token]);
 
-  const handleFile = useCallback(
+  const handleFiles = useCallback(
     async (files: File[]) => {
-      const file = files[0];
-      if (!file || !token) return;
-
-      setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
-      setScanStatus('scanning');
-      setForm(null);
+      if (!token) return;
       setScanError(undefined);
+      setForm(null);
+      setResultCards([]);
 
-      let result: ScanResult;
-      try {
-        result = await scanIdentify(file, token);
-      } catch (err) {
-        setScanError((err as { message?: string }).message);
-        setScanStatus('error');
-        return;
-      }
+      if (files.length === 1) {
+        const file = files[0]!;
+        const url = URL.createObjectURL(file);
+        setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return url; });
+        setStaged([]);
+        setStatus('scanning');
 
-      let sticker: Sticker | undefined;
-      let variants: StickerVariant[] = [];
-      let selectedVariantId = '';
-
-      if (result.albumCode) {
+        let results: ScanResult[];
         try {
-          sticker = await fetchStickerByAlbumCode(result.albumCode, token);
-          variants = await fetchStickerVariants(result.albumCode, token);
-          selectedVariantId = (result.borderColor
-            ? variants.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
-            : undefined
-          )?.id ?? variants[0]?.id ?? '';
-        } catch { /* sticker not in catalog */ }
+          results = await scanIdentify(file, token);
+        } catch (err) {
+          setScanError((err as { message?: string }).message);
+          setStatus('error');
+          return;
+        }
+
+        if (results.length === 1) {
+          const result = results[0]!;
+          let sticker: Sticker | undefined;
+          let variants: StickerVariant[] = [];
+          let selectedVariantId = '';
+          if (result.albumCode) {
+            try {
+              sticker = await fetchStickerByAlbumCode(result.albumCode, token);
+              variants = await fetchStickerVariants(result.albumCode, token);
+              selectedVariantId = (result.borderColor
+                ? variants.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
+                : undefined
+              )?.id ?? variants[0]?.id ?? '';
+            } catch { /* sticker not in catalog */ }
+          }
+          const catalogEntry = catalog.find((s) => s.albumCode === result.albumCode);
+          setForm({
+            albumCode: result.albumCode ?? '',
+            playerName: result.playerName ?? '',
+            teamFifaCode: result.teamFifaCode ?? catalogEntry?.fifaCode ?? '',
+            teamName: catalogEntry?.teamName ?? sticker?.teamName ?? '',
+            stickerNumber: result.stickerNumber,
+            borderVariantType: result.borderColor ?? '',
+            sticker,
+            variants,
+            selectedVariantId,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+            added: false,
+          });
+        } else {
+          const cards = await Promise.all(results.map((r) => buildScanCard(url, r, token, catalog)));
+          setResultCards(cards);
+        }
+        setStatus('done');
+      } else {
+        setPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+        setStaged(files.map((f) => ({ file: f, preview: URL.createObjectURL(f) })));
+        setStatus('previewing');
       }
-
-      const catalogEntry = catalog.find((s) => s.albumCode === result.albumCode);
-
-      setForm({
-        albumCode: result.albumCode ?? '',
-        playerName: result.playerName ?? '',
-        teamFifaCode: result.teamFifaCode ?? catalogEntry?.fifaCode ?? '',
-        teamName: catalogEntry?.teamName ?? sticker?.teamName ?? '',
-        stickerNumber: result.stickerNumber,
-        borderVariantType: result.borderColor ?? '',
-        sticker,
-        variants,
-        selectedVariantId,
-        confidence: result.confidence,
-        reasoning: result.reasoning,
-        added: false,
-      });
-      setScanStatus('done');
     },
     [token, catalog],
   );
+
+  const handleBatchScan = async () => {
+    if (!token || staged.length === 0) return;
+    setStatus('scanning');
+    try {
+      const entries = await scanBatch(staged.map((i) => i.file), token);
+      const cards = await Promise.all(
+        staged.flatMap(({ preview }, idx) => {
+          const entry = entries.find((e) => e.index === idx);
+          return (entry?.results ?? []).map((r) => buildScanCard(preview, r, token, catalog));
+        }),
+      );
+      setResultCards(cards);
+      setStatus('done');
+    } catch (err) {
+      setScanError((err as { message?: string }).message);
+      setStatus('error');
+    }
+  };
 
   const handleAlbumCodeSelect = useCallback(
     async (albumCode: string) => {
@@ -590,21 +670,51 @@ function SingleScanMode() {
     }
   };
 
+  const handleVariantChange = (idx: number, variantId: string) => {
+    setResultCards((prev) =>
+      prev.map((card, i) => (i === idx ? { ...card, selectedVariantId: variantId } : card)),
+    );
+  };
+
+  const handleAddItem = async (idx: number) => {
+    const card = resultCards[idx];
+    if (!user || !token || !card?.selectedVariantId) return;
+    try {
+      await addSticker(user.id, card.selectedVariantId, 1, token, selectedAlbumId);
+      setResultCards((prev) => prev.map((c, i) => (i === idx ? { ...c, added: true } : c)));
+    } catch { /* ignore per-item errors silently */ }
+  };
+
+  const handleAddAll = async () => {
+    if (!user || !token) return;
+    await Promise.all(
+      resultCards.map(async (card, idx) => {
+        if (card.selectedVariantId && !card.added) await handleAddItem(idx);
+      }),
+    );
+  };
+
   const reset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    staged.forEach((s) => URL.revokeObjectURL(s.preview));
     setPreviewUrl(null);
-    setScanStatus('idle');
+    setStaged([]);
+    setResultCards([]);
+    setStatus('idle');
     setForm(null);
     setScanError(undefined);
   };
 
+  const isBatch = staged.length > 0;
+
   return (
     <div className="space-y-4">
-      {scanStatus === 'idle' ? (
-        <DropZone onFiles={handleFile} />
+      {status === 'idle' ? (
+        <DropZone onFiles={handleFiles} multiple />
       ) : (
         <>
-          {previewUrl && (
+          {/* Single-file preview */}
+          {!isBatch && previewUrl && (
             <img
               src={previewUrl}
               alt="Scanned sticker"
@@ -612,19 +722,45 @@ function SingleScanMode() {
             />
           )}
 
-          {scanStatus === 'scanning' && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
-              <span className="animate-spin">⏳</span> Identifying sticker…
+          {/* Multi-file previews + scan button */}
+          {isBatch && status === 'previewing' && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                {staged.length} image{staged.length !== 1 ? 's' : ''} selected
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {staged.map((item, i) => (
+                  <img
+                    key={i}
+                    src={item.preview}
+                    alt={`Image ${i + 1}`}
+                    className="rounded-lg object-cover w-full aspect-square border border-gray-200"
+                  />
+                ))}
+              </div>
+              <button
+                onClick={handleBatchScan}
+                className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+              >
+                Scan {staged.length} image{staged.length !== 1 ? 's' : ''}
+              </button>
             </div>
           )}
 
-          {scanStatus === 'error' && (
+          {status === 'scanning' && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
+              <span className="animate-spin">⏳</span> Identifying sticker{isBatch ? 's' : ''}…
+            </div>
+          )}
+
+          {status === 'error' && (
             <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-4">
               {scanError ?? 'Failed to identify sticker. Please try again.'}
             </div>
           )}
 
-          {scanStatus === 'done' && form && (
+          {/* Single sticker result — rich combobox form */}
+          {status === 'done' && form && resultCards.length === 0 && (
             <ScanResultForm
               form={form}
               catalog={catalog}
@@ -638,246 +774,100 @@ function SingleScanMode() {
             />
           )}
 
-          {(scanStatus === 'done' || scanStatus === 'error') && (
+          {/* Multi-sticker results (multi-sticker image or batch) */}
+          {status === 'done' && resultCards.length > 0 && (
+            <div className="space-y-3">
+              {resultCards.map((card, idx) => (
+                <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="flex gap-3">
+                    <img
+                      src={card.sourcePreview}
+                      alt={`Sticker ${idx + 1}`}
+                      className="w-16 h-16 rounded-lg object-cover border border-gray-100 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-semibold text-sm text-gray-900">
+                          {card.albumCode || '—'}
+                        </span>
+                        {card.stickerNumber !== null && (
+                          <span className="text-xs text-gray-500">#{card.stickerNumber}</span>
+                        )}
+                        <ConfidenceBadge confidence={card.confidence} />
+                      </div>
+                      {card.playerName && (
+                        <p className="text-sm text-gray-700">{card.playerName}</p>
+                      )}
+                      {card.variants.length > 0 && (
+                        <select
+                          className="text-xs rounded border border-gray-300 bg-white px-2 py-1"
+                          value={card.selectedVariantId}
+                          onChange={(e) => handleVariantChange(idx, e.target.value)}
+                          disabled={card.added}
+                        >
+                          {card.variants.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {variantLabel(v.variantType)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    {card.sticker && card.selectedVariantId && (
+                      <button
+                        onClick={() => handleAddItem(idx)}
+                        disabled={card.added}
+                        className={`self-center shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                          card.added
+                            ? 'bg-green-600 text-white cursor-default'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        {card.added ? '✓' : 'Add'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {resultCards.some((c) => c.sticker && c.selectedVariantId && !c.added) && (
+                <div className="space-y-2">
+                  {albums.length > 1 && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-600 block">Add to album</label>
+                      <select
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedAlbumId ?? ''}
+                        onChange={(e) => setSelectedAlbumId(e.target.value)}
+                      >
+                        {albums.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {albumDisplayName(a)}{a.isDefault ? ' (default)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleAddAll}
+                    className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+                  >
+                    Add all to collection
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(status === 'done' || status === 'error') && (
             <button
               onClick={reset}
               className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
             >
-              {form?.added ? 'Scan another sticker' : scanStatus === 'error' ? 'Try again' : 'Scan another sticker'}
+              {status === 'error' ? 'Try again' : 'Scan more stickers'}
             </button>
           )}
         </>
-      )}
-    </div>
-  );
-}
-
-// ─── Batch scan mode ──────────────────────────────────────────────────────────
-
-interface BatchItemState {
-  file: File;
-  preview: string;
-  entry?: BatchScanEntry;
-  sticker?: Sticker;
-  variants?: StickerVariant[];
-  selectedVariantId?: string;
-  added?: boolean;
-}
-
-function BatchScanMode() {
-  const user = useAuthStore((s) => s.user);
-  const token = useAuthStore((s) => s.token);
-  const [items, setItems] = useState<BatchItemState[]>([]);
-  const [scanning, setScanning] = useState(false);
-  const [done, setDone] = useState(false);
-  const [albums, setAlbums] = useState<UserAlbum[]>([]);
-  const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
-
-  useEffect(() => {
-    if (!user || !token) return;
-    fetchUserAlbums(user.id, token)
-      .then((list) => {
-        setAlbums(list);
-        const def = list.find((a) => a.isDefault) ?? list[0];
-        if (def) setSelectedAlbumId(def.id);
-      })
-      .catch(() => {});
-  }, [user, token]);
-
-  const handleFiles = useCallback(
-    async (files: File[]) => {
-      const previews = files.map((f) => ({
-        file: f,
-        preview: URL.createObjectURL(f),
-      }));
-      setItems(previews.map((p) => ({ file: p.file, preview: p.preview })));
-      setDone(false);
-    },
-    [],
-  );
-
-  const handleScan = async () => {
-    if (!token || items.length === 0) return;
-    setScanning(true);
-    try {
-      const entries = await scanBatch(items.map((i) => i.file), token);
-
-      const updated = await Promise.all(
-        items.map(async (item, idx) => {
-          const entry = entries.find((e) => e.index === idx);
-          if (!entry?.result?.albumCode) return { ...item, entry };
-          try {
-            const sticker = await fetchStickerByAlbumCode(entry.result.albumCode, token);
-            const variants = await fetchStickerVariants(entry.result.albumCode, token);
-            const selectedVariantId = (entry.result.borderColor
-              ? variants.find((v) => v.variantType.toLowerCase().startsWith(entry.result!.borderColor!.toLowerCase()))
-              : undefined
-            )?.id ?? variants[0]?.id;
-            return { ...item, entry, sticker, variants, selectedVariantId };
-          } catch {
-            return { ...item, entry };
-          }
-        }),
-      );
-
-      setItems(updated);
-      setDone(true);
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const handleVariantChange = (idx: number, variantId: string) => {
-    setItems((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, selectedVariantId: variantId } : item)),
-    );
-  };
-
-  const handleAddItem = async (idx: number) => {
-    const item = items[idx];
-    if (!user || !token || !item?.selectedVariantId) return;
-    try {
-      await addSticker(user.id, item.selectedVariantId, 1, token, selectedAlbumId);
-      setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, added: true } : it)));
-    } catch { /* ignore per-item errors silently */ }
-  };
-
-  const handleAddAll = async () => {
-    if (!user || !token) return;
-    await Promise.all(
-      items.map(async (item, idx) => {
-        if (item.selectedVariantId && !item.added) {
-          await handleAddItem(idx);
-        }
-      }),
-    );
-  };
-
-  return (
-    <div className="space-y-4">
-      <DropZone onFiles={handleFiles} multiple disabled={scanning} />
-
-      {items.length > 0 && !done && (
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">{items.length} image{items.length !== 1 ? 's' : ''} selected</p>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {items.map((item, i) => (
-              <img
-                key={i}
-                src={item.preview}
-                alt={`Sticker ${i + 1}`}
-                className="rounded-lg object-cover w-full aspect-square border border-gray-200"
-              />
-            ))}
-          </div>
-          <button
-            onClick={handleScan}
-            disabled={scanning}
-            className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
-          >
-            {scanning ? 'Scanning…' : `Scan ${items.length} sticker${items.length !== 1 ? 's' : ''}`}
-          </button>
-        </div>
-      )}
-
-      {done && (
-        <div className="space-y-3">
-          {items.map((item, idx) => {
-            const entry = item.entry;
-            return (
-              <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex gap-3">
-                  <img
-                    src={item.preview}
-                    alt={`Sticker ${idx + 1}`}
-                    className="w-16 h-16 rounded-lg object-cover border border-gray-100 shrink-0"
-                  />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    {entry?.error && (
-                      <p className="text-sm text-red-600">{entry.error}</p>
-                    )}
-                    {entry?.result && (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-semibold text-sm text-gray-900">
-                            {entry.result.albumCode ?? '—'}
-                          </span>
-                          {entry.result.stickerNumber !== null && (
-                            <span className="text-xs text-gray-500">#{entry.result.stickerNumber}</span>
-                          )}
-                          <ConfidenceBadge confidence={entry.result.confidence} />
-                        </div>
-                        {entry.result.playerName && (
-                          <p className="text-sm text-gray-700">{entry.result.playerName}</p>
-                        )}
-                        {item.variants && item.variants.length > 0 && (
-                          <select
-                            className="text-xs rounded border border-gray-300 bg-white px-2 py-1"
-                            value={item.selectedVariantId ?? ''}
-                            onChange={(e) => handleVariantChange(idx, e.target.value)}
-                          >
-                            {item.variants.map((v) => (
-                              <option key={v.id} value={v.id}>
-                                {variantLabel(v.variantType)}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {item.sticker && item.selectedVariantId && (
-                    <button
-                      onClick={() => handleAddItem(idx)}
-                      disabled={item.added}
-                      className={`self-center shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                        item.added
-                          ? 'bg-green-600 text-white cursor-default'
-                          : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                    >
-                      {item.added ? '✓' : 'Add'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {items.some((i) => i.sticker && i.selectedVariantId && !i.added) && (
-            <div className="space-y-2">
-              {albums.length > 1 && (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600 block">Add to album</label>
-                  <select
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={selectedAlbumId ?? ''}
-                    onChange={(e) => setSelectedAlbumId(e.target.value)}
-                  >
-                    {albums.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {albumDisplayName(a)}{a.isDefault ? ' (default)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <button
-                onClick={handleAddAll}
-                className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
-              >
-                Add all identified stickers to collection
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={() => { setItems([]); setDone(false); }}
-            className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
-          >
-            Start over
-          </button>
-        </div>
       )}
     </div>
   );
@@ -887,7 +877,6 @@ function BatchScanMode() {
 
 export default function ScanPage() {
   const user = useAuthStore((s) => s.user);
-  const [mode, setMode] = useState<'single' | 'batch'>('single');
 
   if (!user) {
     return (
@@ -901,33 +890,9 @@ export default function ScanPage() {
     <main className="max-w-lg mx-auto px-4 py-10">
       <h1 className="text-2xl font-bold text-gray-900 mb-1">Scan Stickers</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Upload a photo of a sticker and AI will identify it for you.
+        Upload one or more sticker photos and AI will identify them for you.
       </p>
-
-      <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-6 text-sm font-medium">
-        <button
-          onClick={() => setMode('single')}
-          className={`flex-1 py-2 transition-colors ${
-            mode === 'single'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Single sticker
-        </button>
-        <button
-          onClick={() => setMode('batch')}
-          className={`flex-1 py-2 transition-colors ${
-            mode === 'batch'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Batch scan
-        </button>
-      </div>
-
-      {mode === 'single' ? <SingleScanMode /> : <BatchScanMode />}
+      <ScanMode />
     </main>
   );
 }

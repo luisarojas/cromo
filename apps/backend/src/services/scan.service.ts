@@ -10,23 +10,27 @@ export interface ScanResult {
   reasoning: string;
 }
 
-const MOCK_RESULT: ScanResult = {
-  stickerNumber: 247,
-  albumCode: 'BRA5',
-  playerName: 'Vinicius Jr.',
-  teamFifaCode: 'BRA',
-  borderColor: null,
-  confidence: 0.94,
-  reasoning: 'Mock response — AI scanning disabled in local mode',
-};
+const MOCK_RESULTS: ScanResult[] = [
+  {
+    stickerNumber: 247,
+    albumCode: 'BRA5',
+    playerName: 'Vinicius Jr.',
+    teamFifaCode: 'BRA',
+    borderColor: null,
+    confidence: 0.94,
+    reasoning: 'Mock response — AI scanning disabled in local mode',
+  },
+];
 
-const IDENTIFY_PROMPT = `You are identifying a Panini FIFA World Cup 2026 sticker.
+const IDENTIFY_PROMPT = `You are identifying Panini FIFA World Cup 2026 stickers from a photo.
 
-First decide which side of the sticker is shown:
+The photo may contain ONE sticker or MULTIPLE stickers. Identify ALL stickers that are clearly visible.
+
+For each sticker, first decide which side is shown:
 - FRONT: player photo with the player's name printed on it; may have a coloured border
 - BACK: plain printed text containing the album code and sticker number
 
-Extract ONLY what is physically visible on the side shown. Set everything else to null.
+Extract ONLY what is physically visible on each sticker's visible side. Set absent fields to null.
 
 FRONT side — extract:
 - playerName: the player's full name as printed
@@ -42,18 +46,21 @@ BACK side — extract:
 - teamFifaCode: null (not on the back)
 - borderColor: null (not on the back)
 
-Always include:
+Each sticker object must include:
 - confidence: your confidence as a float between 0.0 and 1.0
 - reasoning: one sentence explaining your identification
 
-Respond ONLY with a valid JSON object using these exact keys. No markdown, no explanation outside the JSON.`;
+Respond ONLY with a valid JSON array of sticker objects using these exact keys:
+stickerNumber, albumCode, playerName, teamFifaCode, borderColor, confidence, reasoning
+
+Return an array even if only one sticker is visible. No markdown, no explanation outside the JSON.`;
 
 export async function identifySticker(
   imageBuffer: Buffer,
   mimeType: string,
-): Promise<ScanResult> {
+): Promise<ScanResult[]> {
   if (env.GROQ_API_KEY === 'mock') {
-    return MOCK_RESULT;
+    return MOCK_RESULTS;
   }
 
   const base64Image = imageBuffer.toString('base64');
@@ -66,7 +73,7 @@ export async function identifySticker(
     },
     body: JSON.stringify({
       model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      max_tokens: 512,
+      max_tokens: 1024,
       temperature: 0,
       messages: [
         {
@@ -104,20 +111,25 @@ export async function identifySticker(
   // Strip markdown code fences if the model wraps the JSON
   const json = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
-  let parsed: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(json) as Record<string, unknown>;
+    parsed = JSON.parse(json);
   } catch {
     throw new Error('Groq API returned non-JSON response');
   }
 
-  return {
-    stickerNumber: typeof parsed['stickerNumber'] === 'number' ? parsed['stickerNumber'] : null,
-    albumCode: typeof parsed['albumCode'] === 'string' ? parsed['albumCode'] : null,
-    playerName: typeof parsed['playerName'] === 'string' ? parsed['playerName'] : null,
-    teamFifaCode: typeof parsed['teamFifaCode'] === 'string' ? parsed['teamFifaCode'] : null,
-    borderColor: typeof parsed['borderColor'] === 'string' ? parsed['borderColor'] : null,
-    confidence: typeof parsed['confidence'] === 'number' ? parsed['confidence'] : 0,
-    reasoning: typeof parsed['reasoning'] === 'string' ? parsed['reasoning'] : '',
-  };
+  const items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+
+  return items.map((item) => {
+    const p = item as Record<string, unknown>;
+    return {
+      stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
+      albumCode: typeof p['albumCode'] === 'string' ? p['albumCode'] : null,
+      playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
+      teamFifaCode: typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null,
+      borderColor: typeof p['borderColor'] === 'string' ? p['borderColor'] : null,
+      confidence: typeof p['confidence'] === 'number' ? p['confidence'] : 0,
+      reasoning: typeof p['reasoning'] === 'string' ? p['reasoning'] : '',
+    };
+  });
 }
