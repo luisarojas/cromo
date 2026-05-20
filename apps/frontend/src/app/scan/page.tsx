@@ -301,7 +301,6 @@ function ScanResultForm({
   selectedAlbumId,
   onAlbumCodeSelect,
   onPlayerSelect,
-  onTeamSelect,
   onBorderSelect,
   onAlbumChange,
   onAdd,
@@ -312,14 +311,11 @@ function ScanResultForm({
   selectedAlbumId?: string;
   onAlbumCodeSelect: (albumCode: string) => void;
   onPlayerSelect: (albumCode: string) => void;
-  onTeamSelect: (fifaCode: string) => void;
   onBorderSelect: (variantType: string) => void;
   onAlbumChange: (albumId: string) => void;
   onAdd: () => void;
 }) {
-  const filteredCatalog = form.teamFifaCode
-    ? catalog.filter((s) => s.fifaCode === form.teamFifaCode)
-    : catalog;
+  const filteredCatalog = catalog;
 
   const albumCodeOptions: ComboOption[] = filteredCatalog.map((s) => ({
     value: s.albumCode,
@@ -328,17 +324,13 @@ function ScanResultForm({
 
   const playerOptions: ComboOption[] = filteredCatalog
     .filter((s) => s.playerName)
-    .map((s) => ({ value: s.albumCode, label: s.playerName! }));
-
-  const teamOptions: ComboOption[] = Array.from(
-    new Map(
-      catalog
-        .filter((s) => s.fifaCode && s.teamName)
-        .map((s) => [s.fifaCode!, s] as [string, Sticker])
-    ).values()
-  )
-    .map((s) => ({ value: s.fifaCode!, label: `${s.teamName} (${s.fifaCode})` }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .map((s) => {
+      const suffix =
+        s.stickerType === 'coca_cola_special' ? ' · Coca-Cola'
+        : s.stickerType === 'extra' ? ' · Extra'
+        : '';
+      return { value: s.albumCode, label: `${s.playerName!}${suffix}` };
+    });
 
   const borderOptions: ComboOption[] = form.variants.map((v) => ({
     value: v.variantType,
@@ -388,13 +380,9 @@ function ScanResultForm({
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-gray-600 block">Team</label>
-          <ComboBox
-            value={teamDisplayValue}
-            options={teamOptions}
-            onSelect={(opt) => onTeamSelect(opt.value)}
-            placeholder="Search team…"
-            disabled={form.added}
-          />
+          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            {teamDisplayValue || '—'}
+          </div>
         </div>
 
         <div className="space-y-1">
@@ -580,30 +568,6 @@ function SingleScanMode() {
     [catalog, token],
   );
 
-  const handleTeamSelect = useCallback(
-    (fifaCode: string) => {
-      const teamName = catalog.find((s) => s.fifaCode === fifaCode)?.teamName ?? fifaCode;
-      setForm((f) => {
-        if (!f) return f;
-        const playerBelongsToTeam = catalog.find((c) => c.albumCode === f.albumCode)?.fifaCode === fifaCode;
-        return {
-          ...f,
-          teamFifaCode: fifaCode,
-          teamName,
-          ...(playerBelongsToTeam ? {} : {
-            albumCode: '',
-            playerName: '',
-            stickerNumber: null,
-            sticker: undefined,
-            variants: [],
-            selectedVariantId: '',
-          }),
-        };
-      });
-    },
-    [catalog],
-  );
-
   const handleBorderSelect = useCallback(
     (variantType: string) => {
       setForm((f) => {
@@ -668,7 +632,6 @@ function SingleScanMode() {
               selectedAlbumId={selectedAlbumId}
               onAlbumCodeSelect={handleAlbumCodeSelect}
               onPlayerSelect={handleAlbumCodeSelect}
-              onTeamSelect={handleTeamSelect}
               onBorderSelect={handleBorderSelect}
               onAlbumChange={setSelectedAlbumId}
               onAdd={handleAdd}
