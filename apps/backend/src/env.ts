@@ -41,6 +41,9 @@ const envSchema = z.object({
   // Rate limiting
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+
+  // AI scanning — set to 'mock' to skip real API calls (default for local dev)
+  CLAUDE_API_KEY: z.string().default('mock'),
 });
 
 export type Env = z.infer<typeof envSchema>;

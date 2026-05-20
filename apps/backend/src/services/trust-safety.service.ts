@@ -141,8 +141,8 @@ export async function checkAutoFlag(
   const SYSTEM_USER = '00000000-0000-0000-0000-000000000099';
 
   const { rows: banRows } = await db.query<{ id: string }>(
-    `INSERT INTO user_bans (user_id, ban_type, reason, banned_by)
-     VALUES ($1, 'soft', 'Auto-flagged: 3 or more reports in 30 days', $2)
+    `INSERT INTO user_bans (user_id, ban_type, reason, banned_by, expires_at)
+     VALUES ($1, 'soft', 'Auto-flagged: 3 or more reports in 30 days', $2, NOW() + INTERVAL '48 hours')
      RETURNING id`,
     [userId, SYSTEM_USER],
   );

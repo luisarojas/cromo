@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
+import { checkSoftBan } from '../../middleware/ban-check.js';
 import { env } from '../../env.js';
 import { getTradeMatches } from '../../services/trade-matching.service.js';
 import {
@@ -160,7 +161,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     `${prefix}/requests`,
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       schema: {
         tags: ['Trade'],
         summary: 'Create a new trade request',
@@ -260,7 +261,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     `${prefix}/requests/:id/accept`,
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       schema: {
         tags: ['Trade'],
         summary: 'Accept a pending trade request',
@@ -516,7 +517,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     `${prefix}/requests/:id/messages`,
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       schema: {
         tags: ['Trade'],
         summary: 'Send a message on a trade',

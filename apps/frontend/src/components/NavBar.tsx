@@ -56,6 +56,12 @@ export default function NavBar() {
               >
                 Trade
               </Link>
+              <Link
+                href="/scan"
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                Scan
+              </Link>
               {user.role === 'admin' && (
                 <Link
                   href="/admin"

@@ -106,6 +106,12 @@ export async function getTradeMatches(
          AND ua.album_type_id = (SELECT album_type_id FROM requester_album)
          AND us2.trade_matching_enabled = true
          AND u.deleted_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM user_bans ub
+           WHERE ub.user_id = ua.user_id
+             AND ub.lifted_at IS NULL
+             AND (ub.expires_at IS NULL OR ub.expires_at > NOW())
+         )
        ORDER BY ua.user_id, ua.is_default DESC, ua.updated_at DESC
      ),
      they_have_my_missing AS (

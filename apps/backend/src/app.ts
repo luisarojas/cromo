@@ -25,6 +25,7 @@ import { tradeRoutes } from './routes/v1/trade.js';
 import { sharingRoutes } from './routes/v1/sharing.js';
 import { profileRoutes } from './routes/v1/profiles.js';
 import { trustSafetyRoutes } from './routes/v1/trust-safety.js';
+import { scanRoutes } from './routes/v1/scan.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -116,6 +117,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(sharingRoutes);
   await fastify.register(profileRoutes);
   await fastify.register(trustSafetyRoutes);
+  await fastify.register(scanRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   // Standard HTTP labels per status code, so every route returns a consistent

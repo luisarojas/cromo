@@ -1426,3 +1426,56 @@ export async function fetchAdminTrustSummary(
 ): Promise<AdminTrustSummary> {
   return apiFetch(`/api/v1/admin/users/${userId}/trust-summary`, {}, token);
 }
+
+// ---------------------------------------------------------------------------
+// AI Scanning
+// ---------------------------------------------------------------------------
+
+export interface ScanResult {
+  stickerNumber: number | null;
+  albumCode: string | null;
+  playerName: string | null;
+  teamFifaCode: string | null;
+  borderColor: string | null;
+  confidence: number;
+  reasoning: string;
+}
+
+export interface BatchScanEntry {
+  index: number;
+  result?: ScanResult;
+  error?: string;
+}
+
+export async function scanIdentify(file: File, token: string): Promise<ScanResult> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${BASE_URL}/api/v1/scan/identify`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<ScanResult>;
+}
+
+export async function scanBatch(files: File[], token: string): Promise<BatchScanEntry[]> {
+  const form = new FormData();
+  for (const file of files) {
+    form.append('files', file);
+  }
+  const res = await fetch(`${BASE_URL}/api/v1/scan/batch`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  const data = await res.json() as { results: BatchScanEntry[] };
+  return data.results;
+}
