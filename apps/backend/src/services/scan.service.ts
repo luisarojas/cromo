@@ -23,7 +23,8 @@ const MOCK_RESULTS: ScanResult[] = [
   },
 ];
 
-const IDENTIFY_PROMPT = `You are identifying Panini FIFA World Cup 2026 stickers from a photo.
+function buildIdentifyPrompt(collectionName: string): string {
+  return `You are identifying ${collectionName} stickers from a photo.
 
 The photo may contain ONE sticker or MULTIPLE stickers. Identify ALL stickers that are clearly visible.
 
@@ -55,10 +56,12 @@ Respond ONLY with a valid JSON array of sticker objects using these exact keys:
 stickerNumber, albumCode, playerName, teamFifaCode, borderColor, confidence, reasoning
 
 Return an array even if only one sticker is visible. No markdown, no explanation outside the JSON.`;
+}
 
 export async function identifySticker(
   imageBuffer: Buffer,
   mimeType: string,
+  collectionName = 'sticker collection',
 ): Promise<ScanResult[]> {
   if (env.GROQ_API_KEY === 'mock') {
     return MOCK_RESULTS;
@@ -87,7 +90,7 @@ export async function identifySticker(
             },
             {
               type: 'text',
-              text: IDENTIFY_PROMPT,
+              text: buildIdentifyPrompt(collectionName),
             },
           ],
         },

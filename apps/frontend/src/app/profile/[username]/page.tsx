@@ -539,10 +539,10 @@ export default function PublicProfilePage() {
             </div>
           )}
 
-          {activeAlbum.albumTypeKey === 'fifa_world_cup_2026' && (
+          {activeAlbum.albumTypeGuidePath && (
             <div className="px-4 py-2 border-b border-gray-100 bg-blue-50/40">
-              <Link href="/guide/wc-2026" className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
-                View WC 2026 Collection Guide →
+              <Link href={activeAlbum.albumTypeGuidePath} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                View Collection Guide →
               </Link>
             </div>
           )}

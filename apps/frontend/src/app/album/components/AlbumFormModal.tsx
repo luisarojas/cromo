@@ -164,10 +164,6 @@ export default function AlbumFormModal({
           </button>
         </div>
 
-        <p className="text-sm text-gray-500">
-          FIFA World Cup 2026™ Official Sticker Collection
-        </p>
-
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-gray-600" htmlFor="album-alias">

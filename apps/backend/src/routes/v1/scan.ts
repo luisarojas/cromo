@@ -55,6 +55,17 @@ async function deleteScanTemp(filePath: string): Promise<void> {
   await fs.unlink(filePath).catch(() => undefined);
 }
 
+async function getDefaultCollectionName(db: Pool, userId: string): Promise<string> {
+  const { rows } = await db.query<{ name: string }>(
+    `SELECT at.name FROM user_albums ua
+     JOIN album_types at ON at.id = ua.album_type_id
+     WHERE ua.user_id = $1 AND ua.is_default = true
+     LIMIT 1`,
+    [userId],
+  );
+  return rows[0]?.name ?? 'sticker collection';
+}
+
 async function enrichFromCatalog(db: Pool, result: ScanResult): Promise<ScanResult> {
   try {
     if (result.albumCode) {
@@ -146,9 +157,11 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         : '.jpg';
       const tempPath = await saveScanTemp(uploaded.buffer, ext);
 
+      const collectionName = await getDefaultCollectionName(fastify.db, request.userId!);
+
       let results;
       try {
-        results = await identifySticker(uploaded.buffer, uploaded.mimeType);
+        results = await identifySticker(uploaded.buffer, uploaded.mimeType, collectionName);
       } catch (err) {
         request.log.error({ err }, 'identifySticker failed');
         await deleteScanTemp(tempPath);
@@ -189,6 +202,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       if (!await guardFeature(fastify, 'FEATURE_AI_SCANNING', reply)) return;
       if (!await guardFeature(fastify, 'FEATURE_BATCH_SCANNING', reply)) return;
 
+      const collectionName = await getDefaultCollectionName(fastify.db, request.userId!);
       const parts = request.files();
       const results: Array<{ index: number; results?: ScanResult[]; error?: string }> = [];
       let index = 0;
@@ -214,7 +228,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
               : '.jpg';
             const tempPath = await saveScanTemp(buffer, ext);
             tempPaths.push(tempPath);
-            const scanResults = await identifySticker(buffer, mimeType);
+            const scanResults = await identifySticker(buffer, mimeType, collectionName);
             const enriched = await Promise.all(scanResults.map((r) => enrichFromCatalog(fastify.db, r)));
             results.push({ index, results: enriched });
           } catch (err) {

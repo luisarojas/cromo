@@ -16,6 +16,7 @@ export interface UserAlbum {
   album_type_id: string;
   album_type_key: string;
   album_type_name: string;
+  album_type_guide_path: string | null;
   album_edition_id: string;
   edition: string;        // edition key, e.g. 'north_america'
   edition_name: string;
@@ -49,6 +50,7 @@ export interface UserAlbumWithStats extends UserAlbum {
 const ALBUM_SELECT = `
   SELECT ua.id, ua.user_id, ua.album_type_id,
          at.key AS album_type_key, at.name AS album_type_name,
+         at.guide_path AS album_type_guide_path,
          ua.album_edition_id, ae.key AS edition, ae.name AS edition_name,
          ua.album_format_id,  af.key AS format,  af.name AS format_name,
          ua.alias, ua.notes, ua.is_default, ua.settings,

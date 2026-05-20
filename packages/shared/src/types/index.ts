@@ -114,6 +114,7 @@ export interface UserAlbumDto {
   albumTypeId: string
   albumTypeKey: string
   albumTypeName: string
+  albumTypeGuidePath: string | null
   albumEditionId: string
   edition: string
   editionName: string
@@ -360,6 +361,7 @@ export interface PublicProfileAlbum {
   albumId: string
   albumTypeKey: string
   albumTypeName: string
+  albumTypeGuidePath: string | null
   editionName: string
   formatName: string
   alias: string | null

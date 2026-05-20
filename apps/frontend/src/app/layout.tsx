@@ -8,7 +8,7 @@ import BanStatusBanner from '@/components/BanStatusBanner';
 
 export const metadata: Metadata = {
   title: 'Stickfolio',
-  description: '2026 FIFA World Cup Panini Sticker Tracker',
+  description: 'Sticker Collection Tracker',
 };
 
 export default function RootLayout({

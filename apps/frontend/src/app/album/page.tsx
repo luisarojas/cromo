@@ -304,12 +304,12 @@ export default function AlbumsPage() {
                     )}
                   </Link>
 
-                  {album.albumTypeKey === 'fifa_world_cup_2026' && (
+                  {album.albumTypeGuidePath && (
                     <Link
-                      href="/guide/wc-2026"
+                      href={album.albumTypeGuidePath}
                       className="block px-5 py-2 text-[11px] text-blue-600 hover:text-blue-800 border-t border-gray-100 bg-blue-50/40 hover:bg-blue-50 transition-colors"
                     >
-                      View WC 2026 Collection Guide →
+                      View Collection Guide →
                     </Link>
                   )}
 

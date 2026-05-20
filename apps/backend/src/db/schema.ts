@@ -45,6 +45,7 @@ export const albumTypes = pgTable('album_types', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   key: text('key').unique().notNull(),
   name: text('name').notNull(),
+  guidePath: text('guide_path'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 });
 

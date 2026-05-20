@@ -753,8 +753,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                       </span>
                     )}
                     {activeAlbum.editionName} Edition · {activeAlbum.formatName}
-                    {activeAlbum.albumTypeKey === 'fifa_world_cup_2026' && (
-                      <Link href="/guide/wc-2026" className="ml-2 text-blue-600 hover:text-blue-800 hover:underline">
+                    {activeAlbum.albumTypeGuidePath && (
+                      <Link href={activeAlbum.albumTypeGuidePath} className="ml-2 text-blue-600 hover:text-blue-800 hover:underline">
                         View Guide →
                       </Link>
                     )}

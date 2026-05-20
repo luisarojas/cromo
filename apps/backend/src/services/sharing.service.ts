@@ -57,6 +57,7 @@ export interface PublicProfileAlbum {
   album_id: string;
   album_type_key: string;
   album_type_name: string;
+  album_type_guide_path: string | null;
   edition_name: string;
   format_name: string;
   alias: string | null;
@@ -459,6 +460,7 @@ export async function getPublicProfile(
     album_id: string;
     album_type_key: string;
     album_type_name: string;
+    album_type_guide_path: string | null;
     edition_name: string;
     format_name: string;
     alias: string | null;
@@ -474,6 +476,7 @@ export async function getPublicProfile(
               ua.created_at,
               at.key             AS album_type_key,
               at.name            AS album_type_name,
+              at.guide_path      AS album_type_guide_path,
               ae.name            AS edition_name,
               af.name            AS format_name,
               (ua.settings->>'includeExtras')::boolean   AS inc_extras,
@@ -517,6 +520,7 @@ export async function getPublicProfile(
      SELECT pa.album_id,
             pa.album_type_key,
             pa.album_type_name,
+            pa.album_type_guide_path,
             pa.edition_name,
             pa.format_name,
             pa.alias,
@@ -534,6 +538,7 @@ export async function getPublicProfile(
     album_id: a.album_id,
     album_type_key: a.album_type_key,
     album_type_name: a.album_type_name,
+    album_type_guide_path: a.album_type_guide_path,
     edition_name: a.edition_name,
     format_name: a.format_name,
     alias: a.alias,

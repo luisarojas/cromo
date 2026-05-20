@@ -23,14 +23,11 @@ export default function Home() {
 
       {/* Hero */}
       <section className="flex flex-col items-center justify-center text-center px-4 pt-24 pb-16">
-        <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-100 px-3.5 py-1 text-xs font-medium text-blue-600 mb-6">
-          FIFA World Cup 2026
-        </div>
         <h1 className="text-5xl font-extrabold tracking-tight text-gray-900 sm:text-6xl mb-4">
           Stickfolio
         </h1>
         <p className="text-lg text-gray-500 max-w-md mb-8 leading-relaxed">
-          Track your Panini sticker collection, find trades, and complete your album — all in one place.
+          Track your sticker collection, find trades, and complete your album — all in one place.
         </p>
         <div className="flex gap-3">
           <Link

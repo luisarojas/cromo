@@ -9,7 +9,7 @@ export async function swaggerPlugin(fastify: FastifyInstance): Promise<void> {
       openapi: '3.0.3',
       info: {
         title: 'Stickfolio API',
-        description: 'Backend API for Stickfolio — the FIFA World Cup sticker trading platform.',
+        description: 'Backend API for Stickfolio — the sticker collection tracking and trading platform.',
         version: env.APP_VERSION,
       },
       servers: [
