@@ -25,9 +25,27 @@ export type AuditMetadataMap = {
   username_changed:  { to: string };
   password_changed:  null;
   account_deleted:   null;
-  trade_completed:   {
+  trade_completed:      {
     tradeId: string;
     items: { stickerVariantId: string; direction: string; quantity: number }[];
+  };
+  trade_rating_submitted: {
+    tradeId: string;
+    ratedUserId: string;
+    isPositive: boolean;
+  };
+  user_report_submitted: {
+    reportId: string;
+    reportedUserId: string;
+    category: string;
+  };
+  report_status_changed: {
+    reportId: string;
+    status: string;
+  };
+  ban_lifted: {
+    targetUserId: string;
+    banId: string;
   };
 };
 

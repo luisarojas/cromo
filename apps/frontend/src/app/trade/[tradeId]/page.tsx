@@ -14,11 +14,14 @@ import {
   sendTradeMessage,
   fetchCollection,
   fetchTradeStreamTicket,
+  fetchTradeRatings,
+  submitRating,
   type TradeDetail,
   type TradeMessage,
   type TradeItemDetail,
   type CollectionItem,
 } from '@/lib/api';
+import ReportUserModal from '@/components/ReportUserModal';
 import TradeStickerPicker, { type TradePickerItem } from '../components/TradeStickerPicker';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -92,6 +95,14 @@ export default function TradeDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  const [hasRated, setHasRated] = useState(false);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [ratingComment, setRatingComment] = useState('');
+  const [ratingError, setRatingError] = useState<string | null>(null);
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+
+  const [showReportModal, setShowReportModal] = useState(false);
+
   // Message compose
   const [msgBody, setMsgBody] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
@@ -130,12 +141,22 @@ export default function TradeDetailPage() {
     let cancelled = false;
 
     async function load() {
-      if (!token) return;
+      if (!token || !user) return;
       try {
         const data = await fetchTrade(tradeId, token);
         if (!cancelled) {
           setTrade(data);
           setMessages(data.messages);
+        }
+        if (!cancelled && data.status === 'completed') {
+          try {
+            const { items } = await fetchTradeRatings(tradeId, token);
+            if (!cancelled) {
+              setHasRated(items.some((r) => r.raterId === user.id));
+            }
+          } catch {
+            // feature disabled or unavailable — silently skip rating prompt
+          }
         }
       } catch (err) {
         if (!cancelled)
@@ -348,6 +369,21 @@ export default function TradeDetailPage() {
     }
   }
 
+  async function handleSubmitRating(isPositive: boolean) {
+    if (!token) return;
+    setRatingSubmitting(true);
+    setRatingError(null);
+    try {
+      await submitRating(tradeId, { isPositive, comment: ratingComment || undefined }, token);
+      setRatingSubmitted(true);
+      setHasRated(true);
+    } catch (err) {
+      setRatingError(err instanceof Error ? err.message : 'Failed to submit rating');
+    } finally {
+      setRatingSubmitting(false);
+    }
+  }
+
   async function handleSendMessage() {
     if (!token || !msgBody.trim()) return;
     setSendingMsg(true);
@@ -422,6 +458,20 @@ export default function TradeDetailPage() {
   const isRequester = trade.requesterId === user?.id;
   const isRecipient = trade.recipientId === user?.id;
 
+  const partnerUserId = isRequester ? trade.recipientId : trade.requesterId;
+  const partnerUsername = isRequester ? trade.recipientUsername : trade.requesterUsername;
+
+  const canRate =
+    trade.status === 'completed' &&
+    !hasRated &&
+    !ratingSubmitted &&
+    (isRequester || isRecipient) &&
+    (() => {
+      if (!trade.completedAt) return true;
+      const cutoff = new Date(trade.completedAt).getTime() + 14 * 24 * 60 * 60 * 1000;
+      return Date.now() < cutoff;
+    })();
+
   const offeredItems = trade.items.filter((i) => i.direction === 'offer');
   const wantedItems = trade.items.filter((i) => i.direction === 'want');
 
@@ -470,11 +520,64 @@ export default function TradeDetailPage() {
             <div className="text-xs font-medium text-gray-500 mb-0.5">Recipient</div>
             <div className="font-medium text-gray-800">@{trade.recipientUsername}</div>
           </div>
-          <div className="ml-auto text-xs text-gray-400 self-center">
-            Created {new Date(trade.createdAt).toLocaleDateString()}
+          <div className="ml-auto flex items-center gap-3">
+            {(isRequester || isRecipient) && token && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+              >
+                Report user
+              </button>
+            )}
+            <span className="text-xs text-gray-400">
+              Created {new Date(trade.createdAt).toLocaleDateString()}
+            </span>
           </div>
         </div>
       </div>
+
+      {/* Post-trade rating prompt */}
+      {canRate && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 shadow-sm p-5 mb-5">
+          <h2 className="text-sm font-semibold text-blue-800 mb-3">
+            How was your trade with @{partnerUsername}?
+          </h2>
+          {ratingError && (
+            <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-3">
+              {ratingError}
+            </div>
+          )}
+          <textarea
+            value={ratingComment}
+            onChange={(e) => setRatingComment(e.target.value.slice(0, 500))}
+            rows={2}
+            placeholder="Optional comment (500 chars max)…"
+            className="w-full rounded-md border border-blue-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none mb-3 bg-white"
+          />
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleSubmitRating(true)}
+              disabled={ratingSubmitting}
+              className="flex-1 rounded-md bg-green-600 text-white py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              Positive
+            </button>
+            <button
+              onClick={() => handleSubmitRating(false)}
+              disabled={ratingSubmitting}
+              className="flex-1 rounded-md bg-red-600 text-white py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              Negative
+            </button>
+          </div>
+        </div>
+      )}
+
+      {ratingSubmitted && (
+        <div className="rounded-xl border border-green-100 bg-green-50 p-4 mb-5 text-sm text-green-700 font-medium text-center">
+          Rating submitted. Thank you!
+        </div>
+      )}
 
       {/* Trade items */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
@@ -735,6 +838,16 @@ export default function TradeDetailPage() {
           </p>
         )}
       </div>
+
+      {showReportModal && token && (
+        <ReportUserModal
+          userId={partnerUserId}
+          username={partnerUsername}
+          tradeId={tradeId}
+          token={token}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 }

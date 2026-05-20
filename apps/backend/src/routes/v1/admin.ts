@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, requireRole } from '../../middleware/auth.js';
 import { recordAudit } from '../../utils/audit.js';
+import { getTrustScore } from '../../services/trust-safety.service.js';
 
 const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
 
@@ -219,6 +220,207 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       return reply.status(204).send();
+    },
+  );
+
+  // ─── Granular ban management ─────────────────────────────────────────────────
+
+  /**
+   * POST /api/v1/admin/users/:id/bans
+   * Admin only — create a ban record (soft or hard, with optional expiry + report link).
+   */
+  fastify.post(
+    '/api/v1/admin/users/:id/bans',
+    adminOnly,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const { banType, reason, reportId, expiresAt } = request.body as {
+        banType: string;
+        reason: string;
+        reportId?: string;
+        expiresAt?: string;
+      };
+
+      if (id === request.userId) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot ban yourself.' });
+      }
+
+      if (!['soft', 'hard'].includes(banType)) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'banType must be "soft" or "hard".' });
+      }
+
+      if (!reason || reason.length < 5 || reason.length > 1000) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Reason must be between 5 and 1000 characters.' });
+      }
+
+      const { rows: userRows } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+        [id],
+      );
+      if (userRows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+      }
+
+      const { rows } = await fastify.db.query<{ id: string }>(
+        `INSERT INTO user_bans (user_id, ban_type, reason, report_id, banned_by, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id`,
+        [id, banType, reason, reportId ?? null, request.userId, expiresAt ?? null],
+      );
+
+      await fastify.redis.del(`user:${id}:ban_status`).catch(() => undefined);
+
+      await recordAudit(fastify.db, request.userId!, 'user_banned', {
+        targetUserId: id,
+        banId: rows[0]!.id,
+        banType,
+      });
+
+      return reply.status(201).send({ id: rows[0]!.id, userId: id });
+    },
+  );
+
+  /**
+   * GET /api/v1/admin/users/:id/bans
+   * Admin only — full ban history for a user.
+   */
+  fastify.get(
+    '/api/v1/admin/users/:id/bans',
+    adminOnly,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+
+      const { rows } = await fastify.db.query<{
+        id: string;
+        ban_type: string;
+        reason: string;
+        report_id: string | null;
+        banned_by: string;
+        banned_by_username: string;
+        expires_at: string | null;
+        lifted_at: string | null;
+        lifted_by: string | null;
+        lift_reason: string | null;
+        created_at: string;
+      }>(
+        `SELECT
+           b.id, b.ban_type, b.reason, b.report_id,
+           b.banned_by, u.username AS banned_by_username,
+           b.expires_at, b.lifted_at, b.lifted_by, b.lift_reason, b.created_at
+         FROM user_bans b
+         JOIN users u ON u.id = b.banned_by
+         WHERE b.user_id = $1
+         ORDER BY b.created_at DESC`,
+        [id],
+      );
+
+      return reply.status(200).send({ items: rows });
+    },
+  );
+
+  /**
+   * POST /api/v1/admin/users/:id/bans/:banId/lift
+   * Admin only — lift a specific ban.
+   */
+  fastify.post(
+    '/api/v1/admin/users/:id/bans/:banId/lift',
+    adminOnly,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id, banId } = request.params as { id: string; banId: string };
+      const { liftReason } = request.body as { liftReason: string };
+
+      if (!liftReason || liftReason.length > 500) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'liftReason must be 500 characters or fewer.' });
+      }
+
+      const { rowCount } = await fastify.db.query(
+        `UPDATE user_bans
+         SET lifted_at = NOW(), lifted_by = $1, lift_reason = $2
+         WHERE id = $3 AND user_id = $4 AND lifted_at IS NULL`,
+        [request.userId, liftReason, banId, id],
+      );
+
+      if (!rowCount || rowCount === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Active ban not found.' });
+      }
+
+      await fastify.redis.del(`user:${id}:ban_status`).catch(() => undefined);
+
+      await recordAudit(fastify.db, request.userId!, 'ban_lifted', {
+        targetUserId: id,
+        banId,
+      });
+
+      return reply.status(200).send({ id: banId, liftedAt: new Date().toISOString() });
+    },
+  );
+
+  /**
+   * GET /api/v1/admin/users/:id/trust-summary
+   * Admin only — trust score + ban history + open reports count + recent ratings.
+   */
+  fastify.get(
+    '/api/v1/admin/users/:id/trust-summary',
+    adminOnly,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+
+      const { rows: userRows } = await fastify.db.query<{ id: string; username: string }>(
+        `SELECT id, username FROM users WHERE id = $1 AND deleted_at IS NULL`,
+        [id],
+      );
+      if (userRows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+      }
+
+      const trustScore = await getTrustScore(fastify.db, fastify.redis, id);
+
+      const { rows: banRows } = await fastify.db.query<{
+        id: string;
+        ban_type: string;
+        reason: string;
+        expires_at: string | null;
+        lifted_at: string | null;
+        created_at: string;
+      }>(
+        `SELECT id, ban_type, reason, expires_at, lifted_at, created_at
+         FROM user_bans
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 10`,
+        [id],
+      );
+
+      const { rows: openReportRows } = await fastify.db.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM user_reports
+         WHERE reported_user_id = $1 AND status IN ('open', 'under_review')`,
+        [id],
+      );
+
+      const { rows: recentRatings } = await fastify.db.query<{
+        id: string;
+        is_positive: boolean;
+        comment: string | null;
+        rater_username: string;
+        created_at: string;
+      }>(
+        `SELECT r.id, r.is_positive, r.comment, u.username AS rater_username, r.created_at
+         FROM trade_ratings r
+         JOIN users u ON u.id = r.rater_id
+         WHERE r.rated_user_id = $1
+         ORDER BY r.created_at DESC
+         LIMIT 10`,
+        [id],
+      );
+
+      return reply.status(200).send({
+        userId: id,
+        username: userRows[0]!.username,
+        trustScore,
+        banHistory: banRows,
+        openReportsCount: parseInt(openReportRows[0]!.count, 10),
+        recentRatings,
+      });
     },
   );
 

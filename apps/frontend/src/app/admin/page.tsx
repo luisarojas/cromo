@@ -10,8 +10,15 @@ import {
   banAdminUser,
   unbanAdminUser,
   deleteAdminUser,
+  fetchAdminReports,
+  patchAdminReport,
+  createAdminBan,
+  liftAdminBan,
+  fetchAdminUserBans,
   type Sticker,
   type AdminUser,
+  type AdminReport,
+  type AdminBan,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 
@@ -630,10 +637,514 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
 }
 
 // ---------------------------------------------------------------------------
+// Trust & Safety section
+// ---------------------------------------------------------------------------
+
+const REPORT_CATEGORY_LABELS: Record<string, string> = {
+  harassment: 'Harassment',
+  cancelled_after_accept: 'Cancelled after accept',
+  no_show: 'No-show',
+  fake_stickers: 'Fake stickers',
+  damaged_stickers: 'Damaged stickers',
+  spam: 'Spam',
+  underage: 'Underage',
+  other: 'Other',
+};
+
+const REPORT_STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  under_review: 'Under Review',
+  resolved: 'Resolved',
+  dismissed: 'Dismissed',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  open: 'bg-red-100 text-red-700',
+  under_review: 'bg-yellow-100 text-yellow-700',
+  resolved: 'bg-green-100 text-green-700',
+  dismissed: 'bg-gray-100 text-gray-500',
+};
+
+function BanModal({
+  userId,
+  username,
+  reportId,
+  token,
+  onClose,
+  onBanned,
+}: {
+  userId: string;
+  username: string;
+  reportId?: string;
+  token: string;
+  onClose: () => void;
+  onBanned: () => void;
+}) {
+  const [banType, setBanType] = useState<'soft' | 'hard'>('soft');
+  const [reason, setReason] = useState('');
+  const [duration, setDuration] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (reason.trim().length < 5) {
+      setError('Reason must be at least 5 characters.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      let expiresAt: string | undefined;
+      if (duration) {
+        const hours = parseInt(duration, 10);
+        expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+      }
+      await createAdminBan(userId, { banType, reason: reason.trim(), reportId, expiresAt }, token);
+      onBanned();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to ban user');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-800">Ban @{username}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="banType" value="soft" checked={banType === 'soft'} onChange={() => setBanType('soft')} />
+              Soft ban (trading restrictions)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="banType" value="hard" checked={banType === 'hard'} onChange={() => setBanType('hard')} />
+              Hard ban (suspended)
+            </label>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Duration</label>
+            <select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none"
+            >
+              <option value="">Permanent</option>
+              <option value="24">24 hours</option>
+              <option value="48">48 hours</option>
+              <option value="168">7 days</option>
+              <option value="720">30 days</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-600">Reason</label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value.slice(0, 1000))}
+              rows={3}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none resize-none"
+              placeholder="Reason for ban…"
+            />
+          </div>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={submitting} className="flex-1 rounded-md bg-red-600 text-white py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50">
+              {submitting ? 'Banning…' : 'Confirm ban'}
+            </button>
+            <button type="button" onClick={onClose} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ReportsQueue({ token }: { token: string }) {
+  const [statusFilter, setStatusFilter] = useState('open');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [banTarget, setBanTarget] = useState<{ userId: string; username: string; reportId: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchAdminReports(
+        { status: statusFilter || undefined, category: categoryFilter || undefined, limit: 100 },
+        token,
+      );
+      setReports(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load reports');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, statusFilter, categoryFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleStatus = async (reportId: string, status: string, resolutionNote?: string) => {
+    setActionError(null);
+    try {
+      await patchAdminReport(reportId, { status, resolutionNote }, token);
+      setReports((prev) => prev.map((r) => r.id === reportId ? { ...r, status } : r));
+      setExpandedId(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Action failed');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex gap-1 rounded-md border border-gray-200 overflow-hidden text-sm">
+          {['open', 'under_review', 'resolved', 'dismissed'].map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 transition-colors ${statusFilter === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              {REPORT_STATUS_LABELS[s]}
+            </button>
+          ))}
+        </div>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none"
+        >
+          <option value="">All categories</option>
+          {Object.entries(REPORT_CATEGORY_LABELS).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
+
+      {actionError && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{actionError}</div>
+      )}
+
+      {error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading reports…</div>
+      ) : reports.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+          No reports found.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Reporter</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Reported</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Date</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {reports.map((report) => (
+                <Fragment key={report.id}>
+                  <tr
+                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => setExpandedId(expandedId === report.id ? null : report.id)}
+                  >
+                    <td className="px-4 py-2">
+                      <span className="rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs font-medium">
+                        {REPORT_CATEGORY_LABELS[report.category] ?? report.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-700">@{report.reporterUsername}</td>
+                    <td className="px-4 py-2 font-medium text-gray-800">@{report.reportedUsername}</td>
+                    <td className="px-4 py-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[report.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {REPORT_STATUS_LABELS[report.status] ?? report.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-gray-400 text-xs">
+                      {new Date(report.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <span className="text-xs text-gray-400">{expandedId === report.id ? '▲' : '▼'}</span>
+                    </td>
+                  </tr>
+                  {expandedId === report.id && (
+                    <tr className="bg-gray-50">
+                      <td colSpan={6} className="px-4 py-4">
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.description}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {report.status !== 'under_review' && (
+                              <button
+                                onClick={() => handleStatus(report.id, 'under_review')}
+                                className="rounded-md bg-yellow-100 text-yellow-800 border border-yellow-300 px-3 py-1.5 text-xs font-medium hover:bg-yellow-200 transition-colors"
+                              >
+                                Mark Under Review
+                              </button>
+                            )}
+                            {['open', 'under_review'].includes(report.status) && (
+                              <>
+                                <button
+                                  onClick={() => handleStatus(report.id, 'resolved', 'Warned and resolved without ban.')}
+                                  className="rounded-md bg-green-100 text-green-800 border border-green-300 px-3 py-1.5 text-xs font-medium hover:bg-green-200 transition-colors"
+                                >
+                                  Warn & Resolve
+                                </button>
+                                <button
+                                  onClick={() => setBanTarget({ userId: report.reportedUserId, username: report.reportedUsername, reportId: report.id })}
+                                  className="rounded-md bg-red-100 text-red-700 border border-red-300 px-3 py-1.5 text-xs font-medium hover:bg-red-200 transition-colors"
+                                >
+                                  Soft Ban
+                                </button>
+                                <button
+                                  onClick={() => setBanTarget({ userId: report.reportedUserId, username: report.reportedUsername, reportId: report.id })}
+                                  className="rounded-md bg-red-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-red-700 transition-colors"
+                                >
+                                  Hard Ban
+                                </button>
+                                <button
+                                  onClick={() => handleStatus(report.id, 'dismissed')}
+                                  className="rounded-md border border-gray-300 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 transition-colors"
+                                >
+                                  Dismiss
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {banTarget && (
+        <BanModal
+          userId={banTarget.userId}
+          username={banTarget.username}
+          reportId={banTarget.reportId}
+          token={token}
+          onClose={() => setBanTarget(null)}
+          onBanned={() => {
+            setBanTarget(null);
+            void load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function BannedUsersSection({ token }: { token: string }) {
+  const [bannedUsers, setBannedUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [banDetails, setBanDetails] = useState<Record<string, AdminBan[]>>({});
+  const [liftingId, setLiftingId] = useState<string | null>(null);
+  const [liftReason, setLiftReason] = useState('');
+  const [liftError, setLiftError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchAdminUsers({ limit: 100 }, token)
+      .then((result) => {
+        if (cancelled) return;
+        setBannedUsers(result.items.filter((u) => u.isBanned));
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load users');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  const loadBanDetails = async (userId: string) => {
+    if (banDetails[userId]) return;
+    try {
+      const { items } = await fetchAdminUserBans(userId, token);
+      setBanDetails((prev) => ({ ...prev, [userId]: items }));
+    } catch { /* silently skip */ }
+  };
+
+  const handleLift = async (userId: string, banId: string) => {
+    if (!liftReason.trim()) {
+      setLiftError('Lift reason is required.');
+      return;
+    }
+    setLiftError(null);
+    try {
+      await liftAdminBan(userId, banId, { liftReason: liftReason.trim() }, token);
+      setBannedUsers((prev) => prev.filter((u) => u.id !== userId));
+      setLiftingId(null);
+      setLiftReason('');
+    } catch (err) {
+      setLiftError(err instanceof Error ? err.message : 'Failed to lift ban');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading…</div>
+      ) : bannedUsers.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+          No banned users.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">User</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Ban details</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {bannedUsers.map((user) => {
+                const activeBan = banDetails[user.id]?.find(
+                  (b) => !b.liftedAt && (!b.expiresAt || new Date(b.expiresAt) > new Date())
+                );
+                return (
+                  <Fragment key={user.id}>
+                    <tr className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-800">
+                        @{user.username}
+                        <div className="text-xs text-gray-400">{user.email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {activeBan ? (
+                          <div className="text-xs space-y-0.5">
+                            <span className={`rounded px-1.5 py-0.5 font-medium ${activeBan.banType === 'hard' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {activeBan.banType}
+                            </span>
+                            <p className="text-gray-500 mt-1 truncate max-w-xs">{activeBan.reason}</p>
+                            {activeBan.expiresAt && (
+                              <p className="text-gray-400">Expires {new Date(activeBan.expiresAt).toLocaleString()}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => void loadBanDetails(user.id)}
+                            className="text-xs text-blue-500 hover:underline"
+                          >
+                            Load details
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {liftingId === user.id ? (
+                          <div className="space-y-2 max-w-xs">
+                            <input
+                              type="text"
+                              value={liftReason}
+                              onChange={(e) => setLiftReason(e.target.value)}
+                              placeholder="Lift reason…"
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none"
+                            />
+                            {liftError && <p className="text-xs text-red-600">{liftError}</p>}
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => {
+                                  const banId = activeBan?.id ?? banDetails[user.id]?.[0]?.id;
+                                  if (banId) void handleLift(user.id, banId);
+                                }}
+                                className="rounded bg-green-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-green-700"
+                              >
+                                Lift
+                              </button>
+                              <button
+                                onClick={() => { setLiftingId(null); setLiftReason(''); setLiftError(null); }}
+                                className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              void loadBanDetails(user.id);
+                              setLiftingId(user.id);
+                            }}
+                            className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-green-600 hover:bg-green-50 transition-colors"
+                          >
+                            Lift ban
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrustSafetySection({ token }: { token: string }) {
+  const [subTab, setSubTab] = useState<'reports' | 'banned'>('reports');
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 border-b border-gray-100 mb-4">
+        <button
+          onClick={() => setSubTab('reports')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            subTab === 'reports' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Reports Queue
+        </button>
+        <button
+          onClick={() => setSubTab('banned')}
+          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            subTab === 'banned' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Banned Users
+        </button>
+      </div>
+      {subTab === 'reports' && <ReportsQueue token={token} />}
+      {subTab === 'banned' && <BannedUsersSection token={token} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-type Tab = 'stickers' | 'users';
+type Tab = 'stickers' | 'users' | 'trust-safety';
 
 function AdminPageInner() {
   const router = useRouter();
@@ -643,7 +1154,9 @@ function AdminPageInner() {
   const hydrated = useAuthStore((s) => s.hydrated);
 
   const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<Tab>(tabParam === 'users' ? 'users' : 'stickers');
+  const [activeTab, setActiveTab] = useState<Tab>(
+    tabParam === 'users' ? 'users' : tabParam === 'trust-safety' ? 'trust-safety' : 'stickers'
+  );
 
   const switchTab = (tab: Tab) => {
     setActiveTab(tab);
@@ -697,10 +1210,21 @@ function AdminPageInner() {
           >
             Users
           </button>
+          <button
+            onClick={() => switchTab('trust-safety')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === 'trust-safety'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Trust & Safety
+          </button>
         </div>
 
         {activeTab === 'stickers' && <StickersSection token={token} />}
         {activeTab === 'users' && <UsersSection token={token} currentUserId={user.id} />}
+        {activeTab === 'trust-safety' && <TrustSafetySection token={token} />}
       </div>
     </div>
   );

@@ -1237,3 +1237,192 @@ export async function removeAlbumWantedVariant(
     token,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Trust & Safety endpoints
+// ---------------------------------------------------------------------------
+
+export type TrustTier = 'new_trader' | 'good_trader' | 'trusted_trader' | 'caution';
+
+export interface TrustScore {
+  tier: TrustTier;
+  totalRatings: number;
+  positiveCount: number;
+  negativeCount: number;
+  positivePercent: number;
+}
+
+export interface BanStatus {
+  banned: false;
+}
+
+export interface BanStatusActive {
+  banned: true;
+  type: 'soft' | 'hard';
+  expiresAt: string | null;
+  message: string;
+}
+
+export type BanStatusResult = BanStatus | BanStatusActive;
+
+export interface TradeRating {
+  id: string;
+  tradeId: string;
+  raterId: string;
+  raterUsername: string;
+  raterDisplayName?: string | null;
+  ratedUserId: string;
+  isPositive: boolean;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface UserRatingsPage {
+  trustScore: TrustScore;
+  items: TradeRating[];
+  nextCursor: string | null;
+}
+
+export interface AdminReport {
+  id: string;
+  reporterId: string;
+  reporterUsername: string;
+  reportedUserId: string;
+  reportedUsername: string;
+  category: string;
+  description: string;
+  status: string;
+  tradeId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminReportsPage {
+  items: AdminReport[];
+  nextCursor: string | null;
+}
+
+export interface AdminBan {
+  id: string;
+  banType: string;
+  reason: string;
+  expiresAt: string | null;
+  liftedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminTrustSummary {
+  userId: string;
+  username: string;
+  trustScore: TrustScore;
+  banHistory: AdminBan[];
+  openReportsCount: number;
+  recentRatings: TradeRating[];
+}
+
+export async function fetchBanStatus(token: string): Promise<BanStatusResult> {
+  return apiFetch<BanStatusResult>('/api/v1/users/me/ban-status', {}, token);
+}
+
+export async function submitRating(
+  tradeId: string,
+  body: { isPositive: boolean; comment?: string },
+  token: string,
+): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(
+    `/api/v1/trade/requests/${tradeId}/ratings`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function fetchTradeRatings(
+  tradeId: string,
+  token: string,
+): Promise<{ items: TradeRating[] }> {
+  return apiFetch<{ items: TradeRating[] }>(
+    `/api/v1/trade/requests/${tradeId}/ratings`,
+    {},
+    token,
+  );
+}
+
+export async function fetchUserRatings(
+  userId: string,
+  token?: string,
+  params?: { cursor?: string; limit?: number },
+): Promise<UserRatingsPage> {
+  const qs = toQueryString(params ?? {});
+  return apiFetch<UserRatingsPage>(`/api/v1/users/${userId}/ratings${qs}`, {}, token);
+}
+
+export async function submitReport(
+  userId: string,
+  body: { category: string; description: string; tradeId?: string },
+  token: string,
+): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(
+    `/api/v1/users/${userId}/reports`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function fetchAdminReports(
+  params: { status?: string; category?: string; cursor?: string; limit?: number },
+  token: string,
+): Promise<AdminReportsPage> {
+  const qs = toQueryString(params as Record<string, string | number | undefined>);
+  return apiFetch<AdminReportsPage>(`/api/v1/admin/reports${qs}`, {}, token);
+}
+
+export async function patchAdminReport(
+  reportId: string,
+  body: { status: string; resolutionNote?: string },
+  token: string,
+): Promise<{ id: string; status: string }> {
+  return apiFetch(
+    `/api/v1/admin/reports/${reportId}`,
+    { method: 'PATCH', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function createAdminBan(
+  userId: string,
+  body: { banType: 'soft' | 'hard'; reason: string; reportId?: string; expiresAt?: string },
+  token: string,
+): Promise<{ id: string; userId: string }> {
+  return apiFetch(
+    `/api/v1/admin/users/${userId}/bans`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function fetchAdminUserBans(
+  userId: string,
+  token: string,
+): Promise<{ items: AdminBan[] }> {
+  return apiFetch(`/api/v1/admin/users/${userId}/bans`, {}, token);
+}
+
+export async function liftAdminBan(
+  userId: string,
+  banId: string,
+  body: { liftReason: string },
+  token: string,
+): Promise<{ id: string; liftedAt: string }> {
+  return apiFetch(
+    `/api/v1/admin/users/${userId}/bans/${banId}/lift`,
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function fetchAdminTrustSummary(
+  userId: string,
+  token: string,
+): Promise<AdminTrustSummary> {
+  return apiFetch(`/api/v1/admin/users/${userId}/trust-summary`, {}, token);
+}

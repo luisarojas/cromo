@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import * as userService from '../../services/user.service.js';
+import { getBanStatus } from '../../services/trust-safety.service.js';
 
 const CitySchema = z.object({
   label: z.string().min(1).max(200),
@@ -260,6 +261,18 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       await userService.updatePassword(fastify.db, request.userId!);
       return reply.status(200).send({ message: 'Password updated successfully.' });
     }
+  );
+
+  /**
+   * GET /api/v1/users/me/ban-status
+   */
+  fastify.get(
+    `${prefix}/me/ban-status`,
+    { preHandler: [verifyToken] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const status = await getBanStatus(fastify.db, fastify.redis, request.userId!);
+      return reply.status(200).send(status);
+    },
   );
 
   /**

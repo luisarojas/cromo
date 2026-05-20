@@ -4,6 +4,7 @@ import AuthProvider from '@/components/AuthProvider';
 import NavBar from '@/components/NavBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ToastProvider';
+import BanStatusBanner from '@/components/BanStatusBanner';
 
 export const metadata: Metadata = {
   title: 'Stickfolio',
@@ -20,6 +21,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-gray-50 text-gray-900">
         <AuthProvider>
           <NavBar />
+          <BanStatusBanner />
           <ToastProvider>
             <ErrorBoundary>
               <main>{children}</main>

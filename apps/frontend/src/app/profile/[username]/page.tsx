@@ -14,6 +14,8 @@ import {
 import { useAuthStore } from '@/store/auth';
 import ShareProfileButton from '@/components/ShareProfileButton';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import TrustBadge from '@/components/TrustBadge';
+import ReportUserModal from '@/components/ReportUserModal';
 
 type InventoryTab = 'offered' | 'wanted';
 type GroupBy = 'team' | 'type' | 'variant' | 'none';
@@ -95,11 +97,13 @@ export default function PublicProfilePage() {
     typeof params.username === 'string' ? params.username : (params.username?.[0] ?? '');
 
   const viewer = useAuthStore((s) => s.user);
+  const viewerToken = useAuthStore((s) => s.token);
 
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Per-album lazy wanted + offered state. Both tabs follow the same pattern:
   // server-side filter + cursor-paginated.
@@ -465,8 +469,11 @@ export default function PublicProfilePage() {
               <div className="text-sm text-gray-500 truncate">@{profile.username}</div>
             )}
             <div className="text-xs text-gray-400 mt-1">Member since {memberSince}</div>
+            <div className="mt-2">
+              <TrustBadge userId={profile.userId} size="small" />
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <ShareProfileButton username={profile.username} getListText={hasAlbums ? buildListText : undefined} />
             {canStartTrade && hasAlbums && (
               <Link
@@ -476,8 +483,20 @@ export default function PublicProfilePage() {
                 Start a trade
               </Link>
             )}
+            {canStartTrade && viewerToken && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Report user
+              </button>
+            )}
           </div>
         </div>
+      </div>
+
+      <div className="mb-5">
+        <TrustBadge userId={profile.userId} size="large" />
       </div>
 
       {!hasAlbums && (
@@ -826,6 +845,15 @@ export default function PublicProfilePage() {
             )}
           </div>
         </div>
+      )}
+
+      {showReportModal && viewerToken && (
+        <ReportUserModal
+          userId={profile.userId}
+          username={profile.username}
+          token={viewerToken}
+          onClose={() => setShowReportModal(false)}
+        />
       )}
     </div>
   );
