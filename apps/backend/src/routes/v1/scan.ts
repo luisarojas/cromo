@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import type { Pool } from 'pg';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken } from '../../middleware/auth.js';
 import { validateImageBuffer } from '../../services/upload.service.js';
-import { identifySticker } from '../../services/scan.service.js';
+import { identifySticker, type ScanResult } from '../../services/scan.service.js';
+import { getStickerByAlbumCode, getStickerByPlayerName } from '../../services/stickers.service.js';
 import { isFeatureFlagEnabled } from '../../services/trust-safety.service.js';
 
 const SCANS_DIR = '/app/uploads/scans';
@@ -51,6 +53,35 @@ async function saveScanTemp(buffer: Buffer, ext: string): Promise<string> {
 
 async function deleteScanTemp(filePath: string): Promise<void> {
   await fs.unlink(filePath).catch(() => undefined);
+}
+
+async function enrichFromCatalog(db: Pool, result: ScanResult): Promise<ScanResult> {
+  try {
+    if (result.albumCode) {
+      const row = await getStickerByAlbumCode(db, result.albumCode);
+      if (row) {
+        return {
+          ...result,
+          stickerNumber: result.stickerNumber ?? row.number,
+          playerName: result.playerName ?? row.player_name,
+          teamFifaCode: result.teamFifaCode ?? row.fifa_code,
+        };
+      }
+    } else if (result.playerName) {
+      const row = await getStickerByPlayerName(db, result.playerName);
+      if (row) {
+        return {
+          ...result,
+          albumCode: row.album_code,
+          stickerNumber: result.stickerNumber ?? row.number,
+          teamFifaCode: result.teamFifaCode ?? row.fifa_code,
+        };
+      }
+    }
+  } catch {
+    // Catalog lookup is best-effort; return original result on failure
+  }
+  return result;
 }
 
 export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
@@ -118,7 +149,8 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       let result;
       try {
         result = await identifySticker(uploaded.buffer, uploaded.mimeType);
-      } catch {
+      } catch (err) {
+        request.log.error({ err }, 'identifySticker failed');
         await deleteScanTemp(tempPath);
         return reply.status(503).send({
           statusCode: 503,
@@ -128,7 +160,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await deleteScanTemp(tempPath);
-      return reply.status(200).send(result);
+      return reply.status(200).send(await enrichFromCatalog(fastify.db, result));
     },
   );
 
@@ -181,7 +213,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
               : '.jpg';
             const tempPath = await saveScanTemp(buffer, ext);
             tempPaths.push(tempPath);
-            const scanResult = await identifySticker(buffer, mimeType);
+            const scanResult = await enrichFromCatalog(fastify.db, await identifySticker(buffer, mimeType));
             results.push({ index, result: scanResult });
           } catch (err) {
             const e = err as { message?: string };

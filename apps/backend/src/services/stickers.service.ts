@@ -137,6 +137,30 @@ export async function getStickerByAlbumCode(
 }
 
 /**
+ * getStickerByPlayerName — fetch a single sticker by exact player name (case-insensitive).
+ */
+export async function getStickerByPlayerName(
+  db: Pool,
+  playerName: string
+): Promise<StickerRow | null> {
+  const { rows } = await db.query<StickerRow>(
+    `SELECT s.sticker_id AS id, s.number, s.album_code, s.player_name, s.position,
+            s.sticker_type, s.is_foil, s.team_id, s.notes,
+            s.team_name, s.fifa_code, s.group_name,
+            sv.id AS base_variant_id,
+            s.team_pages,
+            (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
+             FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages
+     FROM sticker_full s
+     LEFT JOIN sticker_variants sv ON sv.sticker_id = s.sticker_id AND sv.variant_type = 'base'
+     WHERE s.player_name ILIKE $1
+     LIMIT 1`,
+    [playerName]
+  );
+  return rows[0] ?? null;
+}
+
+/**
  * getStickerVariants — fetch all variants for a sticker identified by album code.
  */
 export async function getStickerVariants(

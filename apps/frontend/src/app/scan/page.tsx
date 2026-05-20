@@ -7,11 +7,14 @@ import {
   scanBatch,
   fetchStickerByAlbumCode,
   fetchStickerVariants,
+  fetchUserAlbums,
   addSticker,
+  albumDisplayName,
   type ScanResult,
   type BatchScanEntry,
   type Sticker,
   type StickerVariant,
+  type UserAlbum,
 } from '@/lib/api';
 
 // ─── Confidence helpers ───────────────────────────────────────────────────────
@@ -217,11 +220,17 @@ function DropZone({
 
 function ScanResultPanel({
   state,
+  albums,
+  selectedAlbumId,
   onVariantChange,
+  onAlbumChange,
   onAddToCollection,
 }: {
   state: ScanState;
+  albums: UserAlbum[];
+  selectedAlbumId?: string;
   onVariantChange: (variantId: string) => void;
+  onAlbumChange: (albumId: string) => void;
   onAddToCollection: () => void;
 }) {
   if (state.status === 'scanning') {
@@ -308,9 +317,10 @@ function ScanResultPanel({
             Select variant
           </label>
           <select
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
             value={selectedVariantId ?? ''}
             onChange={(e) => onVariantChange(e.target.value)}
+            disabled={added}
           >
             {variants.map((v) => (
               <option key={v.id} value={v.id}>
@@ -328,19 +338,38 @@ function ScanResultPanel({
         </div>
       )}
 
-      {/* Add to collection */}
+      {/* Album selector + Add to collection */}
       {sticker && selectedVariantId && (
-        <button
-          onClick={onAddToCollection}
-          disabled={added}
-          className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-            added
-              ? 'bg-green-600 text-white cursor-default'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {added ? '✓ Added to collection' : 'Add to collection'}
-        </button>
+        <div className="space-y-2">
+          {albums.length > 1 && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-600 block">Add to album</label>
+              <select
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={selectedAlbumId ?? ''}
+                onChange={(e) => onAlbumChange(e.target.value)}
+                disabled={added}
+              >
+                {albums.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {albumDisplayName(a)}{a.isDefault ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            onClick={onAddToCollection}
+            disabled={added}
+            className={`w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+              added
+                ? 'bg-green-600 text-white cursor-default'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {added ? '✓ Added to collection' : 'Add to collection'}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -353,6 +382,19 @@ function SingleScanMode() {
   const token = useAuthStore((s) => s.token);
   const [state, setState] = useState<ScanState>({ status: 'idle' });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [albums, setAlbums] = useState<UserAlbum[]>([]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!user || !token) return;
+    fetchUserAlbums(user.id, token)
+      .then((list) => {
+        setAlbums(list);
+        const def = list.find((a) => a.isDefault) ?? list[0];
+        if (def) setSelectedAlbumId(def.id);
+      })
+      .catch(() => {});
+  }, [user, token]);
 
   const handleFile = useCallback(
     async (files: File[]) => {
@@ -403,7 +445,7 @@ function SingleScanMode() {
   const handleAdd = async () => {
     if (!user || !token || !state.selectedVariantId) return;
     try {
-      await addSticker(user.id, state.selectedVariantId, 1, token);
+      await addSticker(user.id, state.selectedVariantId, 1, token, selectedAlbumId);
       setState((s) => ({ ...s, added: true }));
     } catch (err) {
       const e = err as { message?: string };
@@ -426,7 +468,10 @@ function SingleScanMode() {
           )}
           <ScanResultPanel
             state={state}
+            albums={albums}
+            selectedAlbumId={selectedAlbumId}
             onVariantChange={handleVariantChange}
+            onAlbumChange={setSelectedAlbumId}
             onAddToCollection={handleAdd}
           />
           {state.status === 'done' && (
@@ -477,6 +522,19 @@ function BatchScanMode() {
   const [items, setItems] = useState<BatchItemState[]>([]);
   const [scanning, setScanning] = useState(false);
   const [done, setDone] = useState(false);
+  const [albums, setAlbums] = useState<UserAlbum[]>([]);
+  const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!user || !token) return;
+    fetchUserAlbums(user.id, token)
+      .then((list) => {
+        setAlbums(list);
+        const def = list.find((a) => a.isDefault) ?? list[0];
+        if (def) setSelectedAlbumId(def.id);
+      })
+      .catch(() => {});
+  }, [user, token]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -534,7 +592,7 @@ function BatchScanMode() {
     const item = items[idx];
     if (!user || !token || !item?.selectedVariantId) return;
     try {
-      await addSticker(user.id, item.selectedVariantId, 1, token);
+      await addSticker(user.id, item.selectedVariantId, 1, token, selectedAlbumId);
       setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, added: true } : it)));
     } catch {
       // ignore per-item add errors silently
@@ -644,12 +702,30 @@ function BatchScanMode() {
           })}
 
           {items.some((i) => i.sticker && i.selectedVariantId && !i.added) && (
-            <button
-              onClick={handleAddAll}
-              className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
-            >
-              Add all identified stickers to collection
-            </button>
+            <div className="space-y-2">
+              {albums.length > 1 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600 block">Add to album</label>
+                  <select
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={selectedAlbumId ?? ''}
+                    onChange={(e) => setSelectedAlbumId(e.target.value)}
+                  >
+                    {albums.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {albumDisplayName(a)}{a.isDefault ? ' (default)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button
+                onClick={handleAddAll}
+                className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+              >
+                Add all identified stickers to collection
+              </button>
+            </div>
           )}
 
           <button

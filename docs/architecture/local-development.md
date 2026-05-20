@@ -41,7 +41,7 @@ Once the application is working fully and all tests pass locally, the exact same
 | Auth | Local mock (any email/password works) | AWS Cognito |
 | Email | Mailpit (local inbox at localhost:8025) | AWS SES |
 | File storage | Local filesystem directory | AWS S3 |
-| AI scanning | Returns hardcoded mock result | Anthropic Claude Vision API |
+| AI scanning | Returns hardcoded mock result | Groq Vision API (Llama 4 Scout) |
 | Frontend hosting | `localhost:3000` | Vercel |
 | API hosting | `localhost:3001` | AWS ECS Fargate |
 | SSL/TLS | None (HTTP only) | AWS Certificate Manager (HTTPS) |
@@ -242,8 +242,8 @@ COGNITO_USER_POOL_ID=
 COGNITO_CLIENT_ID=
 COGNITO_REGION=ca-central-1
 
-# AI Scanning (set to 'mock' locally to skip Claude API calls)
-CLAUDE_API_KEY=mock
+# AI Scanning (set to 'mock' locally to skip Groq API calls)
+GROQ_API_KEY=mock
 
 # File Storage (set to 'local' to save files to disk)
 S3_MODE=local

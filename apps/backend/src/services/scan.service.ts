@@ -22,14 +22,29 @@ const MOCK_RESULT: ScanResult = {
 
 const IDENTIFY_PROMPT = `You are identifying a Panini FIFA World Cup 2026 sticker.
 
-Analyse the image and provide:
-1. stickerNumber — the sticker number printed on the sticker (integer)
-2. albumCode — the album code shown on the sticker (e.g. "BRA5", "FWC3")
-3. playerName — the player's name if this is a player sticker, otherwise null
-4. teamFifaCode — the three-letter FIFA team code (e.g. "BRA", "FRA", "ARG"), or null for non-team stickers
-5. borderColor — the border colour if a parallel variant is visible (e.g. "gold", "silver", "blue"), otherwise null
-6. confidence — your confidence level as a float between 0.0 and 1.0
-7. reasoning — one sentence explaining your identification
+First decide which side of the sticker is shown:
+- FRONT: player photo with the player's name printed on it; may have a coloured border
+- BACK: plain printed text containing the album code and sticker number
+
+Extract ONLY what is physically visible on the side shown. Set everything else to null.
+
+FRONT side — extract:
+- playerName: the player's full name as printed
+- teamFifaCode: three-letter FIFA code visible on the sticker (e.g. "BRA", "FRA"), or null
+- borderColor: border colour if a parallel variant is present (e.g. "gold", "silver", "blue"), or null
+- albumCode: null (not on the front)
+- stickerNumber: null (not on the front)
+
+BACK side — extract:
+- albumCode: the album code printed on the back (e.g. "BRA5", "FWC3")
+- stickerNumber: the sticker number printed on the back (integer)
+- playerName: null (not on the back)
+- teamFifaCode: null (not on the back)
+- borderColor: null (not on the back)
+
+Always include:
+- confidence: your confidence as a float between 0.0 and 1.0
+- reasoning: one sentence explaining your identification
 
 Respond ONLY with a valid JSON object using these exact keys. No markdown, no explanation outside the JSON.`;
 
@@ -37,33 +52,29 @@ export async function identifySticker(
   imageBuffer: Buffer,
   mimeType: string,
 ): Promise<ScanResult> {
-  if (env.CLAUDE_API_KEY === 'mock') {
+  if (env.GROQ_API_KEY === 'mock') {
     return MOCK_RESULT;
   }
 
   const base64Image = imageBuffer.toString('base64');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'x-api-key': env.CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
+      'authorization': `Bearer ${env.GROQ_API_KEY}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
       max_tokens: 512,
+      temperature: 0,
       messages: [
         {
           role: 'user',
           content: [
             {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mimeType,
-                data: base64Image,
-              },
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${base64Image}` },
             },
             {
               type: 'text',
@@ -78,23 +89,26 @@ export async function identifySticker(
 
   if (!response.ok) {
     const text = await response.text().catch(() => response.statusText);
-    throw new Error(`Claude API error ${response.status}: ${text}`);
+    throw new Error(`Groq API error ${response.status}: ${text}`);
   }
 
   const data = await response.json() as {
-    content: { type: string; text?: string }[];
+    choices: { message: { content: string } }[];
   };
 
-  const textBlock = data.content.find((b) => b.type === 'text');
-  if (!textBlock?.text) {
-    throw new Error('No text response from Claude API');
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) {
+    throw new Error('No text response from Groq API');
   }
+
+  // Strip markdown code fences if the model wraps the JSON
+  const json = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(textBlock.text) as Record<string, unknown>;
+    parsed = JSON.parse(json) as Record<string, unknown>;
   } catch {
-    throw new Error('Claude API returned non-JSON response');
+    throw new Error('Groq API returned non-JSON response');
   }
 
   return {
