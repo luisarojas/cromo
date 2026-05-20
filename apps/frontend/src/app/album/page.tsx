@@ -31,7 +31,7 @@ const MAX_ALBUMS = 10;
 const EDITION_COLORS: Record<string, { bg: string; text: string }> = {
   north_america: { bg: 'bg-blue-100', text: 'text-blue-700' },
   international: { bg: 'bg-green-100', text: 'text-green-700' },
-  swiss_gold:    { bg: 'bg-amber-100', text: 'text-amber-700' },
+  swiss_gold: { bg: 'bg-amber-100', text: 'text-amber-700' },
   south_america: { bg: 'bg-purple-100', text: 'text-purple-700' },
 };
 
@@ -103,7 +103,7 @@ export default function AlbumsPage() {
 
     init();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, router]);
 
   // Lazy-load the catalog when the modal is about to open. Cached in localStorage.
@@ -194,9 +194,6 @@ export default function AlbumsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">My Albums</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {user?.displayName ?? `@${user?.username}`}
-            </p>
           </div>
           {albums.length < MAX_ALBUMS && !loading && (
             <button
