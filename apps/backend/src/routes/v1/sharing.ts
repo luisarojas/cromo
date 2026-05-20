@@ -68,15 +68,10 @@ export async function sharingRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      try {
-        const link = await sharingService.createShareLink(
-          fastify.db, userId, parsed.data.listType, parsed.data.albumId
-        );
-        return reply.status(201).send(link);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const link = await sharingService.createShareLink(
+        fastify.db, userId, parsed.data.listType, parsed.data.albumId
+      );
+      return reply.status(201).send(link);
     }
   );
 
@@ -125,13 +120,8 @@ export async function sharingRoutes(fastify: FastifyInstance): Promise<void> {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'share links')) return;
 
-      try {
-        const items = await sharingService.listShareLinks(fastify.db, userId);
-        return reply.status(200).send({ items });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const items = await sharingService.listShareLinks(fastify.db, userId);
+      return reply.status(200).send({ items });
     }
   );
 
@@ -162,14 +152,8 @@ export async function sharingRoutes(fastify: FastifyInstance): Promise<void> {
       const { userId, token } = request.params as { userId: string; token: string };
       if (!assertAccess(request, reply, userId, 'share links')) return;
 
-      try {
-        await sharingService.revokeShareLink(fastify.db, userId, token);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        const statusCode = e.statusCode ?? 500;
-        return reply.status(statusCode).send({ statusCode, error: statusCode === 404 ? 'Not Found' : 'Internal Server Error', message: e.message });
-      }
+      await sharingService.revokeShareLink(fastify.db, userId, token);
+      return reply.status(204).send();
     }
   );
 
@@ -194,16 +178,11 @@ export async function sharingRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { token } = request.params as { token: string };
 
-      try {
-        const result = await sharingService.getPublicList(fastify.db, token);
-        if (!result) {
-          return reply.status(410).send({ statusCode: 410, error: 'Gone', message: 'This share link no longer exists or has expired.' });
-        }
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      const result = await sharingService.getPublicList(fastify.db, token);
+      if (!result) {
+        return reply.status(410).send({ statusCode: 410, error: 'Gone', message: 'This share link no longer exists or has expired.' });
       }
+      return reply.status(200).send(result);
     }
   );
 }

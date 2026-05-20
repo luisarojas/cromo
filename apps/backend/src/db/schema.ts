@@ -171,14 +171,14 @@ export const userAlbums = pgTable('user_albums', {
 
 export const userSettings = pgTable('user_settings', {
   userId: uuid('user_id').primaryKey().references(() => users.id),
-  profileVisibility: text('profile_visibility').default('public'),
-  tradeMatchingEnabled: boolean('trade_matching_enabled').default(true),
-  emailTradeRequests: boolean('email_trade_requests').default(true),
-  emailTradeMessages: boolean('email_trade_messages').default(true),
-  emailMarketing: boolean('email_marketing').default(false),
+  profileVisibility: text('profile_visibility').notNull().default('public'),
+  tradeMatchingEnabled: boolean('trade_matching_enabled').notNull().default(true),
+  emailTradeRequests: boolean('email_trade_requests').notNull().default(true),
+  emailTradeMessages: boolean('email_trade_messages').notNull().default(true),
+  emailMarketing: boolean('email_marketing').notNull().default(false),
   marketingConsentAt: timestamp('marketing_consent_at', { withTimezone: true }),
   marketingConsentVersion: text('marketing_consent_version'),
-  showTrustScorePublic: boolean('show_trust_score_public').default(true),
+  showTrustScorePublic: boolean('show_trust_score_public').notNull().default(true),
   duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(false),
   cities: jsonb('cities').$type<{ label: string; placeId: number }[]>().notNull().default(sql`'[]'::jsonb`),
 }, (table) => ({
@@ -286,6 +286,7 @@ export const stickerVariants = pgTable('sticker_variants', {
     table.stickerId,
     table.variantType
   ),
+  stickerIdx: index('idx_sticker_variants_sticker_id').on(table.stickerId),
 }));
 
 // ─── user_stickers ────────────────────────────────────────────────────────────
@@ -318,6 +319,20 @@ export const userStickerFavourites = pgTable('user_sticker_favourites', {
 }, (table) => ({
   pk: uniqueIndex('user_sticker_favourites_pkey').on(table.albumId, table.stickerId),
   albumIdx: index('idx_user_sticker_favourites_album_id').on(table.albumId),
+}));
+
+// ─── user_wanted_variants ─────────────────────────────────────────────────────
+
+export const userWantedVariants = pgTable('user_wanted_variants', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
+  albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  userVariantAlbumUnique: unique('user_wanted_variants_user_id_sticker_variant_id_album_id_key')
+    .on(table.userId, table.stickerVariantId, table.albumId),
+  userAlbumIdx: index('idx_user_wanted_variants_user_album').on(table.userId, table.albumId),
 }));
 
 // ─── trade_requests ───────────────────────────────────────────────────────────
@@ -357,6 +372,10 @@ export const tradeRequests = pgTable('trade_requests', {
     'trade_requests_want_cash_check',
     sql`${table.wantCash} >= 0`
   ),
+  requesterStatusUpdatedIdx: index('idx_trade_requests_requester_status_updated')
+    .on(table.requesterId, table.status, table.updatedAt.desc()),
+  recipientStatusUpdatedIdx: index('idx_trade_requests_recipient_status_updated')
+    .on(table.recipientId, table.status, table.updatedAt.desc()),
 }));
 
 // ─── trade_items ──────────────────────────────────────────────────────────────
@@ -369,6 +388,8 @@ export const tradeItems = pgTable('trade_items', {
   quantity: integer('quantity').notNull().default(1),
 }, (table) => ({
   quantityCheck: check('trade_items_quantity_check', sql`${table.quantity} > 0`),
+  tradeIdIdx: index('idx_trade_items_trade_id').on(table.tradeId),
+  variantIdIdx: index('idx_trade_items_sticker_variant_id').on(table.stickerVariantId),
 }));
 
 // ─── trade_messages ───────────────────────────────────────────────────────────
@@ -541,6 +562,8 @@ export type Sticker = typeof stickers.$inferSelect;
 export type StickerVariant = typeof stickerVariants.$inferSelect;
 export type UserSticker = typeof userStickers.$inferSelect; // ownership via albumId
 export type UserStickerFavourite = typeof userStickerFavourites.$inferSelect;
+export type UserWantedVariant = typeof userWantedVariants.$inferSelect;
+export type NewUserWantedVariant = typeof userWantedVariants.$inferInsert;
 export type TradeRequest = typeof tradeRequests.$inferSelect;
 export type TradeItem = typeof tradeItems.$inferSelect;
 export type TradeMessage = typeof tradeMessages.$inferSelect;

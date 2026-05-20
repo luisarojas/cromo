@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   fetchPublicProfile,
   fetchPublicWanted,
+  fetchPublicOffered,
   type PublicProfile,
   type PublicProfileAlbum,
   type PublicInventoryItem,
@@ -17,13 +18,20 @@ import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta'
 type InventoryTab = 'offered' | 'wanted';
 type GroupBy = 'team' | 'type' | 'variant' | 'none';
 
-interface WantedState {
+interface InventoryState {
   items: PublicInventoryItem[];
   nextCursor: number | null;
   total: number;
   loading: boolean;
   loadingMore: boolean;
   error: string | null;
+  // Filter universe for the entire (unfiltered) album+direction set, returned
+  // by the server so the chips don't shrink as the user narrows the view.
+  filterOptions: {
+    stickerTypes: string[];
+    teams: string[];
+    variantTypes: string[];
+  };
 }
 
 const STICKER_TYPE_COLORS: Record<string, string> = {
@@ -93,8 +101,10 @@ export default function PublicProfilePage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Per-album lazy wanted state.
-  const [wantedByAlbum, setWantedByAlbum] = useState<Record<string, WantedState>>({});
+  // Per-album lazy wanted + offered state. Both tabs follow the same pattern:
+  // server-side filter + cursor-paginated.
+  const [wantedByAlbum, setWantedByAlbum] = useState<Record<string, InventoryState>>({});
+  const [offeredByAlbum, setOfferedByAlbum] = useState<Record<string, InventoryState>>({});
 
   const [search, setSearch] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
@@ -161,8 +171,8 @@ export default function PublicProfilePage() {
     [profile, activeAlbumId],
   );
 
-  // Current filters serialised for the API (wanted tab only).
-  const wantedApiFilters = useMemo(
+  // Filters serialised for both tabs (server-side filtering on both now).
+  const apiFilters = useMemo(
     () => ({
       stickerTypes: selectedTypes.size > 0 ? [...selectedTypes] : undefined,
       teams: selectedTeams.size > 0 ? [...selectedTeams] : undefined,
@@ -172,67 +182,83 @@ export default function PublicProfilePage() {
     [selectedTypes, selectedTeams, selectedVariants, search],
   );
 
-  // ── Lazy wanted loader ─────────────────────────────────────────────────────
-  const loadWanted = useCallback(
-    async (
-      albumId: string,
-      cursor: number | null,
-      filters: typeof wantedApiFilters,
-    ) => {
-      setWantedByAlbum((prev) => {
-        const existing = prev[albumId];
-        return {
-          ...prev,
-          [albumId]: {
-            items: cursor === null ? [] : (existing?.items ?? []),
-            nextCursor: existing?.nextCursor ?? null,
-            total: existing?.total ?? 0,
-            loading: cursor === null,
-            loadingMore: cursor !== null,
-            error: null,
-          },
-        };
-      });
-      try {
-        const page = await fetchPublicWanted(username, albumId, {
-          cursor: cursor ?? undefined,
-          limit: 200,
-          ...filters,
-        });
-        setWantedByAlbum((prev) => {
+  // ── Generic lazy inventory loader (offered + wanted share this shape) ─────
+  const makeLoader = useCallback(
+    (
+      tab: InventoryTab,
+      setState: React.Dispatch<React.SetStateAction<Record<string, InventoryState>>>,
+      fetchFn: typeof fetchPublicWanted,
+    ) =>
+      async (
+        albumId: string,
+        cursor: number | null,
+        filters: typeof apiFilters,
+      ): Promise<void> => {
+        setState((prev) => {
           const existing = prev[albumId];
-          const merged = cursor === null ? page.items : [...(existing?.items ?? []), ...page.items];
           return {
             ...prev,
             [albumId]: {
-              items: merged,
-              nextCursor: page.nextCursor,
-              total: page.total,
-              loading: false,
-              loadingMore: false,
+              items: cursor === null ? [] : (existing?.items ?? []),
+              nextCursor: existing?.nextCursor ?? null,
+              total: existing?.total ?? 0,
+              loading: cursor === null,
+              loadingMore: cursor !== null,
               error: null,
+              filterOptions: existing?.filterOptions ?? { stickerTypes: [], teams: [], variantTypes: [] },
             },
           };
         });
-      } catch (err) {
-        setWantedByAlbum((prev) => ({
-          ...prev,
-          [albumId]: {
-            items: prev[albumId]?.items ?? [],
-            nextCursor: prev[albumId]?.nextCursor ?? null,
-            total: prev[albumId]?.total ?? 0,
-            loading: false,
-            loadingMore: false,
-            error: err instanceof Error ? err.message : 'Failed to load wanted list',
-          },
-        }));
-      }
-    },
+        try {
+          const page = await fetchFn(username, albumId, {
+            cursor: cursor ?? undefined,
+            limit: 200,
+            ...filters,
+          });
+          setState((prev) => {
+            const existing = prev[albumId];
+            const merged = cursor === null ? page.items : [...(existing?.items ?? []), ...page.items];
+            return {
+              ...prev,
+              [albumId]: {
+                items: merged,
+                nextCursor: page.nextCursor,
+                total: page.total,
+                loading: false,
+                loadingMore: false,
+                error: null,
+                filterOptions: page.filterOptions,
+              },
+            };
+          });
+        } catch (err) {
+          setState((prev) => ({
+            ...prev,
+            [albumId]: {
+              items: prev[albumId]?.items ?? [],
+              nextCursor: prev[albumId]?.nextCursor ?? null,
+              total: prev[albumId]?.total ?? 0,
+              loading: false,
+              loadingMore: false,
+              error: err instanceof Error ? err.message : `Failed to load ${tab} list`,
+              filterOptions: prev[albumId]?.filterOptions ?? { stickerTypes: [], teams: [], variantTypes: [] },
+            },
+          }));
+        }
+      },
     [username],
   );
 
-  // When filters change, clear the active album's wanted state so the load
-  // effect below triggers a fresh fetch with the new filters.
+  const loadWanted = useMemo(
+    () => makeLoader('wanted', setWantedByAlbum, fetchPublicWanted),
+    [makeLoader],
+  );
+  const loadOffered = useMemo(
+    () => makeLoader('offered', setOfferedByAlbum, fetchPublicOffered),
+    [makeLoader],
+  );
+
+  // When filters change, drop both maps so the next render re-fetches.
   useEffect(() => {
     if (!activeAlbumId) return;
     setWantedByAlbum((prev) => {
@@ -241,15 +267,24 @@ export default function PublicProfilePage() {
       delete next[activeAlbumId];
       return next;
     });
+    setOfferedByAlbum((prev) => {
+      if (!prev[activeAlbumId]) return prev;
+      const next = { ...prev };
+      delete next[activeAlbumId];
+      return next;
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedApiFilters]); // intentionally excludes activeAlbumId to avoid clearing on album switch
+  }, [apiFilters]); // intentionally excludes activeAlbumId
 
-  // Trigger lazy load when switching to the wanted tab or after a filter reset.
   useEffect(() => {
-    if (!activeAlbumId || activeTab !== 'wanted') return;
-    if (wantedByAlbum[activeAlbumId]) return;
-    void loadWanted(activeAlbumId, null, wantedApiFilters);
-  }, [activeAlbumId, activeTab, wantedByAlbum, loadWanted, wantedApiFilters]);
+    if (!activeAlbumId) return;
+    if (activeTab === 'wanted' && !wantedByAlbum[activeAlbumId]) {
+      void loadWanted(activeAlbumId, null, apiFilters);
+    }
+    if (activeTab === 'offered' && !offeredByAlbum[activeAlbumId]) {
+      void loadOffered(activeAlbumId, null, apiFilters);
+    }
+  }, [activeAlbumId, activeTab, wantedByAlbum, offeredByAlbum, loadWanted, loadOffered, apiFilters]);
 
   // Reset search and filters when context changes.
   useEffect(() => {
@@ -262,46 +297,27 @@ export default function PublicProfilePage() {
   // ── Derived item list for the active tab ───────────────────────────────────
   const activeItems = useMemo<PublicInventoryItem[]>(() => {
     if (!activeAlbum) return [];
-    if (activeTab === 'offered') return activeAlbum.offered;
-    return wantedByAlbum[activeAlbum.albumId]?.items ?? [];
-  }, [activeAlbum, activeTab, wantedByAlbum]);
+    const stateMap = activeTab === 'offered' ? offeredByAlbum : wantedByAlbum;
+    return stateMap[activeAlbum.albumId]?.items ?? [];
+  }, [activeAlbum, activeTab, wantedByAlbum, offeredByAlbum]);
 
-  // Unique filter options derived from the current item set.
-  const availableTypes = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of activeItems) set.add(item.stickerType);
-    return [...set].sort();
-  }, [activeItems]);
+  // Filter options come from the server's full unfiltered universe for this
+  // (album, direction), so the chips stay stable as the user narrows the view.
+  const activeFilterOptions = useMemo(() => {
+    if (!activeAlbum) return { stickerTypes: [], teams: [], variantTypes: [] };
+    const stateMap = activeTab === 'offered' ? offeredByAlbum : wantedByAlbum;
+    return (
+      stateMap[activeAlbum.albumId]?.filterOptions
+      ?? { stickerTypes: [], teams: [], variantTypes: [] }
+    );
+  }, [activeAlbum, activeTab, wantedByAlbum, offeredByAlbum]);
 
-  const availableTeams = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of activeItems) set.add(item.teamName ?? 'Other');
-    return sortGroupKeys([...set]);
-  }, [activeItems]);
+  const availableTypes = activeFilterOptions.stickerTypes;
+  const availableTeams = activeFilterOptions.teams;
+  const availableVariants = activeFilterOptions.variantTypes;
 
-  const availableVariants = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of activeItems) set.add(item.variantType);
-    return [...set].sort();
-  }, [activeItems]);
-
-  const filteredItems = useMemo(() => {
-    // Wanted tab: server already applied all filters; return items as-is.
-    if (activeTab === 'wanted') return activeItems;
-    const q = search.toLowerCase().trim();
-    return activeItems.filter((item) => {
-      if (q) {
-        const matches =
-          item.albumCode.toLowerCase().includes(q) ||
-          (item.playerName?.toLowerCase().includes(q) ?? false);
-        if (!matches) return false;
-      }
-      if (selectedTypes.size > 0 && !selectedTypes.has(item.stickerType)) return false;
-      if (selectedTeams.size > 0 && !selectedTeams.has(item.teamName ?? 'Other')) return false;
-      if (selectedVariants.size > 0 && !selectedVariants.has(item.variantType)) return false;
-      return true;
-    });
-  }, [activeItems, search, selectedTypes, selectedTeams, selectedVariants, activeTab]);
+  // Server applies all filters for both tabs now — pass-through.
+  const filteredItems = activeItems;
 
   const groupedItems = useMemo(
     () => groupItems(filteredItems, groupBy),
@@ -335,8 +351,9 @@ export default function PublicProfilePage() {
 
     const parts: string[] = [];
 
-    if (activeAlbum.offered.length > 0) {
-      parts.push(`Offers | ${albumName}\n${formatSection(activeAlbum.offered, true)}`);
+    const offeredItems = offeredByAlbum[activeAlbum.albumId]?.items ?? [];
+    if (offeredItems.length > 0) {
+      parts.push(`Offers | ${albumName}\n${formatSection(offeredItems, true)}`);
     }
 
     const wantedItems = wantedByAlbum[activeAlbum.albumId]?.items ?? [];
@@ -412,12 +429,18 @@ export default function PublicProfilePage() {
   const isOwnProfile = viewer?.id === profile.userId;
   const canStartTrade = !!viewer && !isOwnProfile;
 
-  const activeWantedState = activeAlbum ? wantedByAlbum[activeAlbum.albumId] : undefined;
-  const wantedLoading = activeTab === 'wanted' && !!activeWantedState?.loading;
-  const wantedTotal =
-    activeTab === 'wanted'
-      ? (activeWantedState?.total ?? activeAlbum?.wantedCount ?? 0)
-      : (activeAlbum?.wantedCount ?? 0);
+  const activeState = activeAlbum
+    ? (activeTab === 'offered'
+        ? offeredByAlbum[activeAlbum.albumId]
+        : wantedByAlbum[activeAlbum.albumId])
+    : undefined;
+  const activeLoading = !!activeState?.loading;
+  const activeTotal =
+    activeState?.total ??
+    (activeAlbum
+      ? activeTab === 'offered' ? activeAlbum.offeredCount : activeAlbum.wantedCount
+      : 0);
+  const activeLoader = activeTab === 'offered' ? loadOffered : loadWanted;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
@@ -511,7 +534,7 @@ export default function PublicProfilePage() {
               {
                 key: 'offered',
                 label: 'Offered',
-                count: activeAlbum.offered.length,
+                count: activeAlbum.offeredCount,
                 accent: 'amber',
               },
               {
@@ -693,24 +716,22 @@ export default function PublicProfilePage() {
 
             {(search || activeFilterCount > 0) && (
               <p className="text-xs text-gray-500">
-                {activeTab === 'wanted'
-                  ? `Showing ${activeItems.length} of ${wantedTotal}`
-                  : `Showing ${filteredItems.length} of ${activeItems.length}`}
+                Showing {activeItems.length} of {activeTotal}
               </p>
             )}
           </div>
 
           {/* Items */}
           <div className="px-4 py-4">
-            {wantedLoading ? (
+            {activeLoading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {Array.from({ length: 10 }).map((_, i) => (
                   <div key={i} className="h-24 rounded-lg bg-gray-100 animate-pulse" />
                 ))}
               </div>
-            ) : activeTab === 'wanted' && activeWantedState?.error ? (
+            ) : activeState?.error ? (
               <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-                {activeWantedState.error}
+                {activeState.error}
               </div>
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-8">
@@ -786,18 +807,18 @@ export default function PublicProfilePage() {
                   })}
                 </div>
 
-                {activeTab === 'wanted' && activeWantedState?.nextCursor != null && (
+                {activeState?.nextCursor != null && (
                   <div className="mt-4 flex justify-center">
                     <button
-                      disabled={activeWantedState.loadingMore}
+                      disabled={activeState.loadingMore}
                       onClick={() =>
-                        void loadWanted(activeAlbum.albumId, activeWantedState.nextCursor, wantedApiFilters)
+                        void activeLoader(activeAlbum.albumId, activeState.nextCursor, apiFilters)
                       }
                       className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
-                      {activeWantedState.loadingMore
+                      {activeState.loadingMore
                         ? 'Loading…'
-                        : `Load more (${activeWantedState.total - activeWantedState.items.length} remaining)`}
+                        : `Load more (${activeState.total - activeState.items.length} remaining)`}
                     </button>
                   </div>
                 )}

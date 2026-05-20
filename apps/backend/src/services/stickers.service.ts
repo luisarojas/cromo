@@ -67,48 +67,45 @@ export async function listStickers(
 
   const { team, group, type, search, cursor } = filters;
 
-  const { rows: items } = await db.query<StickerRow>(
-    `SELECT s.id, s.number, s.album_code, s.player_name, s.position,
-            s.sticker_type, s.is_foil, s.team_id, s.notes,
-            t.name AS team_name, t.fifa_code, t.group_name,
-            sv.id AS base_variant_id,
-            (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
-             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages,
-            (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
-             FROM sticker_album_pages sap WHERE sap.sticker_id = s.id) AS sticker_pages
-     FROM stickers s
-     LEFT JOIN teams t ON s.team_id = t.id
-     LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'
-     WHERE ($1::text IS NULL OR t.fifa_code = $1)
-       AND ($2::text IS NULL OR t.group_name = $2)
-       AND ($3::text IS NULL OR s.sticker_type = $3)
-       AND ($4::text IS NULL OR s.player_name ILIKE '%' || $4 || '%')
-       AND ($5::int IS NULL OR s.number > $5)
-     ORDER BY s.number
+  // sticker_full pre-joins teams + team_pages_json. The variant join is kept
+  // here because we only want the base variant.
+  // One round-trip via COUNT(*) OVER () so total reflects the full filter set
+  // (cursor + LIMIT are applied in the outer query).
+  const { rows: items } = await db.query<StickerRow & { total_count: string }>(
+    `SELECT * FROM (
+       SELECT s.sticker_id AS id, s.number, s.album_code, s.player_name, s.position,
+              s.sticker_type, s.is_foil, s.team_id, s.notes,
+              s.team_name, s.fifa_code, s.group_name,
+              sv.id AS base_variant_id,
+              s.team_pages,
+              (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
+               FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages,
+              COUNT(*) OVER () AS total_count
+       FROM sticker_full s
+       LEFT JOIN sticker_variants sv ON sv.sticker_id = s.sticker_id AND sv.variant_type = 'base'
+       WHERE ($1::text IS NULL OR s.fifa_code = $1)
+         AND ($2::text IS NULL OR s.group_name = $2)
+         AND ($3::text IS NULL OR s.sticker_type = $3)
+         AND ($4::text IS NULL OR s.player_name ILIKE '%' || $4 || '%')
+     ) page
+     WHERE ($5::int IS NULL OR page.number > $5)
+     ORDER BY page.number
      LIMIT $6`,
     [team ?? null, group ?? null, type ?? null, search ?? null, cursor ?? null, limit + 1]
   );
 
   const hasMore = items.length > limit;
   const pageItems = hasMore ? items.slice(0, limit) : items;
-  const nextCursor = hasMore ? pageItems[pageItems.length - 1].number : null;
-
-  // Total count (without cursor so it reflects the full filtered set)
-  const { rows: countRows } = await db.query<{ count: string }>(
-    `SELECT COUNT(*) AS count
-     FROM stickers s
-     LEFT JOIN teams t ON s.team_id = t.id
-     WHERE ($1::text IS NULL OR t.fifa_code = $1)
-       AND ($2::text IS NULL OR t.group_name = $2)
-       AND ($3::text IS NULL OR s.sticker_type = $3)
-       AND ($4::text IS NULL OR s.player_name ILIKE '%' || $4 || '%')`,
-    [team ?? null, group ?? null, type ?? null, search ?? null]
-  );
+  const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
+  const total = items[0] ? parseInt(items[0].total_count, 10) : 0;
+  for (const row of pageItems) {
+    delete (row as Partial<typeof row>).total_count;
+  }
 
   const result: PaginatedResult<StickerRow> = {
     items: pageItems,
     nextCursor,
-    total: parseInt(countRows[0]?.count ?? '0', 10),
+    total,
   };
 
   await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600);
@@ -124,17 +121,15 @@ export async function getStickerByAlbumCode(
   albumCode: string
 ): Promise<StickerRow | null> {
   const { rows } = await db.query<StickerRow>(
-    `SELECT s.id, s.number, s.album_code, s.player_name, s.position,
+    `SELECT s.sticker_id AS id, s.number, s.album_code, s.player_name, s.position,
             s.sticker_type, s.is_foil, s.team_id, s.notes,
-            t.name AS team_name, t.fifa_code, t.group_name,
+            s.team_name, s.fifa_code, s.group_name,
             sv.id AS base_variant_id,
-            (SELECT jsonb_object_agg(tap.edition, jsonb_build_array(tap.page_start, tap.page_end))
-             FROM team_album_pages tap WHERE tap.team_id = s.team_id) AS team_pages,
+            s.team_pages,
             (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
-             FROM sticker_album_pages sap WHERE sap.sticker_id = s.id) AS sticker_pages
-     FROM stickers s
-     LEFT JOIN teams t ON s.team_id = t.id
-     LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id AND sv.variant_type = 'base'
+             FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages
+     FROM sticker_full s
+     LEFT JOIN sticker_variants sv ON sv.sticker_id = s.sticker_id AND sv.variant_type = 'base'
      WHERE s.album_code = $1`,
     [albumCode]
   );
@@ -175,12 +170,12 @@ export async function getCatalogVersion(db: Pool, redis: Redis): Promise<string>
   const cached = await redis.get(CATALOG_VERSION_CACHE_KEY);
   if (cached) return cached;
 
+  // Version = last sticker mutation timestamp + row counts across catalog
+  // tables. The counts naturally bump the version when variants are
+  // added/removed even though sticker_variants has no timestamp column.
   const { rows } = await db.query<{ version: string }>(
     `SELECT to_char(
-       GREATEST(
-         COALESCE((SELECT MAX(updated_at) FROM stickers), 'epoch'::timestamptz),
-         COALESCE((SELECT MAX(updated_at) FROM stickers), 'epoch'::timestamptz)
-       ),
+       COALESCE((SELECT MAX(updated_at) FROM stickers), 'epoch'::timestamptz),
        'YYYYMMDDHH24MISSMS'
      ) || ':' || (
        (SELECT COUNT(*) FROM stickers)::text

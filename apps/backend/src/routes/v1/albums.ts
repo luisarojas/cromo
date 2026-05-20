@@ -73,10 +73,23 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
           required: ['userId'],
           properties: { userId: { type: 'string' } },
         },
-        response: {
-          200: {
-            type: 'object',
-            properties: { items: { type: 'array', items: albumShape } },
+        querystring: {
+          type: 'object',
+          properties: {
+            sort: {
+              type: 'string',
+              enum: [
+                'default',
+                'created_desc',
+                'created_asc',
+                'completion_desc',
+                'completion_asc',
+                'alias_asc',
+              ],
+              default: 'default',
+            },
+            type: { type: 'string' },
+            withStats: { type: 'boolean', default: false },
           },
         },
       },
@@ -84,7 +97,12 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const items = await albumsService.listAlbums(fastify.db, userId);
+      const { sort, type, withStats } = request.query as {
+        sort?: string; type?: string; withStats?: boolean;
+      };
+      const items = withStats
+        ? await albumsService.listAlbumsWithStats(fastify.db, userId, sort, type)
+        : await albumsService.listAlbums(fastify.db, userId, sort, type);
       return reply.status(200).send({ items });
     }
   );
@@ -124,47 +142,35 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /**
-   * GET /api/v1/users/:userId/albums/summary
+   * GET /api/v1/users/:userId/albums/:albumId/cross-album
+   * Returns three maps keyed by sticker album_code for the active album:
+   *   neededIn    — other albums that do NOT own a code this album owns
+   *   availableIn — other albums where a code has duplicates (qty > 1)
+   *   presentIn   — other albums that also own a code
+   *
+   * Replaces three client-side useMemo passes over /albums/summary.
    */
   fastify.get(
-    '/api/v1/users/:userId/albums/summary',
+    '/api/v1/users/:userId/albums/:albumId/cross-album',
     {
       preHandler: [verifyToken],
       schema: {
         tags: ['Albums'],
-        summary: 'Get owned/duplicate album_code sets for all albums (cross-album indicators)',
+        summary: 'Cross-album sticker indicators for the active album',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',
-          required: ['userId'],
-          properties: { userId: { type: 'string' } },
-        },
-        response: {
-          200: {
-            type: 'object',
-            properties: {
-              items: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    album_id:              { type: 'string' },
-                    owned_album_codes:     { type: 'array', items: { type: 'string' } },
-                    duplicate_album_codes: { type: 'array', items: { type: 'string' } },
-                  },
-                },
-              },
-            },
-          },
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
         },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const { userId } = request.params as { userId: string };
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const items = await albumsService.getAlbumSummaries(fastify.db, fastify.redis, userId);
-      return reply.status(200).send({ items });
-    }
+      const result = await albumsService.getCrossAlbum(fastify.db, fastify.redis, userId, albumId);
+      return reply.status(200).send(result);
+    },
   );
 
   /**

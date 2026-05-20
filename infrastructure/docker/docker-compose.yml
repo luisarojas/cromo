@@ -17,6 +17,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    mem_limit: 512m
+    cpus: 1.0
 
   # ─── Redis Cache ───────────────────────────────────────────
   cache:
@@ -24,11 +26,16 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    # maxmemory caps Redis at half the container's memory so an eviction
+    # storm can't OOM-kill the container before Redis itself evicts.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    mem_limit: 256m
+    cpus: 0.5
 
   # ─── Backend API ───────────────────────────────────────────
   api:
@@ -62,6 +69,20 @@ services:
         condition: service_healthy
       cache:
         condition: service_healthy
+    # node is guaranteed to be on PATH in the image; using it instead of
+    # curl/wget avoids forcing the image to ship a separate HTTP client.
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://localhost:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 1.5
 
   # ─── Frontend ──────────────────────────────────────────────
   frontend:
@@ -78,7 +99,10 @@ services:
       - ../../apps/frontend/src:/app/apps/frontend/src
       - ../../packages/shared/src:/app/packages/shared/src
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    mem_limit: 1g
+    cpus: 1.5
 
   # ─── Mailpit (local email catcher) ─────────────────────────
   mailpit:

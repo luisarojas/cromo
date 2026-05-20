@@ -17,6 +17,7 @@ import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY, DEFAULT_ALBUM_FORMAT
 import type { Redis } from 'ioredis';
 import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
+import { statusError } from '../utils/errors.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,12 +54,6 @@ function hashEmail(email: string): string {
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
-}
-
-function statusError(message: string, statusCode: number): Error & { statusCode: number } {
-  const err = new Error(message) as Error & { statusCode: number };
-  err.statusCode = statusCode;
-  return err;
 }
 
 // ─── Service functions ────────────────────────────────────────────────────────

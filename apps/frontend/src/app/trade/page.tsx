@@ -9,6 +9,7 @@ import {
   fetchTradeMatches,
   fetchTrades,
   fetchCollection,
+  fetchFavourites,
   createTrade,
   setTradeFlags,
   patchUserPreferences,
@@ -19,49 +20,13 @@ import {
   type CollectionItem,
   type City,
 } from '@/lib/api';
-import TradeStickerPicker, { type TradePickerItem } from './components/TradeStickerPicker';
+import { type TradePickerItem } from './components/TradeStickerPicker';
+import ProposeTradeModal from './components/ProposeTradeModal';
 import CityAutocomplete from '@/components/CityAutocomplete';
 
+import { saveDraft, clearDraft, loadDraft } from './draftStorage';
+
 type Tab = 'find' | 'my';
-
-const DRAFT_KEY = 'stickfolio:trade_propose_draft';
-
-interface TradeDraft {
-  matchUserId: string;
-  match: TradeMatch;
-  offerVariants: { variantId: string; quantity: number }[];
-  wantVariantIds: string[];
-  offerCashCents: number;
-  wantCashCents: number;
-}
-
-function saveDraft(match: TradeMatch, items: TradePickerItem[], offerCashCents: number, wantCashCents: number) {
-  try {
-    const draft: TradeDraft = {
-      matchUserId: match.userId,
-      match,
-      offerVariants: items.filter((i) => i.direction === 'offer').map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-      wantVariantIds: items.filter((i) => i.direction === 'want').map((i) => i.variantId),
-      offerCashCents,
-      wantCashCents,
-    };
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  } catch { /* ignore */ }
-}
-
-function clearDraft() {
-  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-}
-
-function loadDraft(matchUserId?: string): TradeDraft | null {
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as TradeDraft;
-    if (matchUserId !== undefined && draft.matchUserId !== matchUserId) return null;
-    return draft;
-  } catch { return null; }
-}
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
@@ -123,6 +88,10 @@ function TradePageContent() {
   // doesn't re-trigger.
   const recipientHint = searchParams.get('recipient');
   const recipientHandledRef = useRef(false);
+  // Per-album cache of the propose-modal's offer-picker collection so opening
+  // multiple matches in the same album doesn't refetch up to 1000 items.
+  // Cleared whenever the active album changes or trade flags are mutated.
+  const offerItemsCacheRef = useRef<Map<string, CollectionItem[]>>(new Map());
   const [recipientNotFound, setRecipientNotFound] = useState(false);
 
   function switchTab(next: Tab) {
@@ -138,12 +107,17 @@ function TradePageContent() {
   const [favouriteCodes, setFavouriteCodes] = useState<Set<string>>(new Set());
   const [matches, setMatches] = useState<TradeMatch[]>([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
+  const [matchesMoreLoading, setMatchesMoreLoading] = useState(false);
+  const [matchesCursor, setMatchesCursor] = useState<string | null>(null);
+  const [matchesTotal, setMatchesTotal] = useState(0);
   const [matchesError, setMatchesError] = useState<string | null>(null);
   const [matchesSearched, setMatchesSearched] = useState(false);
 
   // My Trades state
   const [trades, setTrades] = useState<TradeSummary[]>([]);
   const [tradesLoading, setTradesLoading] = useState(false);
+  const [tradesMoreLoading, setTradesMoreLoading] = useState(false);
+  const [tradesCursor, setTradesCursor] = useState<string | null>(null);
   const [tradesError, setTradesError] = useState<string | null>(null);
 
   // Propose modal
@@ -191,8 +165,11 @@ function TradePageContent() {
       setTradesLoading(true);
       setTradesError(null);
       try {
-        const data = await fetchTrades({}, token);
-        if (!cancelled) setTrades(data);
+        const { items, nextCursor } = await fetchTrades({}, token);
+        if (!cancelled) {
+          setTrades(items);
+          setTradesCursor(nextCursor);
+        }
       } catch (err) {
         if (!cancelled)
           setTradesError(err instanceof Error ? err.message : 'Failed to load trades');
@@ -208,14 +185,22 @@ function TradePageContent() {
   }, [tab, token]);
 
   useEffect(() => {
-    if (!selectedAlbumId) return;
-    try {
-      const stored = localStorage.getItem(`stickfolio:favourites:${selectedAlbumId}`);
-      setFavouriteCodes(new Set(stored ? (JSON.parse(stored) as string[]) : []));
-    } catch {
+    if (!selectedAlbumId || !token || !user) {
       setFavouriteCodes(new Set());
+      return;
     }
-  }, [selectedAlbumId]);
+    let cancelled = false;
+    fetchFavourites(user.id, selectedAlbumId, token)
+      .then((codes) => {
+        if (!cancelled) setFavouriteCodes(new Set(codes));
+      })
+      .catch(() => {
+        if (!cancelled) setFavouriteCodes(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAlbumId, token, user]);
 
   // Auto-restore a trade draft if the user refreshed mid-proposal
   useEffect(() => {
@@ -253,10 +238,14 @@ function TradePageContent() {
     setMatchesLoading(true);
     setMatchesError(null);
     setMatches([]);
+    setMatchesCursor(null);
+    setMatchesTotal(0);
     setMatchesSearched(false);
     try {
-      const data = await fetchTradeMatches(selectedAlbumId, token);
-      setMatches(data);
+      const page = await fetchTradeMatches(selectedAlbumId, token);
+      setMatches(page.items);
+      setMatchesCursor(page.nextCursor);
+      setMatchesTotal(page.total);
     } catch (err) {
       setMatchesError(err instanceof Error ? err.message : 'Failed to find matches');
     } finally {
@@ -265,8 +254,28 @@ function TradePageContent() {
     }
   }
 
+  async function handleLoadMoreMatches() {
+    if (!token || !selectedAlbumId || !matchesCursor || matchesMoreLoading) return;
+    setMatchesMoreLoading(true);
+    try {
+      const page = await fetchTradeMatches(selectedAlbumId, token, { cursor: matchesCursor });
+      setMatches((prev) => [...prev, ...page.items]);
+      setMatchesCursor(page.nextCursor);
+    } catch (err) {
+      setMatchesError(err instanceof Error ? err.message : 'Failed to load more matches');
+    } finally {
+      setMatchesMoreLoading(false);
+    }
+  }
+
   function openProposeModal(match: TradeMatch) {
     const draft = loadDraft(match.userId);
+
+    // Re-use a previously-fetched collection for the same album so opening
+    // several matches in a row doesn't refetch up to 1000 items every time.
+    const cached = selectedAlbumId
+      ? offerItemsCacheRef.current.get(selectedAlbumId)
+      : undefined;
 
     setProposeModal({
       match,
@@ -275,17 +284,21 @@ function TradePageContent() {
       wantCash: draft?.wantCashCents ?? 0,
       submitting: false,
       error: null,
-      offerItems: [],
-      offerItemsLoading: true,
+      offerItems: cached ?? [],
+      offerItemsLoading: cached === undefined,
       draftOfferVariants: draft?.offerVariants,
       draftWantVariantIds: draft?.wantVariantIds,
       draftOfferCash: draft?.offerCashCents,
       draftWantCash: draft?.wantCashCents,
     });
 
+    if (cached !== undefined) return;
+
     if (token && user && selectedAlbumId) {
-      fetchCollection(user.id, { albumId: selectedAlbumId, limit: 1000 }, token)
+      const albumIdAtFetch = selectedAlbumId;
+      fetchCollection(user.id, { albumId: albumIdAtFetch, limit: 1000 }, token)
         .then((result) => {
+          offerItemsCacheRef.current.set(albumIdAtFetch, result.items);
           setProposeModal((prev) =>
             prev ? { ...prev, offerItems: result.items, offerItemsLoading: false } : prev,
           );
@@ -307,6 +320,9 @@ function TradePageContent() {
         ),
       };
     });
+    // Keep the per-album cache aligned with the optimistic update so the next
+    // openProposeModal doesn't show a stale tradeHidden value.
+    offerItemsCacheRef.current.delete(selectedAlbumId);
     try {
       await setTradeFlags(user.id, variantId, { tradeHidden: true }, token, selectedAlbumId);
     } catch {
@@ -500,6 +516,11 @@ function TradePageContent() {
                   No matches share your cities. Try disabling &quot;Nearby only&quot; or add more cities in Settings.
                 </p>
               )}
+              {matchesTotal > matches.length && (
+                <p className="text-xs text-gray-400">
+                  Showing {matches.length} of {matchesTotal}
+                </p>
+              )}
               {visibleMatches.map((match) => (
                 <div
                   key={match.userId}
@@ -545,6 +566,17 @@ function TradePageContent() {
                   </button>
                 </div>
               ))}
+              {matchesCursor && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    onClick={handleLoadMoreMatches}
+                    disabled={matchesMoreLoading}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {matchesMoreLoading ? 'Loading…' : 'Load more'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -608,6 +640,27 @@ function TradePageContent() {
                   </button>
                 );
               })}
+              {tradesCursor && (
+                <button
+                  onClick={async () => {
+                    if (!token || tradesMoreLoading) return;
+                    setTradesMoreLoading(true);
+                    try {
+                      const { items, nextCursor } = await fetchTrades({ cursor: tradesCursor }, token);
+                      setTrades((prev) => [...prev, ...items]);
+                      setTradesCursor(nextCursor);
+                    } catch (err) {
+                      setTradesError(err instanceof Error ? err.message : 'Failed to load more trades');
+                    } finally {
+                      setTradesMoreLoading(false);
+                    }
+                  }}
+                  disabled={tradesMoreLoading}
+                  className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-3 disabled:opacity-50"
+                >
+                  {tradesMoreLoading ? 'Loading…' : 'Load more'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -615,74 +668,30 @@ function TradePageContent() {
 
       {/* Propose Trade Modal */}
       {proposeModal && token && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-5xl rounded-xl border border-gray-200 bg-white shadow-xl flex flex-col max-h-[95vh]">
-            {/* Header */}
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
-              <h2 className="text-lg font-semibold text-gray-800">Propose Trade</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                With{' '}
-                <span className="font-medium text-gray-700">
-                  {proposeModal.match.displayName ?? proposeModal.match.username}
-                </span>{' '}
-                (@{proposeModal.match.username})
-              </p>
-            </div>
-
-            {/* Picker */}
-            <div className="px-6 py-4 flex-1 min-h-0 flex flex-col">
-              <TradeStickerPicker
-                key={proposeModal.match.userId}
-                offerItems={proposeModal.offerItems}
-                offerItemsLoading={proposeModal.offerItemsLoading}
-                suggestedOfferCodes={proposeModal.match.youHave}
-                suggestedWantCodes={proposeModal.match.theyHave}
-                suggestedWantVariantIds={proposeModal.match.theyHaveVariantIds}
-                token={token}
-                partnerName={proposeModal.match.displayName ?? proposeModal.match.username}
-                favouriteCodes={favouriteCodes}
-                onHideSticker={handleHideSticker}
-                initialOfferVariants={proposeModal.draftOfferVariants}
-                initialWantVariantIds={proposeModal.draftWantVariantIds}
-                initialOfferCash={proposeModal.draftOfferCash}
-                initialWantCash={proposeModal.draftWantCash}
-                onChange={(items, offerCash, wantCash) => {
-                  setProposeModal((prev) => {
-                    if (!prev) return prev;
-                    saveDraft(prev.match, items, offerCash, wantCash);
-                    return { ...prev, pickerItems: items, offerCash, wantCash };
-                  });
-                }}
-              />
-
-              {proposeModal.error && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mt-4">
-                  {proposeModal.error}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { clearDraft(); setProposeModal(null); }}
-                  disabled={proposeModal.submitting}
-                  className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSendTradeRequest}
-                  disabled={proposeModal.submitting || proposeModal.pickerItems.length === 0}
-                  className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {proposeModal.submitting ? 'Sending...' : 'Send Request'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ProposeTradeModal
+          match={proposeModal.match}
+          offerItems={proposeModal.offerItems}
+          offerItemsLoading={proposeModal.offerItemsLoading}
+          pickerItems={proposeModal.pickerItems}
+          error={proposeModal.error}
+          submitting={proposeModal.submitting}
+          favouriteCodes={favouriteCodes}
+          token={token}
+          initialOfferVariants={proposeModal.draftOfferVariants}
+          initialWantVariantIds={proposeModal.draftWantVariantIds}
+          initialOfferCash={proposeModal.draftOfferCash}
+          initialWantCash={proposeModal.draftWantCash}
+          onHideSticker={handleHideSticker}
+          onChange={(items, offerCash, wantCash) => {
+            setProposeModal((prev) => {
+              if (!prev) return prev;
+              saveDraft(prev.match, items, offerCash, wantCash);
+              return { ...prev, pickerItems: items, offerCash, wantCash };
+            });
+          }}
+          onCancel={() => { clearDraft(); setProposeModal(null); }}
+          onSend={handleSendTradeRequest}
+        />
       )}
     </div>
   );

@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  fetchStats,
   fetchUserAlbums,
-  fetchAlbumStats,
+  fetchUserAlbumsWithStats,
   updateUserAlbum,
   deleteUserAlbum,
   albumDisplayName,
-  type CollectionStats,
   type AlbumStats,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -32,13 +30,13 @@ export default function DashboardPage() {
   const albums = useAlbumsStore((s) => s.albums);
   const setAlbums = useAlbumsStore((s) => s.setAlbums);
 
-  const [stats, setStats] = useState<CollectionStats | null>(null);
   const [albumStats, setAlbumStats] = useState<Map<string, AlbumStats>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [filterType, setFilterType] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [allAlbumTypeNames, setAllAlbumTypeNames] = useState<string[]>([]);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -56,15 +54,20 @@ export default function DashboardPage() {
     async function load() {
       if (!token || !user) return;
       try {
-        const [aggregateStats, userAlbums, statsList] = await Promise.all([
-          fetchStats(user.id, token),
-          fetchUserAlbums(user.id, token),
-          fetchAlbumStats(user.id, token),
-        ]);
+        const albumSort = sortOrder === 'desc' ? 'completion_desc'
+          : sortOrder === 'asc' ? 'completion_asc'
+          : 'default';
+        // Single round-trip: albums + per-album stats. The dashboard's top
+        // stat cards used to also fetch /collection/stats for the default
+        // album, but those numbers are already in the bundled per-album
+        // stats — we derive them from the default album below.
+        const userAlbums = await fetchUserAlbumsWithStats(user.id, token, albumSort, filterType);
         if (cancelled) return;
-        setStats(aggregateStats);
         setAlbums(userAlbums);
-        setAlbumStats(new Map(statsList.map((s) => [s.albumId, s])));
+        setAlbumStats(new Map(userAlbums.map((a) => [a.id, { ...a.stats, albumId: a.id }])));
+        if (filterType === 'all') {
+          setAllAlbumTypeNames([...new Set(userAlbums.map((a) => a.albumTypeName))]);
+        }
       } catch (err) {
         if (!cancelled)
           setError(err instanceof Error ? err.message : 'Failed to load');
@@ -75,27 +78,14 @@ export default function DashboardPage() {
 
     void load();
     return () => { cancelled = true; };
+  // re-fetches when sort/filter changes so the server reorders/filters the rows
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, token, user, router]);
+  }, [hydrated, token, user, router, sortOrder, filterType]);
 
-  const albumTypes = useMemo(
-    () => [...new Set(albums.map((a) => a.albumTypeName))],
-    [albums],
-  );
-
-  const displayedAlbums = useMemo(() => {
-    let result = filterType === 'all'
-      ? albums
-      : albums.filter((a) => a.albumTypeName === filterType);
-    if (sortOrder !== 'none') {
-      result = [...result].sort((a, b) => {
-        const pa = albumStats.get(a.id)?.percentage ?? 0;
-        const pb = albumStats.get(b.id)?.percentage ?? 0;
-        return sortOrder === 'asc' ? pa - pb : pb - pa;
-      });
-    }
-    return result;
-  }, [albums, filterType, sortOrder, albumStats]);
+  // Server applies sort AND type filter (see fetchUserAlbums above). Chip list
+  // comes from allAlbumTypeNames captured on the unfiltered fetch.
+  const albumTypes = allAlbumTypeNames;
+  const displayedAlbums = albums;
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -141,12 +131,9 @@ export default function DashboardPage() {
     setBulkBusy(true);
     try {
       await Promise.all([...selectedIds].map((id) => deleteUserAlbum(user.id, id, token)));
-      const [userAlbums, statsList] = await Promise.all([
-        fetchUserAlbums(user.id, token),
-        fetchAlbumStats(user.id, token),
-      ]);
+      const userAlbums = await fetchUserAlbumsWithStats(user.id, token);
       setAlbums(userAlbums);
-      setAlbumStats(new Map(statsList.map((s) => [s.albumId, s])));
+      setAlbumStats(new Map(userAlbums.map((a) => [a.id, { ...a.stats, albumId: a.id }])));
       exitSelectMode();
     } finally {
       setBulkBusy(false);
@@ -203,10 +190,10 @@ export default function DashboardPage() {
                 <div key={i} className="h-20 rounded-xl bg-gray-200 animate-pulse" />
               ))
             : [
-                { label: 'Total',      value: stats?.total      ?? 0, color: 'text-gray-800',   bg: 'bg-white',     border: 'border-gray-200'  },
-                { label: 'Owned',      value: stats?.owned      ?? 0, color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-100' },
-                { label: 'Missing',    value: stats?.missing    ?? 0, color: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'   },
-                { label: 'Duplicates', value: stats?.duplicates ?? 0, color: 'text-amber-500',  bg: 'bg-amber-50',  border: 'border-amber-100' },
+                { label: 'Total',      value: defaultAlbumStats?.total      ?? 0, color: 'text-gray-800',   bg: 'bg-white',     border: 'border-gray-200'  },
+                { label: 'Owned',      value: defaultAlbumStats?.owned      ?? 0, color: 'text-green-600',  bg: 'bg-green-50',  border: 'border-green-100' },
+                { label: 'Missing',    value: defaultAlbumStats?.missing    ?? 0, color: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'   },
+                { label: 'Duplicates', value: defaultAlbumStats?.duplicates ?? 0, color: 'text-amber-500',  bg: 'bg-amber-50',  border: 'border-amber-100' },
               ].map(({ label, value, color, bg, border }) => (
                 <div
                   key={label}
@@ -219,16 +206,16 @@ export default function DashboardPage() {
         </div>
 
         {/* Overall progress + insight */}
-        {stats && !loading && (
+        {defaultAlbumStats && !loading && (
           <div className="mb-8">
             <div className="flex justify-between text-xs text-gray-500 mb-1">
               <span>Overall progress</span>
-              <span>{stats.percentage.toFixed(1)}%</span>
+              <span>{defaultAlbumStats.percentage.toFixed(1)}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden mb-2">
               <div
                 className="h-full rounded-full bg-green-500 transition-all duration-700"
-                style={{ width: `${stats.percentage}%` }}
+                style={{ width: `${defaultAlbumStats.percentage}%` }}
               />
             </div>
             {insightText && (

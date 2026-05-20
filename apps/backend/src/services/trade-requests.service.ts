@@ -1,20 +1,29 @@
 import type { Pool, PoolClient } from 'pg';
 import type { Redis } from 'ioredis';
+import { withTx } from '../db/transaction.js';
 import { invalidateUserCaches } from './cache.js';
 import { publishTradeEvent, sendSystemMessage } from './messaging.service.js';
-import { recomputeAlbumStats } from './album-stats.service.js';
+import { statusError } from '../utils/errors.js';
+import { recordAuditBulk } from '../utils/audit.js';
+import { matchesIndexKey } from './trade-matching.service.js';
 
 async function invalidateMatchesFor(redis: Redis, userIds: string[]): Promise<void> {
-  for (const userId of userIds) {
-    let cursor = '0';
-    do {
-      const [next, keys] = await redis.scan(
-        cursor, 'MATCH', `trade:matches:${userId}:*`, 'COUNT', 100,
-      );
-      cursor = next;
-      if (keys.length > 0) await redis.del(...keys);
-    } while (cursor !== '0');
+  // Each user owns a Redis SET that lists every active match-cache key they've
+  // produced. Reading the set + unlinking its members is O(N) in the number of
+  // *real* keys, with no SCAN over the entire keyspace.
+  const indexKeys = userIds.map(matchesIndexKey);
+  const memberArrays = await Promise.all(indexKeys.map((k) => redis.smembers(k)));
+
+  const allKeys = memberArrays.flat();
+  if (allKeys.length === 0 && indexKeys.length === 0) return;
+
+  const CHUNK = 500;
+  const pipeline = redis.pipeline();
+  for (let i = 0; i < allKeys.length; i += CHUNK) {
+    pipeline.unlink(...allKeys.slice(i, i + CHUNK));
   }
+  if (indexKeys.length > 0) pipeline.unlink(...indexKeys);
+  await pipeline.exec();
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -81,25 +90,36 @@ interface TradeItemInput {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function statusError(message: string, statusCode: number): Error & { statusCode: number } {
-  const err = new Error(message) as Error & { statusCode: number };
-  err.statusCode = statusCode;
-  return err;
-}
-
-async function assertVariantsExist(
+/**
+ * assertVariantsBelongToAlbumType — verify every variant exists AND its sticker
+ * belongs to the trade's album type. Prevents a client from offering stickers
+ * from a different album in the same trade payload.
+ */
+async function assertVariantsBelongToAlbumType(
   client: PoolClient | Pool,
   variantIds: string[],
+  albumTypeId: string,
 ): Promise<void> {
   if (variantIds.length === 0) return;
-  const { rows } = await client.query<{ id: string }>(
-    `SELECT id FROM sticker_variants WHERE id = ANY($1::uuid[])`,
+  const { rows } = await client.query<{ id: string; album_type_id: string }>(
+    `SELECT sv.id, s.album_type_id
+     FROM sticker_variants sv
+     JOIN stickers s ON s.id = sv.sticker_id
+     WHERE sv.id = ANY($1::uuid[])`,
     [variantIds],
   );
-  if (rows.length !== new Set(variantIds).size) {
+  const unique = new Set(variantIds);
+  if (rows.length !== unique.size) {
     const found = new Set(rows.map((r) => r.id));
     const missing = variantIds.find((v) => !found.has(v));
     throw statusError(`Unknown sticker variant: ${missing}`, 400);
+  }
+  const mismatch = rows.find((r) => r.album_type_id !== albumTypeId);
+  if (mismatch) {
+    throw statusError(
+      'One or more stickers do not belong to this trade\'s album.',
+      400,
+    );
   }
 }
 
@@ -219,7 +239,7 @@ export async function createTrade(
     throw statusError('Trade must include at least one offer and one request (stickers or cash).', 400);
   }
 
-  const tradeId = await withTradeTx(db, async (client) => {
+  const tradeId = await withTx(db, async (client) => {
     const { rows: recipientRows } = await client.query<{ id: string }>(
       `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
       [recipientId],
@@ -261,8 +281,9 @@ export async function createTrade(
     const resolvedRecipientAlbumId = recAlbumRows[0]!.id;
 
     // Lock the variants we're about to reference so a concurrent admin delete
-    // can't pull them out between assertion and insert.
-    await assertVariantsExist(client, items.map((i) => i.variantId));
+    // can't pull them out between assertion and insert. Validate they all
+    // belong to this trade's album type so a client can't mix albums.
+    await assertVariantsBelongToAlbumType(client, items.map((i) => i.variantId), albumTypeId);
 
     const offerVariantIds = items.filter((i) => i.direction === 'offer').map((i) => i.variantId);
     const wantVariantIds  = items.filter((i) => i.direction === 'want').map((i) => i.variantId);
@@ -303,32 +324,34 @@ export async function createTrade(
   return { id: tradeId };
 }
 
-async function withTradeTx<T>(
-  db: Pool,
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+export interface TradeListPage {
+  items: TradeSummary[];
+  nextCursor: string | null;
 }
 
 /**
- * listTrades — return all trades for a user (as requester or recipient).
+ * listTrades — cursor-paginated trades for a user (as requester or recipient).
+ * Cursor encodes (updated_at, id) — id is a tiebreaker for trades that share
+ * an updated_at to the millisecond.
  */
 export async function listTrades(
   db: Pool,
   userId: string,
-  status?: string
-): Promise<TradeSummary[]> {
+  opts: { status?: string; cursor?: string; limit?: number } = {},
+): Promise<TradeListPage> {
+  const pageSize = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+
+  // Decode "<iso>|<uuid>" cursor.
+  let cursorTs: string | null = null;
+  let cursorId: string | null = null;
+  if (opts.cursor) {
+    const idx = opts.cursor.lastIndexOf('|');
+    if (idx > 0) {
+      cursorTs = opts.cursor.slice(0, idx);
+      cursorId = opts.cursor.slice(idx + 1);
+    }
+  }
+
   const { rows } = await db.query<TradeSummary>(
     `SELECT
        tr.id,
@@ -345,18 +368,29 @@ export async function listTrades(
      FROM trade_requests tr
      JOIN users ru ON ru.id = tr.requester_id
      JOIN users re ON re.id = tr.recipient_id
-     LEFT JOIN (
-       SELECT trade_id, COUNT(*) AS message_count
-       FROM trade_messages
-       GROUP BY trade_id
-     ) mc ON mc.trade_id = tr.id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*) AS message_count
+       FROM trade_messages tm
+       WHERE tm.trade_id = tr.id
+     ) mc ON true
      WHERE (tr.requester_id = $1 OR tr.recipient_id = $1)
        AND ($2::text IS NULL OR tr.status = $2)
-     ORDER BY tr.updated_at DESC`,
-    [userId, status ?? null]
+       AND (
+         $3::timestamptz IS NULL
+         OR tr.updated_at < $3::timestamptz
+         OR (tr.updated_at = $3::timestamptz AND tr.id < $4::uuid)
+       )
+     ORDER BY tr.updated_at DESC, tr.id DESC
+     LIMIT $5`,
+    [userId, opts.status ?? null, cursorTs, cursorId, pageSize + 1],
   );
 
-  return rows;
+  const hasMore = rows.length > pageSize;
+  const items = hasMore ? rows.slice(0, pageSize) : rows;
+  const last = items[items.length - 1];
+  const nextCursor = hasMore && last ? `${last.updated_at}|${last.id}` : null;
+
+  return { items, nextCursor };
 }
 
 /**
@@ -492,7 +526,7 @@ export async function counterTrade(
     throw statusError('Counter offer must include at least one offer and one request (stickers or cash).', 400);
   }
 
-  const { newCounter } = await withTradeTx(db, async (client) => {
+  const { newCounter } = await withTx(db, async (client) => {
     // Lock the trade row so two concurrent counter-offers can't both pass the
     // status / counter_count check.
     const { rows: lockedRows } = await client.query<{
@@ -502,9 +536,13 @@ export async function counterTrade(
       counter_count: number;
       offer_cash: number;
       want_cash: number;
+      album_type_id: string;
     }>(
-      `SELECT requester_id, recipient_id, status, counter_count, offer_cash, want_cash
-       FROM trade_requests WHERE id = $1 FOR UPDATE`,
+      `SELECT tr.requester_id, tr.recipient_id, tr.status, tr.counter_count,
+              tr.offer_cash, tr.want_cash, ua.album_type_id
+       FROM trade_requests tr
+       JOIN user_albums ua ON ua.id = tr.requester_album_id
+       WHERE tr.id = $1 FOR UPDATE OF tr`,
       [tradeId],
     );
     if (lockedRows.length === 0) throw statusError('Trade not found.', 404);
@@ -517,7 +555,7 @@ export async function counterTrade(
     }
     if (locked.counter_count >= 5) throw statusError('Counter limit reached.', 409);
 
-    await assertVariantsExist(client, items.map((i) => i.variantId));
+    await assertVariantsBelongToAlbumType(client, items.map((i) => i.variantId), locked.album_type_id);
 
     // After a counter the submitter becomes the new requester; check their offered
     // stickers aren't locked in another accepted trade, and likewise for the other party.
@@ -664,7 +702,7 @@ export async function editTrade(
     throw statusError('Trade must include at least one offer and one request (stickers or cash).', 400);
   }
 
-  const { counterCount } = await withTradeTx(db, async (client) => {
+  const { counterCount } = await withTx(db, async (client) => {
     const { rows: lockedRows } = await client.query<{
       requester_id: string;
       recipient_id: string;
@@ -672,9 +710,13 @@ export async function editTrade(
       counter_count: number;
       offer_cash: number;
       want_cash: number;
+      album_type_id: string;
     }>(
-      `SELECT requester_id, recipient_id, status, counter_count, offer_cash, want_cash
-       FROM trade_requests WHERE id = $1 FOR UPDATE`,
+      `SELECT tr.requester_id, tr.recipient_id, tr.status, tr.counter_count,
+              tr.offer_cash, tr.want_cash, ua.album_type_id
+       FROM trade_requests tr
+       JOIN user_albums ua ON ua.id = tr.requester_album_id
+       WHERE tr.id = $1 FOR UPDATE OF tr`,
       [tradeId],
     );
     if (lockedRows.length === 0) throw statusError('Trade not found.', 404);
@@ -689,7 +731,7 @@ export async function editTrade(
       throw statusError('Only counter-offers can be edited.', 409);
     }
 
-    await assertVariantsExist(client, items.map((i) => i.variantId));
+    await assertVariantsBelongToAlbumType(client, items.map((i) => i.variantId), locked.album_type_id);
 
     await assertNotOfferedInAcceptedTrade(
       client, userId,
@@ -916,32 +958,51 @@ export async function completeTrade(
       [tradeId]
     );
 
+    // Build per-item "from / to" tuples once. Loops below operate on arrays so
+    // every Postgres round-trip is O(1) regardless of item count.
+    const fromAlbumIds: string[] = [];
+    const toAlbumIds:   string[] = [];
+    const variantIds:   string[] = [];
+    const quantities:   number[] = [];
     for (const item of items) {
-      const albumId = item.direction === 'offer' ? requesterAlbumId : recipientAlbumId;
-      const { rows: stock } = await client.query<{ quantity: number }>(
-        `SELECT quantity FROM user_stickers
-         WHERE album_id = $1 AND sticker_variant_id = $2 FOR UPDATE`,
-        [albumId, item.sticker_variant_id]
+      const [from, to] = item.direction === 'offer'
+        ? [requesterAlbumId, recipientAlbumId]
+        : [recipientAlbumId, requesterAlbumId];
+      fromAlbumIds.push(from);
+      toAlbumIds.push(to);
+      variantIds.push(item.sticker_variant_id);
+      quantities.push(item.quantity);
+    }
+
+    // Lock the source rows and validate stock in a single round-trip. FOR
+    // UPDATE OF us locks only existing user_stickers rows; a missing row reads
+    // as available=0 via COALESCE, which fails the check below.
+    const { rows: stockCheck } = await client.query<{ shortfall: boolean }>(
+      `SELECT bool_or(COALESCE(us.quantity, 0) < t.needed) AS shortfall
+       FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, needed)
+       LEFT JOIN user_stickers us
+         ON us.album_id = t.album_id AND us.sticker_variant_id = t.sticker_variant_id
+       FOR UPDATE OF us`,
+      [fromAlbumIds, variantIds, quantities]
+    );
+
+    if (stockCheck[0]?.shortfall) {
+      await client.query(
+        `UPDATE trade_requests
+         SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [tradeId]
       );
-      const available = stock[0]?.quantity ?? 0;
-      if (available < item.quantity) {
-        await client.query(
-          `UPDATE trade_requests
-           SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-           WHERE id = $1`,
-          [tradeId]
-        );
-        await client.query('COMMIT');
-        await Promise.all([
-          invalidateUserCaches(redis, requesterId),
-          invalidateUserCaches(redis, recipientId),
-        ]);
-        await sendSystemMessage(db, redis, tradeId, 'Trade cancelled — one or more stickers are no longer available.');
-        await publishTradeEvent(redis, tradeId, 'status_changed', {
-          trade_id: tradeId, status: 'cancelled',
-        });
-        throw statusError('One or more stickers in this trade are no longer available', 409);
-      }
+      await client.query('COMMIT');
+      await Promise.all([
+        invalidateUserCaches(redis, requesterId),
+        invalidateUserCaches(redis, recipientId),
+      ]);
+      await sendSystemMessage(db, redis, tradeId, 'Trade cancelled — one or more stickers are no longer available.');
+      await publishTradeEvent(redis, tradeId, 'status_changed', {
+        trade_id: tradeId, status: 'cancelled',
+      });
+      throw statusError('One or more stickers in this trade are no longer available', 409);
     }
 
     await client.query(
@@ -951,38 +1012,40 @@ export async function completeTrade(
       [tradeId]
     );
 
-    for (const item of items) {
-      const { sticker_variant_id, direction, quantity } = item;
-      const [from, to] = direction === 'offer'
-        ? [requesterAlbumId, recipientAlbumId]
-        : [recipientAlbumId, requesterAlbumId];
+    // Bulk decrement source inventory.
+    await client.query(
+      `UPDATE user_stickers us
+       SET quantity = us.quantity - t.qty, updated_at = NOW()
+       FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, qty)
+       WHERE us.album_id = t.album_id AND us.sticker_variant_id = t.sticker_variant_id`,
+      [fromAlbumIds, variantIds, quantities]
+    );
 
-      await client.query(
-        `UPDATE user_stickers
-         SET quantity = quantity - $3, updated_at = NOW()
-         WHERE album_id = $1 AND sticker_variant_id = $2`,
-        [from, sticker_variant_id, quantity]
-      );
-      await client.query(
-        `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (album_id, sticker_variant_id)
-         DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-        [to, sticker_variant_id, quantity]
-      );
-    }
+    // Bulk upsert destination inventory. Aggregating by (album_id, variant_id)
+    // first avoids the ON CONFLICT cardinality-violation case where the same
+    // destination row would be inserted twice in one statement.
+    await client.query(
+      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+       SELECT album_id, sticker_variant_id, SUM(qty)::int
+       FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, qty)
+       GROUP BY album_id, sticker_variant_id
+       ON CONFLICT (album_id, sticker_variant_id)
+       DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
+      [toAlbumIds, variantIds, quantities]
+    );
 
     await client.query(
       `DELETE FROM user_stickers WHERE album_id IN ($1, $2) AND quantity <= 0`,
       [requesterAlbumId, recipientAlbumId]
     );
 
-    await recomputeAlbumStats(client, [requesterAlbumId, recipientAlbumId]);
+    // Counts maintained by trg_user_stickers_sync_counts as user_stickers
+    // mutate inside this transaction.
 
     // Audit trail — recorded inside the trade tx so a dispute query can
     // reconstruct who completed what and when. metadata holds the variant set
     // since trade_items is the source of truth and may be archived later.
-    const auditMeta = JSON.stringify({
+    await recordAuditBulk(client, [requesterId, recipientId], 'trade_completed', {
       tradeId,
       items: items.map((i) => ({
         stickerVariantId: i.sticker_variant_id,
@@ -990,14 +1053,6 @@ export async function completeTrade(
         quantity: i.quantity,
       })),
     });
-    await client.query(
-      `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'trade_completed', $2::jsonb)`,
-      [requesterId, auditMeta]
-    );
-    await client.query(
-      `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'trade_completed', $2::jsonb)`,
-      [recipientId, auditMeta]
-    );
 
     await client.query('COMMIT');
 

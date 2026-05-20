@@ -20,7 +20,7 @@ import type {
   AuthUser as SharedAuthUser,
   UserAlbumDto,
   AlbumStatsDto,
-  AlbumSummaryDto,
+  CrossAlbumDto,
   CollectionStatsDto,
   FilterOptionsDto,
   PagedResult as SharedPagedResult,
@@ -242,42 +242,64 @@ function buildHeaders(token?: string, hasBody = false): HeadersInit {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+// In-flight GET dedup: if two components hit the same path with the same token
+// concurrently, share a single fetch. Cleared as soon as the promise settles
+// — this is *not* a persistent cache, just a way to collapse stampedes during
+// initial render. Mutations bypass this entirely.
+const inFlightGets = new Map<string, Promise<unknown>>();
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
   token?: string,
 ): Promise<T> {
+  const method = (options.method ?? 'GET').toUpperCase();
   const hasBody = options.body !== undefined;
+  const dedupable = method === 'GET' && !hasBody && !options.signal;
+  const key = dedupable ? `${token ?? ''}|${path}` : null;
+
+  if (key) {
+    const existing = inFlightGets.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+  }
 
   // If the caller already passed a signal, respect it; otherwise apply a default timeout.
   const signal = options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
 
-  let res: Response;
-  try {
-    res = await fetch(`${BASE_URL}${path}`, {
-      ...options,
-      signal,
-      headers: {
-        ...buildHeaders(token, hasBody),
-        ...(options.headers ?? {}),
-      },
-    });
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'TimeoutError') {
-      throw new Error(`API timeout after ${DEFAULT_TIMEOUT_MS}ms: ${path}`);
+  const run = (async (): Promise<T> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        signal,
+        headers: {
+          ...buildHeaders(token, hasBody),
+          ...(options.headers ?? {}),
+        },
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'TimeoutError') {
+        throw new Error(`API timeout after ${DEFAULT_TIMEOUT_MS}ms: ${path}`);
+      }
+      throw err;
     }
-    throw err;
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`API error ${res.status}: ${text}`);
+    }
+
+    // DELETE returns 204 with no body
+    if (res.status === 204) return undefined as unknown as T;
+
+    return res.json() as Promise<T>;
+  })();
+
+  if (key) {
+    inFlightGets.set(key, run);
+    run.finally(() => inFlightGets.delete(key));
   }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-
-  // DELETE returns 204 with no body
-  if (res.status === 204) return undefined as unknown as T;
-
-  return res.json() as Promise<T>;
+  return run;
 }
 
 function toQueryString(
@@ -293,18 +315,19 @@ function toQueryString(
 }
 
 // ---------------------------------------------------------------------------
-// Sticker catalog — localStorage cache keyed off the backend's catalog version.
+// Sticker catalog — relies on HTTP caching, not localStorage.
 //
-// The frontend probes /api/v1/stickers/version on every load (cheap: a single
-// MAX(updated_at) query, cached in Redis for 5 min) and uses the result as the
-// cache key. A backend catalog reseed (or any admin edit) bumps the version,
-// which invalidates every browser automatically — no manual STICKER_CACHE_KEY
-// bump required.
+// The frontend probes /api/v1/stickers/version (cheap: a single MAX(updated_at)
+// query, cached in Redis for 5 min) and embeds the result as `?v=<version>` on
+// catalog requests. Each (version, cursor) combination is therefore a unique URL
+// that the backend serves with `Cache-Control: public, max-age=86400,
+// stale-while-revalidate=604800` — browser + CDN cache it freely. An admin edit
+// bumps the version, produces a fresh URL on next page load, and old entries
+// fall out of the cache on their own.
+//
+// Concurrent callers are deduplicated via the in-flight registry below so that
+// two components mounting at once don't fire two pagination loops.
 // ---------------------------------------------------------------------------
-
-const STICKER_CACHE_PREFIX = 'stickfolio:sticker_catalog';
-const STICKER_VERSION_KEY  = 'stickfolio:sticker_catalog:version';
-const STICKER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 async function fetchCatalogVersion(token?: string): Promise<string> {
   try {
@@ -317,53 +340,39 @@ async function fetchCatalogVersion(token?: string): Promise<string> {
   }
 }
 
-function readCachedCatalog(version: string): Sticker[] | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(`${STICKER_CACHE_PREFIX}:${version}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { data: Sticker[]; fetchedAt: number };
-    if (Date.now() - parsed.fetchedAt > STICKER_CACHE_TTL_MS) return null;
-    return parsed.data;
-  } catch {
-    return null;
-  }
-}
+const inFlightCatalog = new Map<string, Promise<Sticker[]>>();
 
-function writeCachedCatalog(version: string, data: Sticker[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const previous = localStorage.getItem(STICKER_VERSION_KEY);
-    if (previous && previous !== version) {
-      localStorage.removeItem(`${STICKER_CACHE_PREFIX}:${previous}`);
-    }
-    localStorage.setItem(STICKER_VERSION_KEY, version);
-    localStorage.setItem(
-      `${STICKER_CACHE_PREFIX}:${version}`,
-      JSON.stringify({ data, fetchedAt: Date.now() })
-    );
-  } catch {}
-}
-
-export async function fetchAllStickersCached(token?: string): Promise<Sticker[]> {
+export async function fetchAllStickers(token?: string): Promise<Sticker[]> {
   const version = await fetchCatalogVersion(token);
+  const existing = inFlightCatalog.get(version);
+  if (existing) return existing;
 
-  const cached = readCachedCatalog(version);
-  if (cached) return cached;
+  const promise = (async () => {
+    const all: Sticker[] = [];
+    let cursor: number | undefined = undefined;
+    for (let i = 0; i < 50; i++) {
+      const result = await fetchStickers({ cursor, limit: 200, v: version }, token);
+      all.push(...result.items);
+      if (!result.nextCursor || result.items.length === 0) break;
+      cursor = result.nextCursor;
+      if (all.length >= 1200) break;
+    }
+    return all;
+  })();
 
-  const all: Sticker[] = [];
-  let cursor: number | undefined = undefined;
-  for (let i = 0; i < 50; i++) {
-    const result = await fetchStickers({ cursor, limit: 200 }, token);
-    all.push(...result.items);
-    if (!result.nextCursor || result.items.length === 0) break;
-    cursor = result.nextCursor;
-    if (all.length >= 1200) break;
+  inFlightCatalog.set(version, promise);
+  try {
+    return await promise;
+  } finally {
+    // Keep the resolved promise around so re-entrant callers can await the same
+    // value; clear only on failure so the next attempt can retry.
+    promise.catch(() => inFlightCatalog.delete(version));
   }
-
-  writeCachedCatalog(version, all);
-  return all;
 }
+
+// Back-compat shim while older call sites are migrated. Identical semantics:
+// HTTP cache makes this fast on repeat calls.
+export const fetchAllStickersCached = fetchAllStickers;
 
 // ---------------------------------------------------------------------------
 // Sticker endpoints
@@ -377,6 +386,10 @@ export async function fetchStickers(
     search?: string;
     cursor?: number;
     limit?: number;
+    // Catalog version embedded in the URL so HTTP/CDN caches treat each
+    // version as a distinct, immutable resource. The backend ignores the
+    // param; admin edits bump the version and produce a fresh URL.
+    v?: string;
   },
   token?: string,
 ): Promise<PagedResult<Sticker>> {
@@ -566,12 +579,50 @@ export function albumDisplayName(album: UserAlbum): string {
   return album.alias ?? album.albumTypeName;
 }
 
+export type AlbumSort =
+  | 'default'
+  | 'created_desc'
+  | 'created_asc'
+  | 'completion_desc'
+  | 'completion_asc'
+  | 'alias_asc';
+
 export async function fetchUserAlbums(
   userId: string,
   token: string,
+  sort?: AlbumSort,
+  type?: string,
 ): Promise<UserAlbum[]> {
+  const qs = toQueryString({
+    ...(sort && sort !== 'default' ? { sort } : {}),
+    ...(type && type !== 'all' ? { type } : {}),
+  });
   const { items } = await apiFetch<{ items: UserAlbum[] }>(
-    `/api/v1/users/${userId}/albums`,
+    `/api/v1/users/${userId}/albums${qs}`,
+    {},
+    token,
+  );
+  return items;
+}
+
+/**
+ * fetchUserAlbumsWithStats — bundled variant that returns each album with its
+ * trigger-maintained completion counts inline. Lets the dashboard skip the
+ * extra `/collection/stats` and `/albums/stats` round-trips.
+ */
+export async function fetchUserAlbumsWithStats(
+  userId: string,
+  token: string,
+  sort?: AlbumSort,
+  type?: string,
+): Promise<UserAlbumWithStats[]> {
+  const qs = toQueryString({
+    withStats: 1,
+    ...(sort && sort !== 'default' ? { sort } : {}),
+    ...(type && type !== 'all' ? { type } : {}),
+  });
+  const { items } = await apiFetch<{ items: UserAlbumWithStats[] }>(
+    `/api/v1/users/${userId}/albums${qs}`,
     {},
     token,
   );
@@ -627,18 +678,18 @@ export async function setDefaultUserAlbum(
   );
 }
 
-export type AlbumSummary = AlbumSummaryDto;
+export type CrossAlbum = CrossAlbumDto;
 
-export async function fetchAlbumSummaries(
+export async function fetchAlbumCrossAlbum(
   userId: string,
+  albumId: string,
   token: string,
-): Promise<AlbumSummary[]> {
-  const { items } = await apiFetch<{ items: AlbumSummary[] }>(
-    `/api/v1/users/${userId}/albums/summary`,
+): Promise<CrossAlbum> {
+  return apiFetch<CrossAlbum>(
+    `/api/v1/users/${userId}/albums/${albumId}/cross-album`,
     {},
     token,
   );
-  return items;
 }
 
 export type AlbumStats = AlbumStatsDto;
@@ -909,19 +960,32 @@ export type PublicWantedPage = SharedPublicWantedPage;
 // Trade API endpoints
 // ---------------------------------------------------------------------------
 
-export async function fetchTradeMatches(albumId: string, token: string): Promise<TradeMatch[]> {
-  const qs = toQueryString({ albumId });
-  const { items } = await apiFetch<{ items: TradeMatch[] }>(`/api/v1/trade/matches${qs}`, {}, token);
-  return items;
+export interface TradeMatchesPage {
+  items: TradeMatch[];
+  nextCursor: string | null;
+  total: number;
+}
+
+export async function fetchTradeMatches(
+  albumId: string,
+  token: string,
+  opts?: { cursor?: string; limit?: number },
+): Promise<TradeMatchesPage> {
+  const qs = toQueryString({ albumId, ...(opts ?? {}) });
+  return apiFetch<TradeMatchesPage>(`/api/v1/trade/matches${qs}`, {}, token);
+}
+
+export interface TradesPage {
+  items: TradeSummary[];
+  nextCursor: string | null;
 }
 
 export async function fetchTrades(
-  params: { status?: string },
+  params: { status?: string; cursor?: string; limit?: number },
   token: string,
-): Promise<TradeSummary[]> {
+): Promise<TradesPage> {
   const qs = toQueryString(params);
-  const { items } = await apiFetch<{ items: TradeSummary[] }>(`/api/v1/trade/requests${qs}`, {}, token);
-  return items;
+  return apiFetch<TradesPage>(`/api/v1/trade/requests${qs}`, {}, token);
 }
 
 export async function fetchTrade(id: string, token: string): Promise<TradeDetail> {
@@ -1039,6 +1103,17 @@ export async function sendTradeMessage(
   );
 }
 
+export async function fetchTradeStreamTicket(
+  id: string,
+  token: string,
+): Promise<{ ticket: string; expiresIn: number }> {
+  return apiFetch<{ ticket: string; expiresIn: number }>(
+    `/api/v1/trade/requests/${id}/stream-ticket`,
+    { method: 'POST' },
+    token,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Share link endpoints
 // ---------------------------------------------------------------------------
@@ -1079,18 +1154,16 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
   return apiFetch<PublicProfile>(`/api/v1/profiles/${encodeURIComponent(username)}`);
 }
 
-export async function fetchPublicWanted(
-  username: string,
-  albumId: string,
-  params: {
-    cursor?: number;
-    limit?: number;
-    stickerTypes?: string[];
-    teams?: string[];
-    variantTypes?: string[];
-    search?: string;
-  } = {},
-): Promise<PublicWantedPage> {
+interface PublicInventoryQueryParams {
+  cursor?: number;
+  limit?: number;
+  stickerTypes?: string[];
+  teams?: string[];
+  variantTypes?: string[];
+  search?: string;
+}
+
+function buildPublicInventoryQS(params: PublicInventoryQueryParams): string {
   const { cursor, limit, stickerTypes, teams, variantTypes, search } = params;
   const parts: string[] = [];
   if (cursor !== undefined) parts.push(`cursor=${cursor}`);
@@ -1099,9 +1172,26 @@ export async function fetchPublicWanted(
   if (teams?.length) parts.push(`team=${encodeURIComponent(teams.join(','))}`);
   if (variantTypes?.length) parts.push(`variantType=${encodeURIComponent(variantTypes.join(','))}`);
   if (search?.trim()) parts.push(`q=${encodeURIComponent(search.trim())}`);
-  const qs = parts.length ? `?${parts.join('&')}` : '';
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
+export async function fetchPublicWanted(
+  username: string,
+  albumId: string,
+  params: PublicInventoryQueryParams = {},
+): Promise<PublicWantedPage> {
   return apiFetch<PublicWantedPage>(
-    `/api/v1/profiles/${encodeURIComponent(username)}/albums/${albumId}/wanted${qs}`,
+    `/api/v1/profiles/${encodeURIComponent(username)}/albums/${albumId}/wanted${buildPublicInventoryQS(params)}`,
+  );
+}
+
+export async function fetchPublicOffered(
+  username: string,
+  albumId: string,
+  params: PublicInventoryQueryParams = {},
+): Promise<PublicWantedPage> {
+  return apiFetch<PublicWantedPage>(
+    `/api/v1/profiles/${encodeURIComponent(username)}/albums/${albumId}/offered${buildPublicInventoryQS(params)}`,
   );
 }
 

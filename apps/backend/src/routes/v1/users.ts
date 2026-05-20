@@ -60,13 +60,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const prefs = await userService.getPreferences(fastify.db, request.userId!);
-        return reply.status(200).send(prefs);
-      } catch (err) {
-        const e = err as Error;
-        return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: e.message });
-      }
+      const prefs = await userService.getPreferences(fastify.db, request.userId!);
+      return reply.status(200).send(prefs);
     }
   );
 
@@ -108,13 +103,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        const prefs = await userService.updatePreferences(fastify.db, request.userId!, parsed.data);
-        return reply.status(200).send(prefs);
-      } catch (err) {
-        const e = err as Error;
-        return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: e.message });
-      }
+      const prefs = await userService.updatePreferences(fastify.db, request.userId!, parsed.data);
+      return reply.status(200).send(prefs);
     }
   );
 
@@ -151,17 +141,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        const result = await userService.updateUsername(fastify.db, request.userId!, parsed.data.username);
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: e.statusCode === 409 ? 'Conflict' : 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      const result = await userService.updateUsername(fastify.db, request.userId!, parsed.data.username);
+      return reply.status(200).send(result);
     }
   );
 
@@ -197,17 +178,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        const result = await userService.updateDisplayName(fastify.db, request.userId!, parsed.data.displayName);
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      const result = await userService.updateDisplayName(fastify.db, request.userId!, parsed.data.displayName);
+      return reply.status(200).send(result);
     }
   );
 
@@ -244,17 +216,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        const result = await userService.updateEmail(fastify.db, fastify.redis, request.userId!, parsed.data.email);
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: e.statusCode === 409 ? 'Conflict' : 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      const result = await userService.updateEmail(fastify.db, fastify.redis, request.userId!, parsed.data.email);
+      return reply.status(200).send(result);
     }
   );
 
@@ -294,17 +257,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        await userService.updatePassword(fastify.db, request.userId!);
-        return reply.status(200).send({ message: 'Password updated successfully.' });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      await userService.updatePassword(fastify.db, request.userId!);
+      return reply.status(200).send({ message: 'Password updated successfully.' });
     }
   );
 
@@ -325,17 +279,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      try {
-        await userService.deleteAccount(fastify.db, request.userId!);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      await userService.deleteAccount(fastify.db, request.userId!);
+      return reply.status(204).send();
     }
   );
 }

@@ -107,24 +107,21 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
         limit?: number;
       };
 
-      try {
-        const result = await stickersService.listStickers(fastify.db, fastify.redis, {
-          team: q.team,
-          group: q.group,
-          type: q.type,
-          search: q.search,
-          cursor: q.cursor,
-          limit: q.limit,
-        });
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      const result = await stickersService.listStickers(fastify.db, fastify.redis, {
+        team: q.team,
+        group: q.group,
+        type: q.type,
+        search: q.search,
+        cursor: q.cursor,
+        limit: q.limit,
+      });
+      // Catalog is effectively static between admin edits, and the client passes
+      // ?v=<catalogVersion> on each URL (busts the cache on any catalog mutation).
+      // Treat each (version, filter) combo as immutable: long max-age, short SWR
+      // window. Browser + CDN can cache freely; admin edits bump the version and
+      // produce a fresh URL on next page load.
+      reply.header('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      return reply.status(200).send(result);
     }
   );
 
@@ -236,24 +233,15 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { albumCode } = request.params as { albumCode: string };
 
-      try {
-        const sticker = await stickersService.getStickerByAlbumCode(fastify.db, albumCode);
-        if (!sticker) {
-          return reply.status(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: `Sticker with album code "${albumCode}" not found.`,
-          });
-        }
-        return reply.status(200).send(sticker);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
+      const sticker = await stickersService.getStickerByAlbumCode(fastify.db, albumCode);
+      if (!sticker) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Sticker with album code "${albumCode}" not found.`,
         });
       }
+      return reply.status(200).send(sticker);
     }
   );
 
@@ -309,27 +297,18 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { albumCode } = request.params as { albumCode: string };
 
-      try {
-        // Verify parent sticker exists
-        const sticker = await stickersService.getStickerByAlbumCode(fastify.db, albumCode);
-        if (!sticker) {
-          return reply.status(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: `Sticker with album code "${albumCode}" not found.`,
-          });
-        }
-
-        const variants = await stickersService.getStickerVariants(fastify.db, albumCode);
-        return reply.status(200).send({ items: variants });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
+      // Verify parent sticker exists
+      const sticker = await stickersService.getStickerByAlbumCode(fastify.db, albumCode);
+      if (!sticker) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Sticker with album code "${albumCode}" not found.`,
         });
       }
+
+      const variants = await stickersService.getStickerVariants(fastify.db, albumCode);
+      return reply.status(200).send({ items: variants });
     }
   );
 }

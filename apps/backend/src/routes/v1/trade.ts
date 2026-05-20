@@ -1,13 +1,24 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
-import type { JwtPayload } from '../../middleware/auth.js';
 import { env } from '../../env.js';
-import * as tradeService from '../../services/trade.service.js';
+import { getTradeMatches } from '../../services/trade-matching.service.js';
+import {
+  acceptTrade,
+  cancelTrade,
+  completeTrade,
+  counterTrade,
+  createTrade,
+  declineTrade,
+  editTrade,
+  getTrade,
+  listTrades,
+} from '../../services/trade-requests.service.js';
 import * as messagingService from '../../services/messaging.service.js';
 import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
-import { camelizeKeys } from '../../utils/casing.js';
+import { writeSSEEvent, writeSSEHeartbeat } from '../../utils/sse.js';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -64,7 +75,11 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         querystring: {
           type: 'object',
           required: ['albumId'],
-          properties: { albumId: { type: 'string' } },
+          properties: {
+            albumId: { type: 'string' },
+            cursor:  { type: 'string' },
+            limit:   { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+          },
         },
         response: {
           200: {
@@ -92,19 +107,15 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const { albumId } = request.query as { albumId?: string };
-      if (!albumId) {
+      const q = request.query as { albumId?: string; cursor?: string; limit?: number };
+      if (!q.albumId) {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'albumId is required.' });
       }
-      try {
-        const items = await tradeService.getTradeMatches(
-          fastify.db, fastify.redis, request.userId!, albumId
-        );
-        return reply.status(200).send({ items });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const page = await getTradeMatches(
+        fastify.db, fastify.redis, request.userId!, q.albumId,
+        { cursor: q.cursor, limit: q.limit },
+      );
+      return reply.status(200).send(page);
     }
   );
 
@@ -127,19 +138,18 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
               type: 'string',
               enum: ['pending', 'accepted', 'declined', 'cancelled', 'completed', 'expired'],
             },
+            cursor: { type: 'string' },
+            limit:  { type: 'integer', minimum: 1, maximum: 200, default: 50 },
           },
         },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const { status } = request.query as { status?: string };
-      try {
-        const items = await tradeService.listTrades(fastify.db, request.userId!, status);
-        return reply.status(200).send({ items });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const { status, cursor, limit } = request.query as {
+        status?: string; cursor?: string; limit?: number;
+      };
+      const page = await listTrades(fastify.db, request.userId!, { status, cursor, limit });
+      return reply.status(200).send(page);
     }
   );
 
@@ -195,28 +205,23 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
       const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
-      try {
-        const cached = await lookupIdempotent<{ id: string }>(
-          fastify.redis, 'trade:create', request.userId!, idempotencyKey,
-        );
-        if (cached) return reply.status(201).send(cached);
+      const cached = await lookupIdempotent<{ id: string }>(
+        fastify.redis, 'trade:create', request.userId!, idempotencyKey,
+      );
+      if (cached) return reply.status(201).send(cached);
 
-        const result = await tradeService.createTrade(
-          fastify.db,
-          fastify.redis,
-          request.userId!,
-          parsed.data.recipientId,
-          parsed.data.items,
-          parsed.data.offerCash,
-          parsed.data.wantCash,
-          parsed.data.requesterAlbumId
-        );
-        await storeIdempotent(fastify.redis, 'trade:create', request.userId!, idempotencyKey, result);
-        return reply.status(201).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const result = await createTrade(
+        fastify.db,
+        fastify.redis,
+        request.userId!,
+        parsed.data.recipientId,
+        parsed.data.items,
+        parsed.data.offerCash,
+        parsed.data.wantCash,
+        parsed.data.requesterAlbumId
+      );
+      await storeIdempotent(fastify.redis, 'trade:create', request.userId!, idempotencyKey, result);
+      return reply.status(201).send(result);
     }
   );
 
@@ -241,16 +246,11 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      try {
-        const trade = await tradeService.getTrade(fastify.db, request.userId!, id);
-        if (!trade) {
-          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Trade not found.' });
-        }
-        return reply.status(200).send(trade);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      const trade = await getTrade(fastify.db, request.userId!, id);
+      if (!trade) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Trade not found.' });
       }
+      return reply.status(200).send(trade);
     }
   );
 
@@ -275,13 +275,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      try {
-        await tradeService.acceptTrade(fastify.db, fastify.redis, request.userId!, id);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await acceptTrade(fastify.db, fastify.redis, request.userId!, id);
+      return reply.status(204).send();
     }
   );
 
@@ -306,13 +301,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      try {
-        await tradeService.declineTrade(fastify.db, fastify.redis, request.userId!, id);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await declineTrade(fastify.db, fastify.redis, request.userId!, id);
+      return reply.status(204).send();
     }
   );
 
@@ -365,16 +355,11 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        await tradeService.counterTrade(
-          fastify.db, fastify.redis, request.userId!, id, parsed.data.items,
-          parsed.data.offerCash, parsed.data.wantCash
-        );
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await counterTrade(
+        fastify.db, fastify.redis, request.userId!, id, parsed.data.items,
+        parsed.data.offerCash, parsed.data.wantCash
+      );
+      return reply.status(204).send();
     }
   );
 
@@ -428,16 +413,11 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      try {
-        await tradeService.editTrade(
-          fastify.db, fastify.redis, request.userId!, id, parsed.data.items,
-          parsed.data.offerCash, parsed.data.wantCash
-        );
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await editTrade(
+        fastify.db, fastify.redis, request.userId!, id, parsed.data.items,
+        parsed.data.offerCash, parsed.data.wantCash
+      );
+      return reply.status(204).send();
     }
   );
 
@@ -462,13 +442,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      try {
-        await tradeService.cancelTrade(fastify.db, fastify.redis, request.userId!, id);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await cancelTrade(fastify.db, fastify.redis, request.userId!, id);
+      return reply.status(204).send();
     }
   );
 
@@ -493,13 +468,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      try {
-        await tradeService.completeTrade(fastify.db, fastify.redis, request.userId!, id);
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      await completeTrade(fastify.db, fastify.redis, request.userId!, id);
+      return reply.status(204).send();
     }
   );
 
@@ -532,15 +502,10 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       const { cursor, limit } = request.query as { cursor?: string; limit?: number };
-      try {
-        const result = await messagingService.getMessages(
-          fastify.db, request.userId!, id, cursor, limit
-        );
-        return reply.status(200).send(result);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      const result = await messagingService.getMessages(
+        fastify.db, request.userId!, id, cursor, limit
+      );
+      return reply.status(200).send(result);
     }
   );
 
@@ -579,23 +544,73 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
       const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
-      try {
-        const message = await messagingService.sendMessage(
-          fastify.db, fastify.redis, request.userId!, id, parsed.data.body, idempotencyKey
-        );
-        return reply.status(201).send(message);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      const message = await messagingService.sendMessage(
+        fastify.db, fastify.redis, request.userId!, id, parsed.data.body, idempotencyKey
+      );
+      return reply.status(201).send(message);
+    }
+  );
+
+  /**
+   * POST /api/v1/trade/requests/:id/stream-ticket
+   * Mints a single-use, short-lived ticket for the SSE stream below. EventSource
+   * cannot send custom headers, and putting the access token in the query
+   * string would leak it into proxy logs / browser history / Referer headers.
+   * Clients call this endpoint with a normal Bearer token, then open the SSE
+   * stream with ?ticket=… instead.
+   */
+  const SSE_TICKET_TTL_SECONDS = 30;
+  fastify.post(
+    `${prefix}/requests/:id/stream-ticket`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Trade'],
+        summary: 'Mint a single-use SSE ticket for a trade stream',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id: tradeId } = request.params as { id: string };
+      const userId = request.userId!;
+
+      const { rows: tradeRows } = await fastify.db.query<{
+        requester_id: string;
+        recipient_id: string;
+      }>(
+        `SELECT requester_id, recipient_id FROM trade_requests WHERE id = $1`,
+        [tradeId]
+      );
+      if (tradeRows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Trade not found.' });
       }
+      const trade = tradeRows[0]!;
+      if (trade.requester_id !== userId && trade.recipient_id !== userId) {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You are not a participant in this trade.' });
+      }
+
+      const ticket = crypto.randomBytes(24).toString('base64url');
+      await fastify.redis.set(
+        `sse:trade:ticket:${ticket}`,
+        JSON.stringify({ userId, tradeId }),
+        'EX',
+        SSE_TICKET_TTL_SECONDS,
+      );
+      return reply.status(201).send({ ticket, expiresIn: SSE_TICKET_TTL_SECONDS });
     }
   );
 
   /**
    * GET /api/v1/trade/requests/:id/stream
    * SSE stream for real-time trade events.
-   * Does NOT use verifyToken preHandler because EventSource can't set custom headers.
-   * Token is accepted via Authorization header OR ?token= query param.
+   * EventSource can't set custom headers, so authentication is done with a
+   * single-use ticket obtained from POST :id/stream-ticket. A standard
+   * Authorization header is also accepted for non-EventSource clients.
    */
   fastify.get(
     `${prefix}/requests/:id/stream`,
@@ -611,36 +626,50 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         },
         querystring: {
           type: 'object',
-          properties: { token: { type: 'string' } },
+          properties: { ticket: { type: 'string' } },
         },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id: tradeId } = request.params as { id: string };
 
-      // ── Manual token verification ──────────────────────────────────────────
-      const rawToken =
-        (request.headers.authorization?.startsWith('Bearer ')
-          ? request.headers.authorization.slice(7)
-          : null) ??
-        (request.query as { token?: string }).token ??
-        null;
-
-      if (!rawToken) {
-        return reply.status(401).send({
-          statusCode: 401,
-          error: 'Unauthorized',
-          message: 'Missing token. Provide Authorization header or ?token= query param.',
-        });
+      // ── Auth: header (non-browser clients) or single-use ticket ────────────
+      let userId: string | null = null;
+      const authHeader = request.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const payload = jwt.verify(authHeader.slice(7), env.JWT_SECRET) as { sub: string; type: string };
+          if (payload.type === 'access') userId = payload.sub;
+        } catch { /* fall through to ticket */ }
       }
 
-      let userId: string;
-      try {
-        const payload = jwt.verify(rawToken, env.JWT_SECRET) as JwtPayload;
-        if (payload.type !== 'access') throw new Error('Invalid token type.');
-        userId = payload.sub;
-      } catch {
-        return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Invalid or expired token.' });
+      if (!userId) {
+        const ticket = (request.query as { ticket?: string }).ticket;
+        if (!ticket || !/^[A-Za-z0-9_-]{1,128}$/.test(ticket)) {
+          return reply.status(401).send({
+            statusCode: 401,
+            error: 'Unauthorized',
+            message: 'Missing or invalid SSE ticket.',
+          });
+        }
+        // GETDEL consumes the ticket atomically — single use.
+        const raw = await fastify.redis.getdel(`sse:trade:ticket:${ticket}`);
+        if (!raw) {
+          return reply.status(401).send({
+            statusCode: 401,
+            error: 'Unauthorized',
+            message: 'SSE ticket is invalid or expired.',
+          });
+        }
+        try {
+          const parsed = JSON.parse(raw) as { userId: string; tradeId: string };
+          if (parsed.tradeId !== tradeId) {
+            return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Ticket does not match this trade.' });
+          }
+          userId = parsed.userId;
+        } catch {
+          return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: 'Malformed SSE ticket.' });
+        }
       }
 
       // ── Verify participant ─────────────────────────────────────────────────
@@ -662,16 +691,27 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       // ── Set SSE headers ────────────────────────────────────────────────────
-      // reply.raw.writeHead bypasses Fastify's response pipeline, so CORS headers
-      // set by the plugin in onRequest are never flushed. Carry them over manually.
-      const corsOrigin = reply.getHeader('access-control-allow-origin') as string | undefined;
+      // reply.raw.writeHead bypasses Fastify's response pipeline, so CORS
+      // headers set by the plugin in onRequest are never flushed. Carry every
+      // CORS header from the prepared reply over to the raw socket so changes
+      // to the CORS plugin (origin / credentials / exposed headers) flow here
+      // without a code edit.
+      const corsHeaders: Record<string, string> = {};
+      for (const h of [
+        'access-control-allow-origin',
+        'access-control-allow-credentials',
+        'access-control-expose-headers',
+        'vary',
+      ]) {
+        const v = reply.getHeader(h);
+        if (typeof v === 'string') corsHeaders[h] = v;
+      }
       reply.raw.writeHead(200, {
         'Content-Type':  'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection':    'keep-alive',
         'X-Accel-Buffering': 'no',
-        ...(corsOrigin && { 'Access-Control-Allow-Origin': corsOrigin }),
-        'Access-Control-Allow-Credentials': 'true',
+        ...corsHeaders,
       });
       reply.raw.flushHeaders?.();
 
@@ -710,8 +750,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           );
 
           for (const msg of replayRows) {
-            const data = JSON.stringify(camelizeKeys(msg));
-            reply.raw.write(`event: new_message\nid: ${msg.id}\ndata: ${data}\n\n`);
+            writeSSEEvent(reply, 'new_message', msg, msg.id);
           }
         } catch {
           // Ignore replay errors — just proceed with live stream
@@ -733,11 +772,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       };
       resetIdleTimer();
 
-      const heartbeat = setInterval(() => {
-        if (!reply.raw.writableEnded) {
-          reply.raw.write(': heartbeat\n\n');
-        }
-      }, 30000);
+      const heartbeat = setInterval(() => writeSSEHeartbeat(reply), 30000);
 
       const unsubscribe = fastify.tradeBus.subscribe(tradeId, (message: string) => {
         if (reply.raw.writableEnded) return;
@@ -745,8 +780,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           const parsed = JSON.parse(message) as { type: string; id?: string; [key: string]: unknown };
           const eventType = parsed.type ?? 'message';
           const eventId = parsed.id ?? crypto.randomUUID();
-          const data = JSON.stringify(camelizeKeys(parsed));
-          reply.raw.write(`event: ${eventType}\nid: ${eventId}\ndata: ${data}\n\n`);
+          writeSSEEvent(reply, eventType, parsed, eventId);
           resetIdleTimer();
         } catch {
           // Ignore malformed messages

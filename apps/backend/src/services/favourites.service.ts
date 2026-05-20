@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import { withTx } from '../db/transaction.js';
 
 export async function listFavourites(db: Pool, albumId: string): Promise<string[]> {
   const { rows } = await db.query<{ album_code: string }>(
@@ -21,9 +22,7 @@ export async function setFavourites(
   albumId: string,
   stickerIds: string[],
 ): Promise<void> {
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
+  await withTx(db, async (client) => {
     await client.query(
       `DELETE FROM user_sticker_favourites WHERE album_id = $1`,
       [albumId],
@@ -36,13 +35,7 @@ export async function setFavourites(
         [albumId, stickerIds],
       );
     }
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function toggleFavourite(

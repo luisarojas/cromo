@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, requireRole } from '../../middleware/auth.js';
+import { recordAudit } from '../../utils/audit.js';
 
 const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
 
@@ -29,47 +30,41 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const trimmedSearch = search?.slice(0, 100);
       const searchParam = trimmedSearch ? `%${trimmedSearch}%` : null;
 
-      try {
-        const { rows } = await fastify.db.query<{
-          id: string;
-          username: string;
-          email: string;
-          role: string;
-          created_at: string;
-          deleted_at: string | null;
-          is_banned: boolean;
-        }>(
-          `SELECT
-             u.id, u.username, u.email, u.role, u.created_at, u.deleted_at,
-             EXISTS(
-               SELECT 1 FROM user_bans b
-               WHERE b.user_id = u.id
-                 AND b.lifted_at IS NULL
-                 AND (b.expires_at IS NULL OR b.expires_at > NOW())
-             ) AS is_banned
-           FROM users u
-           WHERE ($1::text IS NULL OR u.username ILIKE $1 OR u.email ILIKE $1)
-           ORDER BY u.created_at DESC
-           LIMIT $2 OFFSET $3`,
-          [searchParam, limitNum, offset],
-        );
+      const { rows } = await fastify.db.query<{
+        id: string;
+        username: string;
+        email: string;
+        role: string;
+        created_at: string;
+        deleted_at: string | null;
+        is_banned: boolean;
+        total_count: string;
+      }>(
+        `SELECT
+           u.id, u.username, u.email, u.role, u.created_at, u.deleted_at,
+           EXISTS(
+             SELECT 1 FROM user_bans b
+             WHERE b.user_id = u.id
+               AND b.lifted_at IS NULL
+               AND (b.expires_at IS NULL OR b.expires_at > NOW())
+           ) AS is_banned,
+           COUNT(*) OVER () AS total_count
+         FROM users u
+         WHERE ($1::text IS NULL OR u.username ILIKE $1 OR u.email ILIKE $1)
+         ORDER BY u.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [searchParam, limitNum, offset],
+      );
 
-        const { rows: countRows } = await fastify.db.query<{ count: string }>(
-          `SELECT COUNT(*) AS count FROM users u
-           WHERE ($1::text IS NULL OR u.username ILIKE $1 OR u.email ILIKE $1)`,
-          [searchParam],
-        );
+      const total = rows.length > 0 ? parseInt(rows[0]!.total_count, 10) : 0;
+      const items = rows.map(({ total_count: _t, ...rest }) => rest);
 
-        return reply.status(200).send({
-          items: rows,
-          total: parseInt(countRows[0].count, 10),
-          page: pageNum,
-          limit: limitNum,
-        });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
-      }
+      return reply.status(200).send({
+        items,
+        total,
+        page: pageNum,
+        limit: limitNum,
+      });
     },
   );
 
@@ -92,28 +87,23 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Role must be "user" or "admin".' });
       }
 
-      try {
-        const { rows } = await fastify.db.query<{ id: string; username: string; role: string }>(
-          `UPDATE users SET role = $1, updated_at = NOW()
-           WHERE id = $2 AND deleted_at IS NULL
-           RETURNING id, username, role`,
-          [role, id],
-        );
+      const { rows } = await fastify.db.query<{ id: string; username: string; role: string }>(
+        `UPDATE users SET role = $1, updated_at = NOW()
+         WHERE id = $2 AND deleted_at IS NULL
+         RETURNING id, username, role`,
+        [role, id],
+      );
 
-        if (rows.length === 0) {
-          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
-        }
-
-        await fastify.db.query(
-          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_role_changed', $2::jsonb)`,
-          [request.userId, JSON.stringify({ target_user_id: id, new_role: role })],
-        );
-
-        return reply.status(200).send(rows[0]);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      if (rows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
       }
+
+      await recordAudit(fastify.db, request.userId!, 'user_role_changed', {
+        targetUserId: id,
+        newRole: role,
+      });
+
+      return reply.status(200).send(rows[0]);
     },
   );
 
@@ -138,32 +128,28 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const resolvedBanType = ['soft', 'hard'].includes(banType ?? '') ? banType : 'soft';
 
-      try {
-        const { rows: userRows } = await fastify.db.query<{ id: string }>(
-          `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
-          [id],
-        );
-        if (userRows.length === 0) {
-          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
-        }
-
-        const { rows } = await fastify.db.query<{ id: string }>(
-          `INSERT INTO user_bans (user_id, ban_type, reason, banned_by)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id`,
-          [id, resolvedBanType, reason, request.userId],
-        );
-
-        await fastify.db.query(
-          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_banned', $2::jsonb)`,
-          [request.userId, JSON.stringify({ target_user_id: id, ban_id: rows[0].id, ban_type: resolvedBanType })],
-        );
-
-        return reply.status(201).send({ id: rows[0].id, userId: id });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      const { rows: userRows } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+        [id],
+      );
+      if (userRows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
       }
+
+      const { rows } = await fastify.db.query<{ id: string }>(
+        `INSERT INTO user_bans (user_id, ban_type, reason, banned_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [id, resolvedBanType, reason, request.userId],
+      );
+
+      await recordAudit(fastify.db, request.userId!, 'user_banned', {
+        targetUserId: id,
+        banId: rows[0].id,
+        banType: resolvedBanType!,
+      });
+
+      return reply.status(201).send({ id: rows[0].id, userId: id });
     },
   );
 
@@ -182,30 +168,24 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Lift reason must be 500 characters or fewer.' });
       }
 
-      try {
-        const { rowCount } = await fastify.db.query(
-          `UPDATE user_bans
-           SET lifted_at = NOW(), lifted_by = $1, lift_reason = $2
-           WHERE user_id = $3
-             AND lifted_at IS NULL
-             AND (expires_at IS NULL OR expires_at > NOW())`,
-          [request.userId, liftReason ?? null, id],
-        );
+      const { rowCount } = await fastify.db.query(
+        `UPDATE user_bans
+         SET lifted_at = NOW(), lifted_by = $1, lift_reason = $2
+         WHERE user_id = $3
+           AND lifted_at IS NULL
+           AND (expires_at IS NULL OR expires_at > NOW())`,
+        [request.userId, liftReason ?? null, id],
+      );
 
-        if (!rowCount || rowCount === 0) {
-          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No active ban found for this user.' });
-        }
-
-        await fastify.db.query(
-          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_unbanned', $2::jsonb)`,
-          [request.userId, JSON.stringify({ target_user_id: id })],
-        );
-
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      if (!rowCount || rowCount === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No active ban found for this user.' });
       }
+
+      await recordAudit(fastify.db, request.userId!, 'user_unbanned', {
+        targetUserId: id,
+      });
+
+      return reply.status(204).send();
     },
   );
 
@@ -223,28 +203,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete your own account.' });
       }
 
-      try {
-        const { rows } = await fastify.db.query<{ id: string }>(
-          `UPDATE users SET deleted_at = NOW(), updated_at = NOW()
-           WHERE id = $1 AND deleted_at IS NULL
-           RETURNING id`,
-          [id],
-        );
+      const { rows } = await fastify.db.query<{ id: string }>(
+        `UPDATE users SET deleted_at = NOW(), updated_at = NOW()
+         WHERE id = $1 AND deleted_at IS NULL
+         RETURNING id`,
+        [id],
+      );
 
-        if (rows.length === 0) {
-          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
-        }
-
-        await fastify.db.query(
-          `INSERT INTO audit_log (user_id, action, metadata) VALUES ($1, 'user_deleted', $2::jsonb)`,
-          [request.userId, JSON.stringify({ target_user_id: id })],
-        );
-
-        return reply.status(204).send();
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({ statusCode: e.statusCode ?? 500, error: 'Internal Server Error', message: e.message });
+      if (rows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
       }
+
+      await recordAudit(fastify.db, request.userId!, 'user_deleted', {
+        targetUserId: id,
+      });
+
+      return reply.status(204).send();
     },
   );
 
@@ -347,56 +321,42 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       setClauses.push(`updated_at = NOW()`);
       values.push(id); // last param — the WHERE clause
 
-      try {
-        const { rows } = await fastify.db.query<{
-          id: string;
-          number: number;
-          album_code: string;
-          player_name: string | null;
-          position: string | null;
-          sticker_type: string;
-          notes: string | null;
-        }>(
-          `UPDATE stickers
-           SET ${setClauses.join(', ')}
-           WHERE id = $${paramIndex}
-           RETURNING id, number, album_code, player_name, position,
-                     sticker_type, notes`,
-          values
-        );
+      const { rows } = await fastify.db.query<{
+        id: string;
+        number: number;
+        album_code: string;
+        player_name: string | null;
+        position: string | null;
+        sticker_type: string;
+        notes: string | null;
+      }>(
+        `UPDATE stickers
+         SET ${setClauses.join(', ')}
+         WHERE id = $${paramIndex}
+         RETURNING id, number, album_code, player_name, position,
+                   sticker_type, notes`,
+        values
+      );
 
-        if (rows.length === 0) {
-          return reply.status(404).send({
-            statusCode: 404,
-            error: 'Not Found',
-            message: `Sticker with id "${id}" not found.`,
-          });
-        }
-
-        const updated = rows[0];
-
-        // Audit log
-        await fastify.db.query(
-          `INSERT INTO audit_log (user_id, action, metadata)
-           VALUES ($1, 'sticker_updated', $2::jsonb)`,
-          [
-            request.userId,
-            JSON.stringify({ sticker_id: id, changes: body }),
-          ]
-        );
-
-        // Bust the catalog version cache so every browser refetches.
-        await fastify.redis.del('stickfolio:catalog_version').catch(() => undefined);
-
-        return reply.status(200).send(updated);
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: 'Internal Server Error',
-          message: e.message,
+      if (rows.length === 0) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Sticker with id "${id}" not found.`,
         });
       }
+
+      const updated = rows[0];
+
+      await recordAudit(fastify.db, request.userId!, 'sticker_updated', {
+        stickerId: id,
+        changes: body as Record<string, unknown>,
+      });
+
+      // Bust the catalog version cache so every browser refetches.
+      await fastify.redis.del('stickfolio:catalog_version').catch(() => undefined);
+
+      return reply.status(200).send(updated);
     }
   );
 }

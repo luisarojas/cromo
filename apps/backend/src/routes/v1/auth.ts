@@ -102,20 +102,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      try {
-        const { userId } = await authService.register(fastify.drizzle, fastify.redis, parsed.data);
-        return reply.status(201).send({
-          message: 'Registration successful. Please check your email to verify your account.',
-          userId,
-        });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: e.statusCode === 409 ? 'Conflict' : 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      const { userId } = await authService.register(fastify.drizzle, fastify.redis, parsed.data);
+      return reply.status(201).send({
+        message: 'Registration successful. Please check your email to verify your account.',
+        userId,
+      });
     }
   );
 
@@ -167,23 +158,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      try {
-        const { accessToken, refreshToken, user } = await authService.login(
-          fastify.drizzle,
-          parsed.data
-        );
+      const { accessToken, refreshToken, user } = await authService.login(
+        fastify.drizzle,
+        parsed.data
+      );
 
-        setRefreshCookie(reply, refreshToken);
+      setRefreshCookie(reply, refreshToken);
 
-        return reply.status(200).send({ accessToken, user });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: e.statusCode === 401 ? 'Unauthorized' : 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      return reply.status(200).send({ accessToken, user });
     }
   );
 
@@ -294,22 +276,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      try {
-        await authService.verifyEmail(fastify.drizzle, parsed.data.token);
-        return reply.status(200).send({ message: 'Email verified successfully.' });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        const status = e.statusCode ?? 500;
-        const errorLabel =
-          status === 404 ? 'Not Found' :
-          status === 410 ? 'Gone' :
-          'Internal Server Error';
-        return reply.status(status).send({
-          statusCode: status,
-          error: errorLabel,
-          message: e.message,
-        });
-      }
+      await authService.verifyEmail(fastify.drizzle, parsed.data.token);
+      return reply.status(200).send({ message: 'Email verified successfully.' });
     }
   );
 
@@ -414,17 +382,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      try {
-        await authService.resetPassword(fastify.drizzle, parsed.data.token, parsed.data.password);
-        return reply.status(200).send({ message: 'Password reset successfully.' });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: e.statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
-          message: e.message,
-        });
-      }
+      await authService.resetPassword(fastify.drizzle, parsed.data.token, parsed.data.password);
+      return reply.status(200).send({ message: 'Password reset successfully.' });
     }
   );
 

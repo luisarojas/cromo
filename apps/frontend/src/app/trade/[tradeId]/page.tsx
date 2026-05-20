@@ -13,6 +13,7 @@ import {
   editTrade,
   sendTradeMessage,
   fetchCollection,
+  fetchTradeStreamTicket,
   type TradeDetail,
   type TradeMessage,
   type TradeItemDetail,
@@ -150,48 +151,61 @@ export default function TradeDetailPage() {
     };
   }, [hydrated, token, user, router, tradeId]);
 
-  // SSE for real-time updates
+  // SSE for real-time updates. EventSource can't send custom headers, so we
+  // first mint a single-use ticket with the auth token (header-based) and use
+  // that as the SSE auth credential — the access token never goes in a URL.
   useEffect(() => {
     if (!token || !tradeId) return;
+    let cancelled = false;
+    let es: EventSource | null = null;
 
-    const es = new EventSource(
-      `${BASE_URL}/api/v1/trade/requests/${tradeId}/stream?token=${encodeURIComponent(token)}`,
-    );
-
-    es.addEventListener('new_message', (ev) => {
+    (async () => {
       try {
-        const msg = JSON.parse(ev.data) as TradeMessage;
-        setMessages((prev) => {
-          // Avoid duplicates
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
+        const { ticket } = await fetchTradeStreamTicket(tradeId, token);
+        if (cancelled) return;
+        es = new EventSource(
+          `${BASE_URL}/api/v1/trade/requests/${tradeId}/stream?ticket=${encodeURIComponent(ticket)}`,
+        );
+
+        es.addEventListener('new_message', (ev) => {
+          try {
+            const msg = JSON.parse(ev.data) as TradeMessage;
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === msg.id)) return prev;
+              return [...prev, msg];
+            });
+          } catch {}
         });
-      } catch {}
-    });
 
-    es.addEventListener('status_changed', (ev) => {
-      try {
-        const payload = JSON.parse(ev.data) as { status: TradeDetail['status'] };
-        setTrade((prev) => prev ? { ...prev, status: payload.status } : prev);
-      } catch {}
-    });
+        es.addEventListener('status_changed', (ev) => {
+          try {
+            const payload = JSON.parse(ev.data) as { status: TradeDetail['status'] };
+            setTrade((prev) => prev ? { ...prev, status: payload.status } : prev);
+          } catch {}
+        });
 
-    es.addEventListener('confirmation_updated', (ev) => {
-      try {
-        const payload = JSON.parse(ev.data) as {
-          requesterCompletedAt: string | null;
-          recipientCompletedAt: string | null;
-        };
-        setTrade((prev) => prev ? {
-          ...prev,
-          requesterCompletedAt: payload.requesterCompletedAt,
-          recipientCompletedAt: payload.recipientCompletedAt,
-        } : prev);
-      } catch {}
-    });
+        es.addEventListener('confirmation_updated', (ev) => {
+          try {
+            const payload = JSON.parse(ev.data) as {
+              requesterCompletedAt: string | null;
+              recipientCompletedAt: string | null;
+            };
+            setTrade((prev) => prev ? {
+              ...prev,
+              requesterCompletedAt: payload.requesterCompletedAt,
+              recipientCompletedAt: payload.recipientCompletedAt,
+            } : prev);
+          } catch {}
+        });
+      } catch {
+        // Ticket fetch failed — leave the user without live updates rather
+        // than spinning. They can still refresh manually.
+      }
+    })();
 
     return () => {
-      es.close();
+      cancelled = true;
+      es?.close();
     };
   }, [token, tradeId]);
 

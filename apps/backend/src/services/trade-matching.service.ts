@@ -13,20 +13,55 @@ export interface TradeMatch {
   cities: { label: string; placeId: number }[];
 }
 
+export interface TradeMatchesPage {
+  items: TradeMatch[];
+  nextCursor: string | null;
+  total: number;
+}
+
+const TRADE_MATCHES_DEFAULT_LIMIT = 50;
+const TRADE_MATCHES_MAX_LIMIT = 200;
+const TRADE_MATCHES_TTL_SECONDS = 120;
+
+/**
+ * Per-user index of trade-matches cache keys. invalidateMatches() (in
+ * trade-requests.service.ts) uses this to drop a user's match cache in O(set
+ * size) instead of SCANning the keyspace. The index TTL is kept slightly
+ * longer than the cache TTL so a write can never produce an indexed key that
+ * outlives its membership.
+ */
+export function matchesIndexKey(userId: string): string {
+  return `trade:matches:idx:${userId}`;
+}
+
 /**
  * getTradeMatches — find users with mutual sticker overlap for trading.
- * Cached in Redis for 2 minutes.
+ * Cursor-paginated by (mutual_overlap DESC, user_id ASC) so the heavy CTE
+ * query runs once and large match sets stream in chunks. Cached for 2 min.
  */
 export async function getTradeMatches(
   db: Pool,
   redis: Redis,
   userId: string,
-  albumId: string
-): Promise<TradeMatch[]> {
-  const cacheKey = `trade:matches:${userId}:${albumId}`;
+  albumId: string,
+  opts: { cursor?: string; limit?: number } = {},
+): Promise<TradeMatchesPage> {
+  const limit = Math.min(opts.limit ?? TRADE_MATCHES_DEFAULT_LIMIT, TRADE_MATCHES_MAX_LIMIT);
+  // Cursor is the opaque `${overlap}:${userId}` from the previous page.
+  let cursorOverlap: number | null = null;
+  let cursorUserId: string | null = null;
+  if (opts.cursor) {
+    const [o, u] = opts.cursor.split(':');
+    const n = Number.parseInt(o ?? '', 10);
+    if (Number.isFinite(n) && u) {
+      cursorOverlap = n;
+      cursorUserId = u;
+    }
+  }
+  const cacheKey = `trade:matches:${userId}:${albumId}:${opts.cursor ?? 'start'}:${limit}`;
   const cached = await redis.get(cacheKey);
   if (cached) {
-    return JSON.parse(cached) as TradeMatch[];
+    return JSON.parse(cached) as TradeMatchesPage;
   }
 
   const { rows } = await db.query<{
@@ -39,6 +74,7 @@ export async function getTradeMatches(
     they_have_variant_ids: string[];
     you_have: string[];
     cities: { label: string; placeId: number }[];
+    total_count: string;
   }>(
     `WITH requester_album AS (
        SELECT album_type_id FROM user_albums WHERE id = $2
@@ -132,15 +168,21 @@ export async function getTradeMatches(
        COALESCE(oc.they_have, ARRAY[]::text[]) AS they_have,
        COALESCE(oc.they_have_variant_ids, ARRAY[]::text[]) AS they_have_variant_ids,
        COALESCE(oc.you_have, ARRAY[]::text[]) AS you_have,
-       COALESCE(us3.cities, '[]'::jsonb) AS cities
+       COALESCE(us3.cities, '[]'::jsonb) AS cities,
+       COUNT(*) OVER () AS total_count
      FROM overlap_counts oc
      JOIN users u ON u.id = oc.user_id
      LEFT JOIN user_settings us3 ON us3.user_id = oc.user_id
-     ORDER BY oc.mutual_overlap DESC`,
-    [userId, albumId]
+     WHERE ($3::int IS NULL OR (oc.mutual_overlap, oc.user_id) < ($3::int, $4::uuid))
+     ORDER BY oc.mutual_overlap DESC, oc.user_id ASC
+     LIMIT $5`,
+    [userId, albumId, cursorOverlap, cursorUserId, limit + 1]
   );
 
-  const result: TradeMatch[] = rows.map((r) => ({
+  const total = rows[0] ? Number(rows[0].total_count ?? 0) : 0;
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const items: TradeMatch[] = pageRows.map((r) => ({
     user_id: r.user_id,
     username: r.username,
     display_name: r.display_name,
@@ -151,8 +193,17 @@ export async function getTradeMatches(
     you_have: r.you_have ?? [],
     cities: r.cities ?? [],
   }));
+  const last = pageRows[pageRows.length - 1];
+  const nextCursor = hasMore && last ? `${last.mutual_overlap}:${last.user_id}` : null;
 
-  await redis.set(cacheKey, JSON.stringify(result), 'EX', 120);
+  const result: TradeMatchesPage = { items, nextCursor, total };
+  const indexKey = matchesIndexKey(userId);
+  await redis
+    .multi()
+    .set(cacheKey, JSON.stringify(result), 'EX', TRADE_MATCHES_TTL_SECONDS)
+    .sadd(indexKey, cacheKey)
+    .expire(indexKey, TRADE_MATCHES_TTL_SECONDS + 30)
+    .exec();
 
   return result;
 }

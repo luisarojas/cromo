@@ -2,6 +2,8 @@ import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 import crypto from 'node:crypto';
 import { env } from '../env.js';
+import { statusError } from '../utils/errors.js';
+import { userCacheKey } from './cache.js';
 
 const PUBLIC_PROFILE_CACHE_TTL_S = 60 * 60;
 const PUBLIC_WANTED_DEFAULT_LIMIT = 100;
@@ -59,7 +61,7 @@ export interface PublicProfileAlbum {
   format_name: string;
   alias: string | null;
   is_default: boolean;
-  offered: PublicInventoryItem[];
+  offered_count: number;
   wanted_count: number;
 }
 
@@ -72,10 +74,17 @@ export interface PublicProfile {
   trading_inventory: PublicProfileAlbum[];
 }
 
+export interface PublicInventoryFilterOptions {
+  sticker_types: string[];
+  teams: string[];
+  variant_types: string[];
+}
+
 export interface PublicWantedPage {
   items: PublicInventoryItem[];
   next_cursor: number | null;
   total: number;
+  filter_options: PublicInventoryFilterOptions;
 }
 
 export interface WantedFilters {
@@ -93,10 +102,82 @@ function buildShareUrl(token: string): string {
   return `${env.FRONTEND_URL}/share/${token}`;
 }
 
-function makeError(message: string, statusCode: number): Error & { statusCode: number } {
-  const err = new Error(message) as Error & { statusCode: number };
-  err.statusCode = statusCode;
-  return err;
+/**
+ * publicFilterOptions — full universe of filter chips for a public album's
+ * inventory list. Returns distinct (sticker_type, team, variant_type) across
+ * the entire matching set, ignoring whatever filters the caller is applying so
+ * the chip set doesn't shrink as the user narrows the view.
+ *
+ * The two list kinds need different selection logic (Wanted = missing stickers
+ * walking the catalog through album_info; Offered = present sticker rows),
+ * so the SQL bodies diverge — only the result shape and the empty-row default
+ * are shared.
+ */
+async function publicFilterOptions(
+  db: Pool,
+  albumId: string,
+  kind: 'wanted' | 'offered',
+): Promise<PublicInventoryFilterOptions> {
+  const sql = kind === 'wanted'
+    ? `WITH album_info AS (
+         SELECT ua.album_type_id,
+                (ua.settings->>'includeExtras')::boolean   AS inc_extras,
+                (ua.settings->>'includeCocaCola')::boolean AS inc_coca
+         FROM user_albums ua
+         WHERE ua.id = $1
+       ),
+       missing_stickers AS (
+         SELECT s.id AS sticker_id, s.sticker_type, s.team_id
+         FROM album_info ai
+         JOIN stickers s ON s.album_type_id = ai.album_type_id
+         WHERE CASE
+           WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
+           WHEN s.sticker_type = 'extra' THEN ai.inc_extras
+           ELSE true
+         END
+         AND NOT EXISTS (
+           SELECT 1 FROM user_stickers us
+           JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id
+           WHERE sv2.sticker_id = s.id AND us.album_id = $1 AND us.quantity > 0
+         )
+       ),
+       canonical_variant AS (
+         SELECT DISTINCT ON (sv.sticker_id) sv.sticker_id, sv.variant_type
+         FROM sticker_variants sv
+         WHERE sv.sticker_id IN (SELECT sticker_id FROM missing_stickers)
+         ORDER BY sv.sticker_id, sv.rarity_rank ASC
+       )
+       SELECT
+         (SELECT array_agg(DISTINCT sticker_type ORDER BY sticker_type)
+          FROM missing_stickers) AS sticker_types,
+         (SELECT array_agg(DISTINCT COALESCE(t.name, 'Other') ORDER BY COALESCE(t.name, 'Other'))
+          FROM missing_stickers ms LEFT JOIN teams t ON t.id = ms.team_id) AS teams,
+         (SELECT array_agg(DISTINCT cv.variant_type ORDER BY cv.variant_type)
+          FROM canonical_variant cv) AS variant_types`
+    : `SELECT
+         array_agg(DISTINCT s.sticker_type ORDER BY s.sticker_type)                              AS sticker_types,
+         array_agg(DISTINCT COALESCE(t.name, 'Other') ORDER BY COALESCE(t.name, 'Other'))        AS teams,
+         array_agg(DISTINCT sv.variant_type ORDER BY sv.variant_type)                            AS variant_types
+       FROM user_stickers us
+       JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN stickers s          ON s.id = sv.sticker_id
+       LEFT JOIN teams t        ON t.id = s.team_id
+       WHERE us.album_id = $1
+         AND (us.quantity > 1 OR us.trade_forced)
+         AND NOT us.trade_hidden`;
+
+  const { rows } = await db.query<{
+    sticker_types: string[] | null;
+    teams: string[] | null;
+    variant_types: string[] | null;
+  }>(sql, [albumId]);
+
+  const row = rows[0];
+  return {
+    sticker_types: row?.sticker_types ?? [],
+    teams: row?.teams ?? [],
+    variant_types: row?.variant_types ?? [],
+  };
 }
 
 // ─── Service functions ────────────────────────────────────────────────────────
@@ -167,7 +248,7 @@ export async function revokeShareLink(
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    throw makeError('Share link not found.', 404);
+    throw statusError('Share link not found.', 404);
   }
 }
 
@@ -352,7 +433,7 @@ export async function getPublicProfile(
   const user = userRows[0]!;
   if (user.profile_visibility === 'private') return null;
 
-  const cacheKey = `user:${user.id}:public_profile`;
+  const cacheKey = await userCacheKey(redis, user.id, 'public_profile');
   const cached = await redis.get(cacheKey);
   if (cached) {
     const inventory = JSON.parse(cached) as PublicProfileAlbum[];
@@ -366,7 +447,9 @@ export async function getPublicProfile(
     };
   }
 
-  // Batched query #1: public albums + wanted-count (respecting AlbumSettings filters).
+  // Single batched query: public albums + wanted-count + offered-count. The
+  // full offered / wanted item lists are fetched lazily via dedicated
+  // paginated endpoints, so neither needs to be eagerly materialized here.
   const { rows: albumRows } = await db.query<{
     album_id: string;
     album_type_key: string;
@@ -376,6 +459,7 @@ export async function getPublicProfile(
     alias: string | null;
     is_default: boolean;
     wanted_count: string;
+    offered_count: string;
   }>(
     `WITH public_albums AS (
        SELECT ua.id              AS album_id,
@@ -417,6 +501,13 @@ export async function getPublicProfile(
            AND us.quantity > 0
        )
        GROUP BY fs.album_id
+     ),
+     offered_counts AS (
+       SELECT us.album_id, COUNT(*)::text AS offered_count
+       FROM user_stickers us
+       JOIN public_albums pa ON pa.album_id = us.album_id
+       WHERE (us.quantity > 1 OR us.trade_forced) AND NOT us.trade_hidden
+       GROUP BY us.album_id
      )
      SELECT pa.album_id,
             pa.album_type_key,
@@ -425,62 +516,14 @@ export async function getPublicProfile(
             pa.format_name,
             pa.alias,
             pa.is_default,
-            COALESCE(wc.wanted_count, '0') AS wanted_count
+            COALESCE(wc.wanted_count,  '0') AS wanted_count,
+            COALESCE(oc.offered_count, '0') AS offered_count
      FROM public_albums pa
-     LEFT JOIN wanted_counts wc ON wc.album_id = pa.album_id
+     LEFT JOIN wanted_counts  wc ON wc.album_id = pa.album_id
+     LEFT JOIN offered_counts oc ON oc.album_id = pa.album_id
      ORDER BY pa.is_default DESC, pa.created_at ASC`,
     [user.id]
   );
-
-  // Batched query #2: all offered items across all public albums.
-  const { rows: offeredRows } = await db.query<{
-    album_id: string;
-    sticker_variant_id: string;
-    number: number;
-    album_code: string;
-    player_name: string | null;
-    sticker_type: string;
-    team_name: string | null;
-    variant_type: string;
-    quantity: number;
-  }>(
-    `SELECT us.album_id,
-            us.sticker_variant_id,
-            s.number,
-            s.album_code,
-            s.player_name,
-            s.sticker_type,
-            t.name           AS team_name,
-            sv.variant_type,
-            us.quantity
-     FROM user_stickers us
-     JOIN user_albums ua      ON ua.id = us.album_id
-     JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
-     JOIN stickers s          ON s.id = sv.sticker_id
-     LEFT JOIN teams t        ON t.id = s.team_id
-     WHERE ua.user_id = $1
-       AND ua.is_trade_inventory_public = true
-       AND (us.quantity > 1 OR us.trade_forced)
-       AND NOT us.trade_hidden
-     ORDER BY us.album_id, s.number, sv.variant_type`,
-    [user.id]
-  );
-
-  const offeredByAlbum = new Map<string, PublicInventoryItem[]>();
-  for (const row of offeredRows) {
-    const bucket = offeredByAlbum.get(row.album_id) ?? [];
-    bucket.push({
-      sticker_variant_id: row.sticker_variant_id,
-      number: row.number,
-      album_code: row.album_code,
-      player_name: row.player_name,
-      sticker_type: row.sticker_type,
-      team_name: row.team_name,
-      variant_type: row.variant_type,
-      quantity: row.quantity,
-    });
-    offeredByAlbum.set(row.album_id, bucket);
-  }
 
   const trading_inventory: PublicProfileAlbum[] = albumRows.map((a) => ({
     album_id: a.album_id,
@@ -490,7 +533,7 @@ export async function getPublicProfile(
     format_name: a.format_name,
     alias: a.alias,
     is_default: a.is_default,
-    offered: offeredByAlbum.get(a.album_id) ?? [],
+    offered_count: parseInt(a.offered_count, 10),
     wanted_count: parseInt(a.wanted_count, 10),
   }));
 
@@ -610,7 +653,7 @@ export async function getPublicAlbumWanted(
           q: filters.search?.trim() ?? '',
         })
       : '';
-  const cacheKey = `user:${userId}:public_wanted:${albumId}:${cursor ?? 'start'}:${pageSize}${filterKey}`;
+  const cacheKey = await userCacheKey(redis, userId, `public_wanted:${albumId}:${cursor ?? 'start'}:${pageSize}${filterKey}`);
   const cached = await redis.get(cacheKey);
   if (cached) return JSON.parse(cached) as PublicWantedPage;
 
@@ -737,10 +780,13 @@ export async function getPublicAlbumWanted(
     countParams
   );
 
+  const filter_options = await publicFilterOptions(db, albumId, 'wanted');
+
   const result: PublicWantedPage = {
     items: pageItems,
     next_cursor: nextCursor,
     total: parseInt(countRows[0]?.total ?? '0', 10),
+    filter_options,
   };
 
   await redis.set(cacheKey, JSON.stringify(result), 'EX', PUBLIC_PROFILE_CACHE_TTL_S);
@@ -751,3 +797,129 @@ export const _publicWantedDefaults = {
   defaultLimit: PUBLIC_WANTED_DEFAULT_LIMIT,
   maxLimit: PUBLIC_WANTED_MAX_LIMIT,
 };
+
+/**
+ * getPublicAlbumOffered — paginated Offered list for one public album. Mirror
+ * of getPublicAlbumWanted so the frontend can stop carrying every offered
+ * sticker in the profile payload and stop re-filtering/grouping in JS.
+ */
+export async function getPublicAlbumOffered(
+  db: Pool,
+  redis: Redis,
+  username: string,
+  albumId: string,
+  cursor: number | null,
+  limit: number,
+  filters: WantedFilters = {},
+): Promise<PublicWantedPage | null> {
+  const pageSize = Math.min(Math.max(limit | 0, 1), PUBLIC_WANTED_MAX_LIMIT);
+
+  const { rows: userRows } = await db.query<{ id: string; profile_visibility: string | null }>(
+    `SELECT u.id, us.profile_visibility
+     FROM users u
+     LEFT JOIN user_settings us ON us.user_id = u.id
+     WHERE u.username = $1 AND u.deleted_at IS NULL`,
+    [username],
+  );
+  if (userRows.length === 0) return null;
+  const { id: userId, profile_visibility } = userRows[0]!;
+  if (profile_visibility === 'private') return null;
+
+  const { rowCount } = await db.query(
+    `SELECT 1 FROM user_albums
+     WHERE id = $1 AND user_id = $2 AND is_trade_inventory_public = true`,
+    [albumId, userId],
+  );
+  if ((rowCount ?? 0) === 0) return null;
+
+  const filterKey =
+    (filters.stickerTypes?.length ?? 0) > 0 ||
+    (filters.teams?.length ?? 0) > 0 ||
+    (filters.variantTypes?.length ?? 0) > 0 ||
+    !!filters.search?.trim()
+      ? ':' +
+        JSON.stringify({
+          t: [...(filters.stickerTypes ?? [])].sort(),
+          m: [...(filters.teams ?? [])].sort(),
+          v: [...(filters.variantTypes ?? [])].sort(),
+          q: filters.search?.trim() ?? '',
+        })
+      : '';
+  const cacheKey = await userCacheKey(
+    redis,
+    userId,
+    `public_offered:${albumId}:${cursor ?? 'start'}:${pageSize}${filterKey}`,
+  );
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached) as PublicWantedPage;
+
+  // Build filter clauses against the `s.*` / `sv.*` aliases used below. We
+  // reuse buildFilterClauses by feeding it parallel parameter arrays.
+  const pageParams: unknown[] = [albumId, cursor];
+  const { stickerTypeClause, searchClause, variantTypeClause, teamClause, nextIdx: pageLimitIdx } =
+    buildFilterClauses(pageParams, filters, 3);
+  pageParams.push(pageSize + 1);
+
+  const countParams: unknown[] = [albumId];
+  const { stickerTypeClause: cStickerType, searchClause: cSearch,
+          variantTypeClause: cVariant, teamClause: cTeam } =
+    buildFilterClauses(countParams, filters, 2);
+
+  const { rows: items } = await db.query<PublicInventoryItem & { number: number }>(
+    `SELECT us.sticker_variant_id,
+            s.number,
+            s.album_code,
+            s.player_name,
+            s.sticker_type,
+            t.name           AS team_name,
+            sv.variant_type,
+            us.quantity
+     FROM user_stickers us
+     JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+     JOIN stickers s          ON s.id = sv.sticker_id
+     LEFT JOIN teams t        ON t.id = s.team_id
+     WHERE us.album_id = $1
+       AND (us.quantity > 1 OR us.trade_forced)
+       AND NOT us.trade_hidden
+       AND ($2::int IS NULL OR s.number > $2)
+       ${stickerTypeClause}
+       ${searchClause}
+       ${variantTypeClause}
+       ${teamClause}
+     ORDER BY s.number, sv.variant_type
+     LIMIT $${pageLimitIdx}`,
+    pageParams,
+  );
+
+  const hasMore = items.length > pageSize;
+  const pageItems = hasMore ? items.slice(0, pageSize) : items;
+  const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
+
+  const { rows: countRows } = await db.query<{ total: string }>(
+    `SELECT COUNT(*)::text AS total
+     FROM user_stickers us
+     JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+     JOIN stickers s          ON s.id = sv.sticker_id
+     LEFT JOIN teams t        ON t.id = s.team_id
+     WHERE us.album_id = $1
+       AND (us.quantity > 1 OR us.trade_forced)
+       AND NOT us.trade_hidden
+       ${cStickerType}
+       ${cSearch}
+       ${cVariant}
+       ${cTeam}`,
+    countParams,
+  );
+
+  const filter_options = await publicFilterOptions(db, albumId, 'offered');
+
+  const result: PublicWantedPage = {
+    items: pageItems,
+    next_cursor: nextCursor,
+    total: parseInt(countRows[0]?.total ?? '0', 10),
+    filter_options,
+  };
+
+  await redis.set(cacheKey, JSON.stringify(result), 'EX', PUBLIC_PROFILE_CACHE_TTL_S);
+  return result;
+}

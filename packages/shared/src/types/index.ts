@@ -142,10 +142,21 @@ export interface UserAlbumWithStats extends UserAlbumDto {
   stats: AlbumStatsDto
 }
 
-export interface AlbumSummaryDto {
-  albumId: string
-  ownedAlbumCodes: string[]
-  duplicateAlbumCodes: string[]
+// Cross-album indicators for a single "active" album.
+// neededIn[code]   — other albums that do NOT yet own the code.
+// availableIn[code] — other albums where the code has duplicates (qty > 1).
+// presentIn[code]  — other albums that already own the code.
+// All three are keyed by sticker album_code; values are the same {id, name}
+// shape so the UI can render uniform "in <album>" chips.
+export interface CrossAlbumAlbumRef {
+  id: string
+  name: string
+}
+
+export interface CrossAlbumDto {
+  neededIn: Record<string, CrossAlbumAlbumRef[]>
+  availableIn: Record<string, CrossAlbumAlbumRef[]>
+  presentIn: Record<string, CrossAlbumAlbumRef[]>
 }
 
 export interface CollectionStatsDto {
@@ -353,7 +364,7 @@ export interface PublicProfileAlbum {
   formatName: string
   alias: string | null
   isDefault: boolean
-  offered: PublicInventoryItem[]
+  offeredCount: number
   wantedCount: number
 }
 
@@ -366,8 +377,15 @@ export interface PublicProfile {
   tradingInventory: PublicProfileAlbum[]
 }
 
+export interface PublicInventoryFilterOptions {
+  stickerTypes: string[]
+  teams: string[]
+  variantTypes: string[]
+}
+
 export interface PublicWantedPage {
   items: PublicInventoryItem[]
   nextCursor: number | null
   total: number
+  filterOptions: PublicInventoryFilterOptions
 }

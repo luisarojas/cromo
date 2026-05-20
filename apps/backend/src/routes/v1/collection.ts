@@ -534,27 +534,18 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'avatar')) return;
 
-      try {
-        const data = await request.file();
-        if (!data) {
-          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file uploaded.' });
-        }
-        const buffer = await data.toBuffer();
-        await validateImageBuffer(buffer);
-        const avatarUrl = await saveAvatar(buffer, userId);
-        await fastify.db.query(
-          `UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`,
-          [avatarUrl, userId]
-        );
-        return reply.status(200).send({ avatarUrl });
-      } catch (err) {
-        const e = err as Error & { statusCode?: number };
-        return reply.status(e.statusCode ?? 500).send({
-          statusCode: e.statusCode ?? 500,
-          error: e.statusCode === 415 ? 'Unsupported Media Type' : 'Internal Server Error',
-          message: e.message,
-        });
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'No file uploaded.' });
       }
+      const buffer = await data.toBuffer();
+      await validateImageBuffer(buffer);
+      const avatarUrl = await saveAvatar(buffer, userId);
+      await fastify.db.query(
+        `UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`,
+        [avatarUrl, userId]
+      );
+      return reply.status(200).send({ avatarUrl });
     }
   );
 

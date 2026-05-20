@@ -8,6 +8,11 @@ async function redisPlugin(fastify: FastifyInstance): Promise<void> {
     maxRetriesPerRequest: 3,
     enableReadyCheck: true,
     lazyConnect: true,
+    // Cap every Redis command so a hung server can't stall API requests.
+    // 2s is well above p99 for cache reads on a healthy local Redis but short
+    // enough that a slow node fails fast and the caller can fall through to
+    // the database path.
+    commandTimeout: 2000,
   });
 
   redis.on('error', (err: Error) => {

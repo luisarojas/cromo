@@ -36,6 +36,7 @@ const mockRedis = {
   setex: vi.fn().mockResolvedValue('OK'),
   scan: vi.fn().mockResolvedValue(['0', []]),
   del: vi.fn().mockResolvedValue(0),
+  incr: vi.fn().mockResolvedValue(1),
 } as unknown as Redis;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -100,10 +101,10 @@ describe('addSticker', () => {
   });
 
   it('invalidates user caches after insert', async () => {
-    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:collection:abc']]);
     await addSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-    expect(mockRedis.scan).toHaveBeenCalled();
-    expect(mockRedis.del).toHaveBeenCalled();
+    // Cache invalidation now bumps the user's cache_version (one INCR) instead
+    // of scanning and deleting old keys.
+    expect(mockRedis.incr).toHaveBeenCalledWith('user:user-42:cv');
   });
 
   it('uses quantity = 1 by default', async () => {
@@ -130,9 +131,8 @@ describe('removeSticker', () => {
   });
 
   it('invalidates user caches after deletion', async () => {
-    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:summary:album-42']]);
     await removeSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99');
-    expect(mockRedis.del).toHaveBeenCalled();
+    expect(mockRedis.incr).toHaveBeenCalledWith('user:user-42:cv');
   });
 });
 
@@ -169,9 +169,8 @@ describe('updateSticker', () => {
   });
 
   it('invalidates user caches after update', async () => {
-    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-42:summary:album-42']]);
     await updateSticker(mockDb, mockRedis, 'user-42', 'album-42', 'variant-99', 2);
-    expect(mockRedis.del).toHaveBeenCalled();
+    expect(mockRedis.incr).toHaveBeenCalledWith('user:user-42:cv');
   });
 });
 
@@ -236,14 +235,12 @@ describe('setTradeFlags', () => {
 
   it('invalidates user caches after updating flags', async () => {
     (mockDb.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    (mockRedis.scan as ReturnType<typeof vi.fn>).mockResolvedValue(['0', ['user:user-1:collection:album-1']]);
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', { tradeHidden: true });
-    expect(mockRedis.del).toHaveBeenCalled();
+    expect(mockRedis.incr).toHaveBeenCalledWith('user:user-1:cv');
   });
 
   it('does not invalidate caches when no query was run', async () => {
     await setTradeFlags(mockDb, mockRedis, 'user-1', 'album-1', 'variant-1', {});
-    expect(mockRedis.scan).not.toHaveBeenCalled();
-    expect(mockRedis.del).not.toHaveBeenCalled();
+    expect(mockRedis.incr).not.toHaveBeenCalled();
   });
 });

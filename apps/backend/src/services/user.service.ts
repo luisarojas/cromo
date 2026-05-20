@@ -1,7 +1,10 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 import crypto from 'node:crypto';
+import { withTx } from '../db/transaction.js';
 import { enqueue } from './jobs.service.js';
+import { recordAudit } from '../utils/audit.js';
+import { statusError } from '../utils/errors.js';
 
 function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
@@ -23,9 +26,7 @@ export async function updateUsername(
     [normalized, userId]
   );
   if ((existing.rowCount ?? 0) > 0) {
-    const err = new Error('Username is already taken.') as Error & { statusCode: number };
-    err.statusCode = 409;
-    throw err;
+    throw statusError('Username is already taken.', 409);
   }
 
   const result = await db.query<{ username: string }>(
@@ -36,16 +37,10 @@ export async function updateUsername(
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('User not found.') as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
+    throw statusError('User not found.', 404);
   }
 
-  await db.query(
-    `INSERT INTO audit_log (user_id, action, metadata)
-     VALUES ($1, 'username_changed', $2::jsonb)`,
-    [userId, JSON.stringify({ to: normalized })]
-  );
+  await recordAudit(db, userId, 'username_changed', { to: normalized });
 
   return { username: result.rows[0]!.username };
 }
@@ -64,15 +59,10 @@ export async function updateEmail(
     [normalizedEmail, userId]
   );
   if ((existing.rowCount ?? 0) > 0) {
-    const err = new Error('Email is already registered.') as Error & { statusCode: number };
-    err.statusCode = 409;
-    throw err;
+    throw statusError('Email is already registered.', 409);
   }
 
-  const client = await db.connect();
-  try {
-    await client.query('BEGIN');
-
+  const { username, token } = await withTx(db, async (client) => {
     const userResult = await client.query<{ username: string }>(
       `UPDATE users
        SET email = $1, hashed_email = $2, email_verified_at = NULL, updated_at = now()
@@ -82,43 +72,31 @@ export async function updateEmail(
     );
 
     if ((userResult.rowCount ?? 0) === 0) {
-      await client.query('ROLLBACK');
-      const err = new Error('User not found.') as Error & { statusCode: number };
-      err.statusCode = 404;
-      throw err;
+      throw statusError('User not found.', 404);
     }
 
-    const { username } = userResult.rows[0]!;
+    const { username: u } = userResult.rows[0]!;
 
     await client.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [userId]);
-    const token = generateToken();
+    const t = generateToken();
     await client.query(
       'INSERT INTO email_verification_tokens (token, user_id) VALUES ($1, $2)',
-      [token, userId]
+      [t, userId]
     );
 
-    await client.query(
-      `INSERT INTO audit_log (user_id, action, metadata)
-       VALUES ($1, 'email_changed', $2::jsonb)`,
-      [userId, JSON.stringify({ to: normalizedEmail })]
-    );
+    await recordAudit(client, userId, 'email_changed', { to: normalizedEmail });
 
-    await client.query('COMMIT');
+    return { username: u, token: t };
+  });
 
-    await enqueue(redis, {
-      type: 'email:verify',
-      email: normalizedEmail,
-      username,
-      token,
-    });
+  await enqueue(redis, {
+    type: 'email:verify',
+    email: normalizedEmail,
+    username,
+    token,
+  });
 
-    return { email: normalizedEmail };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  return { email: normalizedEmail };
 }
 
 export async function updateDisplayName(
@@ -136,9 +114,7 @@ export async function updateDisplayName(
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('User not found.') as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
+    throw statusError('User not found.', 404);
   }
 
   return { displayName: result.rows[0]!.display_name };
@@ -146,10 +122,7 @@ export async function updateDisplayName(
 
 export async function updatePassword(db: Pool, userId: string): Promise<void> {
   // In local mode passwords are not stored — just audit-log the change.
-  await db.query(
-    `INSERT INTO audit_log (user_id, action) VALUES ($1, 'password_changed')`,
-    [userId]
-  );
+  await recordAudit(db, userId, 'password_changed', null);
 }
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
@@ -221,13 +194,8 @@ export async function deleteAccount(db: Pool, userId: string): Promise<void> {
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    const err = new Error('User not found or already deleted.') as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
+    throw statusError('User not found or already deleted.', 404);
   }
 
-  await db.query(
-    `INSERT INTO audit_log (user_id, action) VALUES ($1, 'account_deleted')`,
-    [userId]
-  );
+  await recordAudit(db, userId, 'account_deleted', null);
 }

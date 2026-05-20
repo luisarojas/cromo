@@ -1,5 +1,7 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { statusError } from '../utils/errors.js';
+import { camelizeKeys } from '../utils/casing.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +25,12 @@ interface MessagePageResult {
 
 /**
  * publishTradeEvent — publish a JSON event to the trade's Redis pub/sub channel.
+ *
+ * Events are consumed by the SSE handler in routes/v1/trade.ts and written to
+ * a raw socket — which bypasses Fastify's serializer. Per CLAUDE.md, payloads
+ * crossing that wire must be camelized at the publisher. writeSSEEvent also
+ * camelizes as defence-in-depth, but doing it here keeps the published bytes
+ * in the canonical format any other consumer would expect.
  */
 export async function publishTradeEvent(
   redis: Redis,
@@ -30,7 +38,7 @@ export async function publishTradeEvent(
   eventType: string,
   data: Record<string, unknown>
 ): Promise<void> {
-  const payload = JSON.stringify({ type: eventType, ...data });
+  const payload = JSON.stringify(camelizeKeys({ type: eventType, ...data }));
   await redis.publish(`trade:channel:${tradeId}`, payload);
 }
 
@@ -68,39 +76,35 @@ export async function sendMessage(
   );
 
   if (tradeRows.length === 0) {
-    const err = new Error('Trade not found.') as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
+    throw statusError('Trade not found.', 404);
   }
 
   const trade = tradeRows[0]!;
   if (trade.requester_id !== userId && trade.recipient_id !== userId) {
-    const err = new Error('You are not a participant in this trade.') as Error & { statusCode: number };
-    err.statusCode = 403;
-    throw err;
+    throw statusError('You are not a participant in this trade.', 403);
   }
 
   const activeStatuses = ['pending', 'accepted'];
   if (!activeStatuses.includes(trade.status)) {
-    const err = new Error(`Cannot send messages on a trade with status '${trade.status}'.`) as Error & { statusCode: number };
-    err.statusCode = 409;
-    throw err;
+    throw statusError(`Cannot send messages on a trade with status '${trade.status}'.`, 409);
   }
 
   const messageId = crypto.randomUUID();
 
+  // CTE-form RETURNING with a single users join — one row lookup instead of two
+  // correlated subqueries per insert.
   const { rows } = await db.query<MessageRow>(
-    `INSERT INTO trade_messages (id, trade_id, sender_id, body, sent_at)
-     VALUES ($1, $2, $3, $4, NOW())
-     RETURNING
-       id,
-       trade_id,
-       sender_id,
-       (SELECT username FROM users WHERE id = $3)     AS sender_username,
-       (SELECT display_name FROM users WHERE id = $3) AS sender_display_name,
-       body,
-       sent_at,
-       is_system`,
+    `WITH ins AS (
+       INSERT INTO trade_messages (id, trade_id, sender_id, body, sent_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       RETURNING id, trade_id, sender_id, body, sent_at, is_system
+     )
+     SELECT ins.id, ins.trade_id, ins.sender_id,
+            u.username     AS sender_username,
+            u.display_name AS sender_display_name,
+            ins.body, ins.sent_at, ins.is_system
+     FROM ins
+     LEFT JOIN users u ON u.id = ins.sender_id`,
     [messageId, tradeId, userId, body]
   );
 
@@ -174,16 +178,12 @@ export async function getMessages(
   );
 
   if (tradeRows.length === 0) {
-    const err = new Error('Trade not found.') as Error & { statusCode: number };
-    err.statusCode = 404;
-    throw err;
+    throw statusError('Trade not found.', 404);
   }
 
   const trade = tradeRows[0]!;
   if (trade.requester_id !== userId && trade.recipient_id !== userId) {
-    const err = new Error('You are not a participant in this trade.') as Error & { statusCode: number };
-    err.statusCode = 403;
-    throw err;
+    throw statusError('You are not a participant in this trade.', 403);
   }
 
   const pageSize = Math.min(limit, 200);

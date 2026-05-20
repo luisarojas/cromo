@@ -116,6 +116,19 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(profileRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
+  // Standard HTTP labels per status code, so every route returns a consistent
+  // `error` field without each handler having to map it manually.
+  const ERROR_LABELS: Record<number, string> = {
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    403: 'Forbidden',
+    404: 'Not Found',
+    409: 'Conflict',
+    410: 'Gone',
+    415: 'Unsupported Media Type',
+    422: 'Unprocessable Entity',
+    429: 'Too Many Requests',
+  };
   fastify.setErrorHandler<FastifyError>((error, request, reply) => {
     const statusCode = error.statusCode ?? 500;
     // Bind the request id so production logs can be correlated with the
@@ -123,7 +136,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     request.log.error({ err: error, reqId: request.id, statusCode }, 'request failed');
     reply.header('x-request-id', request.id).status(statusCode).send({
       statusCode,
-      error: error.name ?? 'Internal Server Error',
+      error: ERROR_LABELS[statusCode] ?? 'Internal Server Error',
       message:
         env.NODE_ENV === 'production' && statusCode === 500
           ? 'An unexpected error occurred.'

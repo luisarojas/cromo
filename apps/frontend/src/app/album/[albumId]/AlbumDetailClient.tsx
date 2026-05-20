@@ -6,13 +6,15 @@ import Link from 'next/link';
 import { useAlbumUrlState, type Tab } from './useAlbumUrlState';
 import { useFavourites } from './useFavourites';
 import { useFilterOptions } from './useFilterOptions';
+import { useStickerSelection } from './useStickerSelection';
 import {
   fetchAllStickersCached,
   fetchCollection,
+  fetchCollectionPage,
   fetchMissing,
   fetchDuplicates,
   fetchUserAlbums,
-  fetchAlbumSummaries,
+  fetchAlbumCrossAlbum,
   fetchAlbumEditions,
   fetchAlbumFormats,
   fetchStickersBulk,
@@ -34,7 +36,7 @@ import {
   type MissingItem,
   type DuplicateItem,
   type UserAlbum,
-  type AlbumSummary,
+  type CrossAlbum,
 } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import { useAuthStore } from '@/store/auth';
@@ -61,20 +63,28 @@ async function runBatched<T>(
 
 type OwnedMap = Map<string, OwnedVariantMap>;
 
-async function loadOwnedMap(
+interface LoadedCollection {
+  ownedMap: OwnedMap;
+  stats: CollectionStats;
+  totalExtraCopies: number;
+}
+
+async function loadOwnedAndStats(
   userId: string,
   albumId: string,
   token: string,
-): Promise<OwnedMap> {
+): Promise<LoadedCollection> {
+  // First request uses the bundled endpoint so we get server-authoritative
+  // stats + total-extra-copies in the same round trip as the first page of
+  // items. Subsequent pages use the lighter items-only endpoint.
+  const first = await fetchCollectionPage(
+    userId,
+    { albumId, limit: 1000 },
+    token,
+  );
   const map: OwnedMap = new Map();
-  let cursor: number | null | undefined = undefined;
-  for (let i = 0; i < 50; i++) {
-    const page = await fetchCollection(
-      userId,
-      { albumId, limit: 1000, cursor: cursor ?? undefined },
-      token,
-    );
-    for (const item of page.items) {
+  const consume = (items: typeof first.items): void => {
+    for (const item of items) {
       let perSticker = map.get(item.albumCode);
       if (!perSticker) {
         perSticker = new Map<string, OwnedVariantEntry>();
@@ -87,10 +97,26 @@ async function loadOwnedMap(
         tradeForced: item.tradeForced,
       });
     }
-    if (!page.nextCursor || page.items.length === 0) break;
+  };
+
+  consume(first.items);
+  let cursor: number | null = first.nextCursor;
+  for (let i = 0; i < 50 && cursor !== null; i++) {
+    const page = await fetchCollection(
+      userId,
+      { albumId, limit: 1000, cursor },
+      token,
+    );
+    consume(page.items);
+    if (page.items.length === 0) break;
     cursor = page.nextCursor;
   }
-  return map;
+
+  return {
+    ownedMap: map,
+    stats: first.stats,
+    totalExtraCopies: first.totalExtraCopies,
+  };
 }
 
 function isDuplicateSticker(
@@ -122,7 +148,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [ownedMap, setOwnedMap] = useState<OwnedMap>(new Map());
-  const [albumSummaries, setAlbumSummaries] = useState<AlbumSummary[]>([]);
+  // Server-authoritative stats — denormalized on user_albums and kept fresh by
+  // the trg_user_stickers_sync_counts trigger. Replaces the previous
+  // computedStats that iterated the entire catalog on every render.
+  const [serverStats, setServerStats] = useState<CollectionStats | null>(null);
+  const [serverExtraCopies, setServerExtraCopies] = useState<number>(0);
+  const [crossAlbum, setCrossAlbum] = useState<CrossAlbum>({ neededIn: {}, availableIn: {}, presentIn: {} });
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const [duplicateItems, setDuplicateItems] = useState<DuplicateItem[]>([]);
 
@@ -135,8 +166,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
   const [massWorking, setMassWorking] = useState(false);
   const [variantPicker, setVariantPicker] = useState<'add' | 'remove' | null>(null);
 
@@ -174,15 +203,15 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // Data loaders
   // ---------------------------------------------------------------------------
   const loadCollection = useCallback(async (tok: string, userId: string, aid: string) => {
-    // computedStats below derives the same numbers from ownedMap in-memory,
-    // so we no longer need a separate /stats round trip on each refresh.
-    const map = await loadOwnedMap(userId, aid, tok);
+    const { ownedMap: map, stats, totalExtraCopies } = await loadOwnedAndStats(userId, aid, tok);
     setOwnedMap(map);
+    setServerStats(stats);
+    setServerExtraCopies(totalExtraCopies);
   }, []);
 
-  const loadSummaries = useCallback(async (tok: string, userId: string) => {
-    const items = await fetchAlbumSummaries(userId, tok);
-    setAlbumSummaries(items);
+  const loadCrossAlbum = useCallback(async (tok: string, userId: string, aid: string) => {
+    const data = await fetchAlbumCrossAlbum(userId, aid, tok);
+    setCrossAlbum(data);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -230,7 +259,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
         await Promise.all([
           loadCollection(tok, usr.id, albumId),
-          loadSummaries(tok, usr.id),
+          loadCrossAlbum(tok, usr.id, albumId),
         ]);
       } catch (err) {
         if (!cancelled) {
@@ -269,56 +298,31 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   }, [tab, albumId]);
 
   // ---------------------------------------------------------------------------
-  // Cross-album indicators
+  // Cross-album indicators — computed server-side in a single SQL query.
   // ---------------------------------------------------------------------------
   const crossAlbumNeeded = useMemo<Map<string, string[]>>(() => {
-    if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, string[]>();
-    for (const summary of albumSummaries) {
-      if (summary.albumId === albumId) continue;
-      const album = albums.find((a) => a.id === summary.albumId);
-      const name = album ? albumDisplayName(album) : 'Another album';
-      const otherOwned = new Set(summary.ownedAlbumCodes);
-      for (const albumCode of ownedMap.keys()) {
-        if (!otherOwned.has(albumCode)) {
-          if (!map.has(albumCode)) map.set(albumCode, []);
-          map.get(albumCode)!.push(name);
-        }
-      }
+    for (const [code, refs] of Object.entries(crossAlbum.neededIn)) {
+      map.set(code, refs.map((r) => r.name));
     }
     return map;
-  }, [albumSummaries, ownedMap, albumId, albums]);
+  }, [crossAlbum]);
 
   const crossAlbumAvailable = useMemo<Map<string, string[]>>(() => {
-    if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, string[]>();
-    for (const summary of albumSummaries) {
-      if (summary.albumId === albumId) continue;
-      const album = albums.find((a) => a.id === summary.albumId);
-      const name = album ? albumDisplayName(album) : 'Another album';
-      for (const albumCode of summary.duplicateAlbumCodes) {
-        if (!map.has(albumCode)) map.set(albumCode, []);
-        map.get(albumCode)!.push(name);
-      }
+    for (const [code, refs] of Object.entries(crossAlbum.availableIn)) {
+      map.set(code, refs.map((r) => r.name));
     }
     return map;
-  }, [albumSummaries, albumId, albums]);
+  }, [crossAlbum]);
 
   const crossAlbumHasSticker = useMemo<Map<string, Array<{ id: string; name: string }>>>(() => {
-    if (albumSummaries.length === 0) return new Map();
     const map = new Map<string, Array<{ id: string; name: string }>>();
-    for (const summary of albumSummaries) {
-      if (summary.albumId === albumId) continue;
-      const album = albums.find((a) => a.id === summary.albumId);
-      if (!album) continue;
-      const name = albumDisplayName(album);
-      for (const albumCode of summary.ownedAlbumCodes) {
-        if (!map.has(albumCode)) map.set(albumCode, []);
-        map.get(albumCode)!.push({ id: summary.albumId, name });
-      }
+    for (const [code, refs] of Object.entries(crossAlbum.presentIn)) {
+      map.set(code, refs);
     }
     return map;
-  }, [albumSummaries, albumId, albums]);
+  }, [crossAlbum]);
 
   // ---------------------------------------------------------------------------
   // Derived totals
@@ -353,22 +357,22 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     favouriteSet,
   });
 
+  // Stats come from user_albums (denormalized columns kept fresh by the
+  // sync trigger). The serverStats.duplicates count uses the "any variant
+  // qty > 1" rule; for users who flipped the duplicatesCountAllVariants
+  // preference to true we re-derive that one value locally — the rest
+  // (total/owned/missing/percentage) are unaffected by the preference.
   const computedStats = useMemo<CollectionStats | null>(() => {
     if (loading) return null;
-    const total = settingsFilteredStickers.length;
-    let owned = 0;
+    if (!serverStats) return null;
+    if (!duplicatesCountAllVariants) return serverStats;
     let duplicates = 0;
     for (const s of settingsFilteredStickers) {
       const perSticker = ownedMap.get(s.albumCode);
-      if (perSticker) {
-        owned++;
-        if (isDuplicateSticker(perSticker, duplicatesCountAllVariants)) duplicates++;
-      }
+      if (perSticker && isDuplicateSticker(perSticker, true)) duplicates++;
     }
-    const missing = total - owned;
-    const percentage = total > 0 ? (owned / total) * 100 : 0;
-    return { total, owned, missing, duplicates, percentage };
-  }, [loading, settingsFilteredStickers, ownedMap, duplicatesCountAllVariants]);
+    return { ...serverStats, duplicates };
+  }, [loading, serverStats, duplicatesCountAllVariants, settingsFilteredStickers, ownedMap]);
 
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
@@ -381,23 +385,22 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     return sum;
   }, [settingsFilteredStickers, ownedMap]);
 
+  // Server provides the canonical "sum of (quantity - 1)" via the bundled
+  // /collection?bundle=page response. Two modes give the same number unless
+  // the user has duplicatesCountAllVariants flipped — in that case we
+  // re-aggregate per-sticker locally over the owned map (small set).
   const totalExtraCopies = useMemo(() => {
+    if (!duplicatesCountAllVariants) return serverExtraCopies;
     let sum = 0;
     for (const s of settingsFilteredStickers) {
       const perSticker = ownedMap.get(s.albumCode);
       if (!perSticker) continue;
-      if (duplicatesCountAllVariants) {
-        let total = 0;
-        for (const entry of perSticker.values()) total += entry.quantity;
-        if (total > 1) sum += total - 1;
-      } else {
-        for (const entry of perSticker.values()) {
-          if (entry.quantity > 1) sum += entry.quantity - 1;
-        }
-      }
+      let total = 0;
+      for (const entry of perSticker.values()) total += entry.quantity;
+      if (total > 1) sum += total - 1;
     }
     return sum;
-  }, [settingsFilteredStickers, ownedMap, duplicatesCountAllVariants]);
+  }, [serverExtraCopies, duplicatesCountAllVariants, settingsFilteredStickers, ownedMap]);
 
   const displayedStickers = useMemo<Sticker[]>(() => {
     let base: Sticker[];
@@ -464,64 +467,20 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // ---------------------------------------------------------------------------
   // Selection helpers
   // ---------------------------------------------------------------------------
-  const selectedHasAnyOwned = useMemo(() => {
-    for (const code of selectedCodes) {
-      if (ownedMap.has(code)) return true;
-    }
-    return false;
-  }, [selectedCodes, ownedMap]);
-
-  const selectedFavouriteState = useMemo<'all' | 'some' | 'none'>(() => {
-    if (selectedCodes.size === 0) return 'none';
-    let favCount = 0;
-    for (const code of selectedCodes) {
-      if (favouriteSet.has(code)) favCount++;
-    }
-    if (favCount === 0) return 'none';
-    if (favCount === selectedCodes.size) return 'all';
-    return 'some';
-  }, [selectedCodes, favouriteSet]);
-
-  const removableVariantTypes = useMemo(() => {
-    const types = new Set<string>();
-    for (const code of selectedCodes) {
-      const variants = ownedMap.get(code);
-      if (variants) {
-        for (const vt of variants.keys()) types.add(vt);
-      }
-    }
-    return [...types];
-  }, [selectedCodes, ownedMap]);
-
-  const handleToggleSelect = useCallback((albumCode: string) => {
-    setSelectedCodes((prev) => {
-      const next = new Set(prev);
-      if (next.has(albumCode)) next.delete(albumCode);
-      else next.add(albumCode);
-      return next;
-    });
-  }, []);
-
-  const handleRangeSelect = useCallback((albumCodes: string[]) => {
-    setSelectedCodes((prev) => {
-      const next = new Set(prev);
-      for (const code of albumCodes) next.add(code);
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    setSelectedCodes(new Set(displayedStickers.map((s) => s.albumCode)));
-  }, [displayedStickers]);
-
-  const handleDeselectAll = useCallback(() => {
-    setSelectedCodes(new Set());
-  }, []);
-
-  const handleExitSelection = useCallback(() => {
-    setSelectionMode(false);
-    setSelectedCodes(new Set());
-  }, []);
+  const {
+    selectionMode,
+    setSelectionMode,
+    selectedCodes,
+    setSelectedCodes,
+    selectedHasAnyOwned,
+    selectedFavouriteState,
+    removableVariantTypes,
+    handleToggleSelect,
+    handleRangeSelect,
+    handleSelectAll,
+    handleDeselectAll,
+    handleExitSelection,
+  } = useStickerSelection({ displayedStickers, ownedMap, favouriteSet });
 
   // ---------------------------------------------------------------------------
   // Mass action handlers
@@ -668,12 +627,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     const usr = userRef.current;
     if (tok && usr && albumId) {
       const tasks: Promise<unknown>[] = [loadCollection(tok, usr.id, albumId)];
-      if (options?.reloadSummaries) tasks.push(loadSummaries(tok, usr.id));
+      if (options?.reloadSummaries) tasks.push(loadCrossAlbum(tok, usr.id, albumId));
       await Promise.all(tasks);
     }
     setMissingItems([]);
     setDuplicateItems([]);
-  }, [albumId, loadCollection, loadSummaries]);
+  }, [albumId, loadCollection, loadCrossAlbum]);
 
   const handleOptimisticAdjust = useCallback(
     (albumCode: string, variantType: string, variantId: string, delta: number) => {
