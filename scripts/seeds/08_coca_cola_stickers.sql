@@ -1,7 +1,8 @@
 -- scripts/seeds/08_coca_cola_stickers.sql
 -- Coca-Cola Partnership stickers CC1–CC12
 -- Part of a global marketing campaign; found exclusively behind 500mL/600mL Coca-Cola bottle labels.
--- Standard paper sticker — not foil. No parallel variants; one base_border variant per sticker.
+-- Standard paper sticker — not foil. No parallels; one base_borderless variant per sticker
+-- (the action-photo design has no visible border).
 
 INSERT INTO stickers
   (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
@@ -29,9 +30,10 @@ ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position;
 
--- Single base variant per CC sticker; acquired via Coca-Cola bottles
+-- Single base variant per CC sticker; acquired via Coca-Cola bottles.
+-- Borderless because Coca-Cola stickers are full-bleed action photos with no border.
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'base_border', 1, 'coca_cola'
+SELECT id, 'base_borderless', 1, 'coca_cola'
 FROM stickers
 WHERE sticker_type = 'coca_cola_special'
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;

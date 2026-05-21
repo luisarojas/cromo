@@ -108,17 +108,22 @@ export async function identifySticker(
   return items.map((item) => {
     const p = item as Record<string, unknown>;
     const albumCode = typeof p['albumCode'] === 'string' && p['albumCode'].length > 0 ? p['albumCode'] : null;
-    const borderColor = typeof p['borderColor'] === 'string' ? p['borderColor'] : null;
+    const rawBorderColor = typeof p['borderColor'] === 'string' ? p['borderColor'] : null;
     const rawType = p['stickerType'] === 'extra' ? 'extra'
       : p['stickerType'] === 'coca_cola_special' ? 'coca_cola_special'
       : null;
+    const stickerType = reconcileStickerType(rawType, albumCode, rawBorderColor);
+    // Coca-Cola stickers are always the borderless base variant — they are full-bleed
+    // action photos with no border and no parallels. Force it server-side so the
+    // model can't return a misread foil/border colour for them.
+    const borderColor = stickerType === 'coca_cola_special' ? 'base_borderless' : rawBorderColor;
     return {
       stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
       albumCode,
       playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
-      teamFifaCode: typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null,
+      teamFifaCode: stickerType === 'coca_cola_special' ? null : (typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null),
       borderColor,
-      stickerType: reconcileStickerType(rawType, albumCode, borderColor),
+      stickerType,
       confidence: typeof p['confidence'] === 'number' ? p['confidence'] : 0,
       reasoning: typeof p['reasoning'] === 'string' ? p['reasoning'] : '',
     };

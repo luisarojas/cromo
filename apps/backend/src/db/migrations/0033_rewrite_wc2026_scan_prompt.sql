@@ -152,7 +152,9 @@ Extract:
   playerName     → the vertical text along the left edge. Read the printed letters
                    you can see; any "(XXX)" country abbreviation embedded in the
                    text is part of the playerName string, not a flag.
-  All other fields (albumCode, stickerNumber, teamFifaCode, borderColor) → null
+  borderColor    → "base_borderless"  (Coca-Cola stickers have no border — they are
+                   full-bleed action photos)
+  All other fields (albumCode, stickerNumber, teamFifaCode) → null
 
 ══════════════════════════════════════════════════════════
 FIELD RULES
