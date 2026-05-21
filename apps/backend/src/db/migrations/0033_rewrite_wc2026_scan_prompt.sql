@@ -24,7 +24,7 @@ Back side: the album code in the center starts with "EX" (e.g. "EX1", "EX5").
 
 Extract:
   playerName    — lower-center text on the front, or the printed name on the back
-  teamFifaCode  — ISO 3-letter code from the country flag (lower-LEFT on the front)
+  teamFifaCode  — identify the country by visually recognising the circular flag image (lower-LEFT on the front); return its ISO 3-letter FIFA code
   albumCode     — from the back (will start with "EX")
   stickerNumber — integer printed on the back
   borderColor   — foil/parallel accent color on the sticker (e.g. "purple", "bronze",
@@ -86,7 +86,7 @@ Border / finish types for core stickers — set borderColor as follows:
 
 Extract:
   playerName    — first line of text in the lower-center (front); null for non-player stickers
-  teamFifaCode  — ISO 3-letter code from the flag (lower-RIGHT on the front); null if absent
+  teamFifaCode  — identify the country by visually recognising the circular flag image (lower-RIGHT on the front); return its ISO 3-letter FIFA code; null if no flag is clearly identifiable
   albumCode     — from the back
   stickerNumber — integer from the back
   borderColor   — as listed above
@@ -111,7 +111,8 @@ stickerNumber:
   • A plain integer on the back (e.g. 247); null if not visible
 
 teamFifaCode:
-  • ISO 3-letter FIFA code read from a country flag (e.g. "BRA", "FRA", "ARG")
+  • No text code is printed on the sticker — only a circular flag image appears
+  • Visually identify the country from the flag design, then return its ISO 3-letter FIFA code (e.g. "BRA", "FRA", "ARG")
   • null if no flag is clearly identifiable
 
 ══════════════════════════════════════════════════════════
