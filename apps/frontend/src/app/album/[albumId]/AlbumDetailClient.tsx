@@ -43,7 +43,7 @@ import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import FilterBar, { type FilterState } from '../components/FilterBar';
-import { ALL_VARIANT_TYPES, isBaseVariant } from '../components/variantMeta';
+import { ALL_VARIANT_TYPES } from '../components/variantMeta';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import AlbumFormModal from '../components/AlbumFormModal';
@@ -527,27 +527,20 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         addToast('All selected stickers already own that variant.');
         return;
       }
-      if (isBaseVariant(variantType)) {
-        await runBatched(selectedStickerList, 10, async (sticker) => {
-          if (!sticker.baseVariantId) return;
-          await addSticker(usr.id, sticker.baseVariantId, 1, tok, albumId);
-        });
-      } else {
-        const codes = selectedStickerList.map((s) => s.albumCode);
-        const variantIdMap = new Map<string, string>();
-        for (let i = 0; i < codes.length; i += 100) {
-          const results = await fetchStickersBulk(codes.slice(i, i + 100), tok);
-          for (const lookup of results) {
-            const v = lookup.variants.find((x) => x.variantType === variantType);
-            if (v) variantIdMap.set(lookup.albumCode, v.id);
-          }
+      const codes = selectedStickerList.map((s) => s.albumCode);
+      const variantIdMap = new Map<string, string>();
+      for (let i = 0; i < codes.length; i += 100) {
+        const results = await fetchStickersBulk(codes.slice(i, i + 100), tok);
+        for (const lookup of results) {
+          const v = lookup.variants.find((x) => x.variantType === variantType);
+          if (v) variantIdMap.set(lookup.albumCode, v.id);
         }
-        await runBatched(selectedStickerList, 10, async (sticker) => {
-          const variantId = variantIdMap.get(sticker.albumCode);
-          if (!variantId) return;
-          await addSticker(usr.id, variantId, 1, tok, albumId);
-        });
       }
+      await runBatched(selectedStickerList, 10, async (sticker) => {
+        const variantId = variantIdMap.get(sticker.albumCode);
+        if (!variantId) return;
+        await addSticker(usr.id, variantId, 1, tok, albumId);
+      });
       await loadCollection(tok, usr.id, albumId);
       setMissingItems([]);
       setDuplicateItems([]);
