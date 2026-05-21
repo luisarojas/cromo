@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import {
   scanIdentify,
@@ -18,26 +18,23 @@ import {
 } from '@/lib/api';
 import { variantLabel } from '@/app/album/components/variantMeta';
 
-// ─── Confidence helpers ───────────────────────────────────────────────────────
+// ─── Match badge ──────────────────────────────────────────────────────────────
 
-type ConfidenceTier = 'high' | 'medium' | 'low';
+type MatchType = 'code' | 'name' | 'manual' | 'none';
 
-function confidenceTier(confidence: number): ConfidenceTier {
-  if (confidence >= 0.85) return 'high';
-  if (confidence >= 0.60) return 'medium';
-  return 'low';
-}
-
-function ConfidenceBadge({ confidence }: { confidence: number }) {
-  const tier = confidenceTier(confidence);
-  const pct = Math.round(confidence * 100);
-  const cls =
-    tier === 'high' ? 'bg-green-100 text-green-700 border-green-200'
-    : tier === 'medium' ? 'bg-amber-100 text-amber-700 border-amber-200'
-    : 'bg-red-100 text-red-700 border-red-200';
+// Semantic label for how the card came to hold the sticker it does. We avoid showing
+// a confidence percentage because the AI's self-reported value is uncalibrated (it
+// returns the same number for nearly every scan).
+function MatchBadge({ matchType }: { matchType: MatchType }) {
+  const config = {
+    code:   { label: '✓ Matched',                    cls: 'bg-green-100 text-green-700 border-green-200' },
+    name:   { label: 'Partial match — please verify', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    manual: { label: '✓ Selected',                   cls: 'bg-green-50 text-green-700 border-green-200' },
+    none:   { label: 'Not found in catalog',         cls: 'bg-orange-50 text-orange-700 border-orange-200' },
+  }[matchType];
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded border ${cls}`}>
-      {pct}% confidence
+    <span className={`text-xs font-medium px-2 py-0.5 rounded border ${config.cls}`}>
+      {config.label}
     </span>
   );
 }
@@ -279,7 +276,6 @@ function ComboBox({
 interface ScanCard {
   sourcePreview: string;
   albumCode: string;
-  playerName: string;
   teamFifaCode: string;
   teamName: string;
   stickerNumber: number | null;
@@ -287,9 +283,32 @@ interface ScanCard {
   sticker?: Sticker;
   variants: StickerVariant[];
   selectedVariantId: string;
-  confidence: number;
-  matchType: 'code' | 'name' | 'none';
+  matchType: MatchType;
   added: boolean;
+}
+
+// Pre-selects the best variant for a sticker, applying border hints from the AI scan
+// (or a prior user choice) with sensible fallbacks. Used both when first building a
+// card and when the user picks a different sticker via the dropdown, so both paths
+// stay aligned.
+function pickVariantId(
+  variants: StickerVariant[],
+  borderHint: string | null,
+  hasAlbumCode: boolean,
+): string {
+  if (borderHint) {
+    const byColor = variants.find((v) =>
+      v.variantType.toLowerCase().startsWith(borderHint.toLowerCase()),
+    );
+    if (byColor) return byColor.id;
+    // Border detected but no color-named variant → bordered base (e.g. white border)
+    return variants.find((v) => v.variantType === 'base_border')?.id ?? variants[0]?.id ?? '';
+  }
+  // No border + front-side scan (no album code) → borderless base variant
+  if (!hasAlbumCode) {
+    return variants.find((v) => v.variantType === 'base_borderless')?.id ?? variants[0]?.id ?? '';
+  }
+  return variants[0]?.id ?? '';
 }
 
 async function buildScanCard(
@@ -301,29 +320,13 @@ async function buildScanCard(
   let sticker: Sticker | undefined;
   let variants: StickerVariant[] = [];
   let selectedVariantId = '';
-
-  const pickVariant = (vs: StickerVariant[]): string => {
-    if (result.borderColor) {
-      // Direct color match covers most parallels (blue → blue, red → red, etc.)
-      const byColor = vs.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()));
-      if (byColor) return byColor.id;
-      // Any border detected but no color-named variant → bordered base (e.g. white border → base_border)
-      return vs.find((v) => v.variantType === 'base_border')?.id ?? vs[0]?.id ?? '';
-    }
-    // No border detected on a front-side scan (albumCode absent) → borderless base variant
-    if (result.albumCode === null) {
-      return vs.find((v) => v.variantType === 'base_borderless')?.id ?? vs[0]?.id ?? '';
-    }
-    return vs[0]?.id ?? '';
-  };
-
   let matchType: ScanCard['matchType'] = 'none';
 
   if (result.albumCode) {
     try {
       sticker = await fetchStickerByAlbumCode(result.albumCode, token);
       variants = await fetchStickerVariants(result.albumCode, token);
-      selectedVariantId = pickVariant(variants);
+      selectedVariantId = pickVariantId(variants, result.borderColor, !!result.albumCode);
       matchType = 'code';
     } catch { /* sticker not in catalog */ }
   }
@@ -341,7 +344,7 @@ async function buildScanCard(
       try {
         sticker = await fetchStickerByAlbumCode(matches[0]!.albumCode, token);
         variants = await fetchStickerVariants(matches[0]!.albumCode, token);
-        selectedVariantId = pickVariant(variants);
+        selectedVariantId = pickVariantId(variants, result.borderColor, !!result.albumCode);
         matchType = 'name';
       } catch { /* ignore */ }
     }
@@ -350,7 +353,6 @@ async function buildScanCard(
   return {
     sourcePreview,
     albumCode: sticker?.albumCode ?? '',
-    playerName: sticker?.playerName ?? '',
     teamFifaCode: sticker?.fifaCode ?? result.teamFifaCode ?? '',
     teamName: sticker?.teamName ?? '',
     stickerNumber: sticker?.number ?? result.stickerNumber,
@@ -358,7 +360,6 @@ async function buildScanCard(
     sticker,
     variants,
     selectedVariantId,
-    confidence: result.confidence,
     matchType,
     added: false,
   };
@@ -458,21 +459,17 @@ function ScanMode() {
         const variants = await fetchStickerVariants(albumCode, token);
         setResultCards((prev) => prev.map((card, i) => {
           if (i !== idx) return card;
-          const selectedVariantId = (card.borderVariantType
-            ? variants.find((v) => v.variantType.toLowerCase().startsWith(card.borderVariantType.toLowerCase()))
-            : undefined
-          )?.id ?? variants[0]?.id ?? '';
+          const selectedVariantId = pickVariantId(variants, card.borderVariantType || null, true);
           return {
             ...card,
             albumCode: s.albumCode,
-            playerName: s.playerName ?? '',
             teamFifaCode: s.fifaCode ?? '',
             teamName: s.teamName ?? '',
             stickerNumber: s.number,
             sticker: s,
             variants,
             selectedVariantId,
-            matchType: 'code' as const,
+            matchType: 'manual' as const,
           };
         }));
       } catch { /* ignore */ }
@@ -530,6 +527,25 @@ function ScanMode() {
     return acc;
   }, []);
 
+  // Only the user's albums that match the currently scanned album type — scanned
+  // stickers cannot be added to an album of a different type.
+  const filteredAlbums = albums.filter((a) => a.albumTypeKey === selectedAlbumTypeKey);
+
+  // Catalog-wide options for the Sticker dropdown. Memoized so we don't rebuild
+  // hundreds of option objects per result card on every render.
+  const stickerOptions = useMemo<ComboOption[]>(
+    () =>
+      catalog.map((s) => {
+        const typeSuffix =
+          s.stickerType === 'coca_cola_special' ? ' (Coca-Cola)'
+          : s.stickerType === 'extra' ? ' (Extra)'
+          : '';
+        const base = s.playerName ? `${s.albumCode} — ${s.playerName}` : s.albumCode;
+        return { value: s.albumCode, label: `${base}${typeSuffix}` };
+      }),
+    [catalog],
+  );
+
   return (
     <div className="space-y-4">
       {albumTypeOptions.length > 1 && (
@@ -539,7 +555,11 @@ function ScanMode() {
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={selectedAlbumTypeKey}
             onChange={(e) => {
-              setSelectedAlbumTypeKey(e.target.value);
+              const newType = e.target.value;
+              const newAlbums = albums.filter((a) => a.albumTypeKey === newType);
+              const def = newAlbums.find((a) => a.isDefault) ?? newAlbums[0];
+              setSelectedAlbumTypeKey(newType);
+              setSelectedAlbumId(def?.id);
               reset();
             }}
           >
@@ -603,19 +623,6 @@ function ScanMode() {
           {status === 'done' && resultCards.length > 0 && (
             <div className="space-y-3">
               {resultCards.map((card, idx) => {
-                const albumCodeOptions: ComboOption[] = catalog.map((s) => ({
-                  value: s.albumCode,
-                  label: s.playerName ? `${s.albumCode} — ${s.playerName}` : s.albumCode,
-                }));
-                const playerOptions: ComboOption[] = catalog
-                  .filter((s) => s.playerName)
-                  .map((s) => {
-                    const suffix =
-                      s.stickerType === 'coca_cola_special' ? ' · Coca-Cola'
-                      : s.stickerType === 'extra' ? ' · Extra'
-                      : '';
-                    return { value: s.albumCode, label: `${s.playerName!}${suffix}` };
-                  });
                 const borderOptions: ComboOption[] = card.variants.map((v) => ({
                   value: v.variantType,
                   label: variantLabel(v.variantType),
@@ -625,10 +632,7 @@ function ScanMode() {
                 const teamDisplayValue = card.teamName
                   ? `${card.teamName} (${card.teamFifaCode})`
                   : card.teamFifaCode;
-                // Show the full option label (e.g. "BRA5 — Vinicius Jr.") when a catalog
-                // entry is matched, so the displayed value is always from the dropdown.
-                const albumCodeDisplayValue = albumCodeOptions.find((o) => o.value === card.albumCode)?.label ?? '';
-                const playerDisplayValue = playerOptions.find((o) => o.value === card.albumCode)?.label ?? '';
+                const stickerDisplayValue = stickerOptions.find((o) => o.value === card.albumCode)?.label ?? '';
 
                 return (
                   <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
@@ -638,38 +642,17 @@ function ScanMode() {
                         alt={`Sticker ${idx + 1}`}
                         className="w-12 h-12 rounded-lg object-cover border border-gray-100 shrink-0"
                       />
-                      {card.matchType === 'code' && (
-                        <ConfidenceBadge confidence={card.confidence} />
-                      )}
-                      {card.matchType === 'name' && (
-                        <ConfidenceBadge confidence={Math.min(card.confidence, 0.70)} />
-                      )}
-                      {card.matchType === 'none' && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded border bg-orange-50 text-orange-700 border-orange-200">
-                          Not found in catalog
-                        </span>
-                      )}
+                      <MatchBadge matchType={card.matchType} />
                     </div>
 
                     <div className="space-y-2">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-600 block">Album code</label>
+                        <label className="text-xs font-medium text-gray-600 block">Sticker</label>
                         <ComboBox
-                          value={albumCodeDisplayValue}
-                          options={albumCodeOptions}
+                          value={stickerDisplayValue}
+                          options={stickerOptions}
                           onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
-                          placeholder="Search album code…"
-                          disabled={card.added}
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-600 block">Player</label>
-                        <ComboBox
-                          value={playerDisplayValue}
-                          options={playerOptions}
-                          onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
-                          placeholder="Search player…"
+                          placeholder="Search by album code or player name…"
                           disabled={card.added}
                         />
                       </div>
@@ -722,7 +705,7 @@ function ScanMode() {
 
               {resultCards.some((c) => c.sticker && c.selectedVariantId && !c.added) && (
                 <div className="space-y-2">
-                  {albums.length > 1 && (
+                  {filteredAlbums.length > 1 && (
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-gray-600 block">Add to album</label>
                       <select
@@ -730,7 +713,7 @@ function ScanMode() {
                         value={selectedAlbumId ?? ''}
                         onChange={(e) => setSelectedAlbumId(e.target.value)}
                       >
-                        {albums.map((a) => (
+                        {filteredAlbums.map((a) => (
                           <option key={a.id} value={a.id}>
                             {albumDisplayName(a)}{a.isDefault ? ' (default)' : ''}
                           </option>

@@ -107,17 +107,37 @@ export async function identifySticker(
 
   return items.map((item) => {
     const p = item as Record<string, unknown>;
+    const albumCode = typeof p['albumCode'] === 'string' && p['albumCode'].length > 0 ? p['albumCode'] : null;
+    const borderColor = typeof p['borderColor'] === 'string' ? p['borderColor'] : null;
+    const rawType = p['stickerType'] === 'extra' ? 'extra'
+      : p['stickerType'] === 'coca_cola_special' ? 'coca_cola_special'
+      : null;
     return {
       stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
-      albumCode: typeof p['albumCode'] === 'string' && p['albumCode'].length > 0 ? p['albumCode'] : null,
+      albumCode,
       playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
       teamFifaCode: typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null,
-      borderColor: typeof p['borderColor'] === 'string' ? p['borderColor'] : null,
-      stickerType: p['stickerType'] === 'extra' ? 'extra'
-        : p['stickerType'] === 'coca_cola_special' ? 'coca_cola_special'
-        : null,
+      borderColor,
+      stickerType: reconcileStickerType(rawType, albumCode, borderColor),
       confidence: typeof p['confidence'] === 'number' ? p['confidence'] : 0,
       reasoning: typeof p['reasoning'] === 'string' ? p['reasoning'] : '',
     };
   });
+}
+
+// Extra stickers always have album codes starting with "EX" and never use crumple-foil
+// borders (crumples are exclusive to core). Trust the album code / border signal over the
+// type label — the model reads those reliably but mis-classifies shiny/foil core stickers
+// as "extra" by appearance.
+function reconcileStickerType(
+  rawType: 'extra' | 'coca_cola_special' | null,
+  albumCode: string | null,
+  borderColor: string | null,
+): 'extra' | 'coca_cola_special' | null {
+  if (rawType === 'extra') {
+    if (albumCode && !albumCode.startsWith('EX')) return null;
+    if (borderColor?.includes('crumple')) return null;
+  }
+  if (rawType !== 'extra' && albumCode?.startsWith('EX')) return 'extra';
+  return rawType;
 }

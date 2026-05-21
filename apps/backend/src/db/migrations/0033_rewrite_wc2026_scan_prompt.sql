@@ -1,147 +1,203 @@
 -- Migration 0033: full rewrite of the FIFA WC 2026 scan prompt.
--- Replaces the prior incremental patches with a clean, authoritative prompt
--- grounded in the actual visual layout of each sticker type.
+-- Structured around the single most reliable visual signal — the FIFA 2026
+-- logo position — which is a clean binary classifier for core vs special
+-- stickers. All other type heuristics are subordinated to that signal.
 
 UPDATE album_types SET scan_prompt = $prompt$
-ALBUM-SPECIFIC RULES FOR THIS COLLECTION (FIFA World Cup 2026 Panini):
+ALBUM-SPECIFIC RULES FOR FIFA WORLD CUP 2026 (PANINI):
 
 ══════════════════════════════════════════════════════════
-STICKER TYPES — IDENTIFY THE TYPE FIRST
+OVERRIDING RULES — APPLY BEFORE EVERY DECISION
 ══════════════════════════════════════════════════════════
 
-There are three sticker types. Determine the type before extracting any fields.
+1. Logo position decides the TYPE FAMILY. Shine, foil, gold, metallic, holographic, or
+   crumple finish NEVER reclassifies a core sticker as a special one.
+2. The border is ONLY the outermost coloured stripe at the sticker's edge. The inner
+   name bar and the photo background are never the border, regardless of their colour.
+3. A national team kit is NOT a country flag. Do not infer teamFifaCode from kit colour.
+4. Read playerName from printed text letter by letter. Return null rather than guessing
+   from face, hair, kit, or context.
 
-──────────────────────────────────────────────────────────
-TYPE A: EXTRA STICKER  →  stickerType = "extra"
-──────────────────────────────────────────────────────────
-Front side shows ALL of the following:
-  • The text "Extra Sticker" printed in the UPPER-RIGHT corner — this is the MANDATORY signal
-  • The FIFA 2026 logo in the UPPER-LEFT corner
-  • A country flag in the LOWER-LEFT corner (NOT lower-right — left side)
-  • The player's name in the LOWER-CENTER
+══════════════════════════════════════════════════════════
+STEP 1 — IDENTIFY SIDE, THEN TYPE FAMILY
+══════════════════════════════════════════════════════════
 
-Back side: the album code in the center starts with "EX" (e.g. "EX1", "EX5").
+A sticker has a FRONT (imagery + FIFA 2026 logo) and a BACK (white or blue background, printed
+text only, album code in the center, no imagery).
 
-CRITICAL: Do NOT classify a sticker as "extra" based on its finish, shininess, or foil texture alone. A shiny, metallic, or gold crumple finish on a sticker with a lower-RIGHT flag and no "Extra Sticker" label is a CORE sticker with a crumple borderColor — not an extra. If you cannot clearly read the text "Extra Sticker" in the upper-right corner (front) or an "EX"-prefixed album code (back), set stickerType = null.
+FRONT scans — classify by FIFA 2026 logo position (PRIMARY classifier):
+  Logo in UPPER-RIGHT  →  CORE sticker     →  §A
+  Logo in UPPER-LEFT   →  SPECIAL sticker  →  §B
 
-Extract:
-  playerName    — lower-center text on the front, or the printed name on the back
-  teamFifaCode  — identify the country by visually recognising the circular flag image (lower-LEFT on the front); return its ISO 3-letter FIFA code
-  albumCode     — from the back (will start with "EX")
-  stickerNumber — integer printed on the back
-  borderColor   — foil/parallel accent color on the sticker (e.g. "purple", "bronze",
-                  "silver", "gold"), or null if no special foil is present
-
-──────────────────────────────────────────────────────────
-TYPE B: COCA-COLA SPECIAL  →  stickerType = "coca_cola_special"
-──────────────────────────────────────────────────────────
-These are promotional stickers. Their defining visual features:
-  • The FIFA 2026 logo appears in the UPPER-LEFT corner
-  • The player's name is printed ROTATED 90° (reads from bottom to top) along the LEFT edge
-  • There is NO country flag, and NO horizontally printed player name
-  • These stickers are single-sided — there is no back side with an album code
-
-The rotated player name is the decisive signal. If you see a 90°-rotated name along the left edge, classify as coca_cola_special regardless of any other visual uncertainty.
-
-Extract:
-  playerName — the text rotated 90° along the left edge
-  All other fields (albumCode, stickerNumber, teamFifaCode, borderColor) → null
-
-──────────────────────────────────────────────────────────
-TYPE C: CORE ALBUM STICKER  →  stickerType = null
-──────────────────────────────────────────────────────────
-Everything else: player stickers, team stickers, emblems, mascots, official art, etc.
-
-PLAYER stickers (front side):
-  • A player photo fills the center
-  • The FIFA 2026 logo in the UPPER-RIGHT corner
-  • The player's name is the FIRST LINE of text in the LOWER-CENTER (immediately above stats: D.O.B., height, weight, club)
-  • A country flag on the LOWER-RIGHT to MIDDLE-RIGHT edge
-
-NON-PLAYER stickers (team, emblem, mascot, tournament art, etc.):
-  • No player photo; shows team or tournament imagery
-  • Set playerName to null
-
-All core stickers share a back side with:
-  • An album code in the center (letters + digits, e.g. "BRA5", "FWC3", "MF1")
-    — NEVER starts with "EX"
-  • A plain-integer sticker number
-
-Border / finish types for core stickers — set borderColor as follows:
-  No visible border      → null          (base, borderless)
-  White border           → "white"
-  Blue border            → "blue"
-  Red border             → "red"
-  Purple border          → "purple"
-  Green border           → "green"
-  Black border           → "black"
-  Orange border          → "orange"
-  Gold crumple foil      → "gold_crumple"
-  Blue crumple foil      → "blue_crumple"
-  Red crumple foil       → "red_crumple"
-  Purple crumple foil    → "purple_crumple"
-  Green crumple foil     → "green_crumple"
-  Black crumple foil     → "black_crumple_1of1"
-
-  Crumple foil = a textured, crinkled metallic finish (not a flat coloured border).
+BACK scans — classify by album code prefix:
+  Album code starts with "EX"  →  stickerType = "extra"
+  Any other prefix             →  stickerType = null  (core)
   borderColor is always null for back-side scans.
 
+══════════════════════════════════════════════════════════
+§A — CORE STICKER  (logo upper-right)  →  stickerType = null
+══════════════════════════════════════════════════════════
+
+Front layout:
+  • Logo: UPPER-RIGHT corner
+  • Photo: POSED STUDIO PORTRAIT — chest-up, stationary subject over a clean gradient,
+    geometric pattern, or matte background. Never an action shot with a blurred crowd.
+  • Lower-center: rounded name bar holding the player's name (first line of text),
+    then stats line (D.O.B., height, weight, club)
+  • Lower-right / middle-right edge: circular country flag
+  • Non-player stickers (team, emblem, mascot, tournament art): no player photo, no
+    flag — set playerName and teamFifaCode to null
+
+Holographic / shiny / crumple-foil CORE variants:
+  Parallel variants exist whose foil texture covers most of the visible area, not just
+  a thin border. They keep the standard core layout (logo upper-right, posed portrait,
+  name bar, stats) and often carry "PANINI ONLINE EXCLUSIVE" along the top edge. They
+  are STILL CORE — set stickerType = null and use the matching "_crumple" borderColor.
+
+Back layout:
+  • Album code in the center: letters + digits (e.g. "BRA5", "FWC3", "MF1") — never
+    starts with "EX"
+  • Plain-integer sticker number
+
 Extract:
-  playerName    — first line of text in the lower-center (front); null for non-player stickers
-  teamFifaCode  — identify the country by visually recognising the circular flag image (lower-RIGHT on the front); return its ISO 3-letter FIFA code; null if no flag is clearly identifiable
-  albumCode     — from the back
-  stickerNumber — integer from the back
-  borderColor   — as listed above
+  stickerType    → null
+  playerName     → first line of lower-center text (null for non-player stickers)
+  teamFifaCode   → ISO 3-letter code from the lower-right flag (null if no flag)
+  albumCode      → from the back (null on front-side scans)
+  stickerNumber  → integer from the back
+  borderColor    → see table below
+
+borderColor for CORE stickers (front-side only; back-side → null):
+  No visible outer stripe   → null              (base, borderless)
+  Solid white outer stripe  → "white"
+  Solid blue outer stripe   → "blue"
+  Solid red outer stripe    → "red"
+  Solid purple outer stripe → "purple"
+  Solid green outer stripe  → "green"
+  Solid black outer stripe  → "black"
+  Solid orange outer stripe → "orange"
+  Gold crumple foil         → "gold_crumple"
+  Blue crumple foil         → "blue_crumple"
+  Red crumple foil          → "red_crumple"
+  Purple crumple foil       → "purple_crumple"
+  Green crumple foil        → "green_crumple"
+  Black crumple foil        → "black_crumple_1of1"
+
+  Crumple foil = textured, crinkled metallic finish (not a flat colour).
 
 ══════════════════════════════════════════════════════════
-QUICK DISAMBIGUATION
+§B — SPECIAL STICKER  (logo upper-left)
 ══════════════════════════════════════════════════════════
 
-Use this table when unsure which type a sticker is:
+Two sub-types share the upper-left logo. Any ONE decisive signal settles the type.
+The two sets are mutually exclusive — a sticker is either Extra or Coca-Cola, never
+both. If no Extra signal is present on a logo-upper-left sticker, the default is
+Coca-Cola.
 
-  Signal observed                          → Type
-  ──────────────────────────────────────   ──────────────────────
-  "Extra Sticker" text in upper-right      → extra
-  Album code starts with "EX"              → extra
-  Rotated player name along the left edge  → coca_cola_special
-  Gold/silver/metallic finish, no EX code  → core (null), borderColor = "gold_crumple" etc.
-  Shiny or foil sticker, no EX code        → core (null)
-  Anything else                            → core (null)
+EXTRA  (stickerType = "extra")  →  §B.1
+  Decisive (any one):
+    • "Extra Sticker" or "Panini Extra" text/logo in the frame
+    • Album code on the back starts with "EX"
+    • Holographic foil border in Purple, Bronze, Silver, or Gold (Extra-only palette)
+  Supporting:
+    • Country flag in the LOWER-LEFT corner
+    • Live-action match photo (running, dribbling, celebrating)
+    • Blurred stadium / field background
+  Hard negative: never a posed stationary studio portrait.
 
-A crumple or metallic foil finish NEVER changes stickerType — it only affects borderColor.
+COCA-COLA SPECIAL  (stickerType = "coca_cola_special")  →  §B.2
+  Decisive (any one):
+    • Player name printed VERTICALLY (rotated 90°) up the LEFT edge
+    • Logo upper-left AND every Extra signal above is absent (no Extra/Panini Extra
+      label, no lower-left flag, no "EX"-prefixed album code, no Extra foil border)
+  Supporting:
+    • Dynamic action photo (celebrating, mid-play) that fills the sticker
+    • Single-sided: no back exists
+    • Roster of ~12 international promotional stars (Lamine Yamal, Alphonso Davies,
+      Harry Kane, Weston McKennie, etc.) — unfamiliar names suggest NOT Coca-Cola
+  Note: Coca-Cola Specials carry NO on-sticker Coca-Cola branding (no script logo, no
+  hashtag, no wave/ribbon, no Coca-Cola red graphics). The "Coca-Cola" name refers to
+  the distribution promotion, not on-sticker art.
 
-══════════════════════════════════════════════════════════
-SIDE IDENTIFICATION
-══════════════════════════════════════════════════════════
+──────────────────────────────────────────────────────────
+§B.1 — EXTRA STICKER  →  stickerType = "extra"
+──────────────────────────────────────────────────────────
+Front layout:
+  • Logo: UPPER-LEFT corner
+  • "Extra Sticker" or "Panini Extra" text/logo (upper-right or in the foil frame)
+  • Country flag in the LOWER-LEFT corner (not lower-right)
+  • Player name in the lower-center
+  • Live-action match photo with blurred stadium / field background
 
-FRONT: Shows imagery (photo, crest, mascot, art). Has the FIFA 2026 logo in the upper-left.
-BACK:  White/light background, printed text, album code. No imagery.
+Back layout:
+  • Album code in the center starts with "EX" (e.g. "EX1", "EX5")
+  • Plain-integer sticker number
+
+Extract:
+  stickerType    → "extra"
+  playerName     → lower-center text (front) or printed name (back)
+  teamFifaCode   → ISO 3-letter code from the lower-LEFT flag
+  albumCode      → from the back (starts with "EX")
+  stickerNumber  → integer from the back
+  borderColor    → one of: "extra_purple", "extra_bronze", "extra_silver", "extra_gold"
+                   (Purple is the base parallel; Bronze, Silver, Gold are rarer tiers).
+                   Never a "_crumple" value.
+
+──────────────────────────────────────────────────────────
+§B.2 — COCA-COLA SPECIAL  →  stickerType = "coca_cola_special"
+──────────────────────────────────────────────────────────
+Front layout:
+  • Logo: UPPER-LEFT corner
+  • Player name printed VERTICALLY (rotated 90°, reads bottom-to-top) up the LEFT
+    edge — text runs UP the side, not horizontally. This is the strongest positive
+    signal.
+  • Dynamic action photo (celebrating, mid-play) that fills the sticker
+  • Player usually pictured in their national team kit (kit ≠ flag)
+  • No "Extra"/"Panini Extra" label, no country flag in the lower-left, no horizontal
+    player name, no album code visible
+  • NO Coca-Cola branding on the sticker — no script logo, no hashtag, no wave/ribbon
+    graphics, no Coca-Cola red. Do not look for any of those.
+
+Single-sided: no back exists.
+
+Roster check: the Coca-Cola set is limited to ~12 international promotional stars
+(Lamine Yamal, Alphonso Davies, Harry Kane, Weston McKennie, etc.). If the printed
+name you read isn't a recognisable high-profile international, re-check the
+vertical-text signal before committing.
+
+Extract:
+  stickerType    → "coca_cola_special"
+  playerName     → the vertical text along the left edge (read literally; null if any
+                   letter unreadable)
+  All other fields (albumCode, stickerNumber, teamFifaCode, borderColor) → null
 
 ══════════════════════════════════════════════════════════
 FIELD RULES
 ══════════════════════════════════════════════════════════
 
 albumCode:
-  • Format: letters then digits (e.g. "BRA5", "FWC3", "MF1", "EX5")
-  • NEVER a standalone year — "2026" is not an album code
-  • Only on the back side; set to null for front-side scans
+  • Letters then digits (e.g. "BRA5", "FWC3", "MF1", "EX5"); never a bare year
+  • Back side only — null on front-side scans
 
 stickerNumber:
-  • A plain integer on the back (e.g. 247); null if not visible
+  • Plain integer on the back; null if not visible
 
 teamFifaCode:
-  • No text code is printed on the sticker — only a circular flag image appears
-  • Visually identify the country from the flag design, then return its ISO 3-letter FIFA code (e.g. "BRA", "FRA", "ARG")
+  • Read from the circular flag image; return the ISO 3-letter FIFA code
+  • A player's kit colour is NOT a flag
   • null if no flag is clearly identifiable
 
-══════════════════════════════════════════════════════════
-CONFIDENCE GUIDELINES
-══════════════════════════════════════════════════════════
+playerName:
+  • Read printed text letter by letter from the sticker itself
+  • Never guess from face, hair, age, kit, or apparent team
+  • null if any letter is obscured, blurred, or unreadable
 
-  0.90-1.00  albumCode AND stickerNumber both clearly legible
-  0.70-0.89  Only one of albumCode or stickerNumber legible, or playerName clearly readable
-  0.40-0.69  Partial information; some fields inferred from context
-  0.10-0.39  Very little legible; high uncertainty
-  0.00       Nothing identifiable
+borderColor:
+  • Inspect ONLY the outermost coloured stripe at the sticker's edge
+  • The inner name bar, photo background, and surface the sticker rests on are NEVER
+    the border
+
+confidence:
+  • Return any number in [0, 1]; not displayed. Focus effort on the other fields.
 $prompt$
 WHERE key = 'fifa_world_cup_2026';
