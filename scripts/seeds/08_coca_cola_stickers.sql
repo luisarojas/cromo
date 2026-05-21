@@ -11,20 +11,21 @@ SELECT
   (SELECT id FROM teams WHERE fifa_code = s.team_code),
   s.player_name, s.position, 'coca_cola_special', false
 FROM (VALUES
-  (981, 'CC1',  'USA', 'Christian Pulisic',  'FWD'),
-  (982, 'CC2',  'CAN', 'Alphonso Davies',    'DEF'),
-  (983, 'CC3',  'MEX', 'Santiago Giménez',   'FWD'),
-  (984, 'CC4',  'ARG', 'Lionel Messi',       'FWD'),
-  (985, 'CC5',  'FRA', 'Kylian Mbappé',      'FWD'),
-  (986, 'CC6',  'ENG', 'Jude Bellingham',    'MID'),
-  (987, 'CC7',  'ESP', 'Lamine Yamal',       'FWD'),
-  (988, 'CC8',  'BRA', 'Vinícius Júnior',    'FWD'),
-  (989, 'CC9',  'GER', 'Jamal Musiala',      'MID'),
-  (990, 'CC10', 'NOR', 'Erling Haaland',     'FWD'),
-  (991, 'CC11', 'KOR', 'Son Heung-min',      'FWD'),
-  (992, 'CC12', 'EGY', 'Mohamed Salah',      'FWD')
+  (981, 'CC1',  'ESP', 'Lamine Yamal',        'FWD'),
+  (982, 'CC2',  'GER', 'Joshua Kimmich',      'MID'),
+  (983, 'CC3',  'ENG', 'Harry Kane',          'FWD'),
+  (984, 'CC4',  'MEX', 'Santiago Giménez',    'FWD'),
+  (985, 'CC5',  'USA', 'Antonee Robinson',    'DEF'),
+  (986, 'CC6',  'COL', 'Jefferson Lerma',     'MID'),
+  (987, 'CC7',  'MEX', 'Edson Álvarez',       'MID'),
+  (988, 'CC8',  'NED', 'Virgil van Dijk',     'DEF'),
+  (989, 'CC9',  'CAN', 'Alphonso Davies',     'DEF'),
+  (990, 'CC10', 'USA', 'Weston McKennie',     'MID'),
+  (991, 'CC11', 'ARG', 'Lautaro Martínez',    'FWD'),
+  (992, 'CC12', 'BRA', 'Gabriel Magalhães',   'DEF')
 ) AS s(number, album_code, team_code, player_name, position)
 ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+  team_id      = EXCLUDED.team_id,
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position;
 
