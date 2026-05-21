@@ -10,13 +10,23 @@ ALBUM-SPECIFIC RULES FOR FIFA WORLD CUP 2026 (PANINI):
 OVERRIDING RULES — APPLY BEFORE EVERY DECISION
 ══════════════════════════════════════════════════════════
 
-1. Logo position decides the TYPE FAMILY. Shine, foil, gold, metallic, holographic, or
-   crumple finish NEVER reclassifies a core sticker as a special one.
-2. The border is ONLY the outermost coloured stripe at the sticker's edge. The inner
-   name bar and the photo background are never the border, regardless of their colour.
-3. A national team kit is NOT a country flag. Do not infer teamFifaCode from kit colour.
-4. Read playerName from printed text letter by letter. Return null rather than guessing
-   from face, hair, kit, or context.
+1. EXTRA REQUIRES LITERAL TEXT. A sticker is Extra ONLY if you can literally read the
+   printed text "Extra Sticker" or "Panini Extra" on the front, OR the back's album
+   code starts with "EX". Gold, foil, shine, crumple, holographic, or metallic finish
+   is NEVER on its own evidence of an Extra. Crumple ⇒ core. No exceptions.
+2. CORE REQUIRES A STATS LINE. A sticker is Core ONLY if it has a visible stats line
+   under the name (D.O.B., height, weight, club) AND a circular country flag. No stats
+   line and no flag ⇒ NOT core.
+3. BORDER IS THE PERIMETER. The border is the colour you can trace continuously around
+   ALL FOUR edges of the sticker. If a coloured region does not touch all four edges,
+   it is NOT the border. The name bar is a rounded rectangle INSIDE the photo area and
+   is NEVER the border, regardless of its colour.
+4. NAME IS PRINTED TEXT ONLY. Transcribe the printed name as you see it; never infer
+   from face, hair, kit, or team. If a letter is partially obscured but unambiguous
+   from its surrounding visible letters, commit to it. Return null only when too much
+   of the text is unreadable to form a recognizable name.
+5. KIT ≠ FLAG. A national team kit is not a country flag. Do not infer teamFifaCode
+   from kit colour.
 
 ══════════════════════════════════════════════════════════
 STEP 1 — IDENTIFY SIDE, THEN TYPE FAMILY
@@ -89,35 +99,40 @@ borderColor for CORE stickers (front-side only; back-side → null):
 §B — SPECIAL STICKER  (logo upper-left)
 ══════════════════════════════════════════════════════════
 
-Two sub-types share the upper-left logo. Any ONE decisive signal settles the type.
-The two sets are mutually exclusive — a sticker is either Extra or Coca-Cola, never
-both. If no Extra signal is present on a logo-upper-left sticker, the default is
-Coca-Cola.
+Two sub-types share the upper-left logo: Extra and Coca-Cola. They are mutually
+exclusive. Apply the COCA-COLA ABSENCE CHECK first because it is the most reliable
+discriminator — it tests for the absence of core/extra features, which is easier
+than reading small text or finishes.
 
-EXTRA  (stickerType = "extra")  →  §B.1
-  Decisive (any one):
-    • "Extra Sticker" or "Panini Extra" text/logo in the frame
-    • Album code on the back starts with "EX"
-    • Holographic foil border in Purple, Bronze, Silver, or Gold (Extra-only palette)
-  Supporting:
-    • Country flag in the LOWER-LEFT corner
-    • Live-action match photo (running, dribbling, celebrating)
-    • Blurred stadium / field background
-  Hard negative: never a posed stationary studio portrait.
+COCA-COLA ABSENCE CHECK (run FIRST, on every logo-upper-left sticker)
+  A sticker is Coca-Cola (stickerType = "coca_cola_special") if ALL FOUR of these
+  features are ABSENT from the front:
+    ✗ stats line (no D.O.B., no height, no weight, no club)
+    ✗ country flag (no circular flag anywhere on the sticker)
+    ✗ horizontal name bar (no rounded rectangle holding a horizontal name)
+    ✗ posed studio portrait (the photo is a dynamic action shot instead)
+  If all four are absent → Coca-Cola. Go to §B.2. Stop.
+  Supporting confirmation (not required): player name printed VERTICALLY (rotated 90°)
+  up the LEFT edge; single-sided (no back exists); recognisable international star
+  (Lamine Yamal, Alphonso Davies, Harry Kane, Weston McKennie, etc.).
+  Note: Coca-Cola stickers carry NO Coca-Cola branding (no script logo, no hashtag,
+  no wave/ribbon, no Coca-Cola red). Do not look for any of those.
 
-COCA-COLA SPECIAL  (stickerType = "coca_cola_special")  →  §B.2
-  Decisive (any one):
-    • Player name printed VERTICALLY (rotated 90°) up the LEFT edge
-    • Logo upper-left AND every Extra signal above is absent (no Extra/Panini Extra
-      label, no lower-left flag, no "EX"-prefixed album code, no Extra foil border)
-  Supporting:
-    • Dynamic action photo (celebrating, mid-play) that fills the sticker
-    • Single-sided: no back exists
-    • Roster of ~12 international promotional stars (Lamine Yamal, Alphonso Davies,
-      Harry Kane, Weston McKennie, etc.) — unfamiliar names suggest NOT Coca-Cola
-  Note: Coca-Cola Specials carry NO on-sticker Coca-Cola branding (no script logo, no
-  hashtag, no wave/ribbon, no Coca-Cola red graphics). The "Coca-Cola" name refers to
-  the distribution promotion, not on-sticker art.
+EXTRA CHECK (run only if the Coca-Cola Absence Check fails)
+  A sticker is Extra (stickerType = "extra") ONLY if at least ONE of these is true:
+    • You can literally read "Extra Sticker" or "Panini Extra" as printed text on
+      the front
+    • The back's album code starts with "EX" (e.g. "EX5")
+    • The border is a holographic foil in Extra-only colours (the border belongs to
+      this exclusive set: Purple, Bronze, Silver, Gold — never any other colour)
+  If none of those is true, the sticker is NOT Extra. Go back and re-check whether
+  the Coca-Cola Absence Check passes; if it still doesn't, treat as Core (re-read the
+  logo position — a logo that looked upper-left on a foil/shiny sticker may actually
+  be upper-right).
+  Supporting (not decisive on their own): live-action match photo with blurred
+  stadium; country flag in the LOWER-LEFT corner.
+  Hard negative: a posed stationary studio portrait is never Extra. Foil/shine/gold
+  finish alone is never Extra.
 
 ──────────────────────────────────────────────────────────
 §B.1 — EXTRA STICKER  →  stickerType = "extra"
@@ -167,8 +182,9 @@ vertical-text signal before committing.
 
 Extract:
   stickerType    → "coca_cola_special"
-  playerName     → the vertical text along the left edge (read literally; null if any
-                   letter unreadable)
+  playerName     → the vertical text along the left edge (transcribe what you see;
+                   commit to obscured letters when unambiguous from neighbours;
+                   null only if too much is unreadable to form a name)
   All other fields (albumCode, stickerNumber, teamFifaCode, borderColor) → null
 
 ══════════════════════════════════════════════════════════
@@ -188,14 +204,23 @@ teamFifaCode:
   • null if no flag is clearly identifiable
 
 playerName:
-  • Read printed text letter by letter from the sticker itself
-  • Never guess from face, hair, age, kit, or apparent team
-  • null if any letter is obscured, blurred, or unreadable
+  • Transcribe the printed text exactly as you see it on the sticker
+  • If a letter is partially obscured but unambiguous from its surrounding visible
+    letters (e.g. "VINI?IUS" → "VINICIUS"), commit to that letter — this is
+    inference from textual context, not guessing
+  • If a letter is truly ambiguous between multiple candidates, or too much of the
+    text is unreadable to form a recognizable name → null
+  • Never infer from face, hair, age, kit, or apparent team
 
 borderColor:
-  • Inspect ONLY the outermost coloured stripe at the sticker's edge
-  • The inner name bar, photo background, and surface the sticker rests on are NEVER
-    the border
+  • The border is what you see when you trace the sticker's perimeter with your eye —
+    a colour that runs continuously around ALL FOUR edges
+  • If the coloured region does NOT touch all four edges, it is NOT the border
+  • The name bar (rounded rectangle inside the photo area), photo background, and the
+    surface the sticker rests on are NEVER the border, regardless of their colour
+  • Tie-breaker: if the name bar colour differs from a thin outer stripe, the outer
+    stripe is the border. If there is no outer stripe at all, borderColor is null
+    (base/borderless), regardless of what colour the name bar is
 
 confidence:
   • Return any number in [0, 1]; not displayed. Focus effort on the other fields.

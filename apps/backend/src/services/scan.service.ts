@@ -125,10 +125,11 @@ export async function identifySticker(
   });
 }
 
-// Extra stickers always have album codes starting with "EX" and never use crumple-foil
-// borders (crumples are exclusive to core). Trust the album code / border signal over the
-// type label — the model reads those reliably but mis-classifies shiny/foil core stickers
-// as "extra" by appearance.
+// Extra stickers are tightly constrained: album code starts with "EX", and the border
+// (if any) is one of extra_purple / extra_bronze / extra_silver / extra_gold. Any other
+// borderColor — crumple foil, solid colour, etc. — disproves "extra". Trust those
+// structured signals over the model's type label, since shiny/foil core stickers are
+// the most common misclassification.
 function reconcileStickerType(
   rawType: 'extra' | 'coca_cola_special' | null,
   albumCode: string | null,
@@ -136,7 +137,7 @@ function reconcileStickerType(
 ): 'extra' | 'coca_cola_special' | null {
   if (rawType === 'extra') {
     if (albumCode && !albumCode.startsWith('EX')) return null;
-    if (borderColor?.includes('crumple')) return null;
+    if (borderColor && !borderColor.startsWith('extra_')) return null;
   }
   if (rawType !== 'extra' && albumCode?.startsWith('EX')) return 'extra';
   return rawType;
