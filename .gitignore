@@ -52,3 +52,5 @@ drizzle/
 # Playwright
 test-results/
 playwright-report/
+
+ignored/
