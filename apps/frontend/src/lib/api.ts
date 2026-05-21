@@ -342,16 +342,17 @@ async function fetchCatalogVersion(token?: string): Promise<string> {
 
 const inFlightCatalog = new Map<string, Promise<Sticker[]>>();
 
-export async function fetchAllStickers(token?: string): Promise<Sticker[]> {
+export async function fetchAllStickers(token?: string, albumTypeKey?: string): Promise<Sticker[]> {
   const version = await fetchCatalogVersion(token);
-  const existing = inFlightCatalog.get(version);
+  const cacheKey = albumTypeKey ? `${version}:${albumTypeKey}` : version;
+  const existing = inFlightCatalog.get(cacheKey);
   if (existing) return existing;
 
   const promise = (async () => {
     const all: Sticker[] = [];
     let cursor: number | undefined = undefined;
     for (let i = 0; i < 50; i++) {
-      const result = await fetchStickers({ cursor, limit: 200, v: version }, token);
+      const result = await fetchStickers({ cursor, limit: 200, v: version, albumType: albumTypeKey }, token);
       all.push(...result.items);
       if (!result.nextCursor || result.items.length === 0) break;
       cursor = result.nextCursor;
@@ -360,13 +361,13 @@ export async function fetchAllStickers(token?: string): Promise<Sticker[]> {
     return all;
   })();
 
-  inFlightCatalog.set(version, promise);
+  inFlightCatalog.set(cacheKey, promise);
   try {
     return await promise;
   } finally {
     // Keep the resolved promise around so re-entrant callers can await the same
     // value; clear only on failure so the next attempt can retry.
-    promise.catch(() => inFlightCatalog.delete(version));
+    promise.catch(() => inFlightCatalog.delete(cacheKey));
   }
 }
 
@@ -390,6 +391,7 @@ export async function fetchStickers(
     // version as a distinct, immutable resource. The backend ignores the
     // param; admin edits bump the version and produce a fresh URL.
     v?: string;
+    albumType?: string;
   },
   token?: string,
 ): Promise<PagedResult<Sticker>> {
@@ -1437,6 +1439,7 @@ export interface ScanResult {
   playerName: string | null;
   teamFifaCode: string | null;
   borderColor: string | null;
+  stickerType: string | null;
   confidence: number;
   reasoning: string;
 }
@@ -1447,10 +1450,11 @@ export interface BatchScanEntry {
   error?: string;
 }
 
-export async function scanIdentify(file: File, token: string): Promise<ScanResult[]> {
+export async function scanIdentify(file: File, token: string, albumTypeKey?: string): Promise<ScanResult[]> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${BASE_URL}/api/v1/scan/identify`, {
+  const qs = albumTypeKey ? `?albumTypeKey=${encodeURIComponent(albumTypeKey)}` : '';
+  const res = await fetch(`${BASE_URL}/api/v1/scan/identify${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -1462,12 +1466,13 @@ export async function scanIdentify(file: File, token: string): Promise<ScanResul
   return res.json() as Promise<ScanResult[]>;
 }
 
-export async function scanBatch(files: File[], token: string): Promise<BatchScanEntry[]> {
+export async function scanBatch(files: File[], token: string, albumTypeKey?: string): Promise<BatchScanEntry[]> {
   const form = new FormData();
   for (const file of files) {
     form.append('files', file);
   }
-  const res = await fetch(`${BASE_URL}/api/v1/scan/batch`, {
+  const qs = albumTypeKey ? `?albumTypeKey=${encodeURIComponent(albumTypeKey)}` : '';
+  const res = await fetch(`${BASE_URL}/api/v1/scan/batch${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,

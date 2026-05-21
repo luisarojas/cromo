@@ -11,6 +11,7 @@ export interface StickerFilters {
   search?: string;
   cursor?: number;
   limit?: number;
+  albumTypeKey?: string;
 }
 
 export interface StickerRow {
@@ -65,7 +66,7 @@ export async function listStickers(
     return JSON.parse(cached) as PaginatedResult<StickerRow>;
   }
 
-  const { team, group, type, search, cursor } = filters;
+  const { team, group, type, search, cursor, albumTypeKey } = filters;
 
   // sticker_full pre-joins teams + team_pages_json. The variant join is kept
   // here because we only want the base variant.
@@ -82,6 +83,7 @@ export async function listStickers(
                FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages,
               COUNT(*) OVER () AS total_count
        FROM sticker_full s
+       JOIN album_types at ON at.id = s.album_type_id
        LEFT JOIN LATERAL (
          SELECT id FROM sticker_variants
          WHERE sticker_id = s.sticker_id
@@ -92,11 +94,12 @@ export async function listStickers(
          AND ($2::text IS NULL OR s.group_name = $2)
          AND ($3::text IS NULL OR s.sticker_type = $3)
          AND ($4::text IS NULL OR s.player_name ILIKE '%' || $4 || '%')
+         AND ($7::text IS NULL OR at.key = $7)
      ) page
      WHERE ($5::int IS NULL OR page.number > $5)
      ORDER BY page.number
      LIMIT $6`,
-    [team ?? null, group ?? null, type ?? null, search ?? null, cursor ?? null, limit + 1]
+    [team ?? null, group ?? null, type ?? null, search ?? null, cursor ?? null, limit + 1, albumTypeKey ?? null]
   );
 
   const hasMore = items.length > limit;
@@ -119,11 +122,13 @@ export async function listStickers(
 }
 
 /**
- * getStickerByAlbumCode — fetch a single sticker by its album code.
+ * getStickerByAlbumCode — fetch a single sticker by its album code, optionally
+ * scoped to a specific album type key.
  */
 export async function getStickerByAlbumCode(
   db: Pool,
-  albumCode: string
+  albumCode: string,
+  albumTypeKey?: string,
 ): Promise<StickerRow | null> {
   const { rows } = await db.query<StickerRow>(
     `SELECT s.sticker_id AS id, s.number, s.album_code, s.player_name, s.position,
@@ -134,24 +139,29 @@ export async function getStickerByAlbumCode(
             (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
              FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages
      FROM sticker_full s
+     JOIN album_types at ON at.id = s.album_type_id
      LEFT JOIN LATERAL (
        SELECT id FROM sticker_variants
        WHERE sticker_id = s.sticker_id
          AND variant_type IN ('base_border', 'base_borderless')
        ORDER BY rarity_rank LIMIT 1
      ) sv ON true
-     WHERE s.album_code = $1`,
-    [albumCode]
+     WHERE s.album_code = $1
+       AND ($2::text IS NULL OR at.key = $2)`,
+    [albumCode, albumTypeKey ?? null]
   );
   return rows[0] ?? null;
 }
 
 /**
- * getStickerByPlayerName — fetch a single sticker by exact player name (case-insensitive).
+ * getStickerByPlayerName — fetch a single sticker by exact player name (case-insensitive),
+ * optionally scoped to a specific album type key and sticker type.
  */
 export async function getStickerByPlayerName(
   db: Pool,
-  playerName: string
+  playerName: string,
+  albumTypeKey?: string,
+  stickerType?: string,
 ): Promise<StickerRow | null> {
   const { rows } = await db.query<StickerRow>(
     `SELECT s.sticker_id AS id, s.number, s.album_code, s.player_name, s.position,
@@ -162,6 +172,7 @@ export async function getStickerByPlayerName(
             (SELECT jsonb_object_agg(sap.edition, jsonb_build_object('page_start', sap.page_start, 'page_end', sap.page_end, 'description', sap.description))
              FROM sticker_album_pages sap WHERE sap.sticker_id = s.sticker_id) AS sticker_pages
      FROM sticker_full s
+     JOIN album_types at ON at.id = s.album_type_id
      LEFT JOIN LATERAL (
        SELECT id FROM sticker_variants
        WHERE sticker_id = s.sticker_id
@@ -169,26 +180,32 @@ export async function getStickerByPlayerName(
        ORDER BY rarity_rank LIMIT 1
      ) sv ON true
      WHERE s.player_name ILIKE $1
+       AND ($2::text IS NULL OR at.key = $2)
+       AND ($3::text IS NULL OR s.sticker_type = $3)
      LIMIT 1`,
-    [playerName]
+    [playerName, albumTypeKey ?? null, stickerType ?? null]
   );
   return rows[0] ?? null;
 }
 
 /**
- * getStickerVariants — fetch all variants for a sticker identified by album code.
+ * getStickerVariants — fetch all variants for a sticker identified by album code,
+ * optionally scoped to a specific album type key.
  */
 export async function getStickerVariants(
   db: Pool,
-  albumCode: string
+  albumCode: string,
+  albumTypeKey?: string,
 ): Promise<StickerVariantRow[]> {
   const { rows } = await db.query<StickerVariantRow>(
     `SELECT sv.id, sv.sticker_id, sv.variant_type, sv.rarity_rank, sv.availability
      FROM sticker_variants sv
      JOIN stickers s ON sv.sticker_id = s.id
+     JOIN album_types at ON at.id = s.album_type_id
      WHERE s.album_code = $1
+       AND ($2::text IS NULL OR at.key = $2)
      ORDER BY sv.rarity_rank`,
-    [albumCode]
+    [albumCode, albumTypeKey ?? null]
   );
   return rows;
 }

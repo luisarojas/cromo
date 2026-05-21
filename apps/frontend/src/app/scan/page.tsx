@@ -288,6 +288,7 @@ interface ScanCard {
   variants: StickerVariant[];
   selectedVariantId: string;
   confidence: number;
+  matchType: 'code' | 'name' | 'none';
   added: boolean;
 }
 
@@ -301,31 +302,53 @@ async function buildScanCard(
   let variants: StickerVariant[] = [];
   let selectedVariantId = '';
 
+  const pickVariant = (vs: StickerVariant[]) =>
+    (result.borderColor
+      ? vs.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
+      : undefined
+    )?.id ?? vs[0]?.id ?? '';
+
+  let matchType: ScanCard['matchType'] = 'none';
+
   if (result.albumCode) {
     try {
       sticker = await fetchStickerByAlbumCode(result.albumCode, token);
       variants = await fetchStickerVariants(result.albumCode, token);
-      selectedVariantId = (result.borderColor
-        ? variants.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
-        : undefined
-      )?.id ?? variants[0]?.id ?? '';
+      selectedVariantId = pickVariant(variants);
+      matchType = 'code';
     } catch { /* sticker not in catalog */ }
   }
 
-  const catalogEntry = catalog.find((s) => s.albumCode === result.albumCode);
+  // Front-side scan: AI returned playerName but no albumCode — try unique catalog match.
+  // Narrow by stickerType when the AI detected one (e.g. "Extra Sticker" label).
+  if (!sticker && result.playerName) {
+    const matches = catalog.filter(
+      (s) => s.playerName?.toLowerCase() === result.playerName!.toLowerCase()
+        && (result.stickerType === null || s.stickerType === result.stickerType),
+    );
+    if (matches.length === 1) {
+      try {
+        sticker = await fetchStickerByAlbumCode(matches[0]!.albumCode, token);
+        variants = await fetchStickerVariants(matches[0]!.albumCode, token);
+        selectedVariantId = pickVariant(variants);
+        matchType = 'name';
+      } catch { /* ignore */ }
+    }
+  }
 
   return {
     sourcePreview,
-    albumCode: result.albumCode ?? '',
-    playerName: result.playerName ?? catalogEntry?.playerName ?? '',
-    teamFifaCode: result.teamFifaCode ?? catalogEntry?.fifaCode ?? '',
-    teamName: catalogEntry?.teamName ?? sticker?.teamName ?? '',
-    stickerNumber: result.stickerNumber,
+    albumCode: sticker?.albumCode ?? '',
+    playerName: sticker?.playerName ?? '',
+    teamFifaCode: sticker?.fifaCode ?? result.teamFifaCode ?? '',
+    teamName: sticker?.teamName ?? '',
+    stickerNumber: sticker?.number ?? result.stickerNumber,
     borderVariantType: result.borderColor ?? '',
     sticker,
     variants,
     selectedVariantId,
     confidence: result.confidence,
+    matchType,
     added: false,
   };
 }
@@ -339,13 +362,9 @@ function ScanMode() {
   const [catalog, setCatalog] = useState<Sticker[]>([]);
   const [albums, setAlbums] = useState<UserAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | undefined>();
+  const [selectedAlbumTypeKey, setSelectedAlbumTypeKey] = useState<string>('');
   const [staged, setStaged] = useState<{ file: File; preview: string }[]>([]);
   const [resultCards, setResultCards] = useState<ScanCard[]>([]);
-
-  useEffect(() => {
-    if (!token) return;
-    fetchAllStickers(token).then(setCatalog).catch(() => {});
-  }, [token]);
 
   useEffect(() => {
     if (!user || !token) return;
@@ -353,10 +372,18 @@ function ScanMode() {
       .then((list) => {
         setAlbums(list);
         const def = list.find((a) => a.isDefault) ?? list[0];
-        if (def) setSelectedAlbumId(def.id);
+        if (def) {
+          setSelectedAlbumId(def.id);
+          setSelectedAlbumTypeKey(def.albumTypeKey);
+        }
       })
       .catch(() => {});
   }, [user, token]);
+
+  useEffect(() => {
+    if (!token || !selectedAlbumTypeKey) return;
+    fetchAllStickers(token, selectedAlbumTypeKey).then(setCatalog).catch(() => {});
+  }, [token, selectedAlbumTypeKey]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -373,7 +400,7 @@ function ScanMode() {
 
         let results: ScanResult[];
         try {
-          results = await scanIdentify(file, token);
+          results = await scanIdentify(file, token, selectedAlbumTypeKey || undefined);
         } catch (err) {
           setScanError((err as { message?: string }).message);
           setStatus('error');
@@ -389,14 +416,14 @@ function ScanMode() {
         setStatus('previewing');
       }
     },
-    [token, catalog],
+    [token, catalog, selectedAlbumTypeKey],
   );
 
   const handleBatchScan = async () => {
     if (!token || staged.length === 0) return;
     setStatus('scanning');
     try {
-      const entries = await scanBatch(staged.map((i) => i.file), token);
+      const entries = await scanBatch(staged.map((i) => i.file), token, selectedAlbumTypeKey || undefined);
       const cards = await Promise.all(
         staged.flatMap(({ preview }, idx) => {
           const entry = entries.find((e) => e.index === idx);
@@ -434,6 +461,7 @@ function ScanMode() {
             sticker: s,
             variants,
             selectedVariantId,
+            matchType: 'code' as const,
           };
         }));
       } catch { /* ignore */ }
@@ -483,8 +511,33 @@ function ScanMode() {
 
   const isBatch = staged.length > 0;
 
+  // Unique album types derived from the user's albums
+  const albumTypeOptions = albums.reduce<{ key: string; name: string }[]>((acc, a) => {
+    if (!acc.find((t) => t.key === a.albumTypeKey)) {
+      acc.push({ key: a.albumTypeKey, name: a.albumTypeName });
+    }
+    return acc;
+  }, []);
+
   return (
     <div className="space-y-4">
+      {albumTypeOptions.length > 1 && (
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-gray-600 block">Album</label>
+          <select
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={selectedAlbumTypeKey}
+            onChange={(e) => {
+              setSelectedAlbumTypeKey(e.target.value);
+              reset();
+            }}
+          >
+            {albumTypeOptions.map((t) => (
+              <option key={t.key} value={t.key}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {status === 'idle' ? (
         <DropZone onFiles={handleFiles} multiple />
       ) : (
@@ -561,23 +614,37 @@ function ScanMode() {
                 const teamDisplayValue = card.teamName
                   ? `${card.teamName} (${card.teamFifaCode})`
                   : card.teamFifaCode;
+                // Show the full option label (e.g. "BRA5 — Vinicius Jr.") when a catalog
+                // entry is matched, so the displayed value is always from the dropdown.
+                const albumCodeDisplayValue = albumCodeOptions.find((o) => o.value === card.albumCode)?.label ?? '';
+                const playerDisplayValue = playerOptions.find((o) => o.value === card.albumCode)?.label ?? '';
 
                 return (
                   <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <img
                         src={card.sourcePreview}
                         alt={`Sticker ${idx + 1}`}
                         className="w-12 h-12 rounded-lg object-cover border border-gray-100 shrink-0"
                       />
-                      <ConfidenceBadge confidence={card.confidence} />
+                      {card.matchType === 'code' && (
+                        <ConfidenceBadge confidence={card.confidence} />
+                      )}
+                      {card.matchType === 'name' && (
+                        <ConfidenceBadge confidence={Math.min(card.confidence, 0.70)} />
+                      )}
+                      {card.matchType === 'none' && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded border bg-orange-50 text-orange-700 border-orange-200">
+                          Not found in catalog
+                        </span>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-gray-600 block">Album code</label>
                         <ComboBox
-                          value={card.albumCode}
+                          value={albumCodeDisplayValue}
                           options={albumCodeOptions}
                           onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
                           placeholder="Search album code…"
@@ -588,7 +655,7 @@ function ScanMode() {
                       <div className="space-y-1">
                         <label className="text-xs font-medium text-gray-600 block">Player</label>
                         <ComboBox
-                          value={card.playerName}
+                          value={playerDisplayValue}
                           options={playerOptions}
                           onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
                           placeholder="Search player…"

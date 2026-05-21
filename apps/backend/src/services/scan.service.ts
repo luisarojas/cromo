@@ -7,6 +7,7 @@ export interface ScanResult {
   playerName: string | null;
   teamFifaCode: string | null;
   borderColor: string | null;
+  stickerType: string | null;
   confidence: number;
   reasoning: string;
 }
@@ -18,43 +19,21 @@ const MOCK_RESULTS: ScanResult[] = [
     playerName: 'Vinicius Jr.',
     teamFifaCode: 'BRA',
     borderColor: null,
+    stickerType: null,
     confidence: 0.94,
     reasoning: 'Mock response — AI scanning disabled in local mode',
   },
 ];
 
-function buildIdentifyPrompt(collectionName: string): string {
+function buildIdentifyPrompt(collectionName: string, scanPrompt?: string | null): string {
   return `You are identifying ${collectionName} stickers from a photo.
 
 The photo may contain ONE sticker or MULTIPLE stickers. Identify ALL stickers that are clearly visible.
+${scanPrompt ? `\n${scanPrompt}\n` : ''}
+Respond ONLY with a valid JSON array. Each object must use these exact keys:
+stickerNumber, albumCode, playerName, teamFifaCode, borderColor, stickerType, confidence, reasoning
 
-For each sticker, first decide which side is shown:
-- FRONT: player photo with the player's name printed on it; may have a coloured border
-- BACK: plain printed text containing the album code and sticker number
-
-Extract ONLY what is physically visible on each sticker's visible side. Set absent fields to null.
-
-FRONT side — extract:
-- playerName: the player's full name as printed
-- teamFifaCode: three-letter FIFA code visible on the sticker (e.g. "BRA", "FRA"), or null
-- borderColor: border colour if a parallel variant is present (e.g. "gold", "silver", "blue"), or null
-- albumCode: null (not on the front)
-- stickerNumber: null (not on the front)
-
-BACK side — extract:
-- albumCode: the album code printed on the back — always starts with letters followed by digits (e.g. "BRA5", "FWC3", "MF1"). Never a year like "2026".
-- stickerNumber: the sticker number printed on the back (integer)
-- playerName: null (not on the back)
-- teamFifaCode: null (not on the back)
-- borderColor: null (not on the back)
-
-Each sticker object must include:
-- confidence: your confidence as a float between 0.0 and 1.0
-- reasoning: one sentence explaining your identification
-
-Respond ONLY with a valid JSON array of sticker objects using these exact keys:
-stickerNumber, albumCode, playerName, teamFifaCode, borderColor, confidence, reasoning
-
+Set any field that is not visible or not applicable to null.
 Return an array even if only one sticker is visible. No markdown, no explanation outside the JSON.`;
 }
 
@@ -62,6 +41,7 @@ export async function identifySticker(
   imageBuffer: Buffer,
   mimeType: string,
   collectionName = 'sticker collection',
+  scanPrompt?: string | null,
 ): Promise<ScanResult[]> {
   if (env.GROQ_API_KEY === 'mock') {
     return MOCK_RESULTS;
@@ -90,7 +70,7 @@ export async function identifySticker(
             },
             {
               type: 'text',
-              text: buildIdentifyPrompt(collectionName),
+              text: buildIdentifyPrompt(collectionName, scanPrompt),
             },
           ],
         },
@@ -129,10 +109,13 @@ export async function identifySticker(
     const p = item as Record<string, unknown>;
     return {
       stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
-      albumCode: typeof p['albumCode'] === 'string' && /^[A-Za-z]/.test(p['albumCode']) ? p['albumCode'] : null,
+      albumCode: typeof p['albumCode'] === 'string' && p['albumCode'].length > 0 ? p['albumCode'] : null,
       playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
       teamFifaCode: typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null,
       borderColor: typeof p['borderColor'] === 'string' ? p['borderColor'] : null,
+      stickerType: p['stickerType'] === 'extra' ? 'extra'
+        : p['stickerType'] === 'coca_cola_special' ? 'coca_cola_special'
+        : null,
       confidence: typeof p['confidence'] === 'number' ? p['confidence'] : 0,
       reasoning: typeof p['reasoning'] === 'string' ? p['reasoning'] : '',
     };

@@ -45,12 +45,13 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
         querystring: {
           type: 'object',
           properties: {
-            team:   { type: 'string', maxLength: 8,  description: 'FIFA code of the team (e.g. ARG)' },
-            group:  { type: 'string', maxLength: 2,  description: 'Group letter (A-L)' },
-            type:   { type: 'string', maxLength: 32, description: 'Sticker type (e.g. base, legend)' },
-            search: { type: 'string', maxLength: 50, description: 'Player name search (case-insensitive)' },
-            cursor: { type: 'integer', description: 'Last sticker number seen (cursor)' },
-            limit:  { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            team:          { type: 'string', maxLength: 8,  description: 'FIFA code of the team (e.g. ARG)' },
+            group:         { type: 'string', maxLength: 2,  description: 'Group letter (A-L)' },
+            type:          { type: 'string', maxLength: 32, description: 'Sticker type (e.g. base, legend)' },
+            search:        { type: 'string', maxLength: 50, description: 'Player name search (case-insensitive)' },
+            cursor:        { type: 'integer', description: 'Last sticker number seen (cursor)' },
+            limit:         { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            albumType:     { type: 'string', maxLength: 64, description: 'Album type key (e.g. wc_2026)' },
           },
         },
         response: {
@@ -105,6 +106,7 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
         search?: string;
         cursor?: number;
         limit?: number;
+        albumType?: string;
       };
 
       const result = await stickersService.listStickers(fastify.db, fastify.redis, {
@@ -114,6 +116,7 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
         search: q.search,
         cursor: q.cursor,
         limit: q.limit,
+        albumTypeKey: q.albumType,
       });
       // Catalog is effectively static between admin edits, and the client passes
       // ?v=<catalogVersion> on each URL (busts the cache on any catalog mutation).

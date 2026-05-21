@@ -55,21 +55,32 @@ async function deleteScanTemp(filePath: string): Promise<void> {
   await fs.unlink(filePath).catch(() => undefined);
 }
 
-async function getDefaultCollectionName(db: Pool, userId: string): Promise<string> {
-  const { rows } = await db.query<{ name: string }>(
-    `SELECT at.name FROM user_albums ua
+async function getAlbumTypeInfo(
+  db: Pool,
+  userId: string,
+  albumTypeKey?: string,
+): Promise<{ name: string; scanPrompt: string | null }> {
+  if (albumTypeKey) {
+    const { rows } = await db.query<{ name: string; scan_prompt: string | null }>(
+      `SELECT name, scan_prompt FROM album_types WHERE key = $1 LIMIT 1`,
+      [albumTypeKey],
+    );
+    if (rows[0]) return { name: rows[0].name, scanPrompt: rows[0].scan_prompt };
+  }
+  const { rows } = await db.query<{ name: string; scan_prompt: string | null }>(
+    `SELECT at.name, at.scan_prompt FROM user_albums ua
      JOIN album_types at ON at.id = ua.album_type_id
      WHERE ua.user_id = $1 AND ua.is_default = true
      LIMIT 1`,
     [userId],
   );
-  return rows[0]?.name ?? 'sticker collection';
+  return { name: rows[0]?.name ?? 'sticker collection', scanPrompt: rows[0]?.scan_prompt ?? null };
 }
 
-async function enrichFromCatalog(db: Pool, result: ScanResult): Promise<ScanResult> {
+async function enrichFromCatalog(db: Pool, result: ScanResult, albumTypeKey?: string): Promise<ScanResult> {
   try {
     if (result.albumCode) {
-      const row = await getStickerByAlbumCode(db, result.albumCode);
+      const row = await getStickerByAlbumCode(db, result.albumCode, albumTypeKey);
       if (row) {
         return {
           ...result,
@@ -79,7 +90,7 @@ async function enrichFromCatalog(db: Pool, result: ScanResult): Promise<ScanResu
         };
       }
     } else if (result.playerName) {
-      const row = await getStickerByPlayerName(db, result.playerName);
+      const row = await getStickerByPlayerName(db, result.playerName, albumTypeKey, result.stickerType ?? undefined);
       if (row) {
         return {
           ...result,
@@ -115,10 +126,18 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         summary: 'Identify a single sticker from an uploaded image',
         security: [{ bearerAuth: [] }],
         consumes: ['multipart/form-data'],
+        querystring: {
+          type: 'object',
+          properties: {
+            albumTypeKey: { type: 'string', maxLength: 64, description: 'Album type key to scope catalog lookups' },
+          },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       if (!await guardFeature(fastify, 'FEATURE_AI_SCANNING', reply)) return;
+
+      const { albumTypeKey } = request.query as { albumTypeKey?: string };
 
       let uploaded: { buffer: Buffer; mimeType: string } | null = null;
       try {
@@ -157,11 +176,11 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         : '.jpg';
       const tempPath = await saveScanTemp(uploaded.buffer, ext);
 
-      const collectionName = await getDefaultCollectionName(fastify.db, request.userId!);
+      const { name: collectionName, scanPrompt } = await getAlbumTypeInfo(fastify.db, request.userId!, albumTypeKey);
 
       let results;
       try {
-        results = await identifySticker(uploaded.buffer, uploaded.mimeType, collectionName);
+        results = await identifySticker(uploaded.buffer, uploaded.mimeType, collectionName, scanPrompt);
       } catch (err) {
         request.log.error({ err }, 'identifySticker failed');
         await deleteScanTemp(tempPath);
@@ -173,7 +192,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await deleteScanTemp(tempPath);
-      const enriched = await Promise.all(results.map((r) => enrichFromCatalog(fastify.db, r)));
+      const enriched = await Promise.all(results.map((r) => enrichFromCatalog(fastify.db, r, albumTypeKey)));
       return reply.status(200).send(enriched);
     },
   );
@@ -196,13 +215,20 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         summary: 'Identify multiple stickers from uploaded images',
         security: [{ bearerAuth: [] }],
         consumes: ['multipart/form-data'],
+        querystring: {
+          type: 'object',
+          properties: {
+            albumTypeKey: { type: 'string', maxLength: 64, description: 'Album type key to scope catalog lookups' },
+          },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       if (!await guardFeature(fastify, 'FEATURE_AI_SCANNING', reply)) return;
       if (!await guardFeature(fastify, 'FEATURE_BATCH_SCANNING', reply)) return;
 
-      const collectionName = await getDefaultCollectionName(fastify.db, request.userId!);
+      const { albumTypeKey } = request.query as { albumTypeKey?: string };
+      const { name: collectionName, scanPrompt } = await getAlbumTypeInfo(fastify.db, request.userId!, albumTypeKey);
       const parts = request.files();
       const results: Array<{ index: number; results?: ScanResult[]; error?: string }> = [];
       let index = 0;
@@ -228,8 +254,8 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
               : '.jpg';
             const tempPath = await saveScanTemp(buffer, ext);
             tempPaths.push(tempPath);
-            const scanResults = await identifySticker(buffer, mimeType, collectionName);
-            const enriched = await Promise.all(scanResults.map((r) => enrichFromCatalog(fastify.db, r)));
+            const scanResults = await identifySticker(buffer, mimeType, collectionName, scanPrompt);
+            const enriched = await Promise.all(scanResults.map((r) => enrichFromCatalog(fastify.db, r, albumTypeKey)));
             results.push({ index, results: enriched });
           } catch (err) {
             const e = err as { message?: string };

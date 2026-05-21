@@ -183,6 +183,12 @@
       "when": 1749686400000,
       "tag": "0030_album_type_guide_path",
       "breakpoints": true
+    },{
+      "idx": 31,
+      "version": "7",
+      "when": 1749772800000,
+      "tag": "0031_album_type_scan_prompt",
+      "breakpoints": true
     }
   ]
 }
