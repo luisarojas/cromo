@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import {
   scanIdentify,
-  scanBatch,
+  scanBatchStream,
   fetchStickerByAlbumCode,
   fetchStickerVariants,
   fetchUserAlbums,
@@ -377,6 +377,7 @@ function ScanMode() {
   const [selectedAlbumTypeKey, setSelectedAlbumTypeKey] = useState<string>('');
   const [staged, setStaged] = useState<{ file: File; preview: string }[]>([]);
   const [resultCards, setResultCards] = useState<ScanCard[]>([]);
+  const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!user || !token) return;
@@ -434,15 +435,24 @@ function ScanMode() {
   const handleBatchScan = async () => {
     if (!token || staged.length === 0) return;
     setStatus('scanning');
+    setResultCards([]);
+    setScanProgress({ done: 0, total: staged.length });
     try {
-      const entries = await scanBatch(staged.map((i) => i.file), token, selectedAlbumTypeKey || undefined);
-      const cards = await Promise.all(
-        staged.flatMap(({ preview }, idx) => {
-          const entry = entries.find((e) => e.index === idx);
-          return (entry?.results ?? []).map((r) => buildScanCard(preview, r, token, catalog));
-        }),
+      await scanBatchStream(
+        staged.map((i) => i.file),
+        token,
+        async (entry) => {
+          const preview = staged[entry.index]?.preview ?? '';
+          const newCards = await Promise.all(
+            (entry.results ?? []).map((r) => buildScanCard(preview, r, token, catalog)),
+          );
+          if (newCards.length > 0) {
+            setResultCards((prev) => [...prev, ...newCards]);
+          }
+          setScanProgress((prev) => prev ? { ...prev, done: prev.done + 1 } : null);
+        },
+        selectedAlbumTypeKey || undefined,
       );
-      setResultCards(cards);
       setStatus('done');
     } catch (err) {
       setScanError((err as { message?: string }).message);
@@ -513,6 +523,7 @@ function ScanMode() {
     setPreviewUrl(null);
     setStaged([]);
     setResultCards([]);
+    setScanProgress(null);
     setStatus('idle');
     setScanError(undefined);
   };
@@ -608,8 +619,13 @@ function ScanMode() {
           )}
 
           {status === 'scanning' && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
-              <span className="animate-spin">⏳</span> Identifying sticker{isBatch ? 's' : ''}…
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-4 justify-center">
+              <span className="animate-spin">⏳</span>
+              {isBatch && scanProgress
+                ? scanProgress.done < scanProgress.total
+                  ? `Scanning image ${scanProgress.done + 1} of ${scanProgress.total}…`
+                  : 'Finalizing…'
+                : 'Identifying sticker…'}
             </div>
           )}
 
@@ -619,8 +635,8 @@ function ScanMode() {
             </div>
           )}
 
-          {/* Sticker results */}
-          {status === 'done' && resultCards.length > 0 && (
+          {/* Sticker results — shown as cards arrive during streaming and when done */}
+          {resultCards.length > 0 && (
             <div className="space-y-3">
               {resultCards.map((card, idx) => {
                 const borderOptions: ComboOption[] = card.variants.map((v) => ({
@@ -703,7 +719,7 @@ function ScanMode() {
                 );
               })}
 
-              {resultCards.some((c) => c.sticker && c.selectedVariantId && !c.added) && (
+              {status === 'done' && resultCards.some((c) => c.sticker && c.selectedVariantId && !c.added) && (
                 <div className="space-y-2">
                   {filteredAlbums.length > 1 && (
                     <div className="space-y-1">

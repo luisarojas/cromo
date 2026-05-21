@@ -8,6 +8,7 @@ import { validateImageBuffer } from '../../services/upload.service.js';
 import { identifySticker, type ScanResult } from '../../services/scan.service.js';
 import { getStickerByAlbumCode, getStickerByPlayerName } from '../../services/stickers.service.js';
 import { isFeatureFlagEnabled } from '../../services/trust-safety.service.js';
+import { writeSSEEvent } from '../../utils/sse.js';
 
 const SCANS_DIR = '/app/uploads/scans';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -198,6 +199,8 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   // ── POST /api/v1/scan/batch ───────────────────────────────────────────────────
+  // Streams results as Server-Sent Events — one "result" event per image as each
+  // finishes, then a "done" event when all images have been processed.
 
   fastify.post(
     '/api/v1/scan/batch',
@@ -212,7 +215,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       },
       schema: {
         tags: ['AI Scanning'],
-        summary: 'Identify multiple stickers from uploaded images',
+        summary: 'Identify multiple stickers from uploaded images (SSE stream)',
         security: [{ bearerAuth: [] }],
         consumes: ['multipart/form-data'],
         querystring: {
@@ -229,10 +232,27 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
 
       const { albumTypeKey } = request.query as { albumTypeKey?: string };
       const { name: collectionName, scanPrompt } = await getAlbumTypeInfo(fastify.db, request.userId!, albumTypeKey);
+
+      // Carry CORS headers set by the plugin over to the raw socket.
+      // reply.raw.writeHead bypasses Fastify's response pipeline so the plugin's
+      // onRequest-phase headers are never flushed automatically.
+      const corsHeaders: Record<string, string> = {};
+      for (const h of ['access-control-allow-origin', 'access-control-allow-credentials', 'access-control-expose-headers', 'vary']) {
+        const v = reply.getHeader(h);
+        if (typeof v === 'string') corsHeaders[h] = v;
+      }
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        ...corsHeaders,
+      });
+      reply.raw.flushHeaders?.();
+
       const parts = request.files();
-      const results: Array<{ index: number; results?: ScanResult[]; error?: string }> = [];
-      let index = 0;
       const tempPaths: string[] = [];
+      let index = 0;
 
       try {
         for await (const part of parts) {
@@ -256,10 +276,10 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
             tempPaths.push(tempPath);
             const scanResults = await identifySticker(buffer, mimeType, collectionName, scanPrompt);
             const enriched = await Promise.all(scanResults.map((r) => enrichFromCatalog(fastify.db, r, albumTypeKey)));
-            results.push({ index, results: enriched });
+            writeSSEEvent(reply, 'result', { index, results: enriched });
           } catch (err) {
             const e = err as { message?: string };
-            results.push({ index, error: e.message ?? 'Failed to process image.' });
+            writeSSEEvent(reply, 'result', { index, error: e.message ?? 'Failed to process image.' });
           }
 
           index++;
@@ -270,7 +290,8 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         }
       }
 
-      return reply.status(200).send({ results });
+      writeSSEEvent(reply, 'done', { total: index });
+      reply.raw.end();
     },
   );
 }

@@ -1466,7 +1466,12 @@ export async function scanIdentify(file: File, token: string, albumTypeKey?: str
   return res.json() as Promise<ScanResult[]>;
 }
 
-export async function scanBatch(files: File[], token: string, albumTypeKey?: string): Promise<BatchScanEntry[]> {
+export async function scanBatchStream(
+  files: File[],
+  token: string,
+  onEvent: (entry: BatchScanEntry) => Promise<void> | void,
+  albumTypeKey?: string,
+): Promise<void> {
   const form = new FormData();
   for (const file of files) {
     form.append('files', file);
@@ -1481,6 +1486,35 @@ export async function scanBatch(files: File[], token: string, albumTypeKey?: str
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API error ${res.status}: ${text}`);
   }
-  const data = await res.json() as { results: BatchScanEntry[] };
-  return data.results;
+  if (!res.body) throw new Error('No response body from batch scan');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let pendingEvent = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          pendingEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && pendingEvent === 'result') {
+          try {
+            const entry = JSON.parse(line.slice(6)) as BatchScanEntry;
+            await onEvent(entry);
+          } catch { /* ignore malformed event */ }
+          pendingEvent = '';
+        } else if (line === '') {
+          pendingEvent = '';
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
