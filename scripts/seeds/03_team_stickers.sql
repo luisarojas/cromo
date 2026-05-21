@@ -1390,7 +1390,7 @@ FROM (VALUES
   ( 752, 'ALG3', 'Ramy Bensebaini', 'Ramy Bensebaini', 'DEF', 'player', false),
   ( 753, 'ALG4', 'Youcef Atal', 'Youcef Atal', 'DEF', 'player', false),
   ( 754, 'ALG5', 'Rayan Aït-Nouri', 'Rayan Aït-Nouri', 'DEF', 'player', false),
-  ( 755, 'ALG6', 'Mohamed Amine Tougai', 'Mohamed Amine Tougai', 'DEF', 'player', false),
+  ( 755, 'ALG6', 'Amine Tougai', 'Amine Tougai', 'DEF', 'player', false),
   ( 756, 'ALG7', 'Aïssa Mandi', 'Aïssa Mandi', 'DEF', 'player', false),
   ( 757, 'ALG8', 'Ismael Bennacer', 'Ismael Bennacer', 'MID', 'player', false),
   ( 758, 'ALG9', 'Houssem Aquar', 'Houssem Aquar', 'MID', 'player', false),
