@@ -51,7 +51,11 @@ export function startWorker(
   redis: Redis,
   log: { info: (msg: string) => void; error: (err: unknown, msg?: string) => void },
 ): () => Promise<void> {
-  const consumer = redis.duplicate();
+  // Disable commandTimeout on the consumer: BRPOP intentionally blocks for
+  // `blockSeconds` and the inherited 2s timeout fires before it completes.
+  // Must use `undefined` (not 0) — ioredis checks `typeof commandTimeout === "number"`,
+  // so 0 would set a 0ms timeout and reject every command immediately.
+  const consumer = redis.duplicate({ commandTimeout: undefined });
   let running = true;
 
   async function loop(): Promise<void> {
