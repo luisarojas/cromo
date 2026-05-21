@@ -21,17 +21,5 @@ Rules to follow:
 
 If both `setSerializerCompiler` and `setReplySerializer` need to be kept in sync (e.g. when changing the casing strategy), update both — losing one silently regresses every route on the wrong side of the schema/no-schema split.
 
-### Migration Journal — Always Update on New SQL Files
-Every new file added under `apps/backend/src/db/migrations/*.sql` must have a corresponding entry added to `apps/backend/src/db/migrations/meta/_journal.json`. The entry follows this shape:
-
-```json
-{
-  "idx": <next integer after the current last entry>,
-  "version": "7",
-  "when": <previous entry's "when" + 86400000>,
-  "tag": "<filename without .sql>",
-  "breakpoints": true
-}
-```
-
-Never create a migration SQL file without updating the journal in the same change.
+### No New SQL Migration Files — Edit Existing Ones
+Never create new `.sql` files under `apps/backend/src/db/migrations/`. There is nothing in production, so the database is always recreated from scratch. When schema changes are needed, edit the existing migration files directly. The migration journal (`apps/backend/src/db/migrations/meta/_journal.json`) should also never need new entries as a result.
