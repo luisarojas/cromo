@@ -87,7 +87,7 @@ SELECT
   CASE WHEN ROW_NUMBER() OVER () % 7 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
-WHERE sv.variant_type = 'base'
+WHERE sv.variant_type = 'base_border'
   AND s.number BETWEEN 1 AND 200
 ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 
@@ -99,7 +99,7 @@ SELECT
   CASE WHEN ROW_NUMBER() OVER () % 5 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
-WHERE sv.variant_type = 'base'
+WHERE sv.variant_type = 'base_border'
   AND s.number BETWEEN 150 AND 400
 ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 
@@ -112,7 +112,7 @@ SELECT
   CASE WHEN ROW_NUMBER() OVER () % 3 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
-WHERE sv.variant_type = 'base'
+WHERE sv.variant_type = 'base_border'
   AND s.number BETWEEN 1 AND 100
 ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 
@@ -125,7 +125,7 @@ SELECT
   CASE WHEN ROW_NUMBER() OVER () % 4 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
-WHERE sv.variant_type = 'base'
+WHERE sv.variant_type = 'base_border'
   AND s.number BETWEEN 250 AND 400
 ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 
@@ -138,7 +138,7 @@ SELECT
   CASE WHEN ROW_NUMBER() OVER () % 5 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
-WHERE sv.variant_type = 'base'
+WHERE sv.variant_type = 'base_border'
   AND s.number BETWEEN 1 AND 50
 ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 
@@ -150,7 +150,7 @@ SELECT
   CASE WHEN ROW_NUMBER() OVER () % 8 = 0 THEN 2 ELSE 1 END
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
-WHERE sv.variant_type = 'base'
+WHERE sv.variant_type = 'base_border'
   AND s.number BETWEEN 300 AND 400
 ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 
@@ -165,7 +165,7 @@ WHERE album_id = '00000000-0000-0000-0001-000000000002'
     SELECT sv.id FROM sticker_variants sv
     JOIN stickers s ON sv.sticker_id = s.id
     WHERE s.number IN (7, 14)
-      AND sv.variant_type = 'base'
+      AND sv.variant_type = 'base_border'
       AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
   );
 
@@ -178,7 +178,7 @@ WHERE album_id = '00000000-0000-0000-0001-000000000003'
     SELECT sv.id FROM sticker_variants sv
     JOIN stickers s ON sv.sticker_id = s.id
     WHERE s.number IN (151, 156)
-      AND sv.variant_type = 'base'
+      AND sv.variant_type = 'base_border'
       AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
   );
 
@@ -214,7 +214,7 @@ SELECT
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
 WHERE s.number = 35
-  AND sv.variant_type = 'base'
+  AND sv.variant_type = 'base_border'
   AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
 ON CONFLICT (id) DO NOTHING;
 
@@ -228,7 +228,7 @@ SELECT
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
 WHERE s.number = 180
-  AND sv.variant_type = 'base'
+  AND sv.variant_type = 'base_border'
   AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
 ON CONFLICT (id) DO NOTHING;
 
@@ -244,7 +244,7 @@ SELECT
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
 WHERE s.number = 33
-  AND sv.variant_type = 'base'
+  AND sv.variant_type = 'base_border'
   AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
 ON CONFLICT (id) DO NOTHING;
 
@@ -258,7 +258,7 @@ SELECT
 FROM sticker_variants sv
 JOIN stickers s ON sv.sticker_id = s.id
 WHERE s.number = 270
-  AND sv.variant_type = 'base'
+  AND sv.variant_type = 'base_border'
   AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
 ON CONFLICT (id) DO NOTHING;
 

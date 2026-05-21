@@ -49,7 +49,8 @@ export interface Team {
 }
 
 export type VariantType =
-  | 'base'
+  | 'base_border'
+  | 'base_borderless'
   | 'blue'
   | 'red'
   | 'purple'
