@@ -54,9 +54,8 @@ Everything else: player stickers, team stickers, emblems, mascots, official art,
 
 PLAYER stickers (front side):
   • A player photo fills the center
-  • The FIFA 2026 logo in the UPPER-LEFT corner
-  • The player's name is the FIRST LINE of text in the LOWER-CENTER
-    (immediately above stats: D.O.B., height, weight, club)
+  • The FIFA 2026 logo in the UPPER-RIGHT corner
+  • The player's name is the FIRST LINE of text in the LOWER-CENTER (immediately above stats: D.O.B., height, weight, club)
   • A country flag on the LOWER-RIGHT to MIDDLE-RIGHT edge
 
 NON-PLAYER stickers (team, emblem, mascot, tournament art, etc.):
