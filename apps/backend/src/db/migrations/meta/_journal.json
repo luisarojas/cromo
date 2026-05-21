@@ -189,6 +189,12 @@
       "when": 1749772800000,
       "tag": "0031_album_type_scan_prompt",
       "breakpoints": true
+    },{
+      "idx": 32,
+      "version": "7",
+      "when": 1749859200000,
+      "tag": "0032_fix_extra_sticker_detection",
+      "breakpoints": true
     }
   ]
 }

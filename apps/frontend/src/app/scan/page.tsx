@@ -322,9 +322,11 @@ async function buildScanCard(
   // Front-side scan: AI returned playerName but no albumCode — try unique catalog match.
   // Narrow by stickerType when the AI detected one (e.g. "Extra Sticker" label).
   if (!sticker && result.playerName) {
+    // Match stickerType exactly: null AI result means base sticker (no special label detected),
+    // so don't let it also match extra/coca-cola entries for the same player name.
     const matches = catalog.filter(
       (s) => s.playerName?.toLowerCase() === result.playerName!.toLowerCase()
-        && (result.stickerType === null || s.stickerType === result.stickerType),
+        && s.stickerType === result.stickerType,
     );
     if (matches.length === 1) {
       try {
