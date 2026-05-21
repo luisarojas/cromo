@@ -279,11 +279,17 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
             writeSSEEvent(reply, 'result', { index, results: enriched });
           } catch (err) {
             const e = err as { message?: string };
+            request.log.warn({ err, index }, 'batch scan: image processing failed');
             writeSSEEvent(reply, 'result', { index, error: e.message ?? 'Failed to process image.' });
           }
 
           index++;
         }
+      } catch (err) {
+        // Outer catch: multipart parse error or other unexpected failure. Log it so
+        // we can diagnose, then fall through to write the done event so the client
+        // stream closes cleanly rather than hanging.
+        request.log.error({ err, index }, 'batch scan: multipart iteration failed');
       } finally {
         for (const p of tempPaths) {
           await deleteScanTemp(p);

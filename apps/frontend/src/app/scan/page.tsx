@@ -275,6 +275,7 @@ function ComboBox({
 
 interface ScanCard {
   sourcePreview: string;
+  errorMessage?: string;
   albumCode: string;
   teamFifaCode: string;
   teamName: string;
@@ -437,23 +438,46 @@ function ScanMode() {
     setStatus('scanning');
     setResultCards([]);
     setScanProgress({ done: 0, total: staged.length });
+    let eventsReceived = 0;
     try {
       await scanBatchStream(
         staged.map((i) => i.file),
         token,
         async (entry) => {
+          eventsReceived++;
           const preview = staged[entry.index]?.preview ?? '';
-          const newCards = await Promise.all(
-            (entry.results ?? []).map((r) => buildScanCard(preview, r, token, catalog)),
-          );
-          if (newCards.length > 0) {
-            setResultCards((prev) => [...prev, ...newCards]);
+          if (entry.error) {
+            setResultCards((prev) => [...prev, {
+              sourcePreview: preview,
+              errorMessage: entry.error,
+              albumCode: '',
+              teamFifaCode: '',
+              teamName: '',
+              stickerNumber: null,
+              borderVariantType: '',
+              variants: [],
+              selectedVariantId: '',
+              matchType: 'none' as const,
+              added: false,
+            }]);
+          } else {
+            const newCards = await Promise.all(
+              (entry.results ?? []).map((r) => buildScanCard(preview, r, token, catalog)),
+            );
+            if (newCards.length > 0) {
+              setResultCards((prev) => [...prev, ...newCards]);
+            }
           }
           setScanProgress((prev) => prev ? { ...prev, done: prev.done + 1 } : null);
         },
         selectedAlbumTypeKey || undefined,
       );
-      setStatus('done');
+      if (eventsReceived === 0) {
+        setScanError('No images were processed. Please try again.');
+        setStatus('error');
+      } else {
+        setStatus('done');
+      }
     } catch (err) {
       setScanError((err as { message?: string }).message);
       setStatus('error');
@@ -639,6 +663,22 @@ function ScanMode() {
           {resultCards.length > 0 && (
             <div className="space-y-3">
               {resultCards.map((card, idx) => {
+                if (card.errorMessage) {
+                  return (
+                    <div key={idx} className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+                      <img
+                        src={card.sourcePreview}
+                        alt={`Image ${idx + 1}`}
+                        className="w-12 h-12 rounded-lg object-cover border border-red-100 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-red-700">Failed to identify</p>
+                        <p className="text-xs text-red-500 mt-0.5 break-words">{card.errorMessage}</p>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const borderOptions: ComboOption[] = card.variants.map((v) => ({
                   value: v.variantType,
                   label: variantLabel(v.variantType),
