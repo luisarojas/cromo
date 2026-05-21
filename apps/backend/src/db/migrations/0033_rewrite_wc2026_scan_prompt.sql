@@ -10,38 +10,55 @@ ALBUM-SPECIFIC RULES FOR FIFA WORLD CUP 2026 (PANINI):
 OVERRIDING RULES — APPLY BEFORE EVERY DECISION
 ══════════════════════════════════════════════════════════
 
-1. EXTRA REQUIRES LITERAL TEXT. A sticker is Extra ONLY if you can literally read the
-   printed text "Extra Sticker" or "Panini Extra" on the front, OR the back's album
-   code starts with "EX". Gold, foil, shine, crumple, holographic, or metallic finish
-   is NEVER on its own evidence of an Extra. Crumple ⇒ core. No exceptions.
-2. CORE REQUIRES A STATS LINE. A sticker is Core ONLY if it has a visible stats line
-   under the name (D.O.B., height, weight, club) AND a circular country flag. No stats
-   line and no flag ⇒ NOT core.
-3. BORDER IS THE PERIMETER. The border is the colour you can trace continuously around
+1. THREE STICKER TYPES, ONE PER VISUAL TEST. Use these tests in order. The FIRST that
+   matches wins. Do not "second-guess" once a test matches.
+
+   TEST 1 — Does the sticker show a STATS LINE under the player's name
+            (date of birth + height + weight + club)?
+            ⇒ YES → CORE  (stickerType = null). Stop. Read foil/border as a CORE
+              parallel — even if the surface is gold, holographic, or crumpled.
+            ⇒ NO  → continue to Test 2.
+
+   TEST 2 — Can you LITERALLY READ the printed text "Extra Sticker" or "Panini Extra"
+            on the front, OR does a back-side album code start with "EX"?
+            (The word "PANINI" alone is the brand logo and does NOT count. "PANINI
+            ONLINE EXCLUSIVE" is a CORE parallel marker, NOT an Extra marker.)
+            ⇒ YES → EXTRA  (stickerType = "extra"). Stop.
+            ⇒ NO  → continue to Test 3.
+
+   TEST 3 — Default. The sticker is COCA-COLA SPECIAL
+            (stickerType = "coca_cola_special").
+            Typical features: action/celebration photo, player name printed vertically
+            up the left edge, no stats, no horizontal name bar. The player may be
+            anyone — DO NOT downgrade based on whether you recognise the name.
+
+2. BORDER IS THE PERIMETER. The border is the colour you can trace continuously around
    ALL FOUR edges of the sticker. If a coloured region does not touch all four edges,
    it is NOT the border. The name bar is a rounded rectangle INSIDE the photo area and
    is NEVER the border, regardless of its colour.
-4. NAME IS PRINTED TEXT ONLY. Transcribe the printed name as you see it; never infer
-   from face, hair, kit, or team. If a letter is partially obscured but unambiguous
-   from its surrounding visible letters, commit to it. Return null only when too much
-   of the text is unreadable to form a recognizable name.
-5. KIT ≠ FLAG. A national team kit is not a country flag. Do not infer teamFifaCode
-   from kit colour.
+
+3. NAME IS PRINTED TEXT ONLY. Transcribe the printed name as you see it; never infer
+   from face, hair, kit, or team. UNFAMILIAR NAMES STILL COUNT — names from
+   Uzbekistan, Iran, Senegal, Korea, etc. are valid and must be transcribed letter by
+   letter even if they look unusual or hard to pronounce. Return null only when the
+   text is physically obscured (motion blur, glare, plastic sleeve covering letters),
+   never because the resulting name is unfamiliar.
+
+4. KIT ≠ FLAG. A national team kit is not a country flag. Do not infer teamFifaCode
+   from kit colour. A country abbreviation in parentheses inside vertical name text
+   (e.g. "JEFFERSON LERMA (COL)") is part of the player-name text, not a flag.
 
 ══════════════════════════════════════════════════════════
-STEP 1 — IDENTIFY SIDE, THEN TYPE FAMILY
+STEP 1 — IDENTIFY SIDE
 ══════════════════════════════════════════════════════════
 
-A sticker has a FRONT (imagery + FIFA 2026 logo) and a BACK (white or blue background, printed
-text only, album code in the center, no imagery).
+FRONT: imagery + FIFA 2026 logo. Apply the three tests in OVERRIDING RULES §1.
 
-FRONT scans — classify by FIFA 2026 logo position (PRIMARY classifier):
-  Logo in UPPER-RIGHT  →  CORE sticker     →  §A
-  Logo in UPPER-LEFT   →  SPECIAL sticker  →  §B
-
-BACK scans — classify by album code prefix:
+BACK: white or light background, printed text only, album code in the center, no
+imagery. Classification on backs is by album-code prefix alone:
   Album code starts with "EX"  →  stickerType = "extra"
   Any other prefix             →  stickerType = null  (core)
+  Coca-Cola stickers have no back; if you are seeing a back, it is not Coca-Cola.
   borderColor is always null for back-side scans.
 
 ══════════════════════════════════════════════════════════
@@ -80,9 +97,9 @@ Extract:
 borderColor for CORE stickers (front-side only; back-side → null):
   No visible outer stripe   → null              (base, borderless)
   Solid white outer stripe  → "white"
-  Solid blue outer stripe   → "blue"
+  Solid blue outer stripe   → "blue"   (sky-blue / denim — cool blue, NOT violet)
   Solid red outer stripe    → "red"
-  Solid purple outer stripe → "purple"
+  Solid purple outer stripe → "purple" (violet / grape / eggplant — REDDISH-blue)
   Solid green outer stripe  → "green"
   Solid black outer stripe  → "black"
   Solid orange outer stripe → "orange"
@@ -95,58 +112,17 @@ borderColor for CORE stickers (front-side only; back-side → null):
 
   Crumple foil = textured, crinkled metallic finish (not a flat colour).
 
+  BLUE vs PURPLE: this is the most common colour confusion. Blue leans toward CYAN
+  (cool, like the sky or a clear ocean). Purple leans toward RED (warm, like grapes
+  or a bruise). If the colour has ANY warm/red undertone, it is purple. If it is a
+  clean cool blue with no red tint, it is blue.
+
 ══════════════════════════════════════════════════════════
-§B — SPECIAL STICKER  (logo upper-left)
+§B — EXTRA  (Test 2 matched)  →  stickerType = "extra"
 ══════════════════════════════════════════════════════════
-
-Two sub-types share the upper-left logo: Extra and Coca-Cola. They are mutually
-exclusive. Apply the COCA-COLA ABSENCE CHECK first because it is the most reliable
-discriminator — it tests for the absence of core/extra features, which is easier
-than reading small text or finishes.
-
-COCA-COLA ABSENCE CHECK (run FIRST, on every logo-upper-left sticker)
-  A sticker is Coca-Cola (stickerType = "coca_cola_special") if ALL FOUR of these
-  features are ABSENT from the front:
-    ✗ stats line (no D.O.B., no height, no weight, no club)
-    ✗ country flag (no circular flag anywhere on the sticker)
-    ✗ horizontal name bar (no rounded rectangle holding a horizontal name)
-    ✗ posed studio portrait (the photo is a dynamic action shot instead)
-  If all four are absent → Coca-Cola. Go to §B.2. Stop.
-  Supporting confirmation (not required): player name printed VERTICALLY (rotated 90°)
-  up the LEFT edge; single-sided (no back exists); recognisable international star
-  (Lamine Yamal, Alphonso Davies, Harry Kane, Weston McKennie, etc.).
-  Note: Coca-Cola stickers carry NO Coca-Cola branding (no script logo, no hashtag,
-  no wave/ribbon, no Coca-Cola red). Do not look for any of those.
-
-EXTRA CHECK (run only if the Coca-Cola Absence Check fails)
-  A sticker is Extra (stickerType = "extra") ONLY if at least ONE of these is true:
-    • You can literally read "Extra Sticker" or "Panini Extra" as printed text on
-      the front
-    • The back's album code starts with "EX" (e.g. "EX5")
-    • The border is a holographic foil in Extra-only colours (the border belongs to
-      this exclusive set: Purple, Bronze, Silver, Gold — never any other colour)
-  If none of those is true, the sticker is NOT Extra. Go back and re-check whether
-  the Coca-Cola Absence Check passes; if it still doesn't, treat as Core (re-read the
-  logo position — a logo that looked upper-left on a foil/shiny sticker may actually
-  be upper-right).
-  Supporting (not decisive on their own): live-action match photo with blurred
-  stadium; country flag in the LOWER-LEFT corner.
-  Hard negative: a posed stationary studio portrait is never Extra. Foil/shine/gold
-  finish alone is never Extra.
-
-──────────────────────────────────────────────────────────
-§B.1 — EXTRA STICKER  →  stickerType = "extra"
-──────────────────────────────────────────────────────────
-Front layout:
-  • Logo: UPPER-LEFT corner
-  • "Extra Sticker" or "Panini Extra" text/logo (upper-right or in the foil frame)
-  • Country flag in the LOWER-LEFT corner (not lower-right)
-  • Player name in the lower-center
-  • Live-action match photo with blurred stadium / field background
-
-Back layout:
-  • Album code in the center starts with "EX" (e.g. "EX1", "EX5")
-  • Plain-integer sticker number
+Front layout: live-action match photo, blurred stadium background, country flag in
+the LOWER-LEFT corner, player name horizontal in lower-center, "Extra Sticker" or
+"Panini Extra" text visible somewhere on the front.
 
 Extract:
   stickerType    → "extra"
@@ -154,37 +130,28 @@ Extract:
   teamFifaCode   → ISO 3-letter code from the lower-LEFT flag
   albumCode      → from the back (starts with "EX")
   stickerNumber  → integer from the back
-  borderColor    → one of: "extra_purple", "extra_bronze", "extra_silver", "extra_gold"
-                   (Purple is the base parallel; Bronze, Silver, Gold are rarer tiers).
-                   Never a "_crumple" value.
+  borderColor    → one of: "extra_purple", "extra_bronze", "extra_silver", "extra_gold".
+                   Extra borders are NEVER a "_crumple" value and NEVER a plain
+                   colour like "blue" or "red".
 
-──────────────────────────────────────────────────────────
-§B.2 — COCA-COLA SPECIAL  →  stickerType = "coca_cola_special"
-──────────────────────────────────────────────────────────
-Front layout:
-  • Logo: UPPER-LEFT corner
-  • Player name printed VERTICALLY (rotated 90°, reads bottom-to-top) up the LEFT
-    edge — text runs UP the side, not horizontally. This is the strongest positive
-    signal.
-  • Dynamic action photo (celebrating, mid-play) that fills the sticker
-  • Player usually pictured in their national team kit (kit ≠ flag)
-  • No "Extra"/"Panini Extra" label, no country flag in the lower-left, no horizontal
-    player name, no album code visible
-  • NO Coca-Cola branding on the sticker — no script logo, no hashtag, no wave/ribbon
-    graphics, no Coca-Cola red. Do not look for any of those.
+══════════════════════════════════════════════════════════
+§C — COCA-COLA SPECIAL  (Test 3 default)  →  stickerType = "coca_cola_special"
+══════════════════════════════════════════════════════════
+Front layout: dynamic action photo (celebrating, mid-play) fills the sticker; player
+name printed VERTICALLY (rotated 90°) up the LEFT edge; FIFA logo small in
+upper-left; no stats line, no horizontal name bar, no circular flag, no album code.
 
-Single-sided: no back exists.
+Note: Coca-Cola stickers themselves carry NO Coca-Cola branding (no script logo, no
+hashtag, no wave/ribbon, no Coca-Cola red). The "Coca-Cola" name refers to the
+distribution promotion, not on-sticker art. Do not look for branding.
 
-Roster check: the Coca-Cola set is limited to ~12 international promotional stars
-(Lamine Yamal, Alphonso Davies, Harry Kane, Weston McKennie, etc.). If the printed
-name you read isn't a recognisable high-profile international, re-check the
-vertical-text signal before committing.
+Coca-Cola stickers are single-sided: no back exists.
 
 Extract:
   stickerType    → "coca_cola_special"
-  playerName     → the vertical text along the left edge (transcribe what you see;
-                   commit to obscured letters when unambiguous from neighbours;
-                   null only if too much is unreadable to form a name)
+  playerName     → the vertical text along the left edge. Read the printed letters
+                   you can see; any "(XXX)" country abbreviation embedded in the
+                   text is part of the playerName string, not a flag.
   All other fields (albumCode, stickerNumber, teamFifaCode, borderColor) → null
 
 ══════════════════════════════════════════════════════════
@@ -205,11 +172,15 @@ teamFifaCode:
 
 playerName:
   • Transcribe the printed text exactly as you see it on the sticker
+  • UNFAMILIAR NAMES STILL COUNT. Names like "HUSNIDDIN ALIQULOV", "AYMEN ABDENNOUR",
+    "HEUNG-MIN SON", "ALPHONSO DAVIES" are all valid printed text. Do not return null
+    just because the name looks foreign or hard to pronounce.
   • If a letter is partially obscured but unambiguous from its surrounding visible
     letters (e.g. "VINI?IUS" → "VINICIUS"), commit to that letter — this is
     inference from textual context, not guessing
-  • If a letter is truly ambiguous between multiple candidates, or too much of the
-    text is unreadable to form a recognizable name → null
+  • Return null ONLY if the printed text is physically obscured (motion blur, glare,
+    plastic sleeve covering letters, foil reflection). Never null because the
+    resulting name is unfamiliar to you.
   • Never infer from face, hair, age, kit, or apparent team
 
 borderColor:

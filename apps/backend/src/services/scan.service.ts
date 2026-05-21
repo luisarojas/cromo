@@ -125,20 +125,21 @@ export async function identifySticker(
   });
 }
 
-// Extra stickers are tightly constrained: album code starts with "EX", and the border
-// (if any) is one of extra_purple / extra_bronze / extra_silver / extra_gold. Any other
-// borderColor — crumple foil, solid colour, etc. — disproves "extra". Trust those
-// structured signals over the model's type label, since shiny/foil core stickers are
-// the most common misclassification.
+// Extra stickers require POSITIVE structural evidence — either an "EX"-prefixed album
+// code (back-side decisive signal) or an extra_* borderColor (front-side decisive
+// signal). Without one of those, the model is almost certainly mistaking a shiny/foil
+// core sticker for an Extra. Trust the structured fields over the type label.
 function reconcileStickerType(
   rawType: 'extra' | 'coca_cola_special' | null,
   albumCode: string | null,
   borderColor: string | null,
 ): 'extra' | 'coca_cola_special' | null {
+  if (albumCode?.startsWith('EX')) return 'extra';
+
   if (rawType === 'extra') {
     if (albumCode && !albumCode.startsWith('EX')) return null;
-    if (borderColor && !borderColor.startsWith('extra_')) return null;
+    if (!borderColor?.startsWith('extra_')) return null;
   }
-  if (rawType !== 'extra' && albumCode?.startsWith('EX')) return 'extra';
+
   return rawType;
 }
