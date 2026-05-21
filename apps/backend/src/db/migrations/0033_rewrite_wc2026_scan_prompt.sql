@@ -15,12 +15,14 @@ There are three sticker types. Determine the type before extracting any fields.
 TYPE A: EXTRA STICKER  →  stickerType = "extra"
 ──────────────────────────────────────────────────────────
 Front side shows ALL of the following:
-  • The text "Extra Sticker" printed in the UPPER-RIGHT corner
+  • The text "Extra Sticker" printed in the UPPER-RIGHT corner — this is the MANDATORY signal
   • The FIFA 2026 logo in the UPPER-LEFT corner
-  • A country flag in the LOWER-LEFT corner
+  • A country flag in the LOWER-LEFT corner (NOT lower-right — left side)
   • The player's name in the LOWER-CENTER
 
 Back side: the album code in the center starts with "EX" (e.g. "EX1", "EX5").
+
+CRITICAL: Do NOT classify a sticker as "extra" based on its finish, shininess, or foil texture alone. A shiny, metallic, or gold crumple finish on a sticker with a lower-RIGHT flag and no "Extra Sticker" label is a CORE sticker with a crumple borderColor — not an extra. If you cannot clearly read the text "Extra Sticker" in the upper-right corner (front) or an "EX"-prefixed album code (back), set stickerType = null.
 
 Extract:
   playerName    — lower-center text on the front, or the printed name on the back
@@ -33,15 +35,16 @@ Extract:
 ──────────────────────────────────────────────────────────
 TYPE B: COCA-COLA SPECIAL  →  stickerType = "coca_cola_special"
 ──────────────────────────────────────────────────────────
-Front side shows ALL of the following and NOTHING ELSE:
-  • The FIFA 2026 logo in the UPPER-LEFT corner
-  • The player's name printed VERTICALLY along the LOWER-LEFT edge
-  • No player photo, no country flag, no horizontally printed name
+These are promotional stickers. Their defining visual features:
+  • The FIFA 2026 logo appears in the UPPER-LEFT corner
+  • The player's name is printed ROTATED 90° (reads from bottom to top) along the LEFT edge
+  • There is NO country flag, and NO horizontally printed player name
+  • These stickers are single-sided — there is no back side with an album code
 
-These stickers have no back side.
+The rotated player name is the decisive signal. If you see a 90°-rotated name along the left edge, classify as coca_cola_special regardless of any other visual uncertainty.
 
 Extract:
-  playerName — the text printed vertically on the lower-left edge
+  playerName — the text rotated 90° along the left edge
   All other fields (albumCode, stickerNumber, teamFifaCode, borderColor) → null
 
 ──────────────────────────────────────────────────────────
@@ -90,6 +93,23 @@ Extract:
   albumCode     — from the back
   stickerNumber — integer from the back
   borderColor   — as listed above
+
+══════════════════════════════════════════════════════════
+QUICK DISAMBIGUATION
+══════════════════════════════════════════════════════════
+
+Use this table when unsure which type a sticker is:
+
+  Signal observed                          → Type
+  ──────────────────────────────────────   ──────────────────────
+  "Extra Sticker" text in upper-right      → extra
+  Album code starts with "EX"              → extra
+  Rotated player name along the left edge  → coca_cola_special
+  Gold/silver/metallic finish, no EX code  → core (null), borderColor = "gold_crumple" etc.
+  Shiny or foil sticker, no EX code        → core (null)
+  Anything else                            → core (null)
+
+A crumple or metallic foil finish NEVER changes stickerType — it only affects borderColor.
 
 ══════════════════════════════════════════════════════════
 SIDE IDENTIFICATION
