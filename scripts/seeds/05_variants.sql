@@ -5,7 +5,7 @@
 
 -- Step 1: Base variant for ALL stickers (foil and non-foil)
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'base', 1, 'retail'
+SELECT id, 'base_border', 1, 'retail'
 FROM stickers
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
@@ -41,6 +41,6 @@ ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
 -- Step 6: Coca-Cola stickers are NOT variants of existing stickers.
 -- They are separate sticker records with sticker_type = 'coca_cola_special'.
--- Each gets only a single 'base' variant (no parallels).
+-- Each gets only a single 'base_border' variant (no parallels).
 -- They are seeded separately once the official list is confirmed.
 -- See docs/runbooks/update-sticker-database.md for instructions.
