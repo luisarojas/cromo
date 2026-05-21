@@ -195,6 +195,12 @@
       "when": 1749859200000,
       "tag": "0032_fix_extra_sticker_detection",
       "breakpoints": true
+    },{
+      "idx": 33,
+      "version": "7",
+      "when": 1749945600000,
+      "tag": "0033_rewrite_wc2026_scan_prompt",
+      "breakpoints": true
     }
   ]
 }

@@ -302,11 +302,20 @@ async function buildScanCard(
   let variants: StickerVariant[] = [];
   let selectedVariantId = '';
 
-  const pickVariant = (vs: StickerVariant[]) =>
-    (result.borderColor
-      ? vs.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()))
-      : undefined
-    )?.id ?? vs[0]?.id ?? '';
+  const pickVariant = (vs: StickerVariant[]): string => {
+    if (result.borderColor) {
+      // Direct color match covers most parallels (blue → blue, red → red, etc.)
+      const byColor = vs.find((v) => v.variantType.toLowerCase().startsWith(result.borderColor!.toLowerCase()));
+      if (byColor) return byColor.id;
+      // Any border detected but no color-named variant → bordered base (e.g. white border → base_border)
+      return vs.find((v) => v.variantType === 'base_border')?.id ?? vs[0]?.id ?? '';
+    }
+    // No border detected on a front-side scan (albumCode absent) → borderless base variant
+    if (result.albumCode === null) {
+      return vs.find((v) => v.variantType === 'base_borderless')?.id ?? vs[0]?.id ?? '';
+    }
+    return vs[0]?.id ?? '';
+  };
 
   let matchType: ScanCard['matchType'] = 'none';
 
