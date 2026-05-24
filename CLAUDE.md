@@ -23,3 +23,70 @@ If both `setSerializerCompiler` and `setReplySerializer` need to be kept in sync
 
 ### Single Schema File — No Migration Files
 The database schema lives entirely in `apps/backend/src/db/schema.sql`. There are no incremental migration files. When schema changes are needed, edit `schema.sql` directly. The backend applies it at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`, which simply executes the file against the database. Every table and index uses `IF NOT EXISTS`, functions use `CREATE OR REPLACE`, and seed inserts use `ON CONFLICT`, so the file is safe to re-run on an existing database.
+
+### Sticker Types & Rarities — Source of Truth
+
+This section is the **canonical model** of every sticker variant Stickfolio recognises. Every change to the codebase — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's actual product) and this section ever diverge, update this section first and propagate; do not let the codebase silently drift.
+
+Hard rules that follow from this model (call these out in any PR that touches stickers):
+- The variant `base_borderless` is shared by **two** sticker types: international core Base stickers AND Coca-Cola stickers. They are distinguished by `sticker_type` (`null` vs `'coca_cola_special'`), never by the variant token.
+- There is **no smooth (non-crumple) gold border variant** in the main set. The only "gold" finish on a core sticker is `gold_crumple` (iCollect online base). The only smooth gold finish anywhere is `extra_gold`, which is the **background colour** of an Extra sticker — its outer border is still white.
+- Extra stickers' outer border is **always white**. Rarity is encoded in the background colour behind the action photo, never in the rim. Extras have no Crumple variants and no album slot.
+- Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Stickfolio (physical-only).
+- `swiss_green` is the Switzerland "United Edition" **sticker border variant** (light/mint/sage green). `swiss_gold` is the **album edition key** for the Swiss gold-foiled premium album cover. Do not conflate them.
+- The AI scan prompt must return **canonical `variant_type` tokens** for `borderColor` (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black_1of1"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`, …). The frontend's `pickVariantId` does exact match first, `startsWith` fallback second.
+- The full canonical variant list lives in `packages/shared/src/types/index.ts` (`VariantType` union) and `packages/shared/src/constants/index.ts` (`VARIANT_RARITY`). Display labels live in `apps/frontend/src/app/album/components/variantMeta.ts`. Add new variants in all three files in lockstep.
+
+#### 1. Base Stickers & Standard Parallels (Border Variants)
+
+Panini ships the standard base in two regional layouts. In regions with colored parallels, the base sticker uses a **white border** so its layout matches the colored chases; in purist international regions it stays **borderless**.
+
+| Border Colour | Average Pack Odds | Rarity Tier & Notes | Variant token |
+| --- | --- | --- | --- |
+| **Base (No Border)** | every pack (Intl) | **Common** — international editions (Mexico, Europe, South America). | `base_borderless` |
+| **Base (White Border)** | every pack (NA) | **Common** — North American packs, white 1mm rim matching the parallel layout. | `base_border` |
+| **Blue** | 1 in 2 packs | **Uncommon** | `blue` |
+| **Red** | 1 in 25 packs | **Rare** | `red` |
+| **Purple** | 1 in 200 packs | **Very Rare** | `purple` |
+| **Green** | 1 in 1,400 packs | **Ultra Rare** — vivid emerald/grass green. | `green` |
+| **Black** | 1-of-1 | **Masterpiece** — only one unique copy exists per player. | `black_1of1` |
+
+#### 2. "Crumple" Parallels (Panini iCollect online-exclusive boxes)
+
+Crumple stickers have a wrinkled/crinkled metallic foil background. They exist only in **Panini iCollect online exclusive boxes**, in parallel to the standard set. Every standard parallel has a Crumple counterpart:
+
+| Variant | Online Pack Odds | Notes | Variant token |
+| --- | --- | --- | --- |
+| **Gold Flood Crumple** | 6 per online pack | Replaces the white-bordered base entirely in iCollect boxes. There is no smooth, non-crumple Gold border in the main set. | `gold_crumple` |
+| **Blue Crumple** | 1 in 2 online packs | | `blue_crumple` |
+| **Red Crumple** | 1 in 26 online packs | | `red_crumple` |
+| **Purple Crumple** | 1 in 204 online packs | | `purple_crumple` |
+| **Green Crumple** | 1 in 1,529 online packs | | `green_crumple` |
+| **Black Crumple** | 1-of-1 | Textured unique print. | `black_crumple_1of1` |
+
+#### 3. Regional & Retailer Exclusives
+
+- **NA vs. International base split** — North American packs use `base_border` (white border); international purist packs use `base_borderless` (no rim). Same internal layout in both.
+- **Switzerland "United Edition"** — country-specific album. Swiss packs contain regional **Light Green border** variants (`swiss_green`). The physical Swiss premium album cover is gold-foiled and tracked as a separate `swiss_gold` *album edition* key — do not confuse it with the green sticker variant.
+- **Amazon Exclusive** — starter kits and boxes bought directly from Amazon contain exclusive **Orange Border** parallels (`orange_amazon`).
+- **Hardcover Albums** — select markets get premium hardcover/metallised editions (often via Amazon Collector's Tins or European bundles); standard retail leans softcover. These are album formats, not sticker variants.
+
+#### 4. "Extra Stickers" Subset
+
+Short-printed, unnumbered action shots of 20 global superstars (Messi, Ronaldo, Mbappé, Yamal, etc.). They land as an 8th bonus item on average **1 in 100 packs** and **do not have a dedicated slot in the album**. No Crumple variants.
+
+**Crucial visual rule:** the outer border of an Extra sticker is **always white**. Rarity is encoded in the **background colour** directly behind the player's action shot — never in the rim.
+
+| Background Colour | Rarity Tier | Notes | Variant token |
+| --- | --- | --- | --- |
+| **Purple / Burgundy** | Base "Extra" | Most common Extra. | `extra_purple` |
+| **Bronze** | Uncommon | Copper/bronze metallic background. | `extra_bronze` |
+| **Silver** | Rare | Metallic silver background. | `extra_silver` |
+| **Gold** | Ultra Rare | Brilliant gold background. The pinnacle of the pack hunt. | `extra_gold` |
+
+#### 5. Coca-Cola Partnership Subset
+
+A promotional subset featuring **12 specific international stars** (including Lamine Yamal, Harry Kane, Weston McKennie, Alphonso Davies) heavily weighted toward North American talent.
+
+- **Physical stickers** — obtained by peeling labels off specially-marked 20-oz Coca-Cola and Coca-Cola Zero Sugar bottles in the USA. They have **no border variants and no Crumple versions**; every physical Coca-Cola sticker looks identical. They live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (shared with international core base; distinguished via `sticker_type = 'coca_cola_special'`).
+- **Digital Album App** — scanning the bottle labels unlocks digital-only packs in the FIFA Panini Collection App with exclusive **"Fan Stickers"** and **"Cosmic" variants**. These are app-only and **out of scope** for Stickfolio's physical-sticker tracking.
