@@ -637,7 +637,7 @@ STEP 3 — DETERMINE variantToken
       Vivid emerald / grass green                       → "green"
       Pale mint / sage / light-jade green               → "swiss_green"       (Switzerland)
       Saturated orange                                  → "orange_amazon"     (Amazon exclusive)
-      Pure black                                        → "black_1of1"        (1-of-1)
+      Pure black                                        → "black"        (1-of-1)
 
     Finish B — CRUMPLE. The photo backdrop behind the player is a
     WRINKLED / CREASED metallic foil with visible crinkle and fold lines
@@ -649,7 +649,7 @@ STEP 3 — DETERMINE variantToken
       Red foil    → "red_crumple"
       Purple foil → "purple_crumple"
       Green foil  → "green_crumple"
-      Black foil  → "black_crumple_1of1"     (1-of-1)
+      Black foil  → "black_crumple"     (1-of-1)
 
     GOLD RULE for Core: there is NO smooth gold border in the main set.
     Any gold finish on a Core (portrait) sticker is "gold_crumple". A

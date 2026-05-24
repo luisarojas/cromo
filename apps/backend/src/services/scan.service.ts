@@ -203,7 +203,7 @@ export async function identifySticker(
 // core sticker for an Extra. Trust the structured fields over the type label.
 const CRUMPLE_VARIANTS = new Set([
   'gold_crumple', 'blue_crumple', 'red_crumple',
-  'purple_crumple', 'green_crumple', 'black_crumple_1of1',
+  'purple_crumple', 'green_crumple', 'black_crumple',
 ]);
 
 function reconcileStickerType(

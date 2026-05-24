@@ -128,13 +128,13 @@ CREATE TABLE sticker_variants (
   --   'base_borderless'  = International Base (no outer rim — also reused by Coca-Cola
   --                        stickers, which are differentiated via sticker_type)
   -- Standard retail border parallels (NA packs):
-  --   'blue'|'red'|'purple'|'green'|'black_1of1'
+  --   'blue'|'red'|'purple'|'green'|'black'
   -- Retailer/regional exclusives:
   --   'orange_amazon' (Amazon)|'swiss_green' (Switzerland United Edition — light green)
   -- Panini iCollect online-exclusive Crumple parallels (gold_crumple replaces the
   -- white-bordered base in iCollect packs; no smooth gold border exists in the main set):
   --   'gold_crumple'|'blue_crumple'|'red_crumple'|
-  --   'purple_crumple'|'green_crumple'|'black_crumple_1of1'
+  --   'purple_crumple'|'green_crumple'|'black_crumple'
   -- Extra-sticker subset (background colour denotes rarity, outer border always white):
   --   'extra_purple'|'extra_bronze'|'extra_silver'|'extra_gold'
   rarity_rank   INT NOT NULL,  -- 1=most common; ascending toward rarest

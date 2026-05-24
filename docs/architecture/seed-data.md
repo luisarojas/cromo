@@ -359,7 +359,7 @@ ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 -- Step 2: Retail parallel variants — non-foil stickers only
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id, unnest(ARRAY[
-  'blue', 'red', 'purple', 'green', 'black_1of1'
+  'blue', 'red', 'purple', 'green', 'black'
 ]), unnest(ARRAY[2, 3, 4, 5, 6]), 'retail'
 FROM stickers
 WHERE is_foil = false
@@ -377,7 +377,7 @@ ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id, unnest(ARRAY[
   'gold_crumple', 'blue_crumple', 'red_crumple',
-  'purple_crumple', 'green_crumple', 'black_crumple_1of1'
+  'purple_crumple', 'green_crumple', 'black_crumple'
 ]), unnest(ARRAY[8, 9, 10, 11, 12, 13]), 'panini_online'
 FROM stickers WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;

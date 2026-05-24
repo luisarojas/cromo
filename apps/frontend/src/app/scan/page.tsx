@@ -294,8 +294,8 @@ interface ScanCard {
 // stay aligned.
 //
 // The scan prompt emits canonical variant_type tokens (base_border, base_borderless,
-// blue, red, purple, green, swiss_green, black_1of1, orange_amazon, gold_crumple,
-// blue_crumple, red_crumple, purple_crumple, green_crumple, black_crumple_1of1,
+// blue, red, purple, green, swiss_green, black, orange_amazon, gold_crumple,
+// blue_crumple, red_crumple, purple_crumple, green_crumple, black_crumple,
 // extra_purple, extra_bronze, extra_silver, extra_gold), so exact-match wins.
 // startsWith remains as a tolerant fallback for older/looser hints — but exact first,
 // otherwise "base_border" would falsely match "base_borderless".
