@@ -196,7 +196,7 @@ Rate limiting is implemented in Fastify middleware locally, and additionally enf
 
 ### 10.1 Local Mock Mode
 
-When `CLAUDE_API_KEY=mock`, the scan endpoint returns a hardcoded realistic response without calling the Claude API:
+When `GROQ_API_KEY=mock`, the scan endpoint returns a hardcoded realistic response without calling the Groq API:
 
 ```json
 {
@@ -213,13 +213,14 @@ This lets the entire scan UI be built and tested locally at zero cost.
 
 ### 10.2 Cloud Pipeline (Identical Logic, Real API)
 
-When `CLAUDE_API_KEY` is a real Anthropic API key:
+When `GROQ_API_KEY` is a real key:
 
-1. **AWS Lambda** preprocesses the image (EXIF strip, resize, type validation)
-2. **Border colour detection** identifies the rarity variant
-3. **Claude Vision API** identifies the player and sticker number
-4. Confidence routing — auto-populate (≥0.85), selection UI (0.60–0.84), manual (`< 0.60`)
-5. Image deleted from S3 within 24 hours
+1. Backend reads the upload, runs `sharp.rotate()` for EXIF normalisation, and forwards a base64 image to Groq
+2. **Groq vision (Llama-4 Scout)** returns a structured `stickers[]` array with `stickerNumber`, `albumCode`, `playerName`, `teamFifaCode`, `variantToken`, `stickerType`, `confidence`, and `reasoning` per sticker
+3. `reconcileStickerType` reconciles the AI's `stickerType` against the album-code prefix and the variant token (so e.g. a crumple-finish core sticker is never mis-tagged as an Extra)
+4. Catalog enrichment fills in any missing field from `getStickerByAlbumCode` / `getStickerByPlayerName`
+5. Confidence routing in the UI — auto-populate (≥0.85), selection UI (0.60–0.84), manual (`< 0.60`)
+6. Temp scan file is deleted as soon as the API call completes (or within 24h if the server crashes mid-scan)
 
 ### 10.3 Graceful Degradation
 

@@ -45,7 +45,7 @@ Recovery procedure is tested every quarter. Results documented in `docs/runbooks
 
 | Service Down | Impact | Core Functions |
 |---|---|---|
-| Claude Vision API | Scan temporarily unavailable | All other features work |
+| Groq vision API | Scan temporarily unavailable | All other features work |
 | Redis | Slightly slower responses | No feature loss |
 | S3 | Avatars show placeholder | No data loss |
 | SES (email) | Notification delay | No feature loss |

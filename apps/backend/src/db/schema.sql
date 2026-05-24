@@ -561,7 +561,7 @@ For every sticker in the image, run Steps 1–4 below from scratch. Decisions fo
 ══════════════════════════════════════════════════════════
 STEP 1 — FRONT OR BACK OF STICKER? (per sticker)
 ══════════════════════════════════════════════════════════
-The BACK of a sticker is a plain, unglossy paper surface that prints only the album code (e.g. "ARG7", "BRA19", "FWC4", "EX12", "CC4", "HC1", "L3"). No glossy photo, no FIFA logo, no player.
+The BACK of a sticker is a plain, unglossy paper surface that prints only the album code (e.g. "ARG7", "BRA19", "FWC4", "EX12", "CC4"). No glossy photo, no FIFA logo, no player.
 
 If the sticker is showing its BACK:
   → Set `albumCode` to the printed code exactly as shown (preserve the prefix — "EX12" not "12", "CC4" not "4").
@@ -707,7 +707,7 @@ INSERT INTO album_editions (album_type_id, key, name)
 SELECT t.id, e.key, e.name
 FROM album_types t
 CROSS JOIN (VALUES
-  ('north_america', 'North American (Host)'),
+  ('north_america', 'North American'),
   ('international', 'International'),
   ('swiss_gold',    'Swiss Gold'),
   ('south_america', 'South American')
@@ -827,75 +827,4 @@ SELECT id,
        'retail'
 FROM stickers
 WHERE sticker_type = 'extra'
-ON CONFLICT (sticker_id, variant_type) DO NOTHING;
-
-INSERT INTO stickers
-  (album_type_id, number, album_code, player_name, sticker_type, is_foil)
-SELECT
-  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
-  s.number, s.album_code, s.city_name, 'museum', false
-FROM (VALUES
-  (1013, 'HC1',  'New York / New Jersey'),
-  (1014, 'HC2',  'Los Angeles'),
-  (1015, 'HC3',  'Dallas'),
-  (1016, 'HC4',  'San Francisco Bay Area'),
-  (1017, 'HC5',  'Miami'),
-  (1018, 'HC6',  'Atlanta'),
-  (1019, 'HC7',  'Seattle'),
-  (1020, 'HC8',  'Boston'),
-  (1021, 'HC9',  'Philadelphia'),
-  (1022, 'HC10', 'Kansas City'),
-  (1023, 'HC11', 'Houston'),
-  (1024, 'HC12', 'Toronto'),
-  (1025, 'HC13', 'Vancouver'),
-  (1026, 'HC14', 'Mexico City'),
-  (1027, 'HC15', 'Guadalajara'),
-  (1028, 'HC16', 'Monterrey')
-) AS s(number, album_code, city_name)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
-  player_name = EXCLUDED.player_name;
-
-INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id,
-       unnest(ARRAY['base_border', 'base_borderless', 'blue', 'red', 'purple', 'green', 'black_1of1']),
-       unnest(ARRAY[1, 1, 2, 3, 4, 5, 6]),
-       'retail'
-FROM stickers
-WHERE sticker_type = 'museum' AND album_code LIKE 'HC%'
-ON CONFLICT (sticker_id, variant_type) DO NOTHING;
-
-INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'orange_amazon', 7, 'amazon_exclusive'
-FROM stickers
-WHERE sticker_type = 'museum' AND album_code LIKE 'HC%'
-ON CONFLICT (sticker_id, variant_type) DO NOTHING;
-
-INSERT INTO stickers
-  (album_type_id, number, album_code, team_id, player_name, position, sticker_type, is_foil)
-SELECT
-  (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
-  s.number, s.album_code,
-  (SELECT id FROM teams WHERE fifa_code = 'SUI'),
-  s.player_name, s.position, 'museum', true
-FROM (VALUES
-  (1029, 'L1',  'Stéphane Chapuisat', 'FWD'),
-  (1030, 'L2',  'Alex Frei',          'FWD'),
-  (1031, 'L3',  'Köbi Kuhn',          'MID'),
-  (1032, 'L4',  'Roger Vonlanthen',   'FWD'),
-  (1033, 'L5',  'Alain Geiger',       'DEF'),
-  (1034, 'L6',  'Patrick Müller',     'DEF'),
-  (1035, 'L7',  'Marco Streller',     'FWD'),
-  (1036, 'L8',  'Hakan Yakin',        'MID'),
-  (1037, 'L9',  'Xherdan Shaqiri',    'FWD'),
-  (1038, 'L10', 'Granit Xhaka',       'MID')
-) AS s(number, album_code, player_name, position)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
-  player_name = EXCLUDED.player_name,
-  position    = EXCLUDED.position;
-
-INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'swiss_green', 19, 'swiss_edition'
-FROM stickers
-WHERE album_code LIKE 'L%' AND sticker_type = 'museum' AND is_foil = true
-  AND album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;

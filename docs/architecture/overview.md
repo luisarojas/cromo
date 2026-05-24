@@ -188,7 +188,7 @@ A production-ready system: never loses data, recovers automatically from failure
 | File storage (local) | Local filesystem | Yes |
 | File storage (cloud) | AWS S3 | Cloud only |
 | AI scanning (local) | Mock response | Yes |
-| AI scanning (cloud) | Anthropic Claude Vision API | Cloud only |
+| AI scanning (cloud) | Groq (Llama-4 Scout vision) | Cloud only |
 | Email (local) | Mailpit | Yes (localhost:8025) |
 | Email (cloud) | AWS SES | Cloud only |
 | Analytics | Plausible self-hosted | Cloud only |
@@ -239,7 +239,7 @@ A production-ready system: never loses data, recovers automatically from failure
 - All seed data loaded and verified (48 teams, 980 stickers, all variants)
 - `/health` and `/health/ready` endpoints live
 - OpenAPI docs available at `http://localhost:3001/docs`
-- Local auth mock working — all 5 test users can log in (pre-verified, no email step)
+- Local auth mock working — all 6 test users can log in (pre-verified, no email step)
 - Email verification flow working end-to-end via Mailpit
 - `pnpm test` runs and passes (with minimal initial test coverage)
 
@@ -252,8 +252,8 @@ A production-ready system: never loses data, recovers automatically from failure
 - Collection stats and completion percentage
 - Avatar upload working
 - Admin interface for user management and sticker corrections
-- Coca-Cola, Extra Sticker, Host City, and Swiss Legends sticker series added
-- Team album page data stored in database (migrations 0002–0005)
+- Coca-Cola and Extra Sticker series added (Host City and Swiss Legends subsets are not part of the official 2026 album — host nations are represented by FWC6/FWC7/FWC8 in the intro section; Switzerland did not qualify)
+- Team album page data stored in database
 - React Error Boundary implemented
 - Unit and integration tests for all collection operations
 
@@ -268,10 +268,9 @@ A production-ready system: never loses data, recovers automatically from failure
 
 **A4 — AI Scanning (Weeks 13–16)**
 - Image upload pipeline (local filesystem mock)
-- Border colour detection
-- Claude Vision API integration (with local mock mode)
+- Vision-model integration via Groq (Llama-4 Scout) with local mock mode — returns canonical `variantToken` directly, so no separate border-colour detection step is needed
 - Confidence scoring + confirmation UI
-- Batch scanning mode
+- Batch scanning mode (SSE-streamed per-image results)
 
 **A5 — Trust & Safety (Weeks 17–19)**
 - Post-trade rating system: binary ratings (thumbs up/down), 14-day window, trust score tiers
@@ -364,7 +363,7 @@ One-time costs during Phase A:
 | AWS S3 + CloudFront (API) | $5–12 |
 | GitHub Actions | $0–4 |
 | Vercel (frontend) | $0–20 |
-| Anthropic Claude Vision API | $5–30 |
+| Groq vision API (Llama-4 Scout) | $5–30 |
 | Plausible Analytics (EC2) | $3–5 |
 | Domain (amortised) | $1–2 |
 | **Total** | **~$110–253 USD/month** |
@@ -384,7 +383,7 @@ One-time costs during Phase A:
 - AWS Budget alert at $400 USD/month
 - Aurora min 0 ACUs — scales to zero overnight
 - Fargate auto-scaling
-- Claude Vision API rate limited to 20 scans/user/hour
+- Groq vision API rate limited to 20 scans/user/hour
 - Vercel free tier until traffic warrants upgrade
 
 
@@ -447,7 +446,7 @@ Provide this document as the technical specification. The developer should be ab
 | End of Phase A1 | `docker compose up && pnpm db:seed` works. 48 teams and 980 stickers in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
 | End of Phase A2 | All stickers visible in album UI with filtering. Can add/remove/mark duplicates. Multiple albums per user. Avatar upload working. Test suite ≥ 60% coverage. |
 | End of Phase A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
-| End of Phase A4 | Mock AI scan adds a sticker to Alice's collection. Real Claude API works in dev cloud. |
+| End of Phase A4 | Mock AI scan adds a sticker to Alice's collection. Real Groq vision API works in dev cloud. |
 | End of Phase A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. PWA installable on mobile. |
 | End of Phase B1 | CI/CD deploys to dev on every merge. Health check passes in AWS. |
 | End of Phase B2 | Full E2E suite passes on staging. Legal documents published. |

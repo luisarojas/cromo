@@ -152,7 +152,7 @@ services:
       REDIS_URL: redis://cache:6379
       JWT_SECRET: local-dev-secret-not-for-production
       AUTH_MODE: local                    # bypasses Cognito locally
-      CLAUDE_API_KEY: mock               # returns mock scan results locally
+      GROQ_API_KEY: mock                  # returns mock scan results locally
       S3_MODE: local                      # saves files to ./uploads/ locally
       PORT: 3001
     volumes:

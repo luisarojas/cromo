@@ -30,8 +30,6 @@ scripts/
     08_coca_cola_stickers.sql  # Coca-Cola bottle sticker series
     09_trust_safety.sql     # DEV/LOCAL ONLY — sample ratings/reports for admin UI
     10_extra_stickers.sql   # Panini Extra Sticker inserts (foil set)
-    11_host_city_stickers.sql  # Host city sticker pages
-    12_swiss_legend_stickers.sql  # Swiss Legends special sticker series
     13_team_album_pages.sql    # Team-level album page assignments
     14_sticker_album_pages.sql # Per-sticker album page assignments
 ```

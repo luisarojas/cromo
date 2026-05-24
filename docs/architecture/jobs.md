@@ -48,7 +48,7 @@ Locally, `node-cron` runs in the same Node.js process as the API. Setting `JOBS_
 ### 35.1 Why a queue, not inline
 
 If the API tries to send the verification email synchronously inside `POST /auth/register`, the user waits for SES to respond — and if SES is slow or briefly unavailable, the registration appears to fail. The same problem applies to:
-- AI scan processing (Claude Vision can take 5–15 s per image)
+- AI scan processing (Groq vision can take 5–15 s per image)
 - Web push fan-out to multiple subscribers
 - Notification emails (trade requests, accepted, completed)
 - DMARC report ingestion

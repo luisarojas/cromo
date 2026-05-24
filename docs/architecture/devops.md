@@ -87,8 +87,6 @@ stickfolio/
 │       ├── 08_coca_cola_stickers.sql
 │       ├── 09_trust_safety.sql
 │       ├── 10_extra_stickers.sql
-│       ├── 11_host_city_stickers.sql
-│       ├── 12_swiss_legend_stickers.sql
 │       ├── 13_team_album_pages.sql
 │       └── 14_sticker_album_pages.sql
 │
