@@ -292,24 +292,34 @@ interface ScanCard {
 // (or a prior user choice) with sensible fallbacks. Used both when first building a
 // card and when the user picks a different sticker via the dropdown, so both paths
 // stay aligned.
+//
+// The scan prompt emits canonical variant_type tokens (base_border, base_borderless,
+// blue, red, purple, green, swiss_green, black_1of1, orange_amazon, gold_crumple,
+// blue_crumple, red_crumple, purple_crumple, green_crumple, black_crumple_1of1,
+// extra_purple, extra_bronze, extra_silver, extra_gold), so exact-match wins.
+// startsWith remains as a tolerant fallback for older/looser hints — but exact first,
+// otherwise "base_border" would falsely match "base_borderless".
 function pickVariantId(
   variants: StickerVariant[],
   borderHint: string | null,
   hasAlbumCode: boolean,
 ): string {
   if (borderHint) {
-    const byColor = variants.find((v) =>
+    const exact = variants.find((v) => v.variantType === borderHint);
+    if (exact) return exact.id;
+    const partial = variants.find((v) =>
       v.variantType.toLowerCase().startsWith(borderHint.toLowerCase()),
     );
-    if (byColor) return byColor.id;
-    // Border detected but no color-named variant → bordered base (e.g. white border)
-    return variants.find((v) => v.variantType === 'base_border')?.id ?? variants[0]?.id ?? '';
+    if (partial) return partial.id;
   }
-  // No border + front-side scan (no album code) → borderless base variant
+  // No border hint + front-side scan (no album code visible) → borderless base.
+  // base_borderless covers both the international core Base and Coca-Cola; the
+  // sticker_type field on the matched sticker tells the two apart.
   if (!hasAlbumCode) {
     return variants.find((v) => v.variantType === 'base_borderless')?.id ?? variants[0]?.id ?? '';
   }
-  return variants[0]?.id ?? '';
+  // Back-side scan with no border hint → default to NA white-bordered Base.
+  return variants.find((v) => v.variantType === 'base_border')?.id ?? variants[0]?.id ?? '';
 }
 
 async function buildScanCard(

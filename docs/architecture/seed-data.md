@@ -342,10 +342,20 @@ This file generates a `sticker_variants` record for every valid variant type. No
 -- Parallel variants apply to non-foil stickers only
 -- Coca-Cola variant applies to a specific subset (tracked separately)
 
--- Step 1: Base variant for ALL stickers (foil and non-foil)
+-- Step 1a: North American Base — white-bordered base sticker (Common, every NA pack).
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'base', 1, 'retail'
+SELECT id, 'base_border', 1, 'retail'
 FROM stickers
+WHERE sticker_type NOT IN ('coca_cola_special', 'extra')
+ON CONFLICT (sticker_id, variant_type) DO NOTHING;
+
+-- Step 1b: International Base — borderless base sticker (Common, every international pack).
+-- Same photo/name layout as the NA base, but with no outer rim. Coca-Cola stickers
+-- reuse the base_borderless variant type and are distinguished by sticker_type.
+INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
+SELECT id, 'base_borderless', 1, 'retail'
+FROM stickers
+WHERE sticker_type NOT IN ('coca_cola_special', 'extra')
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
 -- Step 2: Retail parallel variants — non-foil stickers only
@@ -357,13 +367,15 @@ FROM stickers
 WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
--- Step 3: Amazon exclusive — non-foil only
+-- Step 3: Amazon exclusive (orange border) — non-foil only
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id, 'orange_amazon', 7, 'amazon_exclusive'
 FROM stickers WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
 -- Step 4: Panini iCollect Crumple variants — non-foil only
+-- gold_crumple replaces the base sticker in iCollect online packs (6 per pack)
+-- and is the only "gold" finish in the main set — there is no smooth gold border.
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id, unnest(ARRAY[
   'gold_crumple', 'blue_crumple', 'red_crumple',
@@ -372,12 +384,20 @@ SELECT id, unnest(ARRAY[
 FROM stickers WHERE is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
--- Step 5: Coca-Cola stickers are NOT variants of existing stickers.
--- They are entirely separate sticker records with sticker_type = 'coca_cola'.
--- Each Coca-Cola sticker gets only a single 'base' variant (no parallels).
--- They are seeded in a separate file once the official list is confirmed.
--- DO NOT add a 'coca_cola' entry to the variant_type list above.
--- See docs/runbooks/update-sticker-database.md for how to add them.
+-- Step 5: Switzerland "United Edition" (light green border) — non-foil only
+INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
+SELECT id, 'swiss_green', 19, 'swiss_edition'
+FROM stickers WHERE is_foil = false
+ON CONFLICT (sticker_id, variant_type) DO NOTHING;
+
+-- Extra stickers (EX1–EX20) and Coca-Cola stickers (CC1–CC12) are entirely separate
+-- sticker records seeded by 10_extra_stickers.sql and 08_coca_cola_stickers.sql:
+--   • Extras get four background-rarity variants: extra_purple (Base), extra_bronze
+--     (Uncommon), extra_silver (Rare), extra_gold (Ultra Rare). Their outer border
+--     is always white; rarity is the BACKGROUND colour behind the action shot.
+--     Extras have NO Crumple variants.
+--   • Coca-Cola stickers get only a single 'base_borderless' variant — every
+--     physical Coca-Cola sticker looks identical, with no parallels or Crumples.
 ```
 
 ## 8. Seed File 06: Feature Flags

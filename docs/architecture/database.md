@@ -123,12 +123,23 @@ CREATE TABLE sticker_variants (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sticker_id    UUID NOT NULL REFERENCES stickers(id),
   variant_type  TEXT NOT NULL,
-  -- 'base'|'blue'|'red'|'purple'|'green'|'black_1of1'|
-  -- 'orange_amazon'|'gold_crumple'|'blue_crumple'|'red_crumple'|
-  -- 'purple_crumple'|'green_crumple'|'black_crumple_1of1'|'coca_cola'
-  rarity_rank   INT NOT NULL,  -- 1=most common, 14=rarest
+  -- Base stickers (both Common — distinguished by regional layout):
+  --   'base_border'      = North American Base (1mm white border, matches parallel layout)
+  --   'base_borderless'  = International Base (no outer rim — also reused by Coca-Cola
+  --                        stickers, which are differentiated via sticker_type)
+  -- Standard retail border parallels (NA packs):
+  --   'blue'|'red'|'purple'|'green'|'black_1of1'
+  -- Retailer/regional exclusives:
+  --   'orange_amazon' (Amazon)|'swiss_green' (Switzerland United Edition — light green)
+  -- Panini iCollect online-exclusive Crumple parallels (gold_crumple replaces the
+  -- white-bordered base in iCollect packs; no smooth gold border exists in the main set):
+  --   'gold_crumple'|'blue_crumple'|'red_crumple'|
+  --   'purple_crumple'|'green_crumple'|'black_crumple_1of1'
+  -- Extra-sticker subset (background colour denotes rarity, outer border always white):
+  --   'extra_purple'|'extra_bronze'|'extra_silver'|'extra_gold'
+  rarity_rank   INT NOT NULL,  -- 1=most common; ascending toward rarest
   availability  TEXT NOT NULL,
-  -- 'retail'|'amazon_exclusive'|'panini_online'|'coca_cola'
+  -- 'retail'|'amazon_exclusive'|'panini_online'|'swiss_edition'|'coca_cola'
   UNIQUE (sticker_id, variant_type)
 );
 

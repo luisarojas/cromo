@@ -78,27 +78,60 @@ The complete group stage draw is as follows:
 
 ### 1.4 Sticker Variant / Rarity System
 
-The North American edition includes exclusive parallels in six border colours found in retail packs, plus exclusive Crumple variants only available in Panini's online iCollect format:
+Every variant of a base sticker is a **separate collectible** in the database. A user who owns sticker #247 as a Base and as a Red Parallel owns two distinct items.
 
-**US Retail Parallels:**
-- Blue — 1:2 packs
-- Red — 1:25 packs
-- Purple — 1:200 packs
-- Green — 1:1,400 packs
-- Black — 1/1 (unique)
-- Orange — Amazon exclusive boxes only
+#### Base Stickers & Standard Parallels (border colour denotes rarity)
 
-**iCollect Online Exclusive Crumple Parallels:**
-- Gold Flood Crumple — 6 per pack
-- Blue Crumple — 1:2 packs
-- Red Crumple — 1:26 packs
-- Purple Crumple — 1:204 packs
-- Green Crumple — 1:1,529 packs
-- Black Crumple — 1/1 (unique)
+Panini ships the base sticker in two regional layouts. Both are Common (rarity 1); they differ only in the presence of an outer rim:
 
-Fans can also find exclusive sticker editions on specially marked Coca-Cola and Coca-Cola Zero Sugar 20-oz bottles, peeled directly from the label. Panini has made room in the official album to store them.
+| Border Colour | Pack Odds | Rarity Tier | Notes |
+| --- | --- | --- | --- |
+| Base (No Border) | every pack (Intl) | Common | International edition (Mexico, Europe, South America, etc.) — borderless, purist layout. Variant token: `base_borderless`. |
+| Base (White Border) | every pack (NA) | Common | North American edition — 1mm white outer rim so the layout matches the colored parallels. Variant token: `base_border`. |
+| Blue | 1 in 2 packs | Uncommon | Standard parallel. |
+| Red | 1 in 25 packs | Rare | Standard parallel. |
+| Purple | 1 in 200 packs | Very Rare | Standard parallel. |
+| Green | 1 in 1,400 packs | Ultra Rare | Standard parallel — vivid emerald/grass green. |
+| Black | 1-of-1 | Masterpiece | Only one unique copy exists per player. |
 
-Each variant of a base sticker is a **separate collectible** in the database. A user who owns sticker #247 as a Base and as a Red Parallel owns two distinct items.
+#### Crumple Parallels — Panini iCollect online-exclusive boxes only
+
+Every standard border parallel has a textured Crumple counterpart in iCollect online boxes. **Gold Flood Crumple replaces the standard base sticker entirely** in iCollect packs (6 per pack) — there is no smooth, non-crumple gold border in the main set.
+
+| Crumple Variant | Online Pack Odds |
+| --- | --- |
+| Gold Flood Crumple | 6 per online pack (base) |
+| Blue Crumple | 1 in 2 packs |
+| Red Crumple | 1 in 26 packs |
+| Purple Crumple | 1 in 204 packs |
+| Green Crumple | 1 in 1,529 packs |
+| Black Crumple | 1-of-1 |
+
+#### Regional & Retailer Exclusives
+
+- **NA vs. International base split** — North American packs use the **white-bordered** base sticker (`base_border`) to match the layout of the colored parallels; international purist formats (Mexico, Europe, South America, etc.) use the **borderless** base sticker (`base_borderless`). Same photo/name layout in both — only the rim differs.
+- **Switzerland "United Edition"** — Light Green border parallels (`swiss_green`) in Swiss packs, with a country-specific album.
+- **Amazon Exclusive** — Orange border parallels (`orange_amazon`) in Amazon starter kits and boxes.
+- **Album formats** — Standard retail leans softcover; select markets (often via Amazon Collector's Tins or European bundles) get premium hardcover or metallised editions. The Swiss premium album cover is gold-foiled and is tracked as a separate `swiss_gold` *album edition* (not to be confused with the green `swiss_green` sticker variant).
+
+#### "Extra Stickers" Subset
+
+Twenty short-printed live-action stickers of global superstars (Messi, Ronaldo, Mbappé, Yamal, …) appear as an 8th bonus slot on average 1 in 100 international packs. They do not occupy a numbered album slot.
+
+**Visual rule:** the outer border of every Extra sticker is **always white**. Rarity is determined by the **background colour behind the action photo**, not by the rim. Extras have NO Crumple variants.
+
+| Background Colour | Rarity Tier |
+| --- | --- |
+| Purple / Burgundy | Base Extra (most common) |
+| Bronze | Uncommon |
+| Silver | Rare |
+| Gold | Ultra Rare |
+
+#### Coca-Cola Partnership Subset
+
+Twelve specific international stars (weighted toward North American talent — e.g. Lamine Yamal, Harry Kane, Weston McKennie, Alphonso Davies) appear on specially-marked 20-oz Coca-Cola and Coca-Cola Zero Sugar bottles in the USA. Peeling the label yields the physical sticker, which lives in a dedicated bonus section at the back of the album.
+
+Physical Coca-Cola stickers have **no border parallels and no Crumple variants** — every physical Coca-Cola sticker looks identical (`base_borderless`, the same variant token used by international core base stickers; the two are distinguished by `sticker_type`). Scanning the bottle labels unlocks digital-only "Fan Stickers" and "Cosmic" variants in the FIFA Panini Collection App; these app-only digital variants are out of scope for Stickfolio's physical-sticker tracking.
 
 
 ---

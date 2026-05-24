@@ -3,11 +3,25 @@
 -- Parallel variants apply to non-foil stickers only
 -- Coca-Cola stickers are separate records, not variants — see notes below
 
--- Step 1: Base variant for ALL CORE stickers (foil and non-foil).
+-- Step 1a: North American Base — white-bordered base sticker.
+-- Found in every NA retail pack and shares the bordered layout of the colored parallels.
 -- Coca-Cola stickers get their own base_borderless variant in 08_coca_cola_stickers.sql;
 -- Extra stickers get their own extra_* variants in 10_extra_stickers.sql.
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id, 'base_border', 1, 'retail'
+FROM stickers
+WHERE sticker_type NOT IN ('coca_cola_special', 'extra')
+ON CONFLICT (sticker_id, variant_type) DO NOTHING;
+
+-- Step 1b: International Base — borderless base sticker (no outer rim).
+-- Found in every international retail pack (Mexico, Europe, South America, etc.)
+-- where Panini ships the traditional purist edition. Identical photo/name layout to
+-- the NA base but with no border, since international packs don't include the
+-- colored parallels that the white border was designed to match.
+-- Coca-Cola stickers reuse the same base_borderless variant type (distinguished by
+-- sticker_type = 'coca_cola_special'); they are seeded separately.
+INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
+SELECT id, 'base_borderless', 1, 'retail'
 FROM stickers
 WHERE sticker_type NOT IN ('coca_cola_special', 'extra')
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;

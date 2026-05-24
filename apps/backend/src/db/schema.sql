@@ -561,10 +561,10 @@ STEP 2: CLASSIFY STICKER TYPE BY PHOTO STYLE & TEXT DIRECTION (Absolute Rules)
     ⇒ This is 100% CORE (stickerType = null).
     ⇒ CRITICAL: Even if the surface is shiny, metallic, or gold crumple, if it is a portrait, it is CORE. It can NEVER be "extra".
     ⇒ GOLD/METALLIC STICKER DECISION TREE — answer before writing stickerType:
-       Q: Is the background/backdrop BEHIND the player a wrinkled, crinkled metallic foil texture? (The player's face is always clearly visible — only the background is crinkled.)
+       Q: Is the metallic/gold appearance a WRINKLED, CRINKLED foil TEXTURE in the background behind the player? (The player's face is clearly visible — only the background is crinkled, and the photo is a posed studio portrait.)
          YES → gold_crumple core (stickerType = null, borderColor = "gold_crumple"). STOP. Do not evaluate as extra.
-         NO  → Is the metallic appearance ONLY a smooth, flat frame running at the sticker edges, with a normal unaffected photo in the center?
-           YES + "Extra Sticker"/"Panini Extra" text explicitly visible → extra metallic border (stickerType = "extra", borderColor = "extra_gold" etc.).
+         NO  → Is the photo a LIVE-ACTION mid-play shot with a SMOOTH (non-crinkled) metallic-coloured BACKGROUND (purple/burgundy, bronze, silver, or gold) filling the area behind the player, surrounded by a WHITE outer border, AND "Extra Sticker"/"Panini Extra" text visible on the front?
+           YES → extra (stickerType = "extra", borderColor describes the metallic BACKGROUND tier: "extra_purple" | "extra_bronze" | "extra_silver" | "extra_gold").
            NO  → re-examine.
   ↳ IF Live-Action Photo (mid-play, running, match action)
     ⇒ Coca-Cola stickers ARE the live-action photo stickers. If you see a live-action photo, your default classification is COCA-COLA SPECIAL.
@@ -578,10 +578,12 @@ STEP 3: ISOLATE THE BORDER COLOR (The 1mm Rim Test)
 • MANDATORY SELF-CHECK before writing borderColor: ask "Am I looking at the outermost physical edge of the sticker, or am I looking at the name bar/photo background?" If the answer is the latter, shift your focus outward to the actual cut edge.
 • Concrete example: blue outer rim + purple name bar → borderColor = "blue". The purple name bar does not exist for this field.
 • If the outer 1mm rim is clean sky/denim blue, the border is "blue" — even if the name bar or portrait background is bright purple or orange.
+• WHITE BORDER vs. NO BORDER (Common base disambiguation): If the rim is a clean solid white stripe that is clearly part of the sticker (not the table), the sticker is the NA white-bordered Base ("base_border"). If there is no rim at all — the player photo/name layout meets the cut edge with no stripe of any colour, including white — the sticker is the International borderless Base ("base_borderless"). Both are Common (rarity 1); the only difference is regional distribution.
 
 ══════════════════════════════════════════════════════════
 COLOR CLARIFICATION MATRIX
 ══════════════════════════════════════════════════════════
+• WHITE BORDER vs NO BORDER: The NA Base ("base_border") has a clean 1mm solid white rim hugging the cut edge. The International Base ("base_borderless") has NO rim at all — the photo/name layout extends to the cut edge with no stripe of any colour. Do not confuse a white tabletop/scanning mat behind the sticker with a white border; the white rim must be visibly part of the sticker, inside the physical cut line. Both are Common — only the regional distribution differs.
 • BLUE vs GREEN: Look closely at the outer rim. "Blue" is cool sky/ocean/denim blue. "Green" is vibrant emerald/grass green. Do not confuse a cool blue border with a green background.
 • GREEN vs LIGHT GREEN (SWISS): The standard Ultra Rare "green" parallel has a vivid, deeply saturated emerald or grass green. The Switzerland "United Edition" ("swiss_green") border is distinctly lighter — a soft mint or sage green, clearly paler and less saturated than vibrant emerald. If the outer rim is a pale, desaturated, mint-like green rather than vivid emerald, return "swiss_green".
 • PURPLE vs RED: "Purple" is a distinct violet/grape/eggplant with strong red-blue undertones. "Red" is pure primary fire-engine red or deep crimson with zero blue tint.
@@ -593,26 +595,35 @@ COLOR CLARIFICATION MATRIX
 Front layout:
   • Photo: POSED STUDIO PORTRAIT ONLY.
   • Lower-center: rounded name bar holding the player's name, then stats line below it (D.O.B., height, weight, club).
-  • Gold crumple variants: The BACKGROUND/BACKDROP behind the player is a wrinkled, crinkled metallic foil texture. The player's face and body are clearly visible — only the background behind them is crinkled foil. They are STILL CORE (stickerType = null) and borderColor = "gold_crumple".
-    CRITICAL DISTINCTION — crumple vs extra_gold:
-      Crumple: wrinkled/crinkled metallic foil in the BACKGROUND behind the player. Player is clearly visible. Background is the crinkled texture.
-      extra_gold: smooth, flat, untextured gold-coloured frame running ONLY along the sticker edges; background inside is a normal clean image.
-    Ask: is the crinkled texture in the background behind the player? → crumple (core). Is the gold a smooth flat frame at the edges only? → extra_gold (extra).
+  • Gold crumple variants: The BACKGROUND/BACKDROP behind the player is a wrinkled, crinkled metallic foil texture. The player's face and body are clearly visible — only the background behind them is crinkled foil. They are STILL CORE (stickerType = null) and borderColor = "gold_crumple". Note: gold_crumple is the iCollect-online base finish — there is NO smooth (non-crumple) gold border variant in the main set.
+    CRITICAL DISTINCTION — crumple (CORE) vs extra_gold (EXTRA):
+      Crumple: WRINKLED/CRINKLED metallic foil TEXTURE in the background of a POSED STUDIO PORTRAIT. Player is clearly visible, background is the crinkled texture. Core sticker.
+      extra_gold: SMOOTH (non-crinkled) gold-coloured BACKGROUND filling the area behind a LIVE-ACTION action photo, surrounded by a WHITE outer border, with "Extra Sticker" text on the front. Extra sticker.
+    Ask: portrait + crinkled background? → crumple (core). Live-action + smooth gold background + white outer rim + "Extra" text? → extra_gold (extra).
 
 Back layout:
   • Album code in center does NOT start with "EX".
 
-borderColor for CORE stickers (front-side only):
-  No visible outer stripe               → null                 (base, borderless)
-  Solid white outer stripe              → "white"              (Only if the sticker edge itself is white; ignore white tables!)
-  Solid blue outer stripe               → "blue"               (Often paired with purple/orange name backgrounds. Focus on the rim!)
-  Solid red outer stripe                → "red"
-  Solid purple outer stripe             → "purple"
+borderColor for CORE stickers (front-side only) — return the EXACT canonical token below:
+
+CRITICAL — TWO BASE VARIANTS:
+There are TWO Common base variants for core stickers, distinguished only by region:
+  • North American Base: photo + name bar inside a 1mm SOLID WHITE outer rim hugging the cut edge. Used in NA packs to match the bordered layout of the colored parallels.
+    → "base_border"
+  • International Base: photo + name bar with NO outer rim at all — the photo/name area extends straight to the cut edge with no colored or white stripe. Used in international packs (Mexico, Europe, South America, etc.).
+    → "base_borderless"
+Both are Common (rarity 1). Look at the 1mm rim ONLY: if the rim itself is a solid white stripe, return "base_border"; if there is NO rim at all (no stripe of any color, including white), return "base_borderless". Do not mistake a white tabletop or white scanning mat for a white border — the rim must be part of the sticker, inside the physical cut edge.
+
+  No outer stripe at all (no rim)       → "base_borderless"    (International Base — borderless; the photo/name layout meets the cut edge with no color stripe)
+  Solid white outer stripe              → "base_border"        (North American Base — 1mm white rim matching the bordered parallel layout. Only if the white is part of the sticker; ignore white tables/mats!)
+  Solid blue outer stripe               → "blue"               (Uncommon parallel. Often paired with purple/orange name backgrounds. Focus on the rim!)
+  Solid red outer stripe                → "red"                (Rare parallel)
+  Solid purple outer stripe             → "purple"             (Very Rare parallel)
   Solid vibrant emerald/grass green     → "green"              (Ultra Rare parallel — deeply saturated, vivid green)
   Solid light/mint/sage green           → "swiss_green"        (Switzerland United Edition — pale, desaturated, clearly lighter than emerald)
-  Solid black outer stripe              → "black"
-  Solid orange outer stripe             → "orange"
-  Gold crumple foil                     → "gold_crumple"
+  Solid black outer stripe              → "black_1of1"         (Masterpiece — 1-of-1)
+  Solid orange outer stripe             → "orange_amazon"      (Amazon-exclusive starter-kit/box parallel)
+  Gold crumple (wrinkled foil background) → "gold_crumple"     (iCollect online base — replaces the white-bordered base in iCollect packs; the only "gold" finish in the main set)
   Blue crumple foil                     → "blue_crumple"
   Red crumple foil                      → "red_crumple"
   Purple crumple foil                   → "purple_crumple"
@@ -623,8 +634,14 @@ borderColor for CORE stickers (front-side only):
 §B — EXTRA  →  stickerType = "extra"
 ══════════════════════════════════════════════════════════
 Front layout: Live-action match photo, country flag in LOWER-LEFT corner, horizontal name lower-center, "Extra Sticker" or "Panini Extra" text printed on front.
-Borders: Flat, smooth metallic frame. One of: "extra_purple", "extra_bronze", "extra_silver", "extra_gold".
-CRITICAL: Extra borders ONLY appear on live-action photos. A posed portrait can never have an extra border.
+Outer border: ALWAYS WHITE on every Extra sticker — the rim color never indicates rarity.
+Rarity is determined by the BACKGROUND COLOUR filling the area directly behind the action photo (between the photo and the white outer rim):
+  Purple / burgundy background → "extra_purple" (Base Extra — most common)
+  Bronze / copper metallic background → "extra_bronze" (Uncommon)
+  Silver metallic background → "extra_silver" (Rare)
+  Gold metallic background → "extra_gold" (Ultra Rare)
+Extras have NO Crumple variants. Extras are an ~1-in-100-pack 8th-slot bonus in international formats and do not occupy a numbered album page.
+CRITICAL: Extras ONLY appear on live-action photos with explicit "Extra Sticker"/"Panini Extra" text or an EX-prefixed album code. A posed studio portrait is never an Extra — it is CORE, regardless of how shiny the background looks.
 
 ══════════════════════════════════════════════════════════
 §C — COCA-COLA SPECIAL  →  stickerType = "coca_cola_special"
@@ -633,6 +650,13 @@ Front layout: Dynamic live-action photo fills the entire sticker edge-to-edge.
 TEXT LOCATION: Player name is printed strictly VERTICALLY (rotated 90°) running up the LEFT edge.
 Features: NO stats line, NO horizontal name bar, NO circular flag, NO outer border stripe.
 borderColor: Always "base_borderless".
+Coca-Cola stickers have NO parallel/border variants and NO Crumple variants — every physical Coca-Cola sticker looks identical (obtained by peeling the labels off specially-marked 20-oz Coca-Cola / Coca-Cola Zero bottles in the USA). They live in a dedicated bonus section at the back of the album. Digital "Fan Stickers" and "Cosmic" variants are app-only and out of scope for physical scanning.
+
+DISAMBIGUATION — Coca-Cola vs. International Core Base:
+Both Coca-Cola stickers and international core Base stickers return borderColor = "base_borderless" (neither has an outer rim). They are distinguished by the LAYOUT of the photo and name:
+  • Coca-Cola: edge-to-edge LIVE-ACTION photo, no name bar, name runs VERTICALLY up the LEFT edge. → stickerType = "coca_cola_special".
+  • International core Base: POSED STUDIO PORTRAIT with the rounded horizontal name bar in the lower-center and stats line below, exactly the same internal layout as the NA white-bordered base — only the white rim is absent. → stickerType = null.
+Do not classify a posed portrait as Coca-Cola just because it lacks a border. Coca-Cola requires the live-action edge-to-edge photo AND vertical left-edge name text.
 
 ══════════════════════════════════════════════════════════
 TEXT EXTRACTION RULES (PLAYER NAME)
@@ -801,8 +825,8 @@ ON CONFLICT (album_type_id, album_code) DO UPDATE SET
 
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id,
-       unnest(ARRAY['base_border', 'blue', 'red', 'purple', 'green', 'black_1of1']),
-       unnest(ARRAY[1, 2, 3, 4, 5, 6]),
+       unnest(ARRAY['base_border', 'base_borderless', 'blue', 'red', 'purple', 'green', 'black_1of1']),
+       unnest(ARRAY[1, 1, 2, 3, 4, 5, 6]),
        'retail'
 FROM stickers
 WHERE sticker_type = 'museum' AND album_code LIKE 'HC%'
@@ -838,7 +862,7 @@ ON CONFLICT (album_type_id, album_code) DO UPDATE SET
   position    = EXCLUDED.position;
 
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
-SELECT id, 'swiss_gold', 19, 'swiss_edition'
+SELECT id, 'swiss_green', 19, 'swiss_edition'
 FROM stickers
 WHERE album_code LIKE 'L%' AND sticker_type = 'museum' AND is_foil = true
   AND album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
