@@ -90,3 +90,20 @@ A promotional subset featuring **12 specific international stars** (including La
 
 - **Physical stickers** — obtained by peeling labels off specially-marked 20-oz Coca-Cola and Coca-Cola Zero Sugar bottles in the USA. They have **no border variants and no Crumple versions**; every physical Coca-Cola sticker looks identical. They live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (shared with international core base; distinguished via `sticker_type = 'coca_cola_special'`).
 - **Digital Album App** — scanning the bottle labels unlocks digital-only packs in the FIFA Panini Collection App with exclusive **"Fan Stickers"** and **"Cosmic" variants**. These are app-only and **out of scope** for Stickfolio's physical-sticker tracking.
+
+#### 6. Visual Identification — Front of Sticker
+
+Use this table to identify a sticker's `sticker_type` from a photo of its **front**. Every characteristic below is invariant within a type; if a scan/prompt/UI ever asserts otherwise, it is wrong.
+
+| Characteristic | Core | Extra | Coca-Cola |
+| --- | --- | --- | --- |
+| **Photo pose/type** | Posed studio portrait | Action shot | Action shot |
+| **FIFA 2026 logo position** | Upper-right corner | Upper-left corner | Upper-left corner |
+| **Sticker variants available** | No border (base, Intl), white border (base, NA), blue (border or crumple), red (border or crumple), purple (border or crumple), green (border or crumple), black (border or crumple), light green border (Switzerland only), orange border (Amazon purchase only) | Purple background, bronze background, silver background, gold background | None — every physical Coca-Cola sticker looks identical |
+| **Specific text on sticker** | None | "Extra sticker" text in upper-right corner | None |
+| **Player name position** | Lower middle. Below the name: D.O.B., height, weight, and club team. Background colour of this info block varies. | Lower middle, on a black background | Along the lower-left edge, displayed **vertically** |
+| **Country flag icon** | Lower-right, accompanied by the 3-letter country code | Lower-left corner AND used as the background behind the player | None |
+
+#### 7. Visual Identification — Back of Sticker
+
+The back of a sticker contains **only the album code** (e.g. `COL4`, `BRA19`, `FWC4`). Everything else (player name, country, sticker type, album slot) is derived from that code via the catalog. A scan that returns more than the album code from a back-of-sticker image is hallucinating — trust the code lookup, not the OCR'd surrounding text.
