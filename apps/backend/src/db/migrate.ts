@@ -1,6 +1,5 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '../env.js';
@@ -8,14 +7,14 @@ import { env } from '../env.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function runMigrations(pool: Pool): Promise<void> {
-  const db = drizzle(pool);
-  const migrationsFolder = path.resolve(__dirname, 'migrations');
+  const schemaPath = path.resolve(__dirname, 'schema.sql');
 
-  console.log('[migrate] Running database migrations from:', migrationsFolder);
+  console.log('[migrate] Applying schema from:', schemaPath);
 
-  await migrate(db, { migrationsFolder });
+  const sql = await readFile(schemaPath, 'utf8');
+  await pool.query(sql);
 
-  console.log('[migrate] Migrations complete.');
+  console.log('[migrate] Schema applied.');
 }
 
 // Allow running directly: tsx src/db/migrate.ts

@@ -30,11 +30,18 @@ function buildIdentifyPrompt(collectionName: string, scanPrompt?: string | null)
 
 The photo may contain ONE sticker or MULTIPLE stickers. Identify ALL stickers that are clearly visible.
 ${scanPrompt ? `\n${scanPrompt}\n` : ''}
-Respond ONLY with a valid JSON array. Each object must use these exact keys:
+
+CRITICAL: You must respond with a valid JSON object containing a "stickers" key holding an array of objects. 
+Use these exact keys for each sticker:
 stickerNumber, albumCode, playerName, teamFifaCode, borderColor, stickerType, confidence, reasoning
 
 Set any field that is not visible or not applicable to null.
-Return an array even if only one sticker is visible. No markdown, no explanation outside the JSON.`;
+Output Format Template:
+{
+  "stickers": [
+    { "stickerNumber": 12, "albumCode": "BRA5", "playerName": "Neymar Jr", "teamFifaCode": "BRA", "borderColor": "blue", "stickerType": null, "confidence": 0.95, "reasoning": "..." }
+  ]
+}`;
 }
 
 export async function identifySticker(
@@ -58,9 +65,14 @@ export async function identifySticker(
     },
     body: JSON.stringify({
       model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      max_tokens: 1024,
+      max_tokens: 3000, // Raised to prevent JSON clipping on complex/multiple extractions
       temperature: 0,
+      response_format: { type: 'json_object' }, // Tells Groq natively to return structured JSON
       messages: [
+        {
+          role: 'system',
+          content: 'You are a strict data extraction engine. Follow all visual formatting classification instructions exactly. Never include conversational prose.',
+        },
         {
           role: 'user',
           content: [
@@ -93,33 +105,35 @@ export async function identifySticker(
     throw new Error('No text response from Groq API');
   }
 
-  // Strip markdown code fences if the model wraps the JSON
-  const json = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-
-  let parsed: unknown;
+  let parsed: any;
   try {
-    parsed = JSON.parse(json);
+    parsed = JSON.parse(text);
   } catch {
-    throw new Error('Groq API returned non-JSON response');
+    throw new Error('Groq API returned invalid JSON syntax');
   }
 
-  const items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+  // Gracefully handle both the preferred wrapper object or an array fallback
+  const items: unknown[] = Array.isArray(parsed)
+    ? parsed
+    : (parsed.stickers && Array.isArray(parsed.stickers) ? parsed.stickers : [parsed]);
 
-  return items.map((item) => {
+  return items.map((item): ScanResult => {
     const p = item as Record<string, unknown>;
+
+    // Explicit camelCase parsing to align with ScanResult type signatures
     const albumCode = typeof p['albumCode'] === 'string' && p['albumCode'].length > 0 ? p['albumCode'] : null;
     const rawBorderColor = typeof p['borderColor'] === 'string' ? p['borderColor'] : null;
+
     const rawType = p['stickerType'] === 'extra' ? 'extra'
       : p['stickerType'] === 'coca_cola_special' ? 'coca_cola_special'
-      : null;
+        : null;
+
     const stickerType = reconcileStickerType(rawType, albumCode, rawBorderColor);
-    // Coca-Cola stickers are always the borderless base variant — they are full-bleed
-    // action photos with no border and no parallels. Force it server-side so the
-    // model can't return a misread foil/border colour for them.
     const borderColor = stickerType === 'coca_cola_special' ? 'base_borderless' : rawBorderColor;
+
     return {
       stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
-      albumCode,
+      albumCode, // Fixed variable mapping and casing alignment
       playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
       teamFifaCode: stickerType === 'coca_cola_special' ? null : (typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null),
       borderColor,
@@ -134,14 +148,22 @@ export async function identifySticker(
 // code (back-side decisive signal) or an extra_* borderColor (front-side decisive
 // signal). Without one of those, the model is almost certainly mistaking a shiny/foil
 // core sticker for an Extra. Trust the structured fields over the type label.
+const CRUMPLE_BORDERS = new Set([
+  'gold_crumple', 'blue_crumple', 'red_crumple',
+  'purple_crumple', 'green_crumple', 'black_crumple_1of1',
+]);
+
 function reconcileStickerType(
   rawType: 'extra' | 'coca_cola_special' | null,
   albumCode: string | null,
   borderColor: string | null,
 ): 'extra' | 'coca_cola_special' | null {
-  if (albumCode?.startsWith('EX')) return 'extra';
+  if (albumCode?.startsWith('EX') && rawType !== 'coca_cola_special') return 'extra';
 
   if (rawType === 'extra') {
+    // Crumple borders are a core-only finish — extra stickers never have them.
+    // If the model returned a crumple borderColor it misidentified the sticker.
+    if (borderColor && CRUMPLE_BORDERS.has(borderColor)) return null;
     if (albumCode && !albumCode.startsWith('EX')) return null;
     if (!borderColor?.startsWith('extra_')) return null;
   }

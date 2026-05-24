@@ -5,7 +5,8 @@ export const INTRO_STICKER_COUNT = 9
 export const MUSEUM_STICKER_COUNT = 11
 
 export const VARIANT_RARITY: Record<string, number> = {
-  base: 1,
+  base_border: 1,
+  base_borderless: 1,
   blue: 2,
   red: 3,
   purple: 4,
@@ -18,7 +19,6 @@ export const VARIANT_RARITY: Record<string, number> = {
   purple_crumple: 11,
   green_crumple: 12,
   black_crumple_1of1: 13,
-  coca_cola: 14,
   extra_purple: 15,
   extra_bronze: 16,
   extra_silver: 17,

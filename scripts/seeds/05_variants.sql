@@ -44,6 +44,6 @@ ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
 -- Step 6: Coca-Cola stickers are NOT variants of existing stickers.
 -- They are separate sticker records with sticker_type = 'coca_cola_special'.
--- Each gets only a single 'base_border' variant (no parallels).
+-- Each gets only a single 'base_borderless' variant (full-bleed action photo, no border).
 -- They are seeded separately once the official list is confirmed.
 -- See docs/runbooks/update-sticker-database.md for instructions.

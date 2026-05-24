@@ -21,5 +21,5 @@ Rules to follow:
 
 If both `setSerializerCompiler` and `setReplySerializer` need to be kept in sync (e.g. when changing the casing strategy), update both — losing one silently regresses every route on the wrong side of the schema/no-schema split.
 
-### No New SQL Migration Files — Edit Existing Ones
-Never create new `.sql` files under `apps/backend/src/db/migrations/`. There is nothing in production, so the database is always recreated from scratch. When schema changes are needed, edit the existing migration files directly. The migration journal (`apps/backend/src/db/migrations/meta/_journal.json`) should also never need new entries as a result.
+### Single Schema File — No Migration Files
+The database schema lives entirely in `apps/backend/src/db/schema.sql`. There are no incremental migration files. When schema changes are needed, edit `schema.sql` directly. The backend applies it at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`, which simply executes the file against the database. Every table and index uses `IF NOT EXISTS`, functions use `CREATE OR REPLACE`, and seed inserts use `ON CONFLICT`, so the file is safe to re-run on an existing database.

@@ -1,2 +1,0 @@
-ALTER TABLE trade_messages ALTER COLUMN sender_id DROP NOT NULL;
-ALTER TABLE trade_messages ADD COLUMN is_system BOOLEAN NOT NULL DEFAULT FALSE;

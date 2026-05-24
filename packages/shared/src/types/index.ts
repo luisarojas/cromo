@@ -63,7 +63,6 @@ export type VariantType =
   | 'purple_crumple'
   | 'green_crumple'
   | 'black_crumple_1of1'
-  | 'coca_cola'
   | 'extra_purple'
   | 'extra_bronze'
   | 'extra_silver'
