@@ -162,6 +162,7 @@ export async function getStickerByPlayerName(
   playerName: string,
   albumTypeKey?: string,
   stickerType?: string,
+  excludeSpecialTypes = false,
 ): Promise<StickerRow | null> {
   const { rows } = await db.query<StickerRow>(
     `SELECT s.sticker_id AS id, s.number, s.album_code, s.player_name, s.position,
@@ -182,8 +183,9 @@ export async function getStickerByPlayerName(
      WHERE s.player_name ILIKE $1
        AND ($2::text IS NULL OR at.key = $2)
        AND ($3::text IS NULL OR s.sticker_type = $3)
+       AND (NOT $4 OR s.sticker_type NOT IN ('extra', 'coca_cola_special'))
      LIMIT 1`,
-    [playerName, albumTypeKey ?? null, stickerType ?? null]
+    [playerName, albumTypeKey ?? null, stickerType ?? null, excludeSpecialTypes]
   );
   return rows[0] ?? null;
 }

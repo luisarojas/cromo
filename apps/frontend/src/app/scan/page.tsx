@@ -347,9 +347,14 @@ async function buildScanCard(
   if (!sticker && result.playerName) {
     // Match stickerType exactly: null AI result means base sticker (no special label detected),
     // so don't let it also match extra/coca-cola entries for the same player name.
+    // result.stickerType is null for core stickers (AI contract), but the catalog's
+    // stickerType is a non-null DB value ('player', 'badge', etc.). Treat null as
+    // "not a special type" — exclude extra and coca-cola, include everything else.
     const matches = catalog.filter(
       (s) => s.playerName?.toLowerCase() === result.playerName!.toLowerCase()
-        && s.stickerType === result.stickerType,
+        && (result.stickerType !== null
+          ? s.stickerType === result.stickerType
+          : s.stickerType !== 'extra' && s.stickerType !== 'coca_cola_special'),
     );
     if (matches.length === 1) {
       try {

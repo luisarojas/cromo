@@ -101,7 +101,13 @@ async function enrichFromCatalog(db: Pool, result: ScanResult, albumTypeKey?: st
         };
       }
     } else if (result.playerName) {
-      const row = await getStickerByPlayerName(db, result.playerName, albumTypeKey, result.stickerType ?? undefined);
+      // When stickerType is null the AI identified a core sticker. Exclude special types
+      // (extra, coca_cola_special) to avoid returning the wrong row for players who
+      // appear in multiple subsets (Mbappé, Messi, Yamal, etc.).
+      const row = await getStickerByPlayerName(
+        db, result.playerName, albumTypeKey, result.stickerType ?? undefined,
+        result.stickerType === null,
+      );
       if (row) {
         return {
           ...result,
