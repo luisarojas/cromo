@@ -87,7 +87,7 @@ Panini ships the base sticker in two regional layouts. Both are Common (rarity 1
 | Border Colour | Pack Odds | Rarity Tier | Notes |
 | --- | --- | --- | --- |
 | Base (No Border) | every pack (Intl) | Common | International edition (Mexico, Europe, South America, etc.) — borderless, purist layout. Variant token: `base_borderless`. |
-| Base (White Border) | every pack (NA) | Common | North American edition — 1mm white outer rim so the layout matches the colored parallels. Variant token: `base_border`. |
+| Base (White Border) | every pack (NA) | Common | North American edition — 3mm white outer rim so the layout matches the colored parallels. Variant token: `base_border`. |
 | Blue | 1 in 2 packs | Uncommon | Standard parallel. |
 | Red | 1 in 25 packs | Rare | Standard parallel. |
 | Purple | 1 in 200 packs | Very Rare | Standard parallel. |

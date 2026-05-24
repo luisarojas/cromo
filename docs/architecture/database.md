@@ -124,7 +124,7 @@ CREATE TABLE sticker_variants (
   sticker_id    UUID NOT NULL REFERENCES stickers(id),
   variant_type  TEXT NOT NULL,
   -- Base stickers (both Common — distinguished by regional layout):
-  --   'base_border'      = North American Base (1mm white border, matches parallel layout)
+  --   'base_border'      = North American Base (3mm white border, matches parallel layout)
   --   'base_borderless'  = International Base (no outer rim — also reused by Coca-Cola
   --                        stickers, which are differentiated via sticker_type)
   -- Standard retail border parallels (NA packs):

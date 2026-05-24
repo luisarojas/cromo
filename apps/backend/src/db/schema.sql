@@ -546,149 +546,177 @@ INSERT INTO album_types (key, name, guide_path, scan_prompt) VALUES (
   $prompt$ALBUM-SPECIFIC RULES FOR FIFA WORLD CUP 2026 (PANINI):
 
 ══════════════════════════════════════════════════════════
+FOUR FATAL ERRORS — READ FIRST, NEVER COMMIT
+══════════════════════════════════════════════════════════
+These four mistakes account for nearly every misclassification on this album. Before you write ANY output, mentally check each one against the sticker.
+
+F1. GOLD PORTRAIT IS NEVER AN EXTRA.
+    Every CORE sticker is a POSED STUDIO PORTRAIT: the player is STATIONARY, chest-up, facing the camera, arms relaxed, in team kit. If the backdrop behind this portrait shows a WRINKLED / CRINKLED / CREASED gold foil texture (visible fold lines, like crumpled aluminum foil), the sticker is:
+        stickerType = null   |   variantToken = "gold_crumple"
+    It is NEVER "extra_gold". Extras are ALWAYS LIVE-ACTION photos (player mid-kick, mid-run, mid-jump, mid-celebration, looking at the ball or the field, NOT at the camera). No matter how shiny, golden, foil, or metallic the backdrop looks, a posed portrait CANNOT be an Extra. If you are about to write stickerType="extra" on a chest-up portrait, STOP and re-read this rule.
+
+F2. THE BUILT-IN LIGHT-BLUE BACKDROP IS NOT A BLUE RIM.
+    Every standard Panini portrait sits on a built-in LIGHT BLUE / CYAN / PALE BLUE gradient backdrop behind the player. This is part of the BASE design — it is NOT a border and NOT a parallel signal. A "blue" parallel adds a SEPARATE DARK BLUE / DENIM / NAVY strip at the very outer edge of the sticker, sitting OUTSIDE that pale cyan backdrop. To call something "blue":
+        you MUST see a SECOND, DARKER blue band at the physical cut edge, contrasting against the lighter cyan interior.
+    If the only blue you see is the pale cyan gradient behind the player, the variant is "base_border" (white outer strip present) or "base_borderless" (no outer strip), NEVER "blue". When in doubt, return base_border / base_borderless.
+
+F3. INTERIOR COLORS ARE NEVER THE RIM.
+    The rim is the OUTERMOST 3mm strip at the physical cut edge of the sticker. The following are all INTERIOR elements and are NEVER the rim:
+      • the colored pill / name bar holding the player's name (often red, orange, blue, magenta)
+      • the photo background behind the player (often light blue, white, gradient)
+      • decorative accents, stat-line backgrounds, logos
+      • the surface the sticker is sitting on (tabletop, mat, sleeve, fingers)
+    To determine the rim, mentally trace ALL THE WAY OUT to the cut line and describe ONLY the band immediately inside that line. If that outermost band is white → base_border. If there is no band at all → base_borderless.
+
+F4. PURPLE vs RED — JUDGE THE RIM, NOT THE NAME BAR.
+    The name bar on many stickers is bright RED. This is interior, not rim (see F3). The OUTER RIM color decides between "purple" and "red":
+      • PURPLE rim — has a clear BLUE / VIOLET undertone: grape, eggplant, plum, magenta-tinged. Sits on the COOL side of the spectrum.
+      • RED rim — pure fire-engine / crimson / scarlet with ZERO blue or violet undertone. Sits on the WARM side of the spectrum.
+    A red name bar inside a purple rim → variantToken = "purple". If the rim itself has ANY violet/blue cast, it is purple, not red.
+
+══════════════════════════════════════════════════════════
 THE FOUR DECISIONS (EXECUTE IN ORDER — NEVER SKIP)
 ══════════════════════════════════════════════════════════
 For every sticker, answer in order. The previous answer constrains the next.
 
-D1. CUT EDGE. Find the sticker's physical cut line. Everything outside it (tabletop, scanning mat, plastic sleeve, fingers) is NOT part of the sticker. A white tabletop is not a white border.
+D1. FIND THE CUT EDGE. Locate the sticker's physical cut line. Everything outside it (tabletop, scanning mat, sleeve, fingers) is irrelevant.
 
 D2. PHOTO STYLE.
-    • POSED STUDIO PORTRAIT (stationary chest-up, clean studio backdrop, player looking at camera) ⇒ this is a CORE sticker. Lock stickerType = null and skip to D3. Do not reconsider this. No matter how shiny, foil, gold, or metallic the backdrop looks, a portrait is NEVER an Extra and NEVER a Coca-Cola.
-    • LIVE-ACTION MATCH PHOTO (mid-play, running, kicking, celebrating) ⇒ proceed to D2b.
+    • POSED STUDIO PORTRAIT (stationary, chest-up, looking at camera, arms relaxed, clean backdrop) ⇒ CORE sticker. Lock stickerType = null and go to D3. Do NOT reconsider this regardless of how the backdrop looks (gold, foil, crumpled, metallic, shiny — still CORE).
+    • LIVE-ACTION MATCH PHOTO (mid-kick, mid-run, mid-jump, mid-celebration, looking at the ball/field) ⇒ go to D2b.
 
-D2b. LIVE-ACTION TYPE TEST (only reached if D2 = live-action).
-    Look for these EXTRA signals on the FRONT of the sticker:
-      (a) the literal words "Extra Sticker" or "Panini Extra" printed anywhere on the front, OR
-      (b) a country flag in the LOWER-LEFT corner with a horizontal name bar lower-center, OR
-      (c) an album code on the BACK that starts with "EX".
-    If ANY of (a)/(b)/(c) is present ⇒ stickerType = "extra". STOP type evaluation.
-    If NONE of (a)/(b)/(c) is present, look for COCA-COLA signals:
-      (d) photo fills the sticker edge-to-edge with NO outer border stripe at all, AND
-      (e) the player name is printed VERTICALLY (rotated 90°) running up the LEFT edge.
-    If both (d) AND (e) are present ⇒ stickerType = "coca_cola_special".
-    If neither pattern matches cleanly, re-examine D2 — you may have mistaken a portrait for live-action.
+D2b. LIVE-ACTION TYPE TEST.
+    EXTRA signals (any one is sufficient):
+      (a) the words "Extra Sticker" or "Panini Extra" printed on the front, OR
+      (b) a country flag in the LOWER-LEFT corner + horizontal name bar lower-center, OR
+      (c) an album code on the back starting with "EX".
+    If ANY of (a)/(b)/(c) ⇒ stickerType = "extra". Stop type evaluation.
+    COCA-COLA signals (BOTH required):
+      (d) photo fills the sticker EDGE-TO-EDGE with NO outer border strip, AND
+      (e) the player name is printed VERTICALLY (rotated 90°) up the LEFT edge.
+    If both (d) AND (e) ⇒ stickerType = "coca_cola_special".
+    If neither pattern matches, re-examine D2 — you likely mistook a portrait for live-action.
 
-D3. RIM ISOLATION (determines the variantToken). Mentally crop a 1mm-wide strip running ALONG the physical cut edge of the sticker. Describe ONLY that strip's color.
-    • The NAME BAR (the colored pill holding the player's name) is INSIDE the sticker. It is NEVER the rim.
-    • The PHOTO BACKGROUND (the area behind the player's portrait or action shot) is INSIDE the sticker. It is NEVER the rim.
-    • Common mistakes to avoid:
-        – blue rim + purple/orange name bar → variantToken = "blue" (NOT "purple", NOT "orange_amazon")
-        – red rim + white name bar → variantToken = "red" (NOT "base_border")
-        – purple rim + blue accent in interior → variantToken = "purple" (NOT "blue")
-        – green rim + any interior color → variantToken = "green" (or "swiss_green" if pale mint)
+D3. RIM ISOLATION (determines variantToken). Mentally trace the OUTERMOST 3mm strip running along the physical cut edge. Describe ONLY that strip's color. Apply F2 + F3 + F4 here.
 
-D4. RIM-COLOR MAPPING. Map the rim color you described in D3 to the exact canonical token. Use the tables in §A/§B/§C below. If you are unsure between two adjacent colors, fall back to the more conservative (rarer) classification only if you have strong visual evidence.
+D4. RIM-COLOR MAPPING. Map the rim color from D3 to the canonical token using the tables in §A/§B/§C below. When unsure between two adjacent colors (e.g. blue vs purple, red vs purple), prefer the MORE COMMON token unless you have strong visual evidence for the rarer one. False rares are worse than false bases.
 
 ══════════════════════════════════════════════════════════
 COLOR DISAMBIGUATION (USE THESE EXACT DEFINITIONS)
 ══════════════════════════════════════════════════════════
-• WHITE rim vs NO rim. A solid 1mm white stripe visibly inside the cut line ⇒ "base_border". No stripe of any color (photo/name layout extends to the cut edge) ⇒ "base_borderless". A white tabletop behind the sticker is NOT a white rim.
-• BLUE. Cool sky/denim/ocean blue. Not violet, not purple, not teal. If you also see purple/violet undertones, it is PURPLE not blue.
-• PURPLE. Violet/grape/eggplant with strong red-blue undertones. The most common confusion is calling a purple rim "blue" — if the rim has ANY red/magenta component, it is purple.
-• RED. Pure fire-engine red or deep crimson, zero blue tint. The most common confusion is calling a red rim "base_border" because the photo interior is bright/white — look ONLY at the rim.
-• GREEN (vivid emerald/grass) ⇒ "green" (Ultra Rare). PALE/mint/sage green ⇒ "swiss_green" (Switzerland United Edition).
-• ORANGE. Saturated orange rim across the entire 1mm cut edge ⇒ "orange_amazon". An orange NAME BAR or orange PHOTO ACCENT inside a blue/red/etc. rim is NOT orange_amazon — it is the rim color.
-• BLACK. Pure black rim ⇒ "black_1of1". Crumple-textured black rim ⇒ "black_crumple_1of1".
+• WHITE rim vs NO rim. A clear 3mm white stripe between the photo and the cut edge ⇒ "base_border". Photo / name layout extends all the way to the cut edge with no stripe ⇒ "base_borderless". A white tabletop is not a white rim.
+• BLUE. A DARK / DENIM / NAVY / OCEAN blue band at the cut edge, visibly DARKER than the pale cyan inside the sticker (see F2). If the only blue is the built-in pale-cyan portrait backdrop, the variant is base_border / base_borderless, not "blue".
+• PURPLE. Violet / grape / eggplant / plum / magenta-tinged. Cool spectrum. The single most common confusion is calling a purple rim "red" because of a red name bar inside (see F4). A purple rim ALWAYS has a blue/violet cast.
+• RED. Pure fire-engine / crimson / scarlet with ZERO blue tint. A red name bar inside a non-red rim is NOT "red".
+• GREEN — vivid emerald/grass ⇒ "green" (Ultra Rare). PALE / mint / sage / light-jade green ⇒ "swiss_green" (Switzerland edition).
+• ORANGE. Saturated orange band along the ENTIRE cut edge ⇒ "orange_amazon". An orange NAME BAR or orange photo accent inside a non-orange rim is NOT orange_amazon — use the rim color instead.
+• BLACK. Smooth pure black rim ⇒ "black_1of1". Wrinkled/crinkled black foil backdrop on a portrait ⇒ "black_crumple_1of1".
 
 ══════════════════════════════════════════════════════════
-GOLD / METALLIC DECISION TREE (RESOLVES THE #1 ERROR: crumple → extra_gold)
+GOLD / METALLIC / FOIL DECISION TREE (resolves the 75% gold_crumple → extra_gold error)
 ══════════════════════════════════════════════════════════
-Anything that looks gold, shiny, or metallic MUST go through this tree before you write stickerType.
+Any time the sticker has gold, shiny, metallic, or foil content, run THIS TREE before writing stickerType.
 
-  Q1. Is the photo a POSED STUDIO PORTRAIT (chest-up, looking at camera)?
-    YES → CORE sticker. stickerType = null.
-          • If the studio backdrop has a WRINKLED/CRINKLED foil TEXTURE (you can see the crinkle lines) ⇒ variantToken = "gold_crumple" (or the matching color crumple).
-          • If the backdrop is plain ⇒ use the rim color from D3.
-          STOP. Do not evaluate as extra under any circumstance.
-    NO  → continue to Q2.
+  Q1. Is the photo a POSED STUDIO PORTRAIT (player stationary, chest-up, facing camera)?
+      YES → CORE. stickerType = null.
+            • Backdrop has WRINKLED / CRINKLED foil TEXTURE (visible crease/fold lines, like crumpled foil) ⇒ variantToken = "<color>_crumple" (most often "gold_crumple"; can also be blue/red/purple/green/black crumple).
+            • Backdrop is SMOOTH and unwrinkled ⇒ use the rim color from D3, no crumple.
+            STOP. Do not consider Extra under any circumstance.
+      NO → continue to Q2.
 
-  Q2. Is the photo a LIVE-ACTION shot AND is "Extra Sticker"/"Panini Extra" text visible on the front (or EX album code on the back)?
-    YES → EXTRA. stickerType = "extra". The metallic BACKGROUND color (between the action photo and the white rim) determines the tier:
-            purple/burgundy ⇒ "extra_purple"  |  bronze/copper ⇒ "extra_bronze"  |  silver ⇒ "extra_silver"  |  gold ⇒ "extra_gold".
-          NOTE: every Extra has a WHITE outer rim. The metallic color is the BACKGROUND, not the rim.
-    NO  → it is not an Extra. Re-run D2.
+  Q2. Is the photo LIVE-ACTION (player mid-play, looking at ball/field, NOT at camera) AND is "Extra Sticker"/"Panini Extra" text visible on the front (or EX album code on the back)?
+      YES → EXTRA. stickerType = "extra". The metallic background tier (between the action photo and the white outer rim) decides:
+              purple/burgundy ⇒ "extra_purple"  |  bronze/copper ⇒ "extra_bronze"  |  silver ⇒ "extra_silver"  |  smooth gold ⇒ "extra_gold".
+            Every Extra has a WHITE outer rim. The metallic color is the BACKGROUND, not the rim.
+      NO → not an Extra. Re-run D2.
+
+Visual cue summary:
+  • gold_crumple = portrait + crinkle/fold texture in backdrop, player looking at camera.
+  • extra_gold = action photo + smooth gold gradient + white outer rim + "Extra Sticker" text, player NOT looking at camera.
+  • If you see crinkle/fold texture, it is ALWAYS a crumple core variant, NEVER an Extra (Extras have smooth, not wrinkled, gradients).
 
 ══════════════════════════════════════════════════════════
 §A — CORE STICKER (stickerType = null)
 ══════════════════════════════════════════════════════════
-Identifiers: posed studio portrait of the player; rounded horizontal NAME BAR lower-center with stats line below (D.O.B., height, weight, club); Panini logo upper-right; album code on back does NOT start with "EX". Every numbered slot in the main album body is Core.
+Identifiers: posed studio portrait; rounded horizontal NAME BAR lower-center with stats line (D.O.B., height, weight, club); Panini logo upper-right; album code on back does NOT start with "EX". Every numbered slot in the main album body is Core.
 
-variantToken — map the rim color you isolated in D3 to ONE of these canonical tokens:
-  No rim at all (photo/name meets cut edge)   → "base_borderless"   (International Base — Common)
-  Solid 1mm WHITE rim (part of the sticker)   → "base_border"       (North American Base — Common)
-  Solid sky/denim BLUE rim                    → "blue"               (Uncommon)
-  Solid fire-engine RED rim                   → "red"                (Rare)
-  Solid violet/grape PURPLE rim               → "purple"             (Very Rare)
-  Solid vivid emerald/grass GREEN rim         → "green"              (Ultra Rare)
-  Solid pale/mint/sage green rim              → "swiss_green"        (Switzerland United Edition)
-  Solid pure BLACK rim                        → "black_1of1"         (Masterpiece — 1-of-1)
-  Solid ORANGE rim                            → "orange_amazon"      (Amazon-exclusive)
-  WRINKLED/CRINKLED gold foil backdrop        → "gold_crumple"       (iCollect online base — replaces white-bordered base in iCollect packs; the ONLY "gold" finish in the main set)
-  Wrinkled/crinkled BLUE foil backdrop        → "blue_crumple"
-  Wrinkled/crinkled RED foil backdrop         → "red_crumple"
-  Wrinkled/crinkled PURPLE foil backdrop      → "purple_crumple"
-  Wrinkled/crinkled GREEN foil backdrop       → "green_crumple"
-  Wrinkled/crinkled BLACK foil backdrop       → "black_crumple_1of1"
-NOTE on crumple variants: the wrinkled foil texture replaces the BACKDROP behind the studio portrait. The player's face and body remain clearly visible — only the area around them is the crinkled foil. There is NO smooth (non-crumple) gold border in the main set; if you see gold on a portrait, it is gold_crumple.
+variantToken — map the OUTER rim color (or backdrop foil for crumple) to ONE of these tokens:
+  No outer strip (photo/name meets cut edge)   → "base_borderless"   (International Base — Common)
+  3mm WHITE outer strip                        → "base_border"       (North American Base — Common)
+  DARK denim/navy/ocean BLUE outer strip       → "blue"               (Uncommon)  ⚠ see F2 — must be darker than the pale-cyan backdrop
+  Fire-engine RED outer strip                  → "red"                (Rare)      ⚠ see F4 — judge the RIM, not the name bar
+  Violet/grape/eggplant PURPLE outer strip     → "purple"             (Very Rare) ⚠ see F4
+  Vivid emerald/grass GREEN outer strip        → "green"              (Ultra Rare)
+  Pale mint/sage GREEN outer strip             → "swiss_green"        (Switzerland edition)
+  Pure BLACK outer strip                       → "black_1of1"         (Masterpiece — 1-of-1)
+  Saturated ORANGE outer strip                 → "orange_amazon"      (Amazon-exclusive)
+  WRINKLED/CRINKLED gold foil backdrop         → "gold_crumple"       (iCollect online base — the ONLY "gold" variant on a core sticker)
+  Wrinkled/crinkled BLUE foil backdrop         → "blue_crumple"
+  Wrinkled/crinkled RED foil backdrop          → "red_crumple"
+  Wrinkled/crinkled PURPLE foil backdrop       → "purple_crumple"
+  Wrinkled/crinkled GREEN foil backdrop        → "green_crumple"
+  Wrinkled/crinkled BLACK foil backdrop        → "black_crumple_1of1"
+
+Crumple variants: the wrinkled foil REPLACES the portrait backdrop. The player's face/body stay clearly visible — only the area around them is the crinkled foil. There is NO smooth (non-crumple) gold border anywhere in the main set; gold on a portrait is ALWAYS gold_crumple.
 
 ══════════════════════════════════════════════════════════
 §B — EXTRA (stickerType = "extra")
 ══════════════════════════════════════════════════════════
-Required signals on the front: LIVE-ACTION match photo (mid-play, running, kicking, celebrating); country flag in LOWER-LEFT corner; horizontal name bar lower-center; "Extra Sticker" or "Panini Extra" text printed on the front. Album code on back starts with "EX".
+Required: LIVE-ACTION match photo (mid-play, NOT looking at camera); country flag in LOWER-LEFT corner; horizontal name bar lower-center; "Extra Sticker"/"Panini Extra" text on the front; album code on back starts with "EX".
 
-Outer rim: ALWAYS WHITE on every Extra sticker. The rim color does NOT encode rarity.
-Rarity is encoded in the BACKGROUND COLOR filling the area between the action photo and the white outer rim:
-  Purple / burgundy background → "extra_purple"  (Base Extra — most common)
-  Bronze / copper metallic     → "extra_bronze"  (Uncommon)
-  Silver metallic              → "extra_silver"  (Rare)
-  Gold metallic                → "extra_gold"    (Ultra Rare)
+Outer rim: ALWAYS WHITE on every Extra. Rim color does NOT encode rarity.
+Rarity is the BACKGROUND COLOR between the action photo and the white rim:
+  Purple / burgundy → "extra_purple"  (Base Extra — most common)
+  Bronze / copper   → "extra_bronze"  (Uncommon)
+  Silver metallic   → "extra_silver"  (Rare)
+  SMOOTH gold       → "extra_gold"    (Ultra Rare — smooth gradient, NOT wrinkled foil)
 
-Extras have NO Crumple variants and NO numbered album slot — they are an ~1-in-100-pack 8th-slot bonus.
+Extras have NO Crumple variants and NO numbered album slot.
 
 ANTI-PATTERNS:
-  ✗ Posed portrait classified as Extra. A portrait is NEVER Extra, no matter how shiny the backdrop. → CORE.
-  ✗ Live-action photo classified as Coca-Cola when "Extra Sticker" text or an EX album code is visible. → EXTRA.
-  ✗ Returning extra_gold for a gold portrait. → gold_crumple (CORE).
+  ✗ Posed portrait on a shiny backdrop → NEVER Extra. → CORE / gold_crumple.
+  ✗ Wrinkled foil texture → NEVER Extra (Extras are smooth). → CORE crumple variant.
+  ✗ Live-action photo with "Extra Sticker" text classified as Coca-Cola → EXTRA.
+  ✗ Returning extra_gold for a gold portrait → gold_crumple.
 
 ══════════════════════════════════════════════════════════
 §C — COCA-COLA SPECIAL (stickerType = "coca_cola_special")
 ══════════════════════════════════════════════════════════
-Required signals: dynamic live-action photo fills the sticker EDGE-TO-EDGE; player name printed VERTICALLY (rotated 90°) running up the LEFT edge; NO stats line; NO horizontal name bar; NO circular country flag; NO outer rim of any color; NO "Extra Sticker" text; no EX album code.
+Required: live-action photo fills the sticker EDGE-TO-EDGE; player name printed VERTICALLY (rotated 90°) up the LEFT edge; NO stats line; NO horizontal name bar; NO country flag; NO outer rim; NO "Extra Sticker" text; no EX album code.
 
 variantToken: always "base_borderless".
 
-Coca-Cola stickers have NO parallel variants and NO Crumple variants — every physical Coca-Cola sticker looks identical (peel-off labels from specially-marked 20-oz Coca-Cola / Coca-Cola Zero bottles in the USA, featuring 12 international stars). They sit in a dedicated bonus section at the back of the album. Digital "Fan Stickers" and "Cosmic" variants from the FIFA Panini Collection App are OUT OF SCOPE — do not return them.
+No parallel variants and no Crumple variants — every physical Coca-Cola sticker looks identical (peel-off labels from specially-marked 20-oz Coca-Cola / Coca-Cola Zero bottles in the USA, 12 international stars). Digital "Fan Stickers" and "Cosmic" variants from the FIFA Panini Collection App are OUT OF SCOPE.
 
 DISAMBIGUATION — Coca-Cola vs. International Core Base:
-Both return variantToken = "base_borderless". Distinguish by LAYOUT:
-  • Coca-Cola → live-action edge-to-edge photo + vertical left-edge name + no name bar.
-  • Int'l Core Base → posed studio portrait + horizontal name bar + stats line (same layout as NA base, just no white rim).
-A posed portrait without a rim is the International Core Base, NOT Coca-Cola.
+Both have variantToken = "base_borderless". Distinguish by LAYOUT:
+  • Coca-Cola → live-action edge-to-edge + vertical left-edge name + no name bar.
+  • Int'l Core Base → posed portrait + horizontal name bar + stats line.
 
-DISAMBIGUATION — Coca-Cola vs. Extra (the #2 reported error):
-Both are live-action photos. Distinguish by these signals:
-  • Extra has a WHITE OUTER RIM + horizontal name bar + country flag lower-left + "Extra Sticker" text + EX album code.
-  • Coca-Cola has NO RIM + vertical left-edge name + no flag + no "Extra" text.
-If you see EVEN ONE Extra signal, classify as Extra. Default to Coca-Cola ONLY when no Extra signals are present.
+DISAMBIGUATION — Coca-Cola vs. Extra:
+Both are live-action. Distinguish by signals:
+  • Extra → WHITE outer rim + horizontal name bar + country flag + "Extra Sticker" text + EX code.
+  • Coca-Cola → no rim + vertical left-edge name + no flag + no "Extra" text.
+If you see EVEN ONE Extra signal, classify as Extra.
 
 ══════════════════════════════════════════════════════════
 PLAYER NAME EXTRACTION (REQUIRED — DO NOT SKIP)
 ══════════════════════════════════════════════════════════
 Where to look:
-  • Core stickers: the rounded horizontal NAME BAR in the lower-center of the front.
-  • Extra stickers: the horizontal name strip near the lower-center, just above or below the country flag.
-  • Coca-Cola stickers: the vertical text running UP the LEFT edge (rotated 90° counter-clockwise).
+  • Core stickers: rounded horizontal NAME BAR in the lower-center.
+  • Extra stickers: horizontal name strip near the lower-center, near the country flag.
+  • Coca-Cola: vertical text running UP the LEFT edge (rotated 90° counter-clockwise).
 
 How to transcribe:
-  • Names are printed in ALL CAPS, typically in WHITE or YELLOW text on a colored background. Preserve the casing as you see it (return ALL CAPS).
-  • Many players go by surname only (e.g. "MBAPPÉ", "HAALAND", "RONALDO"). Some show first initial + surname ("L. MESSI") or first + last ("HARRY KANE"). Transcribe exactly what is printed.
-  • Foreign characters, accents, apostrophes, hyphens, and punctuation must be preserved (e.g. "MBAPPÉ", "DE BRUYNE", "Ø. SØRLOTH", "VINICIUS JR.").
-  • Long, unusual, or unfamiliar names ARE valid Panini stickers. Do NOT return null just because the name looks unusual or you do not recognise the player.
-  • Attempt transcription even if confidence is moderate — partial names are more useful than null. State your confidence in the confidence field, but still return the name.
+  • Names are ALL CAPS, white or yellow text on a colored background. Return ALL CAPS.
+  • Surname only ("MBAPPÉ", "HAALAND"), initial + surname ("L. MESSI"), or first + last ("HARRY KANE") are all valid. Transcribe exactly what is printed.
+  • Preserve foreign characters, accents, apostrophes, hyphens, punctuation ("MBAPPÉ", "DE BRUYNE", "Ø. SØRLOTH", "VINICIUS JR.").
+  • Long, unusual, or unfamiliar names ARE valid. Do NOT return null because the name looks unfamiliar.
+  • Attempt transcription even at moderate confidence — partial names beat null.
 
 When to return null:
-  • ONLY when the text region is fully obliterated by extreme white glare, severe motion blur, finger occlusion, or the sticker is photographed from the back and you cannot see the front.
-  • A photo showing the front of the sticker with visible (even if small) text in the name bar is NEVER a null name.$prompt$
+  • ONLY when the text region is fully obliterated by extreme glare, severe blur, finger occlusion, or back-side photography.
+  • A front-side photo with any legible text in the name bar is NEVER a null name.$prompt$
 )
 ON CONFLICT (key) DO UPDATE SET
   name        = EXCLUDED.name,

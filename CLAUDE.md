@@ -44,7 +44,7 @@ Panini ships the standard base in two regional layouts. In regions with colored 
 | Border Colour | Average Pack Odds | Rarity Tier & Notes | Variant token |
 | --- | --- | --- | --- |
 | **Base (No Border)** | every pack (Intl) | **Common** — international editions (Mexico, Europe, South America). | `base_borderless` |
-| **Base (White Border)** | every pack (NA) | **Common** — North American packs, white 1mm rim matching the parallel layout. | `base_border` |
+| **Base (White Border)** | every pack (NA) | **Common** — North American packs, white 3mm rim matching the parallel layout. | `base_border` |
 | **Blue** | 1 in 2 packs | **Uncommon** | `blue` |
 | **Red** | 1 in 25 packs | **Rare** | `red` |
 | **Purple** | 1 in 200 packs | **Very Rare** | `purple` |
