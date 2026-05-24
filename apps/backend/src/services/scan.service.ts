@@ -68,6 +68,19 @@ Output Format Template:
 }`;
 }
 
+const MAX_RETRIES = 3;
+
+function parseRetryAfterMs(responseBody: string, headers: Headers): number {
+  const retryAfterHeader = headers.get('retry-after');
+  if (retryAfterHeader) {
+    const seconds = parseFloat(retryAfterHeader);
+    if (!isNaN(seconds)) return Math.ceil(seconds * 1000) + 500;
+  }
+  const match = responseBody.match(/try again in ([\d.]+)s/i);
+  if (match) return Math.ceil(parseFloat(match[1]) * 1000) + 500;
+  return 10_000;
+}
+
 export async function identifySticker(
   imageBuffer: Buffer,
   mimeType: string,
@@ -81,46 +94,59 @@ export async function identifySticker(
   const normalizedBuffer = await sharp(imageBuffer).rotate().toBuffer();
   const base64Image = normalizedBuffer.toString('base64');
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'authorization': `Bearer ${env.GROQ_API_KEY}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      max_tokens: 3000, // Raised to prevent JSON clipping on complex/multiple extractions
-      temperature: 0,
-      response_format: { type: 'json_object' }, // Tells Groq natively to return structured JSON
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a strict data extraction engine. Follow all visual formatting classification instructions exactly. Never include conversational prose.',
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image_url',
-              image_url: { url: `data:${mimeType};base64,${base64Image}` },
-            },
-            {
-              type: 'text',
-              text: buildIdentifyPrompt(collectionName, scanPrompt),
-            },
-          ],
-        },
-      ],
-    }),
-    signal: AbortSignal.timeout(30_000),
+  const requestBody = JSON.stringify({
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    max_tokens: 3000, // Raised to prevent JSON clipping on complex/multiple extractions
+    temperature: 0,
+    response_format: { type: 'json_object' }, // Tells Groq natively to return structured JSON
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a strict data extraction engine. Follow all visual formatting classification instructions exactly. Never include conversational prose.',
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: `data:${mimeType};base64,${base64Image}` },
+          },
+          {
+            type: 'text',
+            text: buildIdentifyPrompt(collectionName, scanPrompt),
+          },
+        ],
+      },
+    ],
   });
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => response.statusText);
-    throw new Error(`Groq API error ${response.status}: ${text}`);
+  let response: Response | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'authorization': `Bearer ${env.GROQ_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: requestBody,
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (response.status !== 429) break;
+
+    if (attempt === MAX_RETRIES) break;
+
+    const errorText = await response.text().catch(() => '');
+    const delayMs = parseRetryAfterMs(errorText, response.headers);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
   }
 
-  const data = await response.json() as {
+  if (!response!.ok) {
+    const text = await response!.text().catch(() => response!.statusText);
+    throw new Error(`Groq API error ${response!.status}: ${text}`);
+  }
+
+  const data = await response!.json() as {
     choices: { message: { content: string } }[];
   };
 
