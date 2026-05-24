@@ -78,6 +78,15 @@ async function getAlbumTypeInfo(
   return { name: rows[0]?.name ?? 'sticker collection', scanPrompt: rows[0]?.scan_prompt ?? null };
 }
 
+// The scan prompt instructs the model to leave stickerType null on back-of-sticker
+// scans (only the album code is visible). Forward that catalog value to the client
+// so downstream UI labels and variant defaults stay correct without a second lookup.
+function catalogStickerType(rowType: string): 'extra' | 'coca_cola_special' | null {
+  if (rowType === 'extra') return 'extra';
+  if (rowType === 'coca_cola_special') return 'coca_cola_special';
+  return null;
+}
+
 async function enrichFromCatalog(db: Pool, result: ScanResult, albumTypeKey?: string): Promise<ScanResult> {
   try {
     if (result.albumCode) {
@@ -88,6 +97,7 @@ async function enrichFromCatalog(db: Pool, result: ScanResult, albumTypeKey?: st
           stickerNumber: result.stickerNumber ?? row.number,
           playerName: result.playerName ?? row.player_name,
           teamFifaCode: result.teamFifaCode ?? row.fifa_code,
+          stickerType: result.stickerType ?? catalogStickerType(row.sticker_type),
         };
       }
     } else if (result.playerName) {
@@ -98,6 +108,7 @@ async function enrichFromCatalog(db: Pool, result: ScanResult, albumTypeKey?: st
           albumCode: row.album_code,
           stickerNumber: result.stickerNumber ?? row.number,
           teamFifaCode: result.teamFifaCode ?? row.fifa_code,
+          stickerType: result.stickerType ?? catalogStickerType(row.sticker_type),
         };
       }
     }

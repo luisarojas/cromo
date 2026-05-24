@@ -363,7 +363,10 @@ async function buildScanCard(
 
   return {
     sourcePreview,
-    albumCode: sticker?.albumCode ?? '',
+    // Preserve the AI's detected album code even when the catalog lookup misses,
+    // so back-of-sticker scans surface the read code in the UI for the user to
+    // verify or override via the Sticker dropdown.
+    albumCode: sticker?.albumCode ?? result.albumCode ?? '',
     teamFifaCode: sticker?.fifaCode ?? result.teamFifaCode ?? '',
     teamName: sticker?.teamName ?? '',
     stickerNumber: sticker?.number ?? result.stickerNumber,

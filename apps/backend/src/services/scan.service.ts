@@ -60,10 +60,13 @@ stickerNumber, albumCode, playerName, teamFifaCode, variantToken, stickerType, c
 
 Set any field that is not visible or not applicable to null. Do NOT invent values.
 
+albumCode is the code printed on the BACK of a sticker (e.g. "BRA5", "EX12", "CC4"). When you are looking at the FRONT of a sticker, this code is NOT visible — leave albumCode null. When you are looking at the BACK of a sticker, the code is the ONLY information available — return the code as albumCode and leave the other classification fields (stickerType, variantToken, playerName, stickerNumber, teamFifaCode) null. The backend resolves those from the code.
+
 Output Format Template:
 {
   "stickers": [
-    { "stickerNumber": 12, "albumCode": "BRA5", "playerName": "NEYMAR JR", "teamFifaCode": "BRA", "variantToken": "<token from album rules>", "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: <…>. VARIANT_SIGNAL: <…>. INTERIOR: <…>. TYPE_TEST: <…>. TOKEN_PICK: <…>." }
+    { "stickerNumber": 12, "albumCode": null,  "playerName": "NEYMAR JR", "teamFifaCode": "BRA", "variantToken": "<token from album rules>", "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: <…>. VARIANT_SIGNAL: <…>. INTERIOR: <…>. TYPE_TEST: <…>. TOKEN_PICK: <…>." },
+    { "stickerNumber": null, "albumCode": "ARG7", "playerName": null,        "teamFifaCode": null,  "variantToken": null,                       "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: back side of sticker, only album code visible. VARIANT_SIGNAL: n/a (back side). INTERIOR: n/a. TYPE_TEST: skipped, back side. TOKEN_PICK: backend resolves from albumCode ARG7." }
   ]
 }`;
 }
@@ -208,7 +211,11 @@ function reconcileStickerType(
   albumCode: string | null,
   variantToken: string | null,
 ): 'extra' | 'coca_cola_special' | null {
+  // Back-of-sticker scans only carry an album code. The code's prefix is a
+  // decisive signal for stickerType, overriding any guess the model made when
+  // it had no front-side evidence to read from.
   if (albumCode?.startsWith('EX') && rawType !== 'coca_cola_special') return 'extra';
+  if (albumCode?.startsWith('CC') && rawType !== 'extra') return 'coca_cola_special';
 
   if (rawType === 'extra') {
     // Crumple variants are a core-only finish — extra stickers never have them.
