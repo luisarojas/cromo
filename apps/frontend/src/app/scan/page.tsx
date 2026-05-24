@@ -635,12 +635,28 @@ function ScanMode() {
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {staged.map((item, i) => (
-                  <img
-                    key={i}
-                    src={item.preview}
-                    alt={`Image ${i + 1}`}
-                    className="rounded-lg object-cover w-full aspect-square border border-gray-200"
-                  />
+                  <div key={i} className="relative group">
+                    <img
+                      src={item.preview}
+                      alt={`Image ${i + 1}`}
+                      className="rounded-lg object-cover w-full aspect-square border border-gray-200"
+                    />
+                    <button
+                      onClick={() => {
+                        URL.revokeObjectURL(item.preview);
+                        const next = staged.filter((_, j) => j !== i);
+                        if (next.length === 0) {
+                          reset();
+                        } else {
+                          setStaged(next);
+                        }
+                      }}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+                      aria-label={`Remove image ${i + 1}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ))}
               </div>
               <button
@@ -702,12 +718,12 @@ function ScanMode() {
 
                 return (
                   <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                    <img
+                      src={card.sourcePreview}
+                      alt={`Sticker ${idx + 1}`}
+                      className="w-full rounded-lg object-contain max-h-64 border border-gray-200 bg-gray-50"
+                    />
                     <div className="flex items-center gap-2 flex-wrap">
-                      <img
-                        src={card.sourcePreview}
-                        alt={`Sticker ${idx + 1}`}
-                        className="w-12 h-12 rounded-lg object-cover border border-gray-100 shrink-0"
-                      />
                       <MatchBadge matchType={card.matchType} />
                     </div>
 
