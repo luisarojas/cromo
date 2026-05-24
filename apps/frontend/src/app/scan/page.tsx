@@ -337,7 +337,7 @@ async function buildScanCard(
     try {
       sticker = await fetchStickerByAlbumCode(result.albumCode, token);
       variants = await fetchStickerVariants(result.albumCode, token);
-      selectedVariantId = pickVariantId(variants, result.borderColor, !!result.albumCode);
+      selectedVariantId = pickVariantId(variants, result.variantToken, !!result.albumCode);
       matchType = 'code';
     } catch { /* sticker not in catalog */ }
   }
@@ -355,7 +355,7 @@ async function buildScanCard(
       try {
         sticker = await fetchStickerByAlbumCode(matches[0]!.albumCode, token);
         variants = await fetchStickerVariants(matches[0]!.albumCode, token);
-        selectedVariantId = pickVariantId(variants, result.borderColor, !!result.albumCode);
+        selectedVariantId = pickVariantId(variants, result.variantToken, !!result.albumCode);
         matchType = 'name';
       } catch { /* ignore */ }
     }
@@ -367,7 +367,7 @@ async function buildScanCard(
     teamFifaCode: sticker?.fifaCode ?? result.teamFifaCode ?? '',
     teamName: sticker?.teamName ?? '',
     stickerNumber: sticker?.number ?? result.stickerNumber,
-    borderVariantType: result.borderColor ?? '',
+    borderVariantType: result.variantToken ?? '',
     sticker,
     variants,
     selectedVariantId,

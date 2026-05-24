@@ -34,7 +34,7 @@ Hard rules that follow from this model (call these out in any PR that touches st
 - Extra stickers' outer border is **always white**. Rarity is encoded in the background colour behind the action photo, never in the rim. Extras have no Crumple variants and no album slot.
 - Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Stickfolio (physical-only).
 - `swiss_green` is the Switzerland "United Edition" **sticker border variant** (light/mint/sage green). `swiss_gold` is the **album edition key** for the Swiss gold-foiled premium album cover. Do not conflate them.
-- The AI scan prompt must return **canonical `variant_type` tokens** for `borderColor` (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black_1of1"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`, …). The frontend's `pickVariantId` does exact match first, `startsWith` fallback second.
+- The AI scan prompt must return **canonical `variant_type` tokens** in the `variantToken` field (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black_1of1"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`, …). The frontend's `pickVariantId` does exact match first, `startsWith` fallback second.
 - The full canonical variant list lives in `packages/shared/src/types/index.ts` (`VariantType` union) and `packages/shared/src/constants/index.ts` (`VARIANT_RARITY`). Display labels live in `apps/frontend/src/app/album/components/variantMeta.ts`. Add new variants in all three files in lockstep.
 
 #### 1. Base Stickers & Standard Parallels (Border Variants)

@@ -1438,7 +1438,7 @@ export interface ScanResult {
   albumCode: string | null;
   playerName: string | null;
   teamFifaCode: string | null;
-  borderColor: string | null;
+  variantToken: string | null;
   stickerType: string | null;
   confidence: number;
   reasoning: string;

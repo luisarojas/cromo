@@ -6,7 +6,7 @@ export interface ScanResult {
   albumCode: string | null;
   playerName: string | null;
   teamFifaCode: string | null;
-  borderColor: string | null;
+  variantToken: string | null;
   stickerType: string | null;
   confidence: number;
   reasoning: string;
@@ -18,7 +18,7 @@ const MOCK_RESULTS: ScanResult[] = [
     albumCode: 'BRA5',
     playerName: 'Vinicius Jr.',
     teamFifaCode: 'BRA',
-    borderColor: null,
+    variantToken: null,
     stickerType: null,
     confidence: 0.94,
     reasoning: 'Mock response — AI scanning disabled in local mode',
@@ -31,15 +31,39 @@ function buildIdentifyPrompt(collectionName: string, scanPrompt?: string | null)
 The photo may contain ONE sticker or MULTIPLE stickers. Identify ALL stickers that are clearly visible.
 ${scanPrompt ? `\n${scanPrompt}\n` : ''}
 
-CRITICAL: You must respond with a valid JSON object containing a "stickers" key holding an array of objects. 
-Use these exact keys for each sticker:
-stickerNumber, albumCode, playerName, teamFifaCode, borderColor, stickerType, confidence, reasoning
+══════════════════════════════════════════════════════════
+GENERIC GUARDRAILS (APPLY TO EVERY ALBUM)
+══════════════════════════════════════════════════════════
+G1. The album-specific rules above are AUTHORITATIVE for sticker types, variant tokens, and rarity classifications. The variant-token output field is a canonical token chosen from the album's variant vocabulary, NOT a free-form description — return only tokens the album rules list, and return null if no listed token clearly applies. Never invent a stickerType or variant token value.
+G2. Sticker designs (which visual feature distinguishes variants — an outer rim, a foil pattern, a background tier, a holographic effect, a corner stamp, etc.) are defined PER ALBUM. Read the album-specific rules above for the exact disambiguation signal, and base your variant-token decision on THAT signal. Do not assume conventions from other collections.
+G3. Do not confuse the surface UNDER the sticker (tabletop, scanning mat, plastic sleeve, fingers) with the sticker itself. Everything outside the physical cut edge of the sticker is irrelevant.
+G4. Attempt the player/subject name whenever there is legible text on the sticker. Transcribe it character-by-character. Foreign, long, or unfamiliar names are valid — do NOT return null just because the name looks unusual or you do not recognise the subject. Only return null when the text region is fully obliterated by glare, blur, occlusion, or back-side photography.
 
-Set any field that is not visible or not applicable to null.
+══════════════════════════════════════════════════════════
+MANDATORY REASONING PROTOCOL
+══════════════════════════════════════════════════════════
+For EVERY sticker, the "reasoning" field MUST be a single string that contains these five labelled lines, in order, before any free-text commentary:
+
+  LAYOUT:      <one short sentence describing the overall layout: photo style, where the name sits, presence/absence of stats line, flag, logo, etc.>.
+  VARIANT_SIGNAL: <plain-English description of the specific visual feature the album rules use to distinguish variants (e.g. the outer rim color, the foil texture, the background tier, the corner stamp). Describe ONLY that feature, in its own words, before mapping to a token.>.
+  INTERIOR:    <plain-English description of nearby elements that could be confused with the variant signal (name bar color, photo background, decorative accents), explicitly noted so they are NOT confused with the variant signal.>.
+  TYPE_TEST:   <walk through the album-specific rules above to decide stickerType.>.
+  TOKEN_PICK:  <state the chosen variant token and stickerType, and justify why your VARIANT_SIGNAL observation maps to that token under the album rules.>.
+
+After those five lines, you may add one short free-text sentence. The whole reasoning string MUST be under 600 characters.
+
+══════════════════════════════════════════════════════════
+OUTPUT FORMAT
+══════════════════════════════════════════════════════════
+Respond with a valid JSON object containing a "stickers" key holding an array of objects. Use these exact keys for each sticker:
+stickerNumber, albumCode, playerName, teamFifaCode, variantToken, stickerType, confidence, reasoning
+
+Set any field that is not visible or not applicable to null. Do NOT invent values.
+
 Output Format Template:
 {
   "stickers": [
-    { "stickerNumber": 12, "albumCode": "BRA5", "playerName": "Neymar Jr", "teamFifaCode": "BRA", "borderColor": "blue", "stickerType": null, "confidence": 0.95, "reasoning": "..." }
+    { "stickerNumber": 12, "albumCode": "BRA5", "playerName": "NEYMAR JR", "teamFifaCode": "BRA", "variantToken": "<token from album rules>", "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: <…>. VARIANT_SIGNAL: <…>. INTERIOR: <…>. TYPE_TEST: <…>. TOKEN_PICK: <…>." }
   ]
 }`;
 }
@@ -122,21 +146,21 @@ export async function identifySticker(
 
     // Explicit camelCase parsing to align with ScanResult type signatures
     const albumCode = typeof p['albumCode'] === 'string' && p['albumCode'].length > 0 ? p['albumCode'] : null;
-    const rawBorderColor = typeof p['borderColor'] === 'string' ? p['borderColor'] : null;
+    const rawVariantToken = typeof p['variantToken'] === 'string' ? p['variantToken'] : null;
 
     const rawType = p['stickerType'] === 'extra' ? 'extra'
       : p['stickerType'] === 'coca_cola_special' ? 'coca_cola_special'
         : null;
 
-    const stickerType = reconcileStickerType(rawType, albumCode, rawBorderColor);
-    const borderColor = stickerType === 'coca_cola_special' ? 'base_borderless' : rawBorderColor;
+    const stickerType = reconcileStickerType(rawType, albumCode, rawVariantToken);
+    const variantToken = stickerType === 'coca_cola_special' ? 'base_borderless' : rawVariantToken;
 
     return {
       stickerNumber: typeof p['stickerNumber'] === 'number' ? p['stickerNumber'] : null,
-      albumCode, // Fixed variable mapping and casing alignment
+      albumCode,
       playerName: typeof p['playerName'] === 'string' ? p['playerName'] : null,
       teamFifaCode: stickerType === 'coca_cola_special' ? null : (typeof p['teamFifaCode'] === 'string' ? p['teamFifaCode'] : null),
-      borderColor,
+      variantToken,
       stickerType,
       confidence: typeof p['confidence'] === 'number' ? p['confidence'] : 0,
       reasoning: typeof p['reasoning'] === 'string' ? p['reasoning'] : '',
@@ -145,10 +169,10 @@ export async function identifySticker(
 }
 
 // Extra stickers require POSITIVE structural evidence — either an "EX"-prefixed album
-// code (back-side decisive signal) or an extra_* borderColor (front-side decisive
+// code (back-side decisive signal) or an extra_* variantToken (front-side decisive
 // signal). Without one of those, the model is almost certainly mistaking a shiny/foil
 // core sticker for an Extra. Trust the structured fields over the type label.
-const CRUMPLE_BORDERS = new Set([
+const CRUMPLE_VARIANTS = new Set([
   'gold_crumple', 'blue_crumple', 'red_crumple',
   'purple_crumple', 'green_crumple', 'black_crumple_1of1',
 ]);
@@ -156,16 +180,16 @@ const CRUMPLE_BORDERS = new Set([
 function reconcileStickerType(
   rawType: 'extra' | 'coca_cola_special' | null,
   albumCode: string | null,
-  borderColor: string | null,
+  variantToken: string | null,
 ): 'extra' | 'coca_cola_special' | null {
   if (albumCode?.startsWith('EX') && rawType !== 'coca_cola_special') return 'extra';
 
   if (rawType === 'extra') {
-    // Crumple borders are a core-only finish — extra stickers never have them.
-    // If the model returned a crumple borderColor it misidentified the sticker.
-    if (borderColor && CRUMPLE_BORDERS.has(borderColor)) return null;
+    // Crumple variants are a core-only finish — extra stickers never have them.
+    // If the model returned a crumple variantToken it misidentified the sticker.
+    if (variantToken && CRUMPLE_VARIANTS.has(variantToken)) return null;
     if (albumCode && !albumCode.startsWith('EX')) return null;
-    if (!borderColor?.startsWith('extra_')) return null;
+    if (!variantToken?.startsWith('extra_')) return null;
   }
 
   return rawType;
