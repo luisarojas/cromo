@@ -24,26 +24,21 @@ LOCAL → DEV → STAGING → PRODUCTION
 
 ### 17.2 Moving from Local to Cloud (Phase B)
 
-The transition is straightforward because Docker containers run identically everywhere:
+The transition is straightforward because Docker containers run identically everywhere. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the rationale behind the initial Phase B architecture choices.
 
 **Step 1:** AWS account created, MFA enabled on root account.
 
-**Step 2:** Terraform provisions the AWS infrastructure for dev environment:
-```bash
-cd infrastructure/terraform/environments/dev
-terraform init
-terraform apply
-```
+**Step 2:** AWS infrastructure provisioned (VPC, RDS, ElastiCache, S3, SES, ALB, ACM, Route 53, Secrets Manager, EC2).
 
-**Step 3:** GitHub Actions CI/CD is configured with AWS credentials.
+**Step 3:** Production Docker images built (`Dockerfile.prod` for frontend and API), pushed to ECR.
 
-**Step 4:** The same Docker image that ran locally is pushed to AWS ECR and deployed to ECS Fargate. The environment variables are updated to point to real AWS services (Aurora instead of local PostgreSQL, ElastiCache instead of local Redis, etc.).
+**Step 4:** EC2 instance launched with `docker-compose.prod.yml`. Environment variables point to managed AWS services (RDS instead of local PostgreSQL, ElastiCache instead of local Redis, S3 instead of local filesystem, SES instead of Mailpit).
 
-**Step 5:** The seed script runs against the new cloud database.
+**Step 5:** The seed script runs against the cloud RDS database.
 
-**Step 6:** Staging is provisioned and verified. Production follows once staging is stable.
+**Step 6:** Health checks pass, domain is pointed at the ALB.
 
-There is no code rewrite. The only changes are configuration (environment variables) and infrastructure (Terraform).
+There is no code rewrite. The only changes are configuration (environment variables) and the addition of production Dockerfiles.
 
 ### 17.3 Feature Flags
 
@@ -70,6 +65,8 @@ UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_AI_SCANNING';
 
 This section covers the AWS infrastructure provisioned in Phase B. Nothing here is needed to run the application locally.
 
+> **Architecture decision:** Phase B launches on EC2 + Docker Compose rather than ECS Fargate. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the full rationale and migration path to Fargate when traffic warrants it.
+
 ### 19.1 Cloud Provider: AWS ca-central-1 (Montréal)
 
 All personal data stored in Canada. PIPEDA-compliant by default. Secondary region for DR: `ca-west-1` (Calgary).
@@ -84,38 +81,64 @@ All AWS resources defined in Terraform. Never click resources into existence in 
 
 ```
 infrastructure/terraform/modules/
-  networking/    → VPC, subnets, NAT gateway, security groups
-  compute/       → ECS cluster, Fargate task definitions, ALB
-  database/      → Aurora PostgreSQL, RDS Proxy
-  cache/         → ElastiCache Redis
-  storage/       → S3 buckets
+  networking/    → VPC, subnets, security groups
+  compute/       → EC2 instance, ALB, launch template
+  database/      → RDS PostgreSQL (db.t3.micro)
+  cache/         → ElastiCache Redis (cache.t3.micro)
+  storage/       → S3 buckets (uploads, backups)
   auth/          → Cognito user pool
   monitoring/    → CloudWatch, alarms
-  grafana/       → Grafana EC2 instance
-  plausible/     → Plausible analytics EC2
-  waf/           → WAF rules and rate limits
   dns/           → Route 53 records
-  cdn/           → CloudFront distribution
   ses/           → Email domain verification
+  secrets/       → Secrets Manager entries
 ```
 
-### 19.4 Frontend Hosting: Vercel
+### 19.4 Application Hosting: EC2 + Docker Compose
 
-Next.js frontend hosted on Vercel. No AWS infrastructure needed for the frontend. Native GitHub integration deploys every PR as a preview URL. Frontend files are HTML/CSS/JS only — no personal data, not a PIPEDA concern.
+Both the Next.js frontend and Fastify API run on a **single EC2 instance** (t3.small or t3.medium) via `docker-compose.prod.yml`. The same Docker images used locally are pushed to ECR and pulled by the instance.
 
-### 19.5 Backend Hosting: AWS ECS Fargate
+- ALB handles HTTPS termination (ACM certificate) and routes `/api/*` to the API container, everything else to the frontend container
+- EC2 instance is stateless — all persistent state lives in RDS or S3
+- `docker-compose.prod.yml` replaces dev-only services (Mailpit, pgAdmin, Redis Commander) with environment variables pointing at managed AWS services
 
-Same Docker container that ran locally runs in ECS Fargate. Auto-scales between 1 and 4 tasks based on CPU. No servers to manage or patch.
+**Migration path to ECS Fargate:** when sustained CPU > 70% or user base exceeds ~1,000–2,000 MAU, ECS task definitions are created directly from the existing production Dockerfiles. Managed services (RDS, ElastiCache, S3, SES) remain unchanged. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md).
 
-### 19.6 Database: Aurora PostgreSQL Serverless v2
+### 19.5 Database: RDS PostgreSQL (db.t3.micro)
 
-Minimum 0 ACUs (scales to zero after 5 min inactivity). Maximum 4 ACUs at launch. Deletion protection enabled in production. Point-in-time recovery for 35 days.
+Managed PostgreSQL 16. Automated daily snapshots with 7-day retention. Point-in-time recovery. Deletion protection enabled in production. Runs in a private subnet — never exposed to the public internet. See [ADR-0002](decisions/0002-rds-postgresql-over-aurora-serverless.md) for the rationale over Aurora Serverless v2.
 
-### 19.7 Security
+### 19.6 Cache: ElastiCache Redis (cache.t3.micro)
 
-- AWS WAF — blocks attacks, enforces rate limits
+Managed Redis 7. Runs in the same private subnet as RDS. No host-level ops or patching required.
+
+### 19.7 File Storage: S3
+
+Replaces the `local_uploads` Docker volume. The API writes uploaded sticker images directly to S3. Bucket policy restricts access to the EC2 instance IAM role.
+
+### 19.8 Email: SES
+
+Replaces Mailpit. Domain verified in SES with SPF/DKIM/DMARC. Start in SES sandbox; request production access once the domain is verified and first emails are sending.
+
+### 19.9 Estimated Monthly Cost (< 100 users)
+
+| Service | Monthly (USD) |
+|---|---|
+| EC2 t3.small | ~$15 |
+| RDS db.t3.micro (PostgreSQL) | ~$15 |
+| ElastiCache cache.t3.micro | ~$12 |
+| ALB | ~$8 |
+| S3 + data transfer | ~$1–2 |
+| SES | ~$1 |
+| Route 53 | ~$1–2 |
+| Secrets Manager | ~$1 |
+| ACM | $0 |
+| **Total** | **~$54–56 USD/month** |
+
+### 19.10 Security
+
+- ALB + ACM — all traffic HTTPS; HTTP redirects to HTTPS at the load balancer
+- Private VPC subnets — RDS and ElastiCache never exposed to the public internet
+- EC2 security group — inbound 443/80 from ALB only; no direct SSH from the internet (use AWS Systems Manager Session Manager)
 - AWS Shield Standard (free) — DDoS protection
-- Private VPC — database never exposed to the public internet
-- AWS GuardDuty — automated threat detection
-- AWS CloudTrail — 1 year audit log of all AWS API calls
+- AWS CloudTrail — audit log of all AWS API calls
 

@@ -148,21 +148,23 @@ A production-ready system: never loses data, recovers automatically from failure
 ┌──────────────────────────────────────────────────────────┐
 │  USERS  (browser · mobile · PWA)                         │
 └─────────────────────┬────────────────────────────────────┘
-                      │ HTTP (local) / HTTPS (cloud)
+                      │ HTTP (local) / HTTPS via ALB (cloud)
 ┌─────────────────────▼────────────────────────────────────┐
-│  FRONTEND  ·  Next.js 15  ·  localhost:3000 / Vercel     │
+│  FRONTEND  ·  Next.js 15  ·  localhost:3000 / EC2        │
 └─────────────────────┬────────────────────────────────────┘
                       │ API calls
 ┌─────────────────────▼────────────────────────────────────┐
-│  BACKEND / API  ·  Fastify  ·  localhost:3001 / Fargate  │
+│  BACKEND / API  ·  Fastify  ·  localhost:3001 / EC2      │
 └──────┬──────────────────────────────────┬────────────────┘
        │                                  │
 ┌──────▼───────┐                 ┌────────▼────────┐
 │  PostgreSQL  │                 │  Redis Cache    │
 │  Docker /    │                 │  Docker /       │
-│  Aurora      │                 │  ElastiCache    │
+│  RDS         │                 │  ElastiCache    │
 └──────────────┘                 └─────────────────┘
 ```
+
+> Phase B uses a single EC2 instance for both frontend and backend. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the migration path to ECS Fargate.
 
 
 ---
@@ -178,10 +180,10 @@ A production-ready system: never loses data, recovers automatically from failure
 | Auth (local) | Mock middleware | Yes |
 | Auth (cloud) | AWS Cognito | Cloud only |
 | Database (local) | PostgreSQL 16 in Docker | Yes |
-| Database (cloud) | Aurora PostgreSQL Serverless v2 | Cloud only |
+| Database (cloud) | RDS PostgreSQL db.t3.micro | Cloud only |
 | Schema (Phase A) | Single `apps/backend/src/db/schema.sql` applied at startup | Yes |
 | Migrations (Phase B) | Drizzle ORM | Cloud only |
-| Connection pooling | `pg` pool (local) / RDS Proxy (cloud) | Yes |
+| Connection pooling | `pg` pool (local + cloud) | Yes |
 | Cache (local) | Redis 7 in Docker | Yes |
 | Cache (cloud) | AWS ElastiCache Redis | Cloud only |
 | Cache browser | Redis Commander | Yes (localhost:8081) |
@@ -199,9 +201,9 @@ A production-ready system: never loses data, recovers automatically from failure
 | CI/CD | GitHub Actions | Cloud only |
 | Versioning | semantic-release | Yes (for tagging) |
 | Container runtime | Docker | Yes |
-| Container orchestration | AWS ECS Fargate | Cloud only |
-| Frontend hosting | Vercel | Cloud only |
-| CDN | AWS CloudFront + ALB | Cloud only |
+| Container orchestration | EC2 + Docker Compose (Phase B); ECS Fargate when traffic warrants — see ADR-0001 | Cloud only |
+| Frontend hosting | EC2 + Docker Compose (co-hosted with API) | Cloud only |
+| CDN | ALB (Phase B); CloudFront when static asset caching is needed | Cloud only |
 | DNS | AWS Route 53 | Cloud only |
 | TLS | AWS Certificate Manager | Cloud only |
 | Monitoring | CloudWatch + Grafana | Cloud only |
@@ -345,47 +347,50 @@ One-time costs during Phase A:
 | Privacy / Terms legal review | $500–1,000 CAD (can defer to Phase B) |
 | Panini IP legal review | $200–400 CAD (can defer to Phase B) |
 
-### Phase B: Cloud Monthly Costs (USD, ~5,000 active users)
+### Phase B: Cloud Monthly Costs
+
+**Initial launch (< 100 users) — EC2 + Docker Compose:**
 
 | Service | Monthly (USD) |
 |---|---|
-| AWS Aurora PostgreSQL Serverless v2 | $15–40 |
-| AWS ECS Fargate (2 tasks) | $30–50 |
-| AWS ElastiCache Redis | $20–30 |
-| AWS Route 53 | $1–2 |
-| AWS Cognito | $0 (free ≤ 50K MAU) |
-| AWS WAF | $10–15 |
+| EC2 t3.small | ~$15 |
+| RDS PostgreSQL db.t3.micro | ~$15 |
+| ElastiCache Redis cache.t3.micro | ~$12 |
+| ALB | ~$8 |
+| AWS SES | ~$1 |
+| AWS Route 53 | ~$1–2 |
+| AWS Secrets Manager | ~$1 |
+| AWS S3 | ~$1–2 |
 | AWS Certificate Manager | $0 |
-| AWS CloudWatch + X-Ray | $10–20 |
-| AWS Secrets Manager | $2–5 |
-| AWS GuardDuty | $5–10 |
-| AWS SES | $1–3 |
-| AWS CloudTrail | $2–5 |
-| AWS S3 + CloudFront (API) | $5–12 |
-| GitHub Actions | $0–4 |
-| Vercel (frontend) | $0–20 |
-| Groq vision API (Llama-4 Scout) | $5–30 |
-| Plausible Analytics (EC2) | $3–5 |
-| Domain (amortised) | $1–2 |
-| **Total** | **~$110–253 USD/month** |
-| **In CAD (~1.38)** | **~$152–349 CAD/month** |
+| Groq vision API (Llama-4 Scout) | $1–5 |
+| **Total** | **~$55–61 USD/month** |
+
+**At scale (5,000+ MAU) — after migration to ECS Fargate (see ADR-0001):**
+
+| Service | Monthly (USD) |
+|---|---|
+| ECS Fargate (2 tasks) | $30–50 |
+| RDS PostgreSQL (db.t3.medium) | $25–40 |
+| ElastiCache Redis | $20–30 |
+| ALB + ACM | $8–15 |
+| SES, S3, Route 53, Secrets Manager | $5–10 |
+| Groq vision API | $5–30 |
+| **Total** | **~$93–175 USD/month** |
 
 ### Cost at Scale
 
-| Monthly Active Users | Estimated Monthly (USD) |
-|---|---|
-| Beta (`< 1,000`) | $50–70 |
-| Launch (5,000) | $110–253 |
-| World Cup peak (20,000) | $300–450 |
-| 50,000 | $500–800 |
+| Monthly Active Users | Architecture | Estimated Monthly (USD) |
+|---|---|---|
+| < 100 (launch) | EC2 + Docker Compose | $55–61 |
+| 100–1,000 | EC2 + Docker Compose (scale vertically) | $70–90 |
+| 1,000–5,000 | Migrate to ECS Fargate | $93–140 |
+| World Cup peak (20,000) | ECS Fargate + larger RDS | $250–400 |
 
 ### Cost Controls
 
-- AWS Budget alert at $400 USD/month
-- Aurora min 0 ACUs — scales to zero overnight
-- Fargate auto-scaling
+- AWS Budget alert at $150 USD/month
+- EC2 can be resized vertically before migrating to Fargate
 - Groq vision API rate limited to 20 scans/user/hour
-- Vercel free tier until traffic warrants upgrade
 
 
 ---
