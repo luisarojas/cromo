@@ -111,7 +111,7 @@ export const albumEditionFormats = pgTable('album_edition_formats', {
 
 // ─── user_albums ──────────────────────────────────────────────────────────────
 
-import type { AlbumSettings } from '@stickfolio/shared';
+import type { AlbumSettings } from '@cromo/shared';
 
 const DEFAULT_ALBUM_SETTINGS: AlbumSettings = {
   includeExtras: true,

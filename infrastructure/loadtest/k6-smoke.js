@@ -1,4 +1,4 @@
-// k6 smoke load test for Stickfolio.
+// k6 smoke load test for Cromo.
 //
 // Run against a local Docker stack:
 //   docker run --rm -i --network host -v $PWD/infrastructure/loadtest:/loadtest \

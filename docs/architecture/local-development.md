@@ -71,8 +71,8 @@ Once the repository is cloned and Docker Desktop is running:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/stickfolio.git
-cd stickfolio
+git clone https://github.com/your-org/cromo.git
+cd cromo
 
 # Copy the example environment file
 cp .env.example .env.local
@@ -112,16 +112,16 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: stickfolio
+      POSTGRES_USER: cromo
       POSTGRES_PASSWORD: localpassword
-      POSTGRES_DB: stickfolio_dev
+      POSTGRES_DB: cromo_dev
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../data/migrations:/docker-entrypoint-initdb.d  # auto-runs on first start
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stickfolio"]
+      test: ["CMD-SHELL", "pg_isready -U cromo"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -148,7 +148,7 @@ services:
       - "3001:3001"
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgres://stickfolio:localpassword@db:5432/stickfolio_dev
+      DATABASE_URL: postgres://cromo:localpassword@db:5432/cromo_dev
       REDIS_URL: redis://cache:6379
       JWT_SECRET: local-dev-secret-not-for-production
       AUTH_MODE: local                    # bypasses Cognito locally
@@ -228,7 +228,7 @@ APP_VERSION=0.0.0-local
 PORT=3001
 
 # Database
-DATABASE_URL=postgres://stickfolio:localpassword@localhost:5432/stickfolio_dev
+DATABASE_URL=postgres://cromo:localpassword@localhost:5432/cromo_dev
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -254,7 +254,7 @@ AWS_REGION=ca-central-1
 EMAIL_PROVIDER=mailpit
 SMTP_HOST=localhost
 SMTP_PORT=1025
-EMAIL_FROM=noreply@stickfolio.local
+EMAIL_FROM=noreply@cromo.local
 
 # Frontend
 NEXT_PUBLIC_API_URL=http://localhost:3001
@@ -272,7 +272,7 @@ incremental migration files** during Phase A — schema changes are made by edit
 `schema.sql` directly. This is intentional: while the schema is in flux, a single source-of-truth
 file is much easier to reason about than a numbered chain of migrations.
 
-**Phase B transition.** Once the schema stabilises and Stickfolio is deployed to AWS, Phase B
+**Phase B transition.** Once the schema stabilises and Cromo is deployed to AWS, Phase B
 will switch to Drizzle ORM migrations. `apps/backend/src/db/schema.ts` (the Drizzle table
 definitions) and `apps/backend/drizzle.config.ts` are already in the repo for that future
 work. Until then `db:generate` is a no-op for actual deployments.

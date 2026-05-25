@@ -15,7 +15,7 @@ The schema and seed scripts are **identical** in both environments. This guarant
 
 **Phase A (current).** The schema lives entirely in `apps/backend/src/db/schema.sql` and is applied at API startup by `runMigrations()` (`apps/backend/src/db/migrate.ts`). Every `CREATE TABLE`/`CREATE INDEX` uses `IF NOT EXISTS`, every function uses `CREATE OR REPLACE`, and every seed `INSERT` uses `ON CONFLICT`, so the file can be safely re-applied. There are **no incremental migration files** in Phase A — schema changes are made by editing `schema.sql` directly.
 
-**Phase B (planned).** Once the schema stabilises and Stickfolio is deployed to AWS, Drizzle ORM migrations will take over. The Drizzle table definitions live in `apps/backend/src/db/schema.ts` and are kept in sync with `schema.sql` so the future migration is mechanical.
+**Phase B (planned).** Once the schema stabilises and Cromo is deployed to AWS, Drizzle ORM migrations will take over. The Drizzle table definitions live in `apps/backend/src/db/schema.ts` and are kept in sync with `schema.sql` so the future migration is mechanical.
 
 ```sql
 -- USERS ───────────────────────────────────────────────────
@@ -305,7 +305,7 @@ pnpm db:studio     # open Drizzle Studio (visual database browser)
 
 ### Phase B — Drizzle migrations (planned)
 
-When Stickfolio is deployed to AWS and the schema has stabilised, Phase B will introduce
+When Cromo is deployed to AWS and the schema has stabilised, Phase B will introduce
 Drizzle ORM migrations (`apps/backend/src/db/migrations/`) generated via `pnpm db:generate`.
 At that point `schema.sql` is retired and migrations become the source of truth — but only
 once destructive replays against a real database become unacceptable.
@@ -314,7 +314,7 @@ once destructive replays against a real database become unacceptable.
 
 | Cache Key | Content | TTL |
 |---|---|---|
-| `stickfolio:sticker_catalog:vN` | Full sticker catalog (all types) | 24 hours (browser localStorage) / 1 hour (Redis) |
+| `cromo:sticker_catalog:vN` | Full sticker catalog (all types) | 24 hours (browser localStorage) / 1 hour (Redis) |
 | `user:{id}:summary` | Completion %, total counts | 5 minutes |
 | `user:{id}:duplicates` | Tradeable stickers | 5 minutes |
 | `rate_limit:{ip}:{endpoint}` | Rate limit counters | Per window |

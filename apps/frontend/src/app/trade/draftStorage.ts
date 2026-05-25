@@ -3,7 +3,7 @@
 import type { TradeMatch } from '@/lib/api';
 import type { TradePickerItem } from './components/TradeStickerPicker';
 
-const DRAFT_KEY = 'stickfolio:trade_propose_draft';
+const DRAFT_KEY = 'cromo:trade_propose_draft';
 
 export interface TradeDraft {
   matchUserId: string;

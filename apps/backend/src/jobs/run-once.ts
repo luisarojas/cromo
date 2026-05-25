@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-// One-off CLI runner: `pnpm --filter @stickfolio/backend job <name>` invokes a
+// One-off CLI runner: `pnpm --filter @cromo/backend job <name>` invokes a
 // single scheduled job synchronously and exits with the appropriate code.
 // Used by ops to force a job to run outside its cadence (e.g., after a fix)
 // and by the runbook's smoke checks.
@@ -19,7 +19,7 @@ const consoleLog: JobLogger = {
 async function main(): Promise<void> {
   const name = process.argv[2];
   if (!name) {
-    console.error('Usage: pnpm --filter @stickfolio/backend job <name>');
+    console.error('Usage: pnpm --filter @cromo/backend job <name>');
     console.error('Available jobs:');
     for (const j of JOB_CATALOG) {
       console.error(`  ${j.name.padEnd(38)} cron=${j.cron}${j.cloudOnly ? '  (cloud-only)' : ''}`);

@@ -1,6 +1,6 @@
 # Local Setup
 
-How to get Stickfolio running on a fresh machine, from "I just cloned the repo"
+How to get Cromo running on a fresh machine, from "I just cloned the repo"
 to "I can log in as Alice and propose a trade."
 
 ## 1. Prerequisites
@@ -23,8 +23,8 @@ pnpm  --version        # 10.x
 ## 2. First-time bring-up
 
 ```bash
-git clone https://github.com/your-org/stickfolio.git
-cd stickfolio
+git clone https://github.com/your-org/cromo.git
+cd cromo
 
 pnpm install
 
@@ -99,11 +99,11 @@ docker compose -f infrastructure/docker/docker-compose.yml down -v
 docker compose -f infrastructure/docker/docker-compose.yml up
 
 # Backend tests
-pnpm --filter @stickfolio/backend test
-pnpm --filter @stickfolio/backend test:watch
+pnpm --filter @cromo/backend test
+pnpm --filter @cromo/backend test:watch
 
 # Frontend E2E
-pnpm --filter @stickfolio/frontend test:e2e
+pnpm --filter @cromo/frontend test:e2e
 
 # Type check everything
 pnpm typecheck

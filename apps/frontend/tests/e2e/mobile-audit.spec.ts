@@ -7,7 +7,7 @@ import { test, expect, type Page } from '@playwright/test';
  * broken on mobile" signal: most other issues (touch targets, font scale,
  * spacing) are tolerable, but content that escapes the viewport is not.
  *
- * Run: pnpm --filter @stickfolio/frontend exec playwright test mobile-audit
+ * Run: pnpm --filter @cromo/frontend exec playwright test mobile-audit
  */
 
 const ALICE = { email: 'alice@test.local', password: 'any' };

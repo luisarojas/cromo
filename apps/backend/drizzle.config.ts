@@ -5,7 +5,7 @@ export default {
   out: './src/db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env['DATABASE_URL'] ?? 'postgres://stickfolio:localpassword@localhost:5432/stickfolio_dev',
+    url: process.env['DATABASE_URL'] ?? 'postgres://cromo:localpassword@localhost:5432/cromo_dev',
   },
   verbose: true,
   strict: true,

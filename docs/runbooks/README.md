@@ -1,6 +1,6 @@
 # Runbooks
 
-Operational playbooks for Stickfolio. Each runbook is task-focused: how to *do*
+Operational playbooks for Cromo. Each runbook is task-focused: how to *do*
 a specific operation safely, not background context (that lives in
 `docs/architecture/`).
 

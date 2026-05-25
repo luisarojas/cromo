@@ -7,7 +7,7 @@ import { statusError } from '../utils/errors.js';
 
 const MAX_ALBUMS_PER_USER = 10;
 
-import type { AlbumSettings } from '@stickfolio/shared';
+import type { AlbumSettings } from '@cromo/shared';
 export type { AlbumSettings };
 
 export interface UserAlbum {

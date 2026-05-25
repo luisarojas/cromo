@@ -4,7 +4,7 @@
 // the SDK initialises in no-op mode so local dev never accidentally ships
 // errors to a shared project.
 //
-// Phase B: a Stickfolio Sentry / GlitchTip project is provisioned; the DSN is
+// Phase B: a Cromo Sentry / GlitchTip project is provisioned; the DSN is
 // injected via Vercel/AWS env. Phase A leaves it unset.
 
 import * as Sentry from '@sentry/nextjs';

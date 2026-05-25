@@ -11,7 +11,7 @@ const envSchema = z.object({
   DATABASE_URL: z
     .string()
     .url()
-    .default('postgres://stickfolio:localpassword@localhost:5432/stickfolio_dev'),
+    .default('postgres://cromo:localpassword@localhost:5432/cromo_dev'),
 
   // Redis
   REDIS_URL: z.string().default('redis://localhost:6379'),
@@ -30,7 +30,7 @@ const envSchema = z.object({
   // Email / Nodemailer
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().default(1025),
-  EMAIL_FROM: z.string().email().default('noreply@stickfolio.local'),
+  EMAIL_FROM: z.string().email().default('noreply@cromo.local'),
 
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
@@ -56,7 +56,7 @@ const envSchema = z.object({
   // The PUBLIC key is also exposed to the frontend via NEXT_PUBLIC_VAPID_PUBLIC_KEY.
   VAPID_PUBLIC_KEY:  z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
-  VAPID_SUBJECT:     z.string().default('mailto:noreply@stickfolio.local'),
+  VAPID_SUBJECT:     z.string().default('mailto:noreply@cromo.local'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -221,7 +221,7 @@ export async function getStickerVariants(
  * Cached in Redis for 5 min so the version probe doesn't hit the catalog
  * tables on every page load. invalidate by deleting the key when seeding.
  */
-const CATALOG_VERSION_CACHE_KEY = 'stickfolio:catalog_version';
+const CATALOG_VERSION_CACHE_KEY = 'cromo:catalog_version';
 const CATALOG_VERSION_TTL_S = 300;
 
 export async function getCatalogVersion(db: Pool, redis: Redis): Promise<string> {

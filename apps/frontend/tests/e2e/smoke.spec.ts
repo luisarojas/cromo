@@ -14,7 +14,7 @@ import { test, expect, type Page } from '@playwright/test';
  *   6. Admin page returns 401/forbidden for non-admin Alice
  *   7. Admin user can reach /admin
  *
- * Run locally: pnpm --filter @stickfolio/frontend test:e2e
+ * Run locally: pnpm --filter @cromo/frontend test:e2e
  */
 
 const ALICE = { email: 'alice@test.local', password: 'any' };

@@ -89,7 +89,7 @@ export interface PaginatedResult<T> {
   total: number;
 }
 
-import type { FilterOptionsDto } from '@stickfolio/shared';
+import type { FilterOptionsDto } from '@cromo/shared';
 export type FilterOptions = FilterOptionsDto;
 
 export interface CollectionPage extends PaginatedResult<CollectionItem> {

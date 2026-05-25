@@ -344,7 +344,7 @@ test.describe('Favourites', () => {
     await page.evaluate(({ key, value }) => {
       localStorage.setItem(key, value);
     }, {
-      key: `stickfolio:favourites:${ALICE_NA_ALBUM_ID}`,
+      key: `cromo:favourites:${ALICE_NA_ALBUM_ID}`,
       // Use a well-known sticker code present in Alice's collection (sticker #1)
       value: JSON.stringify(['1']),
     });
@@ -396,7 +396,7 @@ test.describe('Favourites', () => {
     await firstStar.click();
 
     // Verify the storage key was updated
-    const stored = await page.evaluate((key) => localStorage.getItem(key), `stickfolio:favourites:${ALICE_NA_ALBUM_ID}`);
+    const stored = await page.evaluate((key) => localStorage.getItem(key), `cromo:favourites:${ALICE_NA_ALBUM_ID}`);
     expect(stored).not.toBeNull();
 
     const parsed = JSON.parse(stored!);
@@ -411,7 +411,7 @@ test.describe('Favourites', () => {
     await page.evaluate(({ key, value }) => {
       localStorage.setItem(key, value);
     }, {
-      key: `stickfolio:favourites:${ALICE_NA_ALBUM_ID}`,
+      key: `cromo:favourites:${ALICE_NA_ALBUM_ID}`,
       value: JSON.stringify(['35']), // sticker #35 is one of Alice's seeded duplicates
     });
 

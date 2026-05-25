@@ -21,7 +21,7 @@ import cors from '@fastify/cors'
 await fastify.register(cors, {
   origin:
     process.env.NODE_ENV === 'production'
-      ? ['https://stickfolio.ca', /\.vercel\.app$/]  // Vercel preview URLs
+      ? ['https://cromo.ca', /\.vercel\.app$/]  // Vercel preview URLs
       : 'http://localhost:3000',
   credentials: true,   // required for cookies / auth headers
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -7,7 +7,7 @@
 ### 14.1 Monorepo Structure
 
 ```
-stickfolio/
+cromo/
 │
 ├── .github/
 │   ├── workflows/
@@ -124,8 +124,8 @@ The repository README is the single most important document for a new developer.
 ### Run Locally
 
 1. Clone the repo
-   git clone https://github.com/your-org/stickfolio.git
-   cd stickfolio
+   git clone https://github.com/your-org/cromo.git
+   cd cromo
 
 2. Install dependencies
    pnpm install
@@ -209,7 +209,7 @@ Version lives in root `package.json`. All other references are derived:
 package.json  "version": "1.2.4"
      ↓
 Git tag:             v1.2.4
-Docker image tag:    stickfolio-api:1.2.4
+Docker image tag:    cromo-api:1.2.4
 ENV variable:        APP_VERSION=1.2.4
 /health response:    { "version": "1.2.4" }
 CloudWatch logs:     [version=1.2.4]
@@ -219,9 +219,9 @@ GitHub Release:      v1.2.4
 ### 15.3 Docker Image Tagging
 
 ```bash
-stickfolio-api:1.2.4       # exact version — permanent
-stickfolio-api:sha-a1b2c3  # git SHA — traceable
-stickfolio-api:production  # mutable alias — updated after healthy deploy
+cromo-api:1.2.4       # exact version — permanent
+cromo-api:sha-a1b2c3  # git SHA — traceable
+cromo-api:production  # mutable alias — updated after healthy deploy
 ```
 
 Never deploy `:latest`. Always use a specific version or SHA tag.

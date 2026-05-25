@@ -1,4 +1,4 @@
-# Stickfolio — Complete Production Implementation Plan
+# Cromo — Complete Production Implementation Plan
 ### A Full-Stack Web Application for the 2026 FIFA World Cup Panini Sticker Collection
 
 > **Plan Version:** 5.2 — Reorganization pass: split monolithic spec into focused domain files for token-efficient access. `overview.md` now retains only cross-cutting context (product, system architecture, phases, cost, tech stack, glossary, next steps); subsystem detail lives in sibling files in this directory.
@@ -53,7 +53,7 @@ Detailed subsystem documentation lives in sibling files. Read this map first; lo
 
 ### 1.1 Product Summary
 
-Stickfolio is a multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection. It is accessible from any device, designed for Canadian users, and built to production standards from day one — starting locally on your machine.
+Cromo is a multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection. It is accessible from any device, designed for Canadian users, and built to production standards from day one — starting locally on your machine.
 
 ### 1.2 The Album
 
@@ -131,7 +131,7 @@ Twenty short-printed live-action stickers of global superstars (Messi, Ronaldo, 
 
 Twelve specific international stars (weighted toward North American talent — e.g. Lamine Yamal, Harry Kane, Weston McKennie, Alphonso Davies) appear on specially-marked 20-oz Coca-Cola and Coca-Cola Zero Sugar bottles in the USA. Peeling the label yields the physical sticker, which lives in a dedicated bonus section at the back of the album.
 
-Physical Coca-Cola stickers have **no border parallels and no Crumple variants** — every physical Coca-Cola sticker looks identical (`base_borderless`, the same variant token used by international core base stickers; the two are distinguished by `sticker_type`). Scanning the bottle labels unlocks digital-only "Fan Stickers" and "Cosmic" variants in the FIFA Panini Collection App; these app-only digital variants are out of scope for Stickfolio's physical-sticker tracking.
+Physical Coca-Cola stickers have **no border parallels and no Crumple variants** — every physical Coca-Cola sticker looks identical (`base_borderless`, the same variant token used by international core base stickers; the two are distinguished by `sticker_type`). Scanning the bottle labels unlocks digital-only "Fan Stickers" and "Cosmic" variants in the FIFA Panini Collection App; these app-only digital variants are out of scope for Cromo's physical-sticker tracking.
 
 
 ---
@@ -461,6 +461,6 @@ Provide this document as the technical specification. The developer should be ab
 
 ---
 
-*End of Stickfolio — Production Implementation Plan v5.2*
+*End of Cromo — Production Implementation Plan v5.2*
 
 *This is the cross-cutting overview. Subsystem detail lives in sibling files. Store as `docs/architecture/overview.md` in the repository.*

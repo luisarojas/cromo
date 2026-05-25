@@ -6,7 +6,7 @@
 set -e
 
 DOCKER_COMPOSE="docker compose -f infrastructure/docker/docker-compose.yml"
-PSQL="$DOCKER_COMPOSE exec -T db psql -U stickfolio stickfolio_dev"
+PSQL="$DOCKER_COMPOSE exec -T db psql -U cromo cromo_dev"
 
 run_seed() {
   $PSQL < "$1"

@@ -1,4 +1,4 @@
-// Stickfolio service worker.
+// Cromo service worker.
 //
 // Strategy:
 //   - Precache the app shell on install

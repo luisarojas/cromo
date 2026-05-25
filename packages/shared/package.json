@@ -1,5 +1,5 @@
 {
-  "name": "@stickfolio/shared",
+  "name": "@cromo/shared",
   "version": "0.0.0-local",
   "private": true,
   "main": "./src/index.ts",

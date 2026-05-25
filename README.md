@@ -4,7 +4,7 @@
 
 A multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection. See [`BRAND.md`](BRAND.md) for the visual identity spec.
 
-The repository name and internal workspace package names (`@stickfolio/*`) still reflect the project's original codename and are intentionally untouched — renaming them requires a coordinated lockfile + import sweep best done as a separate change.
+The repository name and internal workspace package names (`@cromo/*`) still reflect the project's original codename and are intentionally untouched — renaming them requires a coordinated lockfile + import sweep best done as a separate change.
 
 ## Getting Started
 

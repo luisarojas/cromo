@@ -65,7 +65,7 @@ degrades gracefully rather than taking the site down.
 
 ## 27. Support & Feedback
 
-- `support@stickfolio.ca` — forwarded via SES
+- `support@cromo.ca` — forwarded via SES
 - In-app feedback button on every page
 - Public status page on Upptime (GitHub Pages, free)
 - GitHub Issues with templates for bug reports and feature requests
@@ -97,12 +97,12 @@ Stored in `docs/runbooks/`. Required before public launch.
 
 - OWASP ZAP automated scanning in CI
 - OWASP Top 10 developer review documented
-- Responsible disclosure policy at `stickfolio.ca/security`
+- Responsible disclosure policy at `cromo.ca/security`
 - GitLeaks, Snyk, Trivy active in CI
 
 ### 29.2 Responsible Disclosure Policy
 
-- Contact: `security@stickfolio.ca`
+- Contact: `security@cromo.ca`
 - Safe harbour for good-faith researchers
 - Acknowledge within 5 business days
 - Hall of Fame with reporter's permission

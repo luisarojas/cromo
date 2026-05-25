@@ -1,5 +1,5 @@
 {
-  "name": "@stickfolio/frontend",
+  "name": "@cromo/frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,7 +11,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@stickfolio/shared": "workspace:*",
+    "@cromo/shared": "workspace:*",
     "@sentry/nextjs": "^8.55.0",
     "@tanstack/react-query": "^5.100.10",
     "@tanstack/react-virtual": "^3.13.24",

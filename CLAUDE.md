@@ -1,4 +1,4 @@
-# Stickfolio
+# Cromo
 
 ## Project Rules
 
@@ -14,15 +14,15 @@ The compose file is at `infrastructure/docker/docker-compose.yml`. Common patter
 Never suggest `npm install`, `npm run build`, or similar commands outside of a `docker compose exec` context.
 
 ### No Backward Compatibility Required
-There is no need to support any kind of backward compatibility. Stickfolio is in active development and can be rebuilt and redeployed when significant changes are made. Feel free to make breaking changes, refactor, and deploy without worrying about migration paths or deprecation warnings.
+There is no need to support any kind of backward compatibility. Cromo is in active development and can be rebuilt and redeployed when significant changes are made. Feel free to make breaking changes, refactor, and deploy without worrying about migration paths or deprecation warnings.
 
 ### Sticker Catalog Cache
 The frontend's localStorage cache for the sticker catalog is keyed off a backend-provided version (`GET /api/v1/stickers/version`). The version is derived from `MAX(updated_at)` across the catalog tables, so any catalog mutation invalidates every browser on next page load automatically — no manual cache-key bump.
 
-After a reseed, also flush Redis (`docker compose -f infrastructure/docker/docker-compose.yml exec cache redis-cli FLUSHALL`) since the backend caches sticker list responses for 1 hour and the catalog-version probe for 5 min. Admin edits via `PATCH /api/v1/admin/stickers/:id` already bust the version cache key (`stickfolio:catalog_version`) automatically.
+After a reseed, also flush Redis (`docker compose -f infrastructure/docker/docker-compose.yml exec cache redis-cli FLUSHALL`) since the backend caches sticker list responses for 1 hour and the catalog-version probe for 5 min. Admin edits via `PATCH /api/v1/admin/stickers/:id` already bust the version cache key (`cromo:catalog_version`) automatically.
 
 ### API Response Casing — Always Use the Global Serializer
-The backend uses raw SQL and emits PostgreSQL `snake_case` row objects from its services. A global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response, so the wire format is always `camelCase`. Frontend types in `@stickfolio/shared` and the interfaces in `apps/frontend/src/lib/api.ts` describe that camelCase wire format.
+The backend uses raw SQL and emits PostgreSQL `snake_case` row objects from its services. A global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response, so the wire format is always `camelCase`. Frontend types in `@cromo/shared` and the interfaces in `apps/frontend/src/lib/api.ts` describe that camelCase wire format.
 
 Rules to follow:
 - **Do not** add per-endpoint snake→camel mapping functions in the frontend (e.g. `mapTradeSummary`, `mapTradeDetail`). If a response looks like snake_case in the client, the fix is on the backend, not in the API layer.
@@ -37,13 +37,13 @@ The database schema lives entirely in `apps/backend/src/db/schema.sql`. There ar
 
 ### Sticker Types & Rarities — Source of Truth
 
-This section is the **canonical model** of every sticker variant Stickfolio recognises. Every change to the codebase — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's actual product) and this section ever diverge, update this section first and propagate; do not let the codebase silently drift.
+This section is the **canonical model** of every sticker variant Cromo recognises. Every change to the codebase — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's actual product) and this section ever diverge, update this section first and propagate; do not let the codebase silently drift.
 
 Hard rules that follow from this model (call these out in any PR that touches stickers):
 - The variant `base_borderless` is shared by **two** sticker types: international core Base stickers AND Coca-Cola stickers. They are distinguished by `sticker_type` (`null` vs `'coca_cola_special'`), never by the variant token.
 - There is **no smooth (non-crumple) gold border variant** in the main set. The only "gold" finish on a core sticker is `gold_crumple` (iCollect online base). The only smooth gold finish anywhere is `extra_gold`, which is the **background colour** of an Extra sticker — its outer border is still white.
 - Extra stickers' outer border is **always white**. Rarity is encoded in the background colour behind the action photo, never in the rim. Extras have no Crumple variants and no album slot.
-- Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Stickfolio (physical-only).
+- Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Cromo (physical-only).
 - `swiss_green` is the Switzerland "United Edition" **sticker border variant** (light/mint/sage green). `swiss_gold` is the **album edition key** for the Swiss gold-foiled premium album cover. Do not conflate them.
 - The AI scan prompt must return **canonical `variant_type` tokens** in the `variantToken` field (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`, …). The frontend's `pickVariantId` does exact match first, `startsWith` fallback second.
 - The full canonical variant list lives in `packages/shared/src/types/index.ts` (`VariantType` union) and `packages/shared/src/constants/index.ts` (`VARIANT_RARITY`). Display labels live in `apps/frontend/src/app/album/components/variantMeta.ts`. Add new variants in all three files in lockstep.
@@ -100,7 +100,7 @@ Short-printed, unnumbered action shots of 20 global superstars (Messi, Ronaldo, 
 A promotional subset featuring **12 specific international stars** (including Lamine Yamal, Harry Kane, Weston McKennie, Alphonso Davies) heavily weighted toward North American talent.
 
 - **Physical stickers** — obtained by peeling labels off specially-marked 20-oz Coca-Cola and Coca-Cola Zero Sugar bottles in the USA. They have **no border variants and no Crumple versions**; every physical Coca-Cola sticker looks identical. They live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (shared with international core base; distinguished via `sticker_type = 'coca_cola_special'`).
-- **Digital Album App** — scanning the bottle labels unlocks digital-only packs in the FIFA Panini Collection App with exclusive **"Fan Stickers"** and **"Cosmic" variants**. These are app-only and **out of scope** for Stickfolio's physical-sticker tracking.
+- **Digital Album App** — scanning the bottle labels unlocks digital-only packs in the FIFA Panini Collection App with exclusive **"Fan Stickers"** and **"Cosmic" variants**. These are app-only and **out of scope** for Cromo's physical-sticker tracking.
 
 #### 6. Visual Identification — Front of Sticker
 

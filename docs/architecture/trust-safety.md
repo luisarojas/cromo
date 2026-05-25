@@ -541,7 +541,7 @@ In `data/seeds/07_test_users.sql`, add the system account for automated ban issu
 ```sql
 INSERT INTO users (id, email, username, display_name, role, email_verified_at) VALUES
   ('00000000-0000-0000-0000-000000000099',
-   'system@stickfolio.internal',
+   'system@cromo.internal',
    '_system',
    'System',
    'admin',

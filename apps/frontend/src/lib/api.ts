@@ -1,6 +1,6 @@
 export const DEFAULT_ALBUM_TYPE_KEY = 'fifa_world_cup_2026';
 
-// Canonical literal unions + AlbumSettings live in @stickfolio/shared so the
+// Canonical literal unions + AlbumSettings live in @cromo/shared so the
 // backend (Drizzle schema, response shapes) and the frontend (api.ts, pages)
 // agree on names and casing. Add new shared types there, not here.
 export type {
@@ -11,10 +11,10 @@ export type {
   TradeStatus,
   ListType,
   UserRole,
-} from '@stickfolio/shared';
+} from '@cromo/shared';
 
 // Canonical wire types. Every interface that describes a JSON response
-// body lives in @stickfolio/shared and is re-exported here as the public
+// body lives in @cromo/shared and is re-exported here as the public
 // API surface for frontend consumers.
 import type {
   AuthUser as SharedAuthUser,
@@ -45,7 +45,7 @@ import type {
   PublicProfileAlbum as SharedPublicProfileAlbum,
   PublicProfile as SharedPublicProfile,
   PublicWantedPage as SharedPublicWantedPage,
-} from '@stickfolio/shared';
+} from '@cromo/shared';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -616,8 +616,8 @@ export async function fetchAlbumFormats(albumTypeKey: string): Promise<AlbumForm
 // Album endpoints
 // ---------------------------------------------------------------------------
 
-// AlbumSettings is re-exported from @stickfolio/shared at the top of this file.
-import type { AlbumSettings } from '@stickfolio/shared';
+// AlbumSettings is re-exported from @cromo/shared at the top of this file.
+import type { AlbumSettings } from '@cromo/shared';
 
 export type UserAlbum = UserAlbumDto;
 

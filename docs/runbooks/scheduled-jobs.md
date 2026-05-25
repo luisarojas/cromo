@@ -54,7 +54,7 @@ skip registration.
 
 ```bash
 # Phase A: pnpm job -- <name>
-pnpm --filter @stickfolio/backend job -- expire-pending-trades
+pnpm --filter @cromo/backend job -- expire-pending-trades
 
 # What it does internally
 node --import tsx src/jobs/run-once.ts expire-pending-trades
@@ -69,7 +69,7 @@ container.
    `job_name`, `error_class`, `error_message`. Grep for the job name in `docker
    compose logs api`.
 2. **Three consecutive failures triggers the alert** in `observability.md §20.3`
-   (Slack #stickfolio-alerts in Phase B).
+   (Slack #cromo-alerts in Phase B).
 3. **If the job is misbehaving** (e.g., a query plan went bad after a schema
    change), pause it with the flag (above), open an issue, fix it, then re-enable.
 4. **If the job is fine but data is wrong** (e.g., a stuck row), prefer fixing
@@ -98,6 +98,6 @@ docker compose logs api | grep "\[jobs\]"
 # …
 
 # Trigger the cache-warm job and confirm Redis now has stickers:all
-pnpm --filter @stickfolio/backend job -- cache-warm-stickers
+pnpm --filter @cromo/backend job -- cache-warm-stickers
 docker compose exec cache redis-cli EXISTS stickers:all
 ```
