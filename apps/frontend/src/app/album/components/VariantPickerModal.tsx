@@ -17,7 +17,7 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
   const node = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] shadow-2xl p-4 w-72 flex flex-col gap-3"
+        className="bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] shadow-cromo-lg p-4 w-72 flex flex-col gap-3"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -76,7 +76,7 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
           <button
             onClick={() => { if (selected) onConfirm(selected); }}
             disabled={!selected || availableTypes.length === 0}
-            className="flex-1 rounded-lg bg-[var(--cromo-accent)] py-2 text-sm font-medium text-white hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 rounded-lg bg-[var(--cromo-accent)] py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {mode === 'add' ? 'Add' : 'Remove'}
           </button>

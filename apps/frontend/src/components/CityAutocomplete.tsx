@@ -175,7 +175,7 @@ export default function CityAutocomplete({ cities, onChange, maxCities = 5 }: Pr
             </span>
           )}
           {open && suggestions.length > 0 && (
-            <ul ref={listRef} className="absolute z-20 mt-1 w-full rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl max-h-52 overflow-y-auto">
+            <ul ref={listRef} className="absolute z-20 mt-1 w-full rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg max-h-52 overflow-y-auto">
               {suggestions.map((s, i) => {
                 const alreadyAdded = cities.some((c) => c.placeId === s.placeId);
                 const highlighted = i === activeIndex;

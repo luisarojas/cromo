@@ -370,7 +370,7 @@ export default function TradeStickerPicker({
                 onClick={() => setOfferTheyNeedOnly((v) => !v)}
                 className={`w-full px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
                   offerTheyNeedOnly
-                    ? 'bg-teal-500 text-white border-teal-500'
+                    ? 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] border-[var(--cromo-accent)]'
                     : 'bg-[var(--cromo-surface)] text-[var(--cromo-fg-muted)] border-[var(--cromo-border)] hover:bg-[var(--cromo-surface-2)]'
                 }`}
               >
@@ -459,7 +459,7 @@ export default function TradeStickerPicker({
                           {item.albumCode}
                         </span>
                         {isSuggested && (
-                          <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
+                          <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] border border-[var(--cromo-accent)]/30 px-1 py-px rounded leading-none">
                             they need
                           </span>
                         )}
@@ -526,7 +526,7 @@ export default function TradeStickerPicker({
                     onClick={() => setWantMissingOnly((v) => !v)}
                     className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
                       wantMissingOnly
-                        ? 'bg-[var(--cromo-success-soft)]0 text-white border-emerald-500'
+                        ? 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] border-[var(--cromo-success)]'
                         : 'bg-[var(--cromo-surface)] text-[var(--cromo-fg-muted)] border-[var(--cromo-border)] hover:bg-[var(--cromo-surface-2)]'
                     }`}
                   >
@@ -537,7 +537,7 @@ export default function TradeStickerPicker({
                       onClick={() => setWantFavouritedOnly((v) => !v)}
                       className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-colors ${
                         wantFavouritedOnly
-                          ? 'bg-[var(--cromo-warning-soft)]0 text-white border-amber-500'
+                          ? 'bg-[var(--cromo-warning)] text-[var(--cromo-warning-fg)] border-[var(--cromo-warning)]'
                           : 'bg-[var(--cromo-surface)] text-[var(--cromo-fg-muted)] border-[var(--cromo-border)] hover:bg-[var(--cromo-surface-2)]'
                       }`}
                     >
@@ -553,7 +553,7 @@ export default function TradeStickerPicker({
                       onClick={() => setWantVariantFilters([])}
                       className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                         wantVariantFilters.length === 0
-                          ? 'bg-[var(--cromo-success-soft)]0 text-white'
+                          ? 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)]'
                           : 'bg-[var(--cromo-surface)] border border-[var(--cromo-border)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                       }`}
                     >
@@ -569,7 +569,7 @@ export default function TradeStickerPicker({
                         }
                         className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
                           wantVariantFilters.includes(v)
-                            ? 'bg-[var(--cromo-success-soft)]0 text-white'
+                            ? 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)]'
                             : 'bg-[var(--cromo-surface)] border border-[var(--cromo-border)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                         }`}
                       >
@@ -662,7 +662,7 @@ export default function TradeStickerPicker({
                   <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(o.variantType)}`} />
                   <span className="text-xs font-semibold text-[var(--cromo-fg)]">{o.albumCode}</span>
                   {suggestedSet.has(o.albumCode) && (
-                    <span className="shrink-0 text-[9px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-1 py-px rounded leading-none">
+                    <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] border border-[var(--cromo-accent)]/30 px-1 py-px rounded leading-none">
                       they need
                     </span>
                   )}
@@ -731,7 +731,7 @@ export default function TradeStickerPicker({
                     <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(w.variantType)}`} />
                     <span className="text-xs font-semibold text-[var(--cromo-fg)]">{w.albumCode}</span>
                     {!ownedAlbumCodes.has(w.albumCode) && (
-                      <span className="shrink-0 text-[9px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1 py-px rounded leading-none">
+                      <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-tier-very-rare)] bg-[var(--cromo-tier-very-rare)]/10 border border-[var(--cromo-tier-very-rare)]/30 px-1 py-px rounded leading-none">
                         I need
                       </span>
                     )}

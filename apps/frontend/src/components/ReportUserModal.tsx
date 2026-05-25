@@ -60,7 +60,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl">
+      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg">
         <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-5 py-4">
           <h2 className="text-base font-semibold text-[var(--cromo-fg)]">Report @{username}</h2>
           <button
@@ -130,7 +130,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 rounded-md bg-[var(--cromo-danger)] text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-md bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {submitting ? 'Submitting…' : 'Submit Report'}
               </button>

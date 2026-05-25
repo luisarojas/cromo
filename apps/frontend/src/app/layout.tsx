@@ -29,7 +29,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Cromo — collection tracker & trade matchmaker',
+  title: 'Cromo',
   description:
     'Track every variant, swap duplicates, complete your album. Cromo is the collector-grade home for stickers, cards, and everything you chase.',
   applicationName: 'Cromo',

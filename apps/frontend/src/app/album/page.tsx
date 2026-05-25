@@ -285,7 +285,7 @@ export default function AlbumsPage() {
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-[var(--cromo-success-soft)]0 transition-all"
+                            className="h-full rounded-full bg-[var(--cromo-success)] transition-all"
                             style={{ width: `${stats.percentage}%` }}
                           />
                         </div>

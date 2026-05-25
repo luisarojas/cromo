@@ -354,7 +354,7 @@ function BanForm({
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-[var(--cromo-danger)] text-white text-xs px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="rounded bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] text-xs px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Banning…' : 'Confirm ban'}
             </button>
@@ -710,7 +710,7 @@ function BanModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl">
+      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg">
         <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-5 py-4">
           <h2 className="text-base font-semibold text-[var(--cromo-fg)]">Ban @{username}</h2>
           <button onClick={onClose} className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)]">
@@ -754,7 +754,7 @@ function BanModal({
           </div>
           {error && <div className="text-sm text-[var(--cromo-danger)]">{error}</div>}
           <div className="flex gap-2">
-            <button type="submit" disabled={submitting} className="flex-1 rounded-md bg-[var(--cromo-danger)] text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
+            <button type="submit" disabled={submitting} className="flex-1 rounded-md bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
               {submitting ? 'Banning…' : 'Confirm ban'}
             </button>
             <button type="button" onClick={onClose} className="rounded-md border border-[var(--cromo-border-strong)] px-4 py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]">
@@ -915,7 +915,7 @@ function ReportsQueue({ token }: { token: string }) {
                                 </button>
                                 <button
                                   onClick={() => setBanTarget({ userId: report.reportedUserId, username: report.reportedUsername, reportId: report.id })}
-                                  className="rounded-md bg-[var(--cromo-danger)] text-white px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-colors"
+                                  className="rounded-md bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-colors"
                                 >
                                   Hard Ban
                                 </button>
@@ -1075,7 +1075,7 @@ function BannedUsersSection({ token }: { token: string }) {
                                   const banId = activeBan?.id ?? banDetails[user.id]?.[0]?.id;
                                   if (banId) void handleLift(user.id, banId);
                                 }}
-                                className="rounded bg-green-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-green-700"
+                                className="rounded bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] px-2.5 py-1 text-xs font-medium hover:bg-[var(--cromo-success)]"
                               >
                                 Lift
                               </button>

@@ -305,10 +305,10 @@ export default function WC2026GuidePage() {
               </thead>
               <tbody className="divide-y divide-[var(--cromo-border)]">
                 {[
-                  { color: 'bg-[var(--cromo-accent-soft)]0', label: 'Blue Border', rate: '1 in 2 packs' },
-                  { color: 'bg-[var(--cromo-danger-soft)]0', label: 'Red Border', rate: '1 in 25 packs' },
-                  { color: 'bg-[var(--cromo-tier-very-rare)]/100', label: 'Purple Border', rate: '1 in 200 packs' },
-                  { color: 'bg-[var(--cromo-success-soft)]0', label: 'Green Border', rate: '1 in 1,400 packs' },
+                  { color: 'bg-[var(--cromo-accent)]', label: 'Blue Border', rate: '1 in 2 packs' },
+                  { color: 'bg-[var(--cromo-danger)]', label: 'Red Border', rate: '1 in 25 packs' },
+                  { color: 'bg-[var(--cromo-tier-very-rare)]', label: 'Purple Border', rate: '1 in 200 packs' },
+                  { color: 'bg-[var(--cromo-success)]', label: 'Green Border', rate: '1 in 1,400 packs' },
                   { color: 'bg-gray-900', label: 'Black Border', rate: '1 of 1 — unique' },
                   { color: 'bg-orange-400', label: 'Orange Border', rate: 'Amazon 50-pack box exclusive' },
                 ].map(({ color, label, rate }) => (
@@ -350,10 +350,10 @@ export default function WC2026GuidePage() {
               <tbody className="divide-y divide-[var(--cromo-border)]">
                 {[
                   { color: 'bg-yellow-400', label: 'Gold Flood Crumple', rate: '6 per iCollect pack' },
-                  { color: 'bg-[var(--cromo-accent-soft)]0', label: 'Blue Crumple', rate: '1 in 2' },
-                  { color: 'bg-[var(--cromo-danger-soft)]0', label: 'Red Crumple', rate: '1 in 26' },
-                  { color: 'bg-[var(--cromo-tier-very-rare)]/100', label: 'Purple Crumple', rate: '1 in 285' },
-                  { color: 'bg-[var(--cromo-success-soft)]0', label: 'Green Crumple', rate: '1 in 1,529' },
+                  { color: 'bg-[var(--cromo-accent)]', label: 'Blue Crumple', rate: '1 in 2' },
+                  { color: 'bg-[var(--cromo-danger)]', label: 'Red Crumple', rate: '1 in 26' },
+                  { color: 'bg-[var(--cromo-tier-very-rare)]', label: 'Purple Crumple', rate: '1 in 285' },
+                  { color: 'bg-[var(--cromo-success)]', label: 'Green Crumple', rate: '1 in 1,529' },
                   { color: 'bg-gray-900', label: 'Black Crumple', rate: '1 of 1 — unique' },
                 ].map(({ color, label, rate }) => (
                   <tr key={label} className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">

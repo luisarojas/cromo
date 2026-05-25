@@ -148,7 +148,7 @@ export default function AlbumFormModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-[var(--cromo-surface)] shadow-2xl p-6 flex flex-col gap-4"
+        className="w-full max-w-sm rounded-2xl bg-[var(--cromo-surface)] shadow-cromo-lg p-6 flex flex-col gap-4"
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -325,7 +325,7 @@ export default function AlbumFormModal({
                   <button
                     onClick={handleDelete}
                     disabled={busy}
-                    className="flex-1 px-3 py-2 text-sm font-medium bg-[var(--cromo-danger)] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
+                    className="flex-1 px-3 py-2 text-sm font-medium bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
                   >
                     {busy ? 'Deleting…' : 'Delete Album'}
                   </button>

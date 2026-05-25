@@ -25,7 +25,7 @@ const TYPE_COLORS: Record<string, string> = {
   player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
   badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)]',
   team_photo: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]',
-  intro: 'bg-teal-100 text-teal-600',
+  intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
   museum: 'bg-orange-100 text-orange-600',
   coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]',
   extra: 'bg-pink-100 text-pink-600',
@@ -99,7 +99,7 @@ export default function StickerCard({
         /* Total quantity badge */
         owned && totalQuantity > 1 && (
           <span
-            className="absolute top-1.5 left-1.5 rounded-full bg-[var(--cromo-success-soft)]0 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center"
+            className="absolute top-1.5 left-1.5 rounded-full bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] text-[10px] font-bold w-4 h-4 flex items-center justify-center"
             title={`${totalQuantity} total across variants`}
           >
             {totalQuantity > 9 ? '9+' : totalQuantity}

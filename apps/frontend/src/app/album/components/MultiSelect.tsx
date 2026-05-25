@@ -104,7 +104,7 @@ export default function MultiSelect({
           </svg>
         </button>
         {open && (
-          <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-lg shadow-2xl py-1 max-h-64 flex flex-col">
+          <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-lg shadow-cromo-lg py-1 max-h-64 flex flex-col">
             <div className="px-2 py-1.5 border-b border-[var(--cromo-border)] shrink-0 flex items-center gap-2">
               <input
                 ref={searchRef}

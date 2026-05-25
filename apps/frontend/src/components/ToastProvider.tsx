@@ -23,8 +23,8 @@ export function useToast(): ToastContextValue {
 }
 
 const BG: Record<ToastType, string> = {
-  error:   'bg-[var(--cromo-danger)] text-white',
-  success: 'bg-[var(--cromo-success)] text-[#0A0B0F]',
+  error:   'bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)]',
+  success: 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)]',
   info:    'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)]',
 };
 
@@ -51,7 +51,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg text-sm shadow-2xl max-w-sm animate-in ${BG[toast.type]}`}
+            className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg text-sm shadow-cromo-lg max-w-sm animate-in ${BG[toast.type]}`}
           >
             <span>{toast.message}</span>
             <button

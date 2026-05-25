@@ -558,14 +558,14 @@ export default function TradeDetailPage() {
             <button
               onClick={() => handleSubmitRating(true)}
               disabled={ratingSubmitting}
-              className="flex-1 rounded-md bg-green-600 text-white py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+              className="flex-1 rounded-md bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] py-2 text-sm font-medium hover:bg-[var(--cromo-success)] disabled:opacity-50 transition-colors"
             >
               Positive
             </button>
             <button
               onClick={() => handleSubmitRating(false)}
               disabled={ratingSubmitting}
-              className="flex-1 rounded-md bg-[var(--cromo-danger)] text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="flex-1 rounded-md bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               Negative
             </button>
@@ -648,7 +648,7 @@ export default function TradeDetailPage() {
                 <button
                   onClick={handleDecline}
                   disabled={actionLoading}
-                  className="bg-[var(--cromo-danger)] text-white hover:opacity-90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                  className="bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] hover:opacity-90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   Decline
                 </button>
@@ -690,7 +690,7 @@ export default function TradeDetailPage() {
               <button
                 onClick={handleCancel}
                 disabled={actionLoading}
-                className="bg-[var(--cromo-danger)] text-white hover:opacity-90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                className="bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] hover:opacity-90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
               >
                 Cancel Trade
               </button>

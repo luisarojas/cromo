@@ -98,7 +98,7 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div
             ref={modalRef}
-            className="bg-[var(--cromo-surface)] rounded-xl shadow-2xl border border-[var(--cromo-border)] w-full max-w-xs p-5 space-y-4"
+            className="bg-[var(--cromo-surface)] rounded-xl shadow-cromo-lg border border-[var(--cromo-border)] w-full max-w-xs p-5 space-y-4"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">Share profile</h2>

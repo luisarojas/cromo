@@ -65,7 +65,7 @@ export default function MassActionBar({
   const noneSelected = selectedCount === 0;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--cromo-surface)] border-t border-[var(--cromo-border)] shadow-2xl">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--cromo-surface)] border-t border-[var(--cromo-border)] shadow-cromo-lg">
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2">
         {/* Checkbox + count */}
         <button

@@ -40,7 +40,7 @@ const STICKER_TYPE_COLORS: Record<string, string> = {
   player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
   badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)] border-purple-200',
   team_photo: 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-[var(--cromo-warning)]/30',
-  intro: 'bg-teal-100 text-teal-700 border-teal-200',
+  intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
   museum: 'bg-orange-100 text-orange-700 border-orange-200',
   coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] border-[var(--cromo-danger)]/30',
   extra: 'bg-pink-100 text-pink-700 border-pink-200',
@@ -567,7 +567,7 @@ export default function PublicProfilePage() {
                 const isActive = activeTab === key;
                 const baseClass = isActive
                   ? accent === 'amber'
-                    ? 'border-amber-500 text-[var(--cromo-warning)]'
+                    ? 'border-[var(--cromo-warning)] text-[var(--cromo-warning)]'
                     : 'border-red-500 text-[var(--cromo-danger)]'
                   : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]';
                 return (
@@ -788,7 +788,7 @@ export default function PublicProfilePage() {
                               >
                                 {showQty && (
                                   <span
-                                    className="absolute top-1.5 right-1.5 rounded-full bg-[var(--cromo-warning-soft)]0 text-white text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center"
+                                    className="absolute top-1.5 right-1.5 rounded-full bg-[var(--cromo-warning)] text-[var(--cromo-warning-fg)] text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center"
                                     title={`${qty} copies available`}
                                   >
                                     ×{qty}

@@ -87,6 +87,7 @@ interface LockupProps {
   variant?: LogoVariant;
   showWordmark?: boolean;
   className?: string;
+  markClassName?: string;
   wordmarkClassName?: string;
 }
 
@@ -96,11 +97,12 @@ export function CromoLogo({
   variant = 'accent',
   showWordmark = true,
   className,
+  markClassName,
   wordmarkClassName,
 }: LockupProps) {
   return (
     <span className={className} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      <CromoMark size={size} variant={variant} />
+      <CromoMark size={size} variant={variant} className={markClassName} />
       {showWordmark && (
         <CromoWordmark
           className={wordmarkClassName}

@@ -215,7 +215,7 @@ export default function VariantPopover({
       ref={ref}
       role="dialog"
       aria-label={`Manage variants for sticker ${sticker.albumCode}`}
-      className="fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl p-3 flex flex-col gap-2 overflow-y-auto"
+      className="fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-3 flex flex-col gap-2 overflow-y-auto"
       style={{ ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }}
     >
       <div className="flex items-center justify-between">
@@ -385,7 +385,7 @@ export default function VariantPopover({
                 <button
                   onClick={handleMove}
                   disabled={busy || !moveTargetAlbumId}
-                  className="flex-1 rounded-md bg-violet-600 text-white text-xs font-medium py-1.5 hover:bg-violet-700 disabled:opacity-50"
+                  className="flex-1 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs font-medium py-1.5 hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
                 >
                   {busy ? 'Moving…' : 'Move'}
                 </button>
@@ -444,7 +444,7 @@ export default function VariantPopover({
                 <button
                   onClick={handleMoveFrom}
                   disabled={busy || !moveFromSourceAlbumId || !moveFromVariantId}
-                  className="flex-1 rounded-md bg-violet-600 text-white text-xs font-medium py-1.5 hover:bg-violet-700 disabled:opacity-50"
+                  className="flex-1 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs font-medium py-1.5 hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
                 >
                   {busy ? 'Moving…' : 'Move'}
                 </button>

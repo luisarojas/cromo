@@ -42,7 +42,7 @@ export default function ProposeTradeModal({
 }: ProposeTradeModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-5xl rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl flex flex-col max-h-[95vh]">
+      <div className="w-full max-w-5xl rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg flex flex-col max-h-[95vh]">
         <div className="px-6 pt-6 pb-4 border-b border-[var(--cromo-border)] shrink-0">
           <h2 className="text-lg font-semibold text-[var(--cromo-fg)]">Propose Trade</h2>
           <p className="text-sm text-[var(--cromo-fg-muted)] mt-0.5">

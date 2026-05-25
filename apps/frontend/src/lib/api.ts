@@ -297,7 +297,11 @@ async function apiFetch<T>(
 
   if (key) {
     inFlightGets.set(key, run);
-    run.finally(() => inFlightGets.delete(key));
+    // The side-channel chain is fire-and-forget; if the underlying `run`
+    // rejects, this would surface as an unhandled rejection on top of the
+    // one the caller will already handle. Swallow it here — the caller
+    // still receives the rejection via the returned `run`.
+    run.finally(() => inFlightGets.delete(key)).catch(() => {});
   }
   return run;
 }

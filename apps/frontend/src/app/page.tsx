@@ -20,7 +20,7 @@ export default function Home() {
   if (!hydrated || user) return null;
 
   return (
-    <main className="cromo-surface-dark min-h-screen relative overflow-hidden">
+    <main className="cromo-force-dark min-h-screen relative overflow-hidden">
       {/* Ambient chrome glow */}
       <div
         aria-hidden
@@ -51,13 +51,7 @@ export default function Home() {
         <div className="flex gap-3">
           <Link
             href="/register"
-            className="rounded-btn px-6 py-3 text-sm font-semibold transition-colors"
-            style={{
-              background: 'var(--cromo-accent)',
-              color: 'var(--cromo-bg)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--cromo-accent-strong)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--cromo-accent)')}
+            className="cromo-chrome-fill cromo-shimmer rounded-btn px-6 py-3 text-sm font-semibold text-[#0A0B0F] hover:brightness-110 transition-all"
           >
             Start collecting
           </Link>

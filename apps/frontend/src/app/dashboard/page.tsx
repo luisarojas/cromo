@@ -185,7 +185,7 @@ export default function DashboardPage() {
               ))
             : (
               <>
-                <Stat label="Total" value={defaultAlbumStats?.total ?? 0} />
+                <Stat label="Total" value={defaultAlbumStats?.total ?? 0} tone="chrome" />
                 <Stat label="Owned" value={defaultAlbumStats?.owned ?? 0} tone="success" />
                 <Stat label="Missing" value={defaultAlbumStats?.missing ?? 0} />
                 <Stat label="Duplicates" value={defaultAlbumStats?.duplicates ?? 0} tone="accent" />
@@ -202,7 +202,11 @@ export default function DashboardPage() {
             </div>
             <div className="h-2 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden mb-2">
               <div
-                className="h-full rounded-full bg-[var(--cromo-accent)] transition-all duration-700"
+                className={`h-full rounded-full transition-all duration-700 ${
+                  defaultAlbumStats.percentage >= 100
+                    ? 'cromo-chrome-fill cromo-shimmer'
+                    : 'bg-[var(--cromo-accent)]'
+                }`}
                 style={{ width: `${defaultAlbumStats.percentage}%` }}
               />
             </div>
@@ -471,7 +475,7 @@ export default function DashboardPage() {
       {/* Bulk action bar */}
       {selectMode && selectedIds.size > 0 && (
         <div
-          className="fixed bottom-0 inset-x-0 z-40 border-t shadow-2xl"
+          className="fixed bottom-0 inset-x-0 z-40 border-t shadow-cromo-lg"
           style={{
             background: 'var(--cromo-surface)',
             borderColor: 'var(--cromo-border)',

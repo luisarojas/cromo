@@ -42,7 +42,7 @@ const buttonVariants: Record<ButtonVariant, string> = {
   ghost:
     'bg-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] focus-visible:ring-[var(--cromo-border-strong)] focus-visible:ring-offset-[var(--cromo-bg)]',
   danger:
-    'bg-[var(--cromo-danger)] text-white hover:opacity-90 focus-visible:ring-[var(--cromo-danger)] focus-visible:ring-offset-[var(--cromo-bg)]',
+    'bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] hover:opacity-90 focus-visible:ring-[var(--cromo-danger)] focus-visible:ring-offset-[var(--cromo-bg)]',
   chrome:
     'cromo-chrome-fill text-[#0A0B0F] hover:brightness-110 focus-visible:ring-[var(--cromo-accent)] focus-visible:ring-offset-[var(--cromo-bg)]',
 };
@@ -255,15 +255,20 @@ interface PageHeaderProps {
   subtitle?: ReactNode;
   actions?: ReactNode;
   eyebrow?: ReactNode;
+  /** Hide the chrome accent stripe under the title (default: shown). */
+  noAccent?: boolean;
 }
 
-export function PageHeader({ title, subtitle, actions, eyebrow }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, eyebrow, noAccent }: PageHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div className="min-w-0">
         {eyebrow && (
-          <div className="text-xs uppercase tracking-wider text-[var(--cromo-fg-subtle)] font-semibold mb-1.5">
-            {eyebrow}
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="h-px w-6 cromo-chrome-fill cromo-shimmer" aria-hidden />
+            <span className="text-xs uppercase tracking-wider text-[var(--cromo-fg-subtle)] font-semibold">
+              {eyebrow}
+            </span>
           </div>
         )}
         <h1
@@ -272,8 +277,14 @@ export function PageHeader({ title, subtitle, actions, eyebrow }: PageHeaderProp
         >
           {title}
         </h1>
+        {!noAccent && (
+          <span
+            className="block mt-2 h-[2px] w-12 rounded-full cromo-chrome-fill cromo-shimmer"
+            aria-hidden
+          />
+        )}
         {subtitle && (
-          <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">{subtitle}</p>
+          <p className="mt-2.5 text-sm text-[var(--cromo-fg-muted)]">{subtitle}</p>
         )}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
@@ -372,22 +383,23 @@ interface StatProps {
   label: ReactNode;
   value: ReactNode;
   hint?: ReactNode;
-  tone?: 'default' | 'accent' | 'success';
+  tone?: 'default' | 'accent' | 'success' | 'chrome';
 }
 
 export function Stat({ label, value, hint, tone = 'default' }: StatProps) {
-  const valueColor =
-    tone === 'accent'
-      ? 'text-[var(--cromo-accent)]'
-      : tone === 'success'
-        ? 'text-[var(--cromo-success)]'
-        : 'text-[var(--cromo-fg)]';
+  let valueClass: string;
+  switch (tone) {
+    case 'accent':  valueClass = 'text-[var(--cromo-accent)]'; break;
+    case 'success': valueClass = 'text-[var(--cromo-success)]'; break;
+    case 'chrome':  valueClass = 'cromo-chrome-text cromo-shimmer'; break;
+    default:        valueClass = 'text-[var(--cromo-fg)]';
+  }
   return (
     <Card>
       <div className="text-xs uppercase tracking-wider text-[var(--cromo-fg-subtle)] font-semibold mb-2">
         {label}
       </div>
-      <div className={cx('font-display font-bold text-3xl tracking-tight', valueColor)}>
+      <div className={cx('font-display font-bold text-3xl tracking-tight', valueClass)}>
         {value}
       </div>
       {hint && <div className="mt-1 text-xs text-[var(--cromo-fg-muted)]">{hint}</div>}

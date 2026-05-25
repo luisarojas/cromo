@@ -73,7 +73,7 @@ export default function StatsBar({ stats, loading }: Props) {
         </div>
         <div className="h-2.5 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden">
           <div
-            className="h-full rounded-full bg-[var(--cromo-success-soft)]0 transition-all duration-500"
+            className="h-full rounded-full bg-[var(--cromo-success)] transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>

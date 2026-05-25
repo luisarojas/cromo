@@ -44,6 +44,29 @@
   --cromo-warning-soft: rgba(251, 191, 36, 0.12);
   --cromo-danger-soft: rgba(248, 113, 113, 0.12);
 
+  /* Foreground colors for use ON TOP of a saturated status fill.
+     Light tones in dark mode, white in light mode (since light-mode
+     status colors are darker/more saturated). */
+  --cromo-success-fg: #0A0B0F;
+  --cromo-warning-fg: #0A0B0F;
+  --cromo-danger-fg:  #FFFFFF;
+
+  /* Elevation — extremely subtle on dark; a hairline + ambient
+     shadow reads as depth without the harsh black blob of
+     standard tw shadows. */
+  --cromo-shadow-sm:
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 1px 2px rgba(0, 0, 0, 0.4);
+  --cromo-shadow-md:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+  --cromo-shadow-lg:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+
   color-scheme: dark;
 }
 
@@ -71,6 +94,23 @@
   --cromo-success-soft: rgba(5, 150, 105, 0.10);
   --cromo-warning-soft: rgba(217, 119, 6, 0.10);
   --cromo-danger-soft: rgba(220, 38, 38, 0.10);
+
+  /* Light-mode status fills are darker / more saturated, so white text
+     is the readable choice on top. */
+  --cromo-success-fg: #FFFFFF;
+  --cromo-warning-fg: #FFFFFF;
+  --cromo-danger-fg:  #FFFFFF;
+
+  /* Light-mode elevation — classic soft drop shadow. */
+  --cromo-shadow-sm:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 1px 1px rgba(15, 23, 42, 0.03);
+  --cromo-shadow-md:
+    0 4px 12px rgba(15, 23, 42, 0.08),
+    0 2px 4px rgba(15, 23, 42, 0.04);
+  --cromo-shadow-lg:
+    0 20px 40px rgba(15, 23, 42, 0.12),
+    0 8px 16px rgba(15, 23, 42, 0.06);
 
   color-scheme: light;
 }
@@ -115,10 +155,29 @@ body {
   50%      { background-position: 100% 50%; }
 }
 
-.cromo-surface-dark {
-  background: var(--cromo-bg);
-  color: var(--cromo-fg);
+/* Forces the dark canvas regardless of the active theme — for marketing
+   surfaces where the chrome treatment relies on a near-black backdrop. */
+.cromo-force-dark {
+  background: #0A0B0F;
+  color: #F5F6FA;
+  --cromo-bg: #0A0B0F;
+  --cromo-surface: #14161D;
+  --cromo-surface-2: #1C1F28;
+  --cromo-border: #2A2E3A;
+  --cromo-border-strong: #3A3F4D;
+  --cromo-fg: #F5F6FA;
+  --cromo-fg-muted: #9CA3B8;
+  --cromo-fg-subtle: #5C6378;
+  --cromo-accent: #6EE7F9;
+  --cromo-accent-strong: #22D3EE;
+  --cromo-accent-soft: rgba(110, 231, 249, 0.12);
+  --cromo-accent-fg: #0A0B0F;
 }
+
+/* Elevation utilities — theme-aware. */
+.shadow-cromo-sm { box-shadow: var(--cromo-shadow-sm); }
+.shadow-cromo    { box-shadow: var(--cromo-shadow-md); }
+.shadow-cromo-lg { box-shadow: var(--cromo-shadow-lg); }
 
 /* ============================================================
    Form controls — adopt theme colors out of the box.

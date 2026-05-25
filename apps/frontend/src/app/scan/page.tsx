@@ -254,7 +254,7 @@ function ComboBox({
         className="w-full rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] disabled:opacity-60 disabled:cursor-not-allowed"
       />
       {open && !disabled && filtered.length > 0 && (
-        <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl text-sm">
+        <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg text-sm">
           {filtered.slice(0, 100).map((opt) => (
             <li
               key={opt.value}
@@ -781,7 +781,7 @@ function ScanMode() {
                           disabled={card.added}
                           className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                             card.added
-                              ? 'bg-green-600 text-white cursor-default'
+                              ? 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] cursor-default'
                               : 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)]'
                           }`}
                         >

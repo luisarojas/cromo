@@ -414,7 +414,7 @@ function DeleteAccountSection() {
             <button
               onClick={handleDelete}
               disabled={loading}
-              className="rounded-md bg-[var(--cromo-danger)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="rounded-md bg-[var(--cromo-danger)] px-4 py-2 text-sm font-medium text-[var(--cromo-danger-fg)] hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Deleting…' : 'Yes, delete my account'}
             </button>
