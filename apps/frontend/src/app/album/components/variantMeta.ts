@@ -6,13 +6,13 @@ export interface VariantMeta {
 }
 
 export const VARIANT_META: Record<string, VariantMeta> = {
-  base_border:          { label: 'Base (NA — White Border)',  short: 'Base NA',   swatch: 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)]',    rarity: 'Common' },
-  base_borderless:      { label: 'Base (Intl — Borderless)',   short: 'Base Intl', swatch: 'bg-[var(--cromo-surface-2)] border-[var(--cromo-border-strong)]', rarity: 'Common' },
+  base_border:          { label: 'Base (White Border)',     short: 'Base NA',   swatch: 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)]',    rarity: 'Common' },
+  base_borderless:      { label: 'Base (Borderless)',       short: 'Base Intl', swatch: 'bg-[var(--cromo-surface-2)] border-[var(--cromo-border-strong)]', rarity: 'Common' },
   blue:                 { label: 'Blue parallel',           short: 'Blue',      swatch: 'bg-[var(--cromo-accent)]',              rarity: 'Uncommon' },
   red:                  { label: 'Red parallel',            short: 'Red',       swatch: 'bg-[var(--cromo-danger)]',               rarity: 'Rare' },
   purple:               { label: 'Purple parallel',         short: 'Purple',    swatch: 'bg-[var(--cromo-tier-very-rare)]',            rarity: 'Very Rare' },
   green:                { label: 'Green parallel',          short: 'Green',     swatch: 'bg-[var(--cromo-success)]',             rarity: 'Ultra Rare' },
-  black:           { label: 'Black',                   short: 'Black',     swatch: 'bg-black',                 rarity: 'Masterpiece' },
+black:                  { label: 'Black',                   short: 'Black',     swatch: 'bg-black',                 rarity: 'Masterpiece' },
   orange_amazon:        { label: 'Orange (Amazon)',         short: 'Orange',    swatch: 'bg-orange-500',            rarity: 'Exclusive' },
   gold_crumple:         { label: 'Gold Flood Crumple',      short: 'Gold Crmp', swatch: 'bg-yellow-400',            rarity: 'iCollect' },
   blue_crumple:         { label: 'Blue Crumple',            short: 'Blue Crmp', swatch: 'bg-blue-400',              rarity: 'iCollect' },
