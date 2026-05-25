@@ -13,7 +13,7 @@ export default function WC2026GuidePage() {
       </Link>
 
       {/* Hero */}
-      <div className="rounded-2xl cromo-chrome-fill px-8 py-10 text-[#0A0B0F] relative overflow-hidden">
+      <div className="rounded-2xl cromo-chrome-fill px-8 py-10 text-[#0E1117] relative overflow-hidden">
         <span className="inline-flex items-center rounded-full bg-black/15 backdrop-blur px-3 py-1 text-[11px] font-semibold uppercase tracking-wider mb-4">
           2026 FIFA World Cup
         </span>

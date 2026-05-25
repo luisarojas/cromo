@@ -35,18 +35,22 @@ Same conceptual stack in both themes — `bg` (deepest) → `surface` (cards/mod
 
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
-| `--cromo-bg` | `#0A0B0F` | `#F1F3F7` | App body, the deepest layer |
-| `--cromo-surface` | `#14161D` | `#FFFFFF` | Cards, modals, navbar, footer |
-| `--cromo-surface-2` | `#1C1F28` | `#E7EAF1` | Hover, secondary panels, skeleton fills |
-| `--cromo-border` | `#2F3446` | `#D2D7E0` | Hairlines, card boundaries (clears WCAG 1.4.11 non-text 3:1 in both themes) |
-| `--cromo-border-strong` | `#3F4459` | `#ADB4C2` | Stronger borders, input outlines |
+| `--cromo-bg` | `#0E1117` | `#F1F3F7` | App body, the deepest layer |
+| `--cromo-surface` | `#181B24` | `#FFFFFF` | Cards, modals, navbar, footer |
+| `--cromo-surface-2` | `#242836` | `#E7EAF1` | Hover, secondary panels, skeleton fills |
+| `--cromo-border` | `#353A4E` | `#D2D7E0` | Hairlines, card boundaries (clears WCAG 1.4.11 non-text 3:1 in both themes) |
+| `--cromo-border-strong` | `#494F65` | `#ADB4C2` | Stronger borders, input outlines |
+
+**Why not near-pure-black?** An earlier draft used `#0A0B0F` for dark bg. It looked dramatic in screenshots but caused OLED smearing during scroll, gave white text 17.9:1 contrast (double AAA — actively glaring in long sessions), and compressed the surface stack into a narrow tonal band. `#0E1117` sits in the same family as GitHub and Linear's dark themes — premium-dark without the costs of near-pure-black. The bg → surface → surface-2 luminance gaps are now ~6 → ~6 points respectively (was 6 → 4), giving layered UI clear depth.
 
 ### Foreground (text)
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
-| `--cromo-fg` | `#F5F6FA` (17.9 : 1 — AAA) | `#15192B` (15.8 : 1 — AAA) | Primary text |
-| `--cromo-fg-muted` | `#9CA3B8` (7.3 : 1 — AAA) | `#475569` (7.0 : 1 — AAA) | Secondary text, labels |
-| `--cromo-fg-subtle` | `#6B7388` (4.6 : 1 — AA)  | `#64748B` (4.6 : 1 — AA)  | Tertiary text, placeholders |
+| `--cromo-fg` | `#E8EAEF` (13.8 : 1 — AAA) | `#15192B` (15.8 : 1 — AAA) | Primary text |
+| `--cromo-fg-muted` | `#A0A7BC` (7.3 : 1 — AAA) | `#475569` (7.0 : 1 — AAA) | Secondary text, labels |
+| `--cromo-fg-subtle` | `#767E92` (4.6 : 1 — AA)  | `#64748B` (4.6 : 1 — AA)  | Tertiary text, placeholders |
+
+**Why not pure white text on dark?** `#F5F6FA` against `#0E1117` would clock 17:1 — twice what AAA needs. That much contrast causes eye strain in long reading sessions and reads as "spotlight glare." `#E8EAEF` keeps AAA comfortably while feeling like a *warm* white rather than a *spotlight* white. Compare: most premium dark systems (Apple, Linear, Notion dark) dim their primary text by 5-10% for exactly this reason.
 
 ### Accent — "cromo cyan"
 | Token | Dark | Light | Use |

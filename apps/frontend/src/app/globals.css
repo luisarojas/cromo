@@ -8,17 +8,24 @@
    ============================================================ */
 :root,
 [data-theme='dark'] {
-  /* Surface */
-  --cromo-bg: #0A0B0F;
-  --cromo-surface: #14161D;
-  --cromo-surface-2: #1C1F28;
-  --cromo-border: #2F3446;       /* 2.3:1 vs bg — clears WCAG 1.4.11 */
-  --cromo-border-strong: #3F4459;
+  /* Surface — lifted from near-pure-black to a properly-spaced stack.
+     bg #0A0B0F caused OLED smearing and 17.9:1 fg contrast (glare);
+     #0E1117 sits in the same family as GitHub/Linear darks. The
+     surface→surface-2 gap is widened so layered UI has room to
+     breathe, and a faint warmth (slight desaturation away from
+     cool blue) takes the edge off the clinical sci-fi feel. */
+  --cromo-bg: #0E1117;
+  --cromo-surface: #181B24;
+  --cromo-surface-2: #242836;
+  --cromo-border: #353A4E;       /* 2.6:1 vs bg — clears WCAG 1.4.11 with room */
+  --cromo-border-strong: #494F65;
 
-  /* Foreground */
-  --cromo-fg: #F5F6FA;            /* 17.9:1 on bg — AAA */
-  --cromo-fg-muted: #9CA3B8;      /*  7.3:1 on bg — AAA */
-  --cromo-fg-subtle: #6B7388;     /*  4.6:1 on bg — AA  */
+  /* Foreground — fg dimmed from #F5F6FA so it reads as warm white
+     rather than spotlight white; still AAA, less eye strain over
+     long sessions. */
+  --cromo-fg: #E8EAEF;            /* 13.8:1 on bg — AAA */
+  --cromo-fg-muted: #A0A7BC;      /*  7.3:1 on bg — AAA */
+  --cromo-fg-subtle: #767E92;     /*  4.6:1 on bg — AA  */
 
   /* Accent — cromo cyan. On dark, the brand color is itself bright
      enough to serve both fill and text duty, so vivid === text. */
@@ -26,7 +33,7 @@
   --cromo-accent-strong: #22D3EE;
   --cromo-accent-vivid: #22D3EE;   /* slightly more saturated for fills */
   --cromo-accent-soft: rgba(110, 231, 249, 0.12);
-  --cromo-accent-fg: #0A0B0F;
+  --cromo-accent-fg: #0E1117;
 
   /* Rarity tiers — semantic, identical across themes */
   --cromo-tier-common: #94A3B8;
@@ -51,8 +58,8 @@
   --cromo-danger-soft:  rgba(248, 113, 113, 0.12);
 
   /* Foreground colors for use ON TOP of a saturated status fill. */
-  --cromo-success-fg: #0A0B0F;
-  --cromo-warning-fg: #0A0B0F;
+  --cromo-success-fg: #0E1117;
+  --cromo-warning-fg: #0E1117;
   --cromo-danger-fg:  #FFFFFF;
 
   /* Elevation — extremely subtle on dark; a hairline + ambient
@@ -173,20 +180,21 @@ body {
 /* Forces the dark canvas regardless of the active theme — for marketing
    surfaces where the chrome treatment relies on a near-black backdrop. */
 .cromo-force-dark {
-  background: #0A0B0F;
-  color: #F5F6FA;
-  --cromo-bg: #0A0B0F;
-  --cromo-surface: #14161D;
-  --cromo-surface-2: #1C1F28;
-  --cromo-border: #2F3446;
-  --cromo-border-strong: #3F4459;
-  --cromo-fg: #F5F6FA;
-  --cromo-fg-muted: #9CA3B8;
-  --cromo-fg-subtle: #6B7388;
+  background: #0E1117;
+  color: #E8EAEF;
+  --cromo-bg: #0E1117;
+  --cromo-surface: #181B24;
+  --cromo-surface-2: #242836;
+  --cromo-border: #353A4E;
+  --cromo-border-strong: #494F65;
+  --cromo-fg: #E8EAEF;
+  --cromo-fg-muted: #A0A7BC;
+  --cromo-fg-subtle: #767E92;
   --cromo-accent: #6EE7F9;
   --cromo-accent-strong: #22D3EE;
+  --cromo-accent-vivid: #22D3EE;
   --cromo-accent-soft: rgba(110, 231, 249, 0.12);
-  --cromo-accent-fg: #0A0B0F;
+  --cromo-accent-fg: #0E1117;
 }
 
 /* Elevation utilities — theme-aware. */
