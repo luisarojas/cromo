@@ -2,6 +2,17 @@
 
 ## Project Rules
 
+### Docker-First Development Environment
+The application always runs inside Docker containers via docker-compose. Never suggest running services, installing dependencies, or executing build/seed/migration commands directly on the host machine. All such operations must go through docker-compose.
+
+The compose file is at `infrastructure/docker/docker-compose.yml`. Common patterns:
+- **Run a command in a service:** `docker compose -f infrastructure/docker/docker-compose.yml exec <service> <command>`
+- **Rebuild after code/dependency changes:** `docker compose -f infrastructure/docker/docker-compose.yml up --build`
+- **View logs:** `docker compose -f infrastructure/docker/docker-compose.yml logs -f <service>`
+- **Restart a service:** `docker compose -f infrastructure/docker/docker-compose.yml restart <service>`
+
+Never suggest `npm install`, `npm run build`, or similar commands outside of a `docker compose exec` context.
+
 ### No Backward Compatibility Required
 There is no need to support any kind of backward compatibility. Stickfolio is in active development and can be rebuilt and redeployed when significant changes are made. Feel free to make breaking changes, refactor, and deploy without worrying about migration paths or deprecation warnings.
 

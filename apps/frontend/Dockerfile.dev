@@ -18,6 +18,7 @@ COPY packages/shared/src/ ./packages/shared/src/
 # Copy frontend config and source (src/ is overridden by volume mount at runtime)
 COPY apps/frontend/next.config.ts apps/frontend/tsconfig.json apps/frontend/tailwind.config.ts apps/frontend/postcss.config.js ./apps/frontend/
 COPY apps/frontend/public/ ./apps/frontend/public/
+COPY apps/frontend/messages/ ./apps/frontend/messages/
 COPY apps/frontend/src/ ./apps/frontend/src/
 
 WORKDIR /app/apps/frontend

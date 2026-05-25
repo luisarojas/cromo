@@ -93,6 +93,7 @@ services:
       NEXT_PUBLIC_ENV: development
     volumes:
       - ../../apps/frontend/src:/app/apps/frontend/src
+      - ../../apps/frontend/messages:/app/apps/frontend/messages
       - ../../packages/shared/src:/app/packages/shared/src
     depends_on:
       api:
