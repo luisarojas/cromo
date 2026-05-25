@@ -1,6 +1,10 @@
-# Stickfolio
+# Cromo
 
-A multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection.
+> _**Cromo** (n., Spanish) — a trading sticker or collector's card. From Greek **chroma**, "color."_
+
+A multi-user web application for tracking, managing, and trading stickers from the 2026 FIFA World Cup Panini sticker collection. See [`BRAND.md`](BRAND.md) for the visual identity spec.
+
+The repository name and internal workspace package names (`@stickfolio/*`) still reflect the project's original codename and are intentionally untouched — renaming them requires a coordinated lockfile + import sweep best done as a separate change.
 
 ## Getting Started
 
@@ -15,8 +19,8 @@ A multi-user web application for tracking, managing, and trading stickers from t
 
 1. **Clone the repo**
    ```bash
-   git clone https://github.com/your-org/stickfolio.git
-   cd stickfolio
+   git clone https://github.com/your-org/cromo.git
+   cd cromo
    ```
 
 2. **Install dependencies**

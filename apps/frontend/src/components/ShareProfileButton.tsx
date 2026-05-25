@@ -125,7 +125,7 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
 
             {/* QR code */}
             <div className="flex justify-center py-2">
-              <QRCodeSVG value={profileUrl || `https://stickfolio.com/profile/${username}`} size={160} />
+              <QRCodeSVG value={profileUrl || `https://cromo.app/profile/${username}`} size={160} />
             </div>
 
             {/* URL + copy */}

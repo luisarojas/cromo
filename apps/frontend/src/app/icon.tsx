@@ -3,6 +3,7 @@ import { ImageResponse } from 'next/og';
 export const size = { width: 32, height: 32 };
 export const contentType = 'image/png';
 
+/** Favicon — solid-accent variant of the Cromo mark. Chrome aliases below ~24px. */
 export default function Icon() {
   return new ImageResponse(
     (
@@ -13,19 +14,20 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#2563eb',
+          background: '#6EE7F9',
           borderRadius: '7px',
         }}
       >
-        <div
-          style={{
-            width: '20px',
-            height: '20px',
-            background: '#fbbf24',
-            clipPath:
-              'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
-          }}
-        />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M16 8.2a5.5 5.5 0 1 0 0 7.6"
+            stroke="#0A0B0F"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            fill="none"
+          />
+          <circle cx="16.5" cy="12" r="1.4" fill="#0A0B0F" />
+        </svg>
       </div>
     ),
     { ...size }

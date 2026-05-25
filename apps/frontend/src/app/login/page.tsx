@@ -54,7 +54,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Sign in to Stickfolio</h1>
+          <h1 className="text-2xl font-bold text-gray-900 font-display tracking-tight">Sign in to Cromo</h1>
           <p className="mt-1 text-sm text-gray-500">
             Don&apos;t have an account?{' '}
             <Link href="/register" className="text-blue-600 hover:underline">

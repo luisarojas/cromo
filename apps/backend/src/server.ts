@@ -7,7 +7,7 @@ async function start(): Promise<void> {
   try {
     await app.listen({ port: env.PORT, host: env.HOST });
     app.log.info(
-      `Stickfolio API listening on http://${env.HOST}:${env.PORT} [${env.NODE_ENV}]`
+      `Cromo API listening on http://${env.HOST}:${env.PORT} [${env.NODE_ENV}]`
     );
     app.log.info(`Swagger UI: http://localhost:${env.PORT}/docs`);
   } catch (err) {

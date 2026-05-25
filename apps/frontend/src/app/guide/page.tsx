@@ -19,7 +19,7 @@ export default function GuidesIndexPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Collector Guides</h1>
         <p className="mt-1 text-sm text-gray-500">
-          In-depth references for each Panini sticker collection supported by Stickfolio.
+          In-depth references for each Panini sticker collection supported by Cromo.
         </p>
       </div>
 

@@ -1,3 +1,84 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   Cromo brand tokens — see BRAND.md for the canonical spec.
+   ============================================================ */
+:root {
+  /* Surface */
+  --cromo-bg: #0A0B0F;
+  --cromo-surface: #14161D;
+  --cromo-surface-2: #1C1F28;
+  --cromo-border: #2A2E3A;
+  --cromo-border-strong: #3A3F4D;
+
+  /* Foreground */
+  --cromo-fg: #F5F6FA;
+  --cromo-fg-muted: #9CA3B8;
+  --cromo-fg-subtle: #5C6378;
+
+  /* Accent — cromo cyan */
+  --cromo-accent: #6EE7F9;
+  --cromo-accent-strong: #22D3EE;
+  --cromo-accent-soft: rgba(110, 231, 249, 0.12);
+
+  /* Rarity tiers */
+  --cromo-tier-common: #94A3B8;
+  --cromo-tier-uncommon: #60A5FA;
+  --cromo-tier-rare: #F87171;
+  --cromo-tier-very-rare: #A78BFA;
+  --cromo-tier-ultra-rare: #34D399;
+
+  /* Status */
+  --cromo-success: #34D399;
+  --cromo-warning: #FBBF24;
+  --cromo-danger: #F87171;
+  --cromo-info: #6EE7F9;
+}
+
+/* ============================================================
+   Chrome utility — the signature material. Used sparingly.
+   ============================================================ */
+.cromo-chrome-fill {
+  background: linear-gradient(135deg, #22D3EE 0%, #A78BFA 35%, #F472B6 65%, #FBBF24 100%);
+  background-size: 200% 200%;
+}
+
+.cromo-chrome-text {
+  background: linear-gradient(135deg, #22D3EE 0%, #A78BFA 35%, #F472B6 65%, #FBBF24 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.cromo-shimmer {
+  animation: cromo-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes cromo-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ============================================================
+   Marketing-surface base — opt-in via class, so internal
+   product pages keep their existing light theme until
+   they are migrated.
+   ============================================================ */
+.cromo-surface-dark {
+  background: var(--cromo-bg);
+  color: var(--cromo-fg);
+}
+
+.cromo-surface-dark a {
+  color: var(--cromo-accent);
+}
+
+/* Selection */
+::selection {
+  background: var(--cromo-accent-soft);
+  color: var(--cromo-accent);
+}

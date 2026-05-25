@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cromo-chrome" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="35%" stop-color="#A78BFA"/>
+      <stop offset="65%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#FBBF24"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="22" height="22" rx="5" fill="url(#cromo-chrome)"/>
+  <path d="M16 8.2a5.5 5.5 0 1 0 0 7.6" stroke="#0A0B0F" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <circle cx="16.5" cy="12" r="1.4" fill="#0A0B0F"/>
+</svg>

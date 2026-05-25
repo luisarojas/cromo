@@ -27,11 +27,11 @@ export async function sendVerificationEmail(
   await getTransporter().sendMail({
     from: env.EMAIL_FROM,
     to: toEmail,
-    subject: 'Verify your Stickfolio email address',
+    subject: 'Verify your Cromo email address',
     text: [
       `Hi ${username},`,
       '',
-      'Welcome to Stickfolio! Please verify your email address by clicking the link below:',
+      'Welcome to Cromo! Please verify your email address by clicking the link below:',
       '',
       verifyUrl,
       '',
@@ -41,10 +41,10 @@ export async function sendVerificationEmail(
     ].join('\n'),
     html: `
       <p>Hi <strong>${username}</strong>,</p>
-      <p>Welcome to Stickfolio! Please verify your email address by clicking the button below:</p>
+      <p>Welcome to Cromo! Please verify your email address by clicking the button below:</p>
       <p>
         <a href="${verifyUrl}"
-           style="display:inline-block;padding:12px 24px;background:#1a73e8;color:#fff;border-radius:4px;text-decoration:none;">
+           style="display:inline-block;padding:12px 24px;background:#0A0B0F;color:#6EE7F9;border:1px solid #2A2E3A;border-radius:8px;text-decoration:none;font-family:-apple-system,'Segoe UI',sans-serif;font-weight:600;">
           Verify Email
         </a>
       </p>
@@ -66,11 +66,11 @@ export async function sendPasswordResetEmail(
   await getTransporter().sendMail({
     from: env.EMAIL_FROM,
     to: toEmail,
-    subject: 'Reset your Stickfolio password',
+    subject: 'Reset your Cromo password',
     text: [
       `Hi ${username},`,
       '',
-      'We received a request to reset your Stickfolio password. Click the link below to choose a new password:',
+      'We received a request to reset your Cromo password. Click the link below to choose a new password:',
       '',
       resetUrl,
       '',
@@ -80,10 +80,10 @@ export async function sendPasswordResetEmail(
     ].join('\n'),
     html: `
       <p>Hi <strong>${username}</strong>,</p>
-      <p>We received a request to reset your Stickfolio password. Click the button below to choose a new password:</p>
+      <p>We received a request to reset your Cromo password. Click the button below to choose a new password:</p>
       <p>
         <a href="${resetUrl}"
-           style="display:inline-block;padding:12px 24px;background:#d93025;color:#fff;border-radius:4px;text-decoration:none;">
+           style="display:inline-block;padding:12px 24px;background:#0A0B0F;color:#6EE7F9;border:1px solid #2A2E3A;border-radius:8px;text-decoration:none;font-family:-apple-system,'Segoe UI',sans-serif;font-weight:600;">
           Reset Password
         </a>
       </p>

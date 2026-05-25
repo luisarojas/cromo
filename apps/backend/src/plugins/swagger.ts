@@ -8,8 +8,8 @@ export async function swaggerPlugin(fastify: FastifyInstance): Promise<void> {
     openapi: {
       openapi: '3.0.3',
       info: {
-        title: 'Stickfolio API',
-        description: 'Backend API for Stickfolio — the sticker collection tracking and trading platform.',
+        title: 'Cromo API',
+        description: 'Backend API for Cromo — the collection tracking and trading platform.',
         version: env.APP_VERSION,
       },
       servers: [

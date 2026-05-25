@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { logoutApi } from '@/lib/api';
+import { CromoLogo } from '@/components/CromoLogo';
 
 export default function NavBar() {
   const router = useRouter();
@@ -20,56 +21,40 @@ export default function NavBar() {
   }
 
   return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm">
+    <nav
+      className="border-b"
+      style={{
+        background: 'var(--cromo-surface)',
+        borderColor: 'var(--cromo-border)',
+        color: 'var(--cromo-fg)',
+      }}
+    >
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-6">
         <Link
           href="/"
-          className="font-bold text-blue-600 text-lg tracking-tight hover:text-blue-700 transition-colors"
+          className="hover:opacity-80 transition-opacity"
+          aria-label="Cromo home"
         >
-          Stickfolio
+          <CromoLogo size={26} variant="accent" />
         </Link>
 
         <div className="flex gap-4 text-sm font-medium">
           <Link
             href="/guide"
-            className="text-gray-600 hover:text-gray-900 transition-colors"
+            className="transition-colors"
+            style={{ color: 'var(--cromo-fg-muted)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--cromo-fg)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--cromo-fg-muted)')}
           >
             Guide
           </Link>
           {user && (
             <>
-              <Link
-                href="/dashboard"
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/album"
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Collection
-              </Link>
-              <Link
-                href="/trade"
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Trade
-              </Link>
-              <Link
-                href="/scan"
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Scan
-              </Link>
-              {user.role === 'admin' && (
-                <Link
-                  href="/admin"
-                  className="text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  Admin
-                </Link>
-              )}
+              <NavLink href="/dashboard">Dashboard</NavLink>
+              <NavLink href="/album">Collection</NavLink>
+              <NavLink href="/trade">Trade</NavLink>
+              <NavLink href="/scan">Scan</NavLink>
+              {user.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
             </>
           )}
         </div>
@@ -77,8 +62,16 @@ export default function NavBar() {
         <div className="ml-auto flex items-center gap-3 text-sm">
           {process.env.NODE_ENV === 'development' && (
             <button
-              onClick={() => { localStorage.clear(); window.location.reload(); }}
-              className="rounded px-2 py-1 text-xs font-mono bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 transition-colors"
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="rounded-chip px-2 py-1 text-xs font-mono transition-colors"
+              style={{
+                background: 'rgba(251, 191, 36, 0.12)',
+                color: '#FBBF24',
+                border: '1px solid rgba(251, 191, 36, 0.3)',
+              }}
               title="Clear localStorage and reload"
             >
               clear cache
@@ -88,37 +81,46 @@ export default function NavBar() {
             <>
               <Link
                 href={`/profile/${user.username}`}
-                className="flex items-center gap-2 rounded-full bg-gray-100 hover:bg-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                className="flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium transition-colors"
+                style={{
+                  background: 'var(--cromo-surface-2)',
+                  color: 'var(--cromo-fg)',
+                }}
               >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+                  style={{
+                    background: 'var(--cromo-accent)',
+                    color: 'var(--cromo-bg)',
+                  }}
+                >
                   {(user.displayName ?? user.username).charAt(0).toUpperCase()}
                 </span>
                 {user.displayName ?? `@${user.username}`}
               </Link>
-              <Link
-                href="/settings"
-                className="text-gray-500 hover:text-gray-800 transition-colors"
-              >
-                Settings
-              </Link>
+              <NavLink href="/settings">Settings</NavLink>
               <button
                 onClick={handleLogout}
-                className="text-gray-500 hover:text-gray-800 transition-colors"
+                className="transition-colors"
+                style={{ color: 'var(--cromo-fg-muted)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--cromo-fg)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--cromo-fg-muted)')}
               >
                 Log out
               </button>
             </>
           ) : (
             <>
-              <Link
-                href="/login"
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                Log in
-              </Link>
+              <NavLink href="/login">Log in</NavLink>
               <Link
                 href="/register"
-                className="rounded-md bg-blue-600 px-3 py-1.5 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+                className="rounded-btn px-3 py-1.5 text-xs font-semibold transition-colors"
+                style={{
+                  background: 'var(--cromo-accent)',
+                  color: 'var(--cromo-bg)',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--cromo-accent-strong)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--cromo-accent)')}
               >
                 Register
               </Link>
@@ -127,5 +129,19 @@ export default function NavBar() {
         </div>
       </div>
     </nav>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="transition-colors"
+      style={{ color: 'var(--cromo-fg-muted)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--cromo-fg)')}
+      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--cromo-fg-muted)')}
+    >
+      {children}
+    </Link>
   );
 }
