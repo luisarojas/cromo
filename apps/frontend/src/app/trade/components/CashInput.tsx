@@ -13,10 +13,10 @@ interface Props {
  * TradeStickerPicker with subtle drift between the offer and want copies.
  */
 export default function CashInput({ value, onChange, accent }: Props) {
-  const ring = accent === 'blue' ? 'focus:ring-blue-400' : 'focus:ring-emerald-400';
+  const ring = accent === 'blue' ? 'focus:ring-[var(--cromo-accent)]' : 'focus:ring-[var(--cromo-success)]';
   return (
     <>
-      <span className="text-xs text-gray-400">+ CA$</span>
+      <span className="text-xs text-[var(--cromo-fg-subtle)]">+ CA$</span>
       <input
         type="number"
         min="0"
@@ -24,7 +24,7 @@ export default function CashInput({ value, onChange, accent }: Props) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0.00"
-        className={`w-20 rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 ${ring}`}
+        className={`w-20 rounded border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-1 ${ring}`}
       />
     </>
   );

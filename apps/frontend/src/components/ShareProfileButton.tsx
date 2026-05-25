@@ -73,7 +73,7 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Share profile"
-        className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -95,17 +95,17 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div
             ref={modalRef}
-            className="bg-white rounded-xl shadow-lg border border-gray-200 w-full max-w-xs p-5 space-y-4"
+            className="bg-[var(--cromo-surface)] rounded-xl shadow-2xl border border-[var(--cromo-border)] w-full max-w-xs p-5 space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">Share profile</h2>
+              <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">Share profile</h2>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] transition-colors"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -134,11 +134,11 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
                 readOnly
                 value={profileUrl}
                 onFocus={(e) => e.target.select()}
-                className="min-w-0 flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-w-0 flex-1 rounded-md border border-[var(--cromo-border-strong)] bg-transparent px-3 py-1.5 text-xs text-[var(--cromo-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
               />
               <button
                 onClick={handleCopy}
-                className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                className="shrink-0 rounded-md bg-[var(--cromo-accent)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
               >
                 {copied ? 'Copied!' : 'Copy'}
               </button>
@@ -148,7 +148,7 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
             {getListText && (
               <button
                 onClick={() => void handleCopyList()}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
               >
                 {listCopied ? 'Copied!' : 'Copy list as text'}
               </button>
@@ -158,7 +158,7 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
             {canNativeShare && (
               <button
                 onClick={handleNativeShare}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
               >
                 Share via…
               </button>

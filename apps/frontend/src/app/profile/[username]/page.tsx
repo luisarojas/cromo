@@ -37,17 +37,17 @@ interface InventoryState {
 }
 
 const STICKER_TYPE_COLORS: Record<string, string> = {
-  player: 'bg-blue-100 text-blue-700 border-blue-200',
-  badge: 'bg-purple-100 text-purple-700 border-purple-200',
-  team_photo: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
+  badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)] border-purple-200',
+  team_photo: 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-[var(--cromo-warning)]/30',
   intro: 'bg-teal-100 text-teal-700 border-teal-200',
   museum: 'bg-orange-100 text-orange-700 border-orange-200',
-  coca_cola_special: 'bg-red-100 text-red-700 border-red-200',
+  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] border-[var(--cromo-danger)]/30',
   extra: 'bg-pink-100 text-pink-700 border-pink-200',
 };
 
 function stickerTypeColor(type: string): string {
-  return STICKER_TYPE_COLORS[type] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+  return STICKER_TYPE_COLORS[type] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] border-[var(--cromo-border)]';
 }
 
 function prettify(value: string): string {
@@ -389,10 +389,10 @@ export default function PublicProfilePage() {
     return (
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="space-y-4">
-          <div className="h-16 w-16 rounded-full bg-gray-200 animate-pulse" />
-          <div className="h-6 w-40 rounded bg-gray-200 animate-pulse" />
-          <div className="h-4 w-32 rounded bg-gray-200 animate-pulse" />
-          <div className="h-48 rounded-xl bg-gray-200 animate-pulse" />
+          <div className="h-16 w-16 rounded-full bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-6 w-40 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-4 w-32 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-48 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
         </div>
       </div>
     );
@@ -401,10 +401,10 @@ export default function PublicProfilePage() {
   if (notFound) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10 text-center">
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-10">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-10">
           <div className="text-4xl mb-3">404</div>
-          <h1 className="text-xl font-semibold text-gray-800 mb-2">User not found</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-xl font-semibold text-[var(--cromo-fg)] mb-2">User not found</h1>
+          <p className="text-sm text-[var(--cromo-fg-muted)]">
             The profile for <span className="font-medium">@{username}</span> does not exist.
           </p>
         </div>
@@ -415,7 +415,7 @@ export default function PublicProfilePage() {
   if (error || !profile) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger)]">
           {error ?? 'Failed to load profile.'}
         </div>
       </div>
@@ -449,26 +449,26 @@ export default function PublicProfilePage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
       {/* Profile header */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 mb-5">
+      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-6 mb-5">
         <div className="flex items-center gap-4">
           {profile.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={profile.avatarUrl}
               alt={displayName}
-              className="h-16 w-16 rounded-full object-cover border border-gray-200"
+              className="h-16 w-16 rounded-full object-cover border border-[var(--cromo-border)]"
             />
           ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-blue-600 text-2xl font-bold text-white">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-2xl font-bold text-[var(--cromo-accent-fg)]">
               {displayName.charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-gray-800 truncate">{displayName}</h1>
+            <h1 className="text-2xl font-bold text-[var(--cromo-fg)] truncate">{displayName}</h1>
             {profile.displayName && (
-              <div className="text-sm text-gray-500 truncate">@{profile.username}</div>
+              <div className="text-sm text-[var(--cromo-fg-muted)] truncate">@{profile.username}</div>
             )}
-            <div className="text-xs text-gray-400 mt-1">Member since {memberSince}</div>
+            <div className="text-xs text-[var(--cromo-fg-subtle)] mt-1">Member since {memberSince}</div>
             <div className="mt-2">
               <TrustBadge userId={profile.userId} size="small" />
             </div>
@@ -478,7 +478,7 @@ export default function PublicProfilePage() {
             {canStartTrade && hasAlbums && (
               <Link
                 href={`/trade?tab=find&recipient=${encodeURIComponent(profile.userId)}`}
-                className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
               >
                 Start a trade
               </Link>
@@ -486,7 +486,7 @@ export default function PublicProfilePage() {
             {canStartTrade && viewerToken && (
               <button
                 onClick={() => setShowReportModal(true)}
-                className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
               >
                 Report user
               </button>
@@ -500,21 +500,21 @@ export default function PublicProfilePage() {
       </div>
 
       {!hasAlbums && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-8 text-center">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-8 text-center">
+          <h2 className="text-base font-semibold text-[var(--cromo-fg)] mb-1">
             No public trading inventory
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[var(--cromo-fg-muted)]">
             This user hasn&apos;t made any albums available for public trading.
           </p>
         </div>
       )}
 
       {hasAlbums && activeAlbum && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
           {/* Album tabs */}
           {inventory.length > 1 && (
-            <div className="border-b border-gray-100 overflow-x-auto">
+            <div className="border-b border-[var(--cromo-border)] overflow-x-auto">
               <div className="flex gap-1 px-2 py-2 min-w-max">
                 {inventory.map((album) => {
                   const isActive = album.albumId === activeAlbumId;
@@ -524,12 +524,12 @@ export default function PublicProfilePage() {
                       onClick={() => setUrlState({ album: album.albumId, tab: activeTab })}
                       className={`px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
                         isActive
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
+                          : 'text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                       }`}
                     >
                       {albumLabel(album)}
-                      <span className="ml-1.5 text-xs text-gray-400">
+                      <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">
                         {album.editionName} · {album.formatName}
                       </span>
                     </button>
@@ -540,15 +540,15 @@ export default function PublicProfilePage() {
           )}
 
           {activeAlbum.albumTypeGuidePath && (
-            <div className="px-4 py-2 border-b border-gray-100 bg-blue-50/40">
-              <Link href={activeAlbum.albumTypeGuidePath} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+            <div className="px-4 py-2 border-b border-[var(--cromo-border)] bg-[var(--cromo-accent-soft)]/40">
+              <Link href={activeAlbum.albumTypeGuidePath} className="text-xs text-[var(--cromo-accent)] hover:underline hover:underline">
                 View Collection Guide →
               </Link>
             </div>
           )}
 
           {/* Offered / Wanted tabs */}
-          <div className="flex border-b border-gray-100">
+          <div className="flex border-b border-[var(--cromo-border)]">
             {([
               {
                 key: 'offered',
@@ -567,9 +567,9 @@ export default function PublicProfilePage() {
                 const isActive = activeTab === key;
                 const baseClass = isActive
                   ? accent === 'amber'
-                    ? 'border-amber-500 text-amber-700'
-                    : 'border-red-500 text-red-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-700';
+                    ? 'border-amber-500 text-[var(--cromo-warning)]'
+                    : 'border-red-500 text-[var(--cromo-danger)]'
+                  : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]';
                 return (
                   <button
                     key={key}
@@ -577,7 +577,7 @@ export default function PublicProfilePage() {
                     className={`flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${baseClass}`}
                   >
                     {label}
-                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] rounded-full bg-gray-100 text-gray-700 text-xs px-1.5 py-0.5 font-normal">
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] rounded-full bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] text-xs px-1.5 py-0.5 font-normal">
                       {count}
                     </span>
                   </button>
@@ -594,7 +594,7 @@ export default function PublicProfilePage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by album code or player name..."
-                className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
               />
               <button
                 type="button"
@@ -602,8 +602,8 @@ export default function PublicProfilePage() {
                 aria-expanded={filtersOpen}
                 className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                   activeFilterCount > 0
-                    ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                    ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-soft)]'
+                    : 'border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]'
                 }`}
               >
                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
@@ -611,17 +611,17 @@ export default function PublicProfilePage() {
                 </svg>
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className="rounded-full bg-blue-600 text-white text-[10px] font-bold w-5 h-5 inline-flex items-center justify-center">
+                  <span className="rounded-full bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-[10px] font-bold w-5 h-5 inline-flex items-center justify-center">
                     {activeFilterCount}
                   </span>
                 )}
               </button>
-              <label className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm">
-                <span className="text-gray-500">Group by</span>
+              <label className="inline-flex items-center gap-2 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm">
+                <span className="text-[var(--cromo-fg-muted)]">Group by</span>
                 <select
                   value={groupBy}
                   onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-                  className="bg-transparent text-gray-800 font-medium focus:outline-none"
+                  className="bg-transparent text-[var(--cromo-fg)] font-medium focus:outline-none"
                 >
                   <option value="team">Team</option>
                   <option value="type">Sticker type</option>
@@ -633,10 +633,10 @@ export default function PublicProfilePage() {
 
             {/* Filter panel */}
             {filtersOpen && (
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
+              <div className="rounded-lg border border-[var(--cromo-border)] bg-transparent p-3 space-y-3">
                 {availableTypes.length > 0 && (
                   <div>
-                    <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                    <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
                       Sticker type
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -650,7 +650,7 @@ export default function PublicProfilePage() {
                             className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                               active
                                 ? stickerTypeColor(type)
-                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'
+                                : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                             }`}
                           >
                             {prettify(type)}
@@ -663,7 +663,7 @@ export default function PublicProfilePage() {
 
                 {availableVariants.length > 0 && (
                   <div>
-                    <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                    <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
                       Variant
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -676,12 +676,12 @@ export default function PublicProfilePage() {
                             onClick={() => toggleInSet(setSelectedVariants, variant)}
                             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                               active
-                                ? 'bg-blue-100 border-blue-300 text-blue-700'
-                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'
+                                ? 'bg-[var(--cromo-accent-soft)] border-[var(--cromo-accent)]/40 text-[var(--cromo-accent)]'
+                                : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                             }`}
                           >
                             <span
-                              className={`inline-block w-2.5 h-2.5 rounded-full border border-gray-300 ${variantSwatch(variant)}`}
+                              className={`inline-block w-2.5 h-2.5 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(variant)}`}
                               aria-hidden
                             />
                             {variantLabel(variant)}
@@ -694,7 +694,7 @@ export default function PublicProfilePage() {
 
                 {availableTeams.length > 0 && (
                   <div>
-                    <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+                    <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
                       Team
                     </div>
                     <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
@@ -707,8 +707,8 @@ export default function PublicProfilePage() {
                             onClick={() => toggleInSet(setSelectedTeams, team)}
                             className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                               active
-                                ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
-                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'
+                                ? 'bg-[var(--cromo-accent-soft)] border-indigo-300 text-[var(--cromo-accent)]'
+                                : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                             }`}
                           >
                             {team}
@@ -724,7 +724,7 @@ export default function PublicProfilePage() {
                     <button
                       type="button"
                       onClick={clearAllFilters}
-                      className="text-xs font-medium text-gray-600 hover:text-gray-900 underline"
+                      className="text-xs font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] underline"
                     >
                       Clear all filters
                     </button>
@@ -734,7 +734,7 @@ export default function PublicProfilePage() {
             )}
 
             {(search || activeFilterCount > 0) && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-[var(--cromo-fg-muted)]">
                 Showing {activeItems.length} of {activeTotal}
               </p>
             )}
@@ -745,16 +745,16 @@ export default function PublicProfilePage() {
             {activeLoading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {Array.from({ length: 10 }).map((_, i) => (
-                  <div key={i} className="h-24 rounded-lg bg-gray-100 animate-pulse" />
+                  <div key={i} className="h-24 rounded-lg bg-[var(--cromo-surface-2)] animate-pulse" />
                 ))}
               </div>
             ) : activeState?.error ? (
-              <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
                 {activeState.error}
               </div>
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--cromo-fg-muted)]">
                   {search || activeFilterCount > 0
                     ? 'No stickers match your filters.'
                     : activeTab === 'offered'
@@ -770,9 +770,9 @@ export default function PublicProfilePage() {
                     return (
                       <section key={key}>
                         {groupBy !== 'none' && (
-                          <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 px-1">
+                          <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-2 px-1">
                             {key}{' '}
-                            <span className="font-normal text-gray-400">
+                            <span className="font-normal text-[var(--cromo-fg-subtle)]">
                               ({groupItemsList.length})
                             </span>
                           </h3>
@@ -784,20 +784,20 @@ export default function PublicProfilePage() {
                             return (
                               <div
                                 key={item.stickerVariantId}
-                                className="relative flex flex-col rounded-lg border border-gray-200 bg-white p-2.5 shadow-sm hover:shadow-md transition-shadow"
+                                className="relative flex flex-col rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-2.5 hover:border-[var(--cromo-border-strong)] transition-shadow"
                               >
                                 {showQty && (
                                   <span
-                                    className="absolute top-1.5 right-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center"
+                                    className="absolute top-1.5 right-1.5 rounded-full bg-[var(--cromo-warning-soft)]0 text-white text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center"
                                     title={`${qty} copies available`}
                                   >
                                     ×{qty}
                                   </span>
                                 )}
-                                <div className="text-base font-extrabold text-gray-800 leading-none mb-1 pr-6">
+                                <div className="text-base font-extrabold text-[var(--cromo-fg)] leading-none mb-1 pr-6">
                                   {item.albumCode}
                                 </div>
-                                <div className="text-xs font-medium text-gray-700 truncate leading-tight mb-2">
+                                <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-2">
                                   {item.playerName ?? item.teamName ?? '—'}
                                 </div>
                                 <div className="mt-auto flex flex-wrap items-center gap-1">
@@ -807,11 +807,11 @@ export default function PublicProfilePage() {
                                     {prettify(item.stickerType)}
                                   </span>
                                   <span
-                                    className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700"
+                                    className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
                                     title={variantLabel(item.variantType)}
                                   >
                                     <span
-                                      className={`inline-block w-2 h-2 rounded-full border border-gray-300 ${variantSwatch(item.variantType)}`}
+                                      className={`inline-block w-2 h-2 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(item.variantType)}`}
                                       aria-hidden
                                     />
                                     {variantLabel(item.variantType)}
@@ -833,7 +833,7 @@ export default function PublicProfilePage() {
                       onClick={() =>
                         void activeLoader(activeAlbum.albumId, activeState.nextCursor, apiFilters)
                       }
-                      className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-4 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
                     >
                       {activeState.loadingMore
                         ? 'Loading…'

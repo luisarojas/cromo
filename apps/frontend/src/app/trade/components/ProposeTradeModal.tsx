@@ -42,12 +42,12 @@ export default function ProposeTradeModal({
 }: ProposeTradeModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-5xl rounded-xl border border-gray-200 bg-white shadow-xl flex flex-col max-h-[95vh]">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-800">Propose Trade</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+      <div className="w-full max-w-5xl rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl flex flex-col max-h-[95vh]">
+        <div className="px-6 pt-6 pb-4 border-b border-[var(--cromo-border)] shrink-0">
+          <h2 className="text-lg font-semibold text-[var(--cromo-fg)]">Propose Trade</h2>
+          <p className="text-sm text-[var(--cromo-fg-muted)] mt-0.5">
             With{' '}
-            <span className="font-medium text-gray-700">
+            <span className="font-medium text-[var(--cromo-fg)]">
               {match.displayName ?? match.username}
             </span>{' '}
             (@{match.username})
@@ -74,25 +74,25 @@ export default function ProposeTradeModal({
           />
 
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mt-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mt-4">
               {error}
             </div>
           )}
         </div>
 
-        <div className="px-6 pb-6 pt-3 border-t border-gray-100 shrink-0">
+        <div className="px-6 pb-6 pt-3 border-t border-[var(--cromo-border)] shrink-0">
           <div className="flex gap-3">
             <button
               onClick={onCancel}
               disabled={submitting}
-              className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+              className="flex-1 bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={onSend}
               disabled={submitting || pickerItems.length === 0}
-              className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-[2] bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? 'Sending...' : 'Send Request'}
             </button>

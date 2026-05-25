@@ -86,10 +86,10 @@ export default function ShareListPage() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="space-y-4">
-          <div className="h-8 w-64 rounded bg-gray-200 animate-pulse" />
-          <div className="h-4 w-40 rounded bg-gray-200 animate-pulse" />
-          <div className="h-10 rounded-lg bg-gray-200 animate-pulse" />
-          <div className="h-48 rounded-xl bg-gray-200 animate-pulse" />
+          <div className="h-8 w-64 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-4 w-40 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-10 rounded-lg bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-48 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
         </div>
       </div>
     );
@@ -98,10 +98,10 @@ export default function ShareListPage() {
   if (gone) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10 text-center">
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-10">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-10">
           <div className="text-4xl mb-3">410</div>
-          <h1 className="text-xl font-semibold text-gray-800 mb-2">List no longer available</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-xl font-semibold text-[var(--cromo-fg)] mb-2">List no longer available</h1>
+          <p className="text-sm text-[var(--cromo-fg-muted)]">
             This shared list has expired or been revoked by its owner.
           </p>
         </div>
@@ -112,7 +112,7 @@ export default function ShareListPage() {
   if (error || !list) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger)]">
           {error ?? 'Failed to load list.'}
         </div>
       </div>
@@ -131,15 +131,15 @@ export default function ShareListPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
       {/* Header */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
+      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 mb-5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold text-gray-800">{ownerName}&apos;s {listTypeLabel}</h1>
-            <div className="text-xs text-gray-400 mt-1">
+            <h1 className="text-xl font-bold text-[var(--cromo-fg)]">{ownerName}&apos;s {listTypeLabel}</h1>
+            <div className="text-xs text-[var(--cromo-fg-subtle)] mt-1">
               @{list.owner.username} &middot; Shared on {createdDate}
             </div>
           </div>
-          <div className="shrink-0 rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-xs font-medium">
+          <div className="shrink-0 rounded-full bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] px-3 py-1 text-xs font-medium">
             {list.items.length} stickers
           </div>
         </div>
@@ -152,10 +152,10 @@ export default function ShareListPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by album code or player name..."
-          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         />
         {search && (
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-[var(--cromo-fg-subtle)] mt-1">
             Showing {filteredItems.length} of {list.items.length} stickers
           </p>
         )}
@@ -163,7 +163,7 @@ export default function ShareListPage() {
 
       {filteredItems.length === 0 && (
         <div className="text-center py-8">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[var(--cromo-fg-muted)]">
             {search ? 'No stickers match your search.' : 'This list is empty.'}
           </p>
         </div>
@@ -174,11 +174,11 @@ export default function ShareListPage() {
         {sortedTeams.map((team) => {
           const teamItems = groupedItems.get(team) ?? [];
           return (
-            <div key={team} className="rounded-xl border border-gray-200 bg-white shadow-sm">
-              <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 rounded-t-xl">
-                <h2 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+            <div key={team} className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
+              <div className="px-4 py-2.5 border-b border-[var(--cromo-border)] bg-transparent rounded-t-xl">
+                <h2 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
                   {team}{' '}
-                  <span className="font-normal text-gray-400">({teamItems.length})</span>
+                  <span className="font-normal text-[var(--cromo-fg-subtle)]">({teamItems.length})</span>
                 </h2>
               </div>
               <div className="divide-y divide-gray-50">
@@ -189,16 +189,16 @@ export default function ShareListPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-medium text-gray-500 shrink-0">
+                        <span className="text-xs font-mono font-medium text-[var(--cromo-fg-muted)] shrink-0">
                           {item.albumCode}
                         </span>
                         {item.playerName && (
-                          <span className="text-sm text-gray-800 truncate">
+                          <span className="text-sm text-[var(--cromo-fg)] truncate">
                             {item.playerName}
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-400 mt-0.5 flex gap-1.5">
+                      <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5 flex gap-1.5">
                         <span>{item.variantType}</span>
                         {item.stickerType !== 'player' && (
                           <span>&middot; {item.stickerType}</span>
@@ -206,7 +206,7 @@ export default function ShareListPage() {
                       </div>
                     </div>
                     {showQuantity && item.quantity != null && item.quantity > 1 && (
-                      <span className="shrink-0 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">
+                      <span className="shrink-0 rounded-full bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] px-2 py-0.5 text-xs font-medium">
                         &times;{item.quantity}
                       </span>
                     )}

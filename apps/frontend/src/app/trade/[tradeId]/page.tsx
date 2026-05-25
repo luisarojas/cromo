@@ -31,24 +31,24 @@ function formatCash(cents: number): string {
 }
 
 const STATUS_BADGE: Record<TradeDetail['status'], { label: string; className: string }> = {
-  pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
-  accepted: { label: 'Accepted', className: 'bg-green-100 text-green-800' },
-  declined: { label: 'Declined', className: 'bg-gray-100 text-gray-700' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-700' },
-  completed: { label: 'Completed', className: 'bg-blue-100 text-blue-800' },
-  expired: { label: 'Expired', className: 'bg-gray-100 text-gray-700' },
+  pending: { label: 'Pending', className: 'bg-[var(--cromo-warning-soft)] text-yellow-800' },
+  accepted: { label: 'Accepted', className: 'bg-[var(--cromo-success-soft)] text-green-800' },
+  declined: { label: 'Declined', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
+  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
+  completed: { label: 'Completed', className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
+  expired: { label: 'Expired', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
 };
 
 function ItemCard({ item }: { item: TradeItemDetail }) {
   return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
-      <div className="font-medium text-gray-800">{item.albumCode}</div>
-      <div className="text-xs text-gray-500 mt-0.5 space-x-1.5">
+    <div className="rounded-lg border border-[var(--cromo-border)] bg-transparent px-3 py-2 text-sm">
+      <div className="font-medium text-[var(--cromo-fg)]">{item.albumCode}</div>
+      <div className="text-xs text-[var(--cromo-fg-muted)] mt-0.5 space-x-1.5">
         {item.playerName && <span>{item.playerName}</span>}
         {item.teamName && <span>&middot; {item.teamName}</span>}
         <span>&middot; {item.variantType}</span>
         {item.quantity > 1 && (
-          <span className="font-medium text-gray-700">&times;{item.quantity}</span>
+          <span className="font-medium text-[var(--cromo-fg)]">&times;{item.quantity}</span>
         )}
       </div>
     </div>
@@ -59,19 +59,19 @@ function MessageBubble({ msg, isMe }: { msg: TradeMessage; isMe: boolean }) {
   if (msg.isSystem) {
     return (
       <div className="py-0.5 text-center">
-        <span className="text-[10px] text-gray-400 whitespace-pre-line leading-snug">{msg.body}</span>
+        <span className="text-[10px] text-[var(--cromo-fg-subtle)] whitespace-pre-line leading-snug">{msg.body}</span>
       </div>
     );
   }
   return (
     <div className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-      <div className="text-xs text-gray-400">
+      <div className="text-xs text-[var(--cromo-fg-subtle)]">
         {msg.senderDisplayName ?? msg.senderUsername} &middot;{' '}
         {new Date(msg.sentAt).toLocaleString()}
       </div>
       <div
         className={`max-w-xs rounded-lg px-3 py-2 text-sm ${
-          isMe ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'
+          isMe ? 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)]' : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]'
         }`}
       >
         {msg.body}
@@ -420,7 +420,7 @@ export default function TradeDetailPage() {
 
   if (!hydrated || (!token && hydrated)) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+      <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
         Loading...
       </div>
     );
@@ -430,9 +430,9 @@ export default function TradeDetailPage() {
     return (
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="space-y-4">
-          <div className="h-8 w-48 rounded bg-gray-200 animate-pulse" />
-          <div className="h-40 rounded-xl bg-gray-200 animate-pulse" />
-          <div className="h-60 rounded-xl bg-gray-200 animate-pulse" />
+          <div className="h-8 w-48 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-40 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
+          <div className="h-60 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
         </div>
       </div>
     );
@@ -441,12 +441,12 @@ export default function TradeDetailPage() {
   if (error || !trade) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-10">
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger)]">
           {error ?? 'Trade not found.'}
         </div>
         <button
           onClick={() => router.back()}
-          className="mt-4 text-sm text-blue-600 hover:underline"
+          className="mt-4 text-sm text-[var(--cromo-accent)] hover:underline"
         >
           Go back
         </button>
@@ -494,13 +494,13 @@ export default function TradeDetailPage() {
       <div className="flex items-center gap-3 mb-2">
         <button
           onClick={() => router.push('/trade')}
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] transition-colors"
         >
           &larr; Trades
         </button>
       </div>
       <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Trade Details</h1>
+        <h1 className="text-2xl font-bold text-[var(--cromo-fg)]">Trade Details</h1>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
         >
@@ -509,27 +509,27 @@ export default function TradeDetailPage() {
       </div>
 
       {/* Participants */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
+      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 mb-5">
         <div className="flex gap-6 text-sm">
           <div>
-            <div className="text-xs font-medium text-gray-500 mb-0.5">Requester</div>
-            <div className="font-medium text-gray-800">@{trade.requesterUsername}</div>
+            <div className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-0.5">Requester</div>
+            <div className="font-medium text-[var(--cromo-fg)]">@{trade.requesterUsername}</div>
           </div>
-          <div className="text-gray-400 self-center">&harr;</div>
+          <div className="text-[var(--cromo-fg-subtle)] self-center">&harr;</div>
           <div>
-            <div className="text-xs font-medium text-gray-500 mb-0.5">Recipient</div>
-            <div className="font-medium text-gray-800">@{trade.recipientUsername}</div>
+            <div className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-0.5">Recipient</div>
+            <div className="font-medium text-[var(--cromo-fg)]">@{trade.recipientUsername}</div>
           </div>
           <div className="ml-auto flex items-center gap-3">
             {(isRequester || isRecipient) && token && (
               <button
                 onClick={() => setShowReportModal(true)}
-                className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger)] transition-colors"
               >
                 Report user
               </button>
             )}
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-[var(--cromo-fg-subtle)]">
               Created {new Date(trade.createdAt).toLocaleDateString()}
             </span>
           </div>
@@ -538,12 +538,12 @@ export default function TradeDetailPage() {
 
       {/* Post-trade rating prompt */}
       {canRate && (
-        <div className="rounded-xl border border-blue-100 bg-blue-50 shadow-sm p-5 mb-5">
-          <h2 className="text-sm font-semibold text-blue-800 mb-3">
+        <div className="rounded-xl border border-blue-100 bg-[var(--cromo-accent-soft)] p-5 mb-5">
+          <h2 className="text-sm font-semibold text-[var(--cromo-accent)] mb-3">
             How was your trade with @{partnerUsername}?
           </h2>
           {ratingError && (
-            <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-3">
+            <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-3">
               {ratingError}
             </div>
           )}
@@ -552,7 +552,7 @@ export default function TradeDetailPage() {
             onChange={(e) => setRatingComment(e.target.value.slice(0, 500))}
             rows={2}
             placeholder="Optional comment (500 chars max)…"
-            className="w-full rounded-md border border-blue-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none mb-3 bg-white"
+            className="w-full rounded-md border border-[var(--cromo-accent)]/30 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] resize-none mb-3 bg-[var(--cromo-surface)]"
           />
           <div className="flex gap-3">
             <button
@@ -565,7 +565,7 @@ export default function TradeDetailPage() {
             <button
               onClick={() => handleSubmitRating(false)}
               disabled={ratingSubmitting}
-              className="flex-1 rounded-md bg-red-600 text-white py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+              className="flex-1 rounded-md bg-[var(--cromo-danger)] text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               Negative
             </button>
@@ -574,25 +574,25 @@ export default function TradeDetailPage() {
       )}
 
       {ratingSubmitted && (
-        <div className="rounded-xl border border-green-100 bg-green-50 p-4 mb-5 text-sm text-green-700 font-medium text-center">
+        <div className="rounded-xl border border-[var(--cromo-success)]/30 bg-[var(--cromo-success-soft)] p-4 mb-5 text-sm text-[var(--cromo-success)] font-medium text-center">
           Rating submitted. Thank you!
         </div>
       )}
 
       {/* Trade items */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Trade Items</h2>
+      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 mb-5">
+        <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-4">Trade Items</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            <h3 className="text-xs font-medium text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-2">
               Offered
             </h3>
             {offeredItems.length === 0 && trade.offerCash === 0 ? (
-              <p className="text-xs text-gray-400">Nothing offered</p>
+              <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing offered</p>
             ) : (
               <div className="space-y-2">
                 {trade.offerCash > 0 && (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700">
+                  <div className="rounded-lg border border-blue-100 bg-[var(--cromo-accent-soft)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent)]">
                     {formatCash(trade.offerCash)} cash
                   </div>
                 )}
@@ -603,15 +603,15 @@ export default function TradeDetailPage() {
             )}
           </div>
           <div>
-            <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+            <h3 className="text-xs font-medium text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-2">
               Wanted
             </h3>
             {wantedItems.length === 0 && trade.wantCash === 0 ? (
-              <p className="text-xs text-gray-400">Nothing requested</p>
+              <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing requested</p>
             ) : (
               <div className="space-y-2">
                 {trade.wantCash > 0 && (
-                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                  <div className="rounded-lg border border-emerald-100 bg-[var(--cromo-success-soft)] px-3 py-2 text-sm font-medium text-[var(--cromo-success)]">
                     {formatCash(trade.wantCash)} cash
                   </div>
                 )}
@@ -626,11 +626,11 @@ export default function TradeDetailPage() {
 
       {/* Actions */}
       {!isTerminal && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Actions</h2>
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 mb-5">
+          <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-3">Actions</h2>
 
           {actionError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-3">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-3">
               {actionError}
             </div>
           )}
@@ -641,14 +641,14 @@ export default function TradeDetailPage() {
                 <button
                   onClick={handleAccept}
                   disabled={actionLoading}
-                  className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                  className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   Accept
                 </button>
                 <button
                   onClick={handleDecline}
                   disabled={actionLoading}
-                  className="bg-red-600 text-white hover:bg-red-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                  className="bg-[var(--cromo-danger)] text-white hover:opacity-90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   Decline
                 </button>
@@ -658,7 +658,7 @@ export default function TradeDetailPage() {
               <button
                 onClick={() => setShowCounter((v) => !v)}
                 disabled={actionLoading}
-                className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                className="bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
               >
                 Counter Offer
               </button>
@@ -667,7 +667,7 @@ export default function TradeDetailPage() {
               <button
                 onClick={() => setShowEdit((v) => !v)}
                 disabled={actionLoading}
-                className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                className="bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
               >
                 Edit Offer
               </button>
@@ -676,13 +676,13 @@ export default function TradeDetailPage() {
               <button
                 onClick={handleComplete}
                 disabled={actionLoading}
-                className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
               >
                 Mark Complete
               </button>
             )}
             {iHaveConfirmedComplete && (
-              <span className="rounded-md px-4 py-2 text-sm font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
+              <span className="rounded-md px-4 py-2 text-sm font-medium bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] border border-[var(--cromo-warning)]/30">
                 Waiting for other participant to confirm
               </span>
             )}
@@ -690,7 +690,7 @@ export default function TradeDetailPage() {
               <button
                 onClick={handleCancel}
                 disabled={actionLoading}
-                className="bg-red-600 text-white hover:bg-red-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                className="bg-[var(--cromo-danger)] text-white hover:opacity-90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
               >
                 Cancel Trade
               </button>
@@ -699,8 +699,8 @@ export default function TradeDetailPage() {
 
           {/* Counter form */}
           {showCounter && token && (
-            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Submit Counter Offer</h3>
+            <div className="mt-4 rounded-lg border border-[var(--cromo-border)] bg-transparent p-4 space-y-4">
+              <h3 className="text-sm font-medium text-[var(--cromo-fg)]">Submit Counter Offer</h3>
               <TradeStickerPicker
                 key="counter"
                 offerItems={counterOfferItems}
@@ -721,7 +721,7 @@ export default function TradeDetailPage() {
                 }}
               />
               {counterError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
                   {counterError}
                 </div>
               )}
@@ -729,14 +729,14 @@ export default function TradeDetailPage() {
                 <button
                   onClick={handleCounter}
                   disabled={counterSubmitting}
-                  className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                  className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   {counterSubmitting ? 'Submitting...' : 'Submit Counter'}
                 </button>
                 <button
                   onClick={() => { setShowCounter(false); setCounterItems([]); setCounterOfferCash(0); setCounterWantCash(0); }}
                   disabled={counterSubmitting}
-                  className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                  className="bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -746,8 +746,8 @@ export default function TradeDetailPage() {
 
           {/* Edit counter-offer form */}
           {showEdit && token && (
-            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Edit Counter Offer</h3>
+            <div className="mt-4 rounded-lg border border-[var(--cromo-border)] bg-transparent p-4 space-y-4">
+              <h3 className="text-sm font-medium text-[var(--cromo-fg)]">Edit Counter Offer</h3>
               <TradeStickerPicker
                 key="edit"
                 offerItems={editOfferItems}
@@ -768,7 +768,7 @@ export default function TradeDetailPage() {
                 }}
               />
               {editError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
                   {editError}
                 </div>
               )}
@@ -776,14 +776,14 @@ export default function TradeDetailPage() {
                 <button
                   onClick={handleEdit}
                   disabled={editSubmitting}
-                  className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
+                  className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 transition-colors"
                 >
                   {editSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button
                   onClick={() => { setShowEdit(false); setEditItems([]); setEditOfferCash(0); setEditWantCash(0); }}
                   disabled={editSubmitting}
-                  className="bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                  className="bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >
                   Cancel
                 </button>
@@ -794,12 +794,12 @@ export default function TradeDetailPage() {
       )}
 
       {/* Messages */}
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Messages</h2>
+      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
+        <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-4">Messages</h2>
 
         <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
           {messages.length === 0 && (
-            <p className="text-xs text-gray-400 text-center py-4">No messages yet.</p>
+            <p className="text-xs text-[var(--cromo-fg-subtle)] text-center py-4">No messages yet.</p>
           )}
           {messages.map((msg) => (
             <MessageBubble key={msg.id} msg={msg} isMe={msg.senderId === user?.id} />
@@ -808,7 +808,7 @@ export default function TradeDetailPage() {
         </div>
 
         {!isTerminal && (
-          <div className="flex gap-2 pt-3 border-t border-gray-100">
+          <div className="flex gap-2 pt-3 border-t border-[var(--cromo-border)]">
             <textarea
               value={msgBody}
               onChange={(e) => setMsgBody(e.target.value.slice(0, 2000))}
@@ -820,12 +820,12 @@ export default function TradeDetailPage() {
               }}
               rows={2}
               placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="flex-1 rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] resize-none"
             />
             <button
               onClick={handleSendMessage}
               disabled={sendingMsg || !msgBody.trim()}
-              className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed self-end transition-colors"
+              className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed self-end transition-colors"
             >
               Send
             </button>
@@ -833,7 +833,7 @@ export default function TradeDetailPage() {
         )}
 
         {isTerminal && (
-          <p className="text-xs text-gray-400 text-center pt-3 border-t border-gray-100">
+          <p className="text-xs text-[var(--cromo-fg-subtle)] text-center pt-3 border-t border-[var(--cromo-border)]">
             This trade is {trade.status}. Messaging is disabled.
           </p>
         )}

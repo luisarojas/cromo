@@ -117,7 +117,7 @@ export default function FilterBar({
   }
 
   return (
-    <div className="flex flex-col gap-2 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+    <div className="flex flex-col gap-2 bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-xl p-4">
 
       {/* Primary row: search + filters toggle + clear */}
       <div className="flex gap-2 items-center">
@@ -127,7 +127,7 @@ export default function FilterBar({
           placeholder="Search player, team, code…"
           value={filters.search ?? ''}
           onChange={(e) => updateText('search', e.target.value)}
-          className="flex-1 min-w-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="flex-1 min-w-0 rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         />
 
         <button
@@ -135,8 +135,8 @@ export default function FilterBar({
           onClick={() => setExpanded((v) => !v)}
           className={`flex items-center gap-1.5 shrink-0 rounded-md border px-3 py-1.5 text-sm transition-colors ${
             nonSearchActiveCount > 0 || expanded
-              ? 'border-blue-300 bg-blue-50 text-blue-600'
-              : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+              ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
+              : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
           }`}
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -144,7 +144,7 @@ export default function FilterBar({
           </svg>
           Filters
           {nonSearchActiveCount > 0 && (
-            <span className="flex items-center justify-center rounded-full bg-blue-500 text-white text-[10px] font-bold w-4 h-4 leading-none">
+            <span className="flex items-center justify-center rounded-full bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-[10px] font-bold w-4 h-4 leading-none">
               {nonSearchActiveCount}
             </span>
           )}
@@ -155,7 +155,7 @@ export default function FilterBar({
           onClick={() => hasActiveFilter && onChange({})}
           className={`shrink-0 text-sm px-1 py-1.5 transition-colors ${
             hasActiveFilter
-              ? 'text-gray-400 hover:text-gray-600 cursor-pointer'
+              ? 'text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] cursor-pointer'
               : 'text-gray-200 cursor-default'
           }`}
         >
@@ -165,7 +165,7 @@ export default function FilterBar({
 
       {/* Expanded filter panel */}
       {expanded && (
-        <div className="flex flex-wrap gap-3 items-end pt-3 border-t border-gray-100">
+        <div className="flex flex-wrap gap-3 items-end pt-3 border-t border-[var(--cromo-border)]">
           <MultiSelect
             id="filter-group"
             label="Group"
@@ -204,14 +204,14 @@ export default function FilterBar({
 
           {/* Favourites toggle */}
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-500">Favourites</span>
+            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Favourites</span>
             <button
               type="button"
               onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                 filters.favouritesOnly
-                  ? 'border-red-300 bg-red-50 text-red-500'
-                  : 'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+                  ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]'
+                  : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
               }`}
             >
               <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
@@ -221,7 +221,7 @@ export default function FilterBar({
 
           {/* Page range */}
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-gray-500">Page</span>
+            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Page</span>
             <div className="flex items-center gap-1">
               <input
                 type="number"
@@ -231,9 +231,9 @@ export default function FilterBar({
                 onChange={(e) =>
                   onChange({ ...filters, pageFrom: e.target.value ? Number(e.target.value) : undefined })
                 }
-                className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
               />
-              <span className="text-xs text-gray-400">–</span>
+              <span className="text-xs text-[var(--cromo-fg-subtle)]">–</span>
               <input
                 type="number"
                 min={1}
@@ -242,7 +242,7 @@ export default function FilterBar({
                 onChange={(e) =>
                   onChange({ ...filters, pageTo: e.target.value ? Number(e.target.value) : undefined })
                 }
-                className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
               />
             </div>
           </div>
@@ -255,7 +255,7 @@ export default function FilterBar({
           {activeChips.map((chip) => (
             <span
               key={chip.label}
-              className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs px-2.5 py-0.5"
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-accent-soft)] border border-[var(--cromo-accent)]/30 text-[var(--cromo-accent)] text-xs px-2.5 py-0.5"
             >
               {chip.label}
               <button

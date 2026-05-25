@@ -30,8 +30,8 @@ export default function BanStatusBanner() {
     <div
       className={`w-full px-4 py-2.5 text-sm font-medium text-center ${
         isSoft
-          ? 'bg-yellow-100 text-yellow-800 border-b border-yellow-200'
-          : 'bg-red-100 text-red-800 border-b border-red-200'
+          ? 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-b border-[var(--cromo-warning)]/30'
+          : 'bg-[var(--cromo-danger-soft)] text-red-800 border-b border-[var(--cromo-danger)]/30'
       }`}
     >
       {status.message}

@@ -15,15 +15,17 @@ import {
 } from '@/lib/api';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import type { City } from '@/lib/api';
+import ThemeToggle from '@/components/ThemeToggle';
+import { PageHeader } from '@/components/ui';
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
 function SectionCard({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div className="bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] p-6">
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-        {description && <p className="mt-0.5 text-sm text-gray-500">{description}</p>}
+        <h2 className="text-base font-semibold text-[var(--cromo-fg)]">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-[var(--cromo-fg-muted)]">{description}</p>}
       </div>
       {children}
     </div>
@@ -35,8 +37,8 @@ function StatusMessage({ type, message }: { type: 'success' | 'error'; message: 
     <div
       className={`rounded-md px-3 py-2 text-sm ${
         type === 'success'
-          ? 'bg-green-50 border border-green-200 text-green-700'
-          : 'bg-red-50 border border-red-200 text-red-700'
+          ? 'bg-[var(--cromo-success-soft)] border border-[var(--cromo-success)]/30 text-[var(--cromo-success)]'
+          : 'bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger)]'
       }`}
     >
       {message}
@@ -49,7 +51,7 @@ function SubmitButton({ loading, label, loadingLabel }: { loading: boolean; labe
     <button
       type="submit"
       disabled={loading}
-      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors self-start"
+      className="rounded-md bg-[var(--cromo-accent)] px-4 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 transition-colors self-start"
     >
       {loading ? loadingLabel : label}
     </button>
@@ -88,7 +90,7 @@ function ChangeDisplayNameSection() {
     <SectionCard title="Display Name" description="Shown in the navbar in place of your username. Leave blank to show your username instead.">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700" htmlFor="displayName">
+          <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="displayName">
             Display name
           </label>
           <input
@@ -99,9 +101,9 @@ function ChangeDisplayNameSection() {
             maxLength={100}
             placeholder={`e.g. ${user?.username ?? 'Your Name'}`}
             autoComplete="name"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+            className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
           />
-          <p className="text-xs text-gray-400">Up to 100 characters. Leave blank to clear.</p>
+          <p className="text-xs text-[var(--cromo-fg-subtle)]">Up to 100 characters. Leave blank to clear.</p>
         </div>
         {status && <StatusMessage type={status.type} message={status.message} />}
         <SubmitButton loading={loading} label="Save display name" loadingLabel="Saving…" />
@@ -142,7 +144,7 @@ function ChangeUsernameSection() {
     <SectionCard title="Username">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700" htmlFor="username">
+          <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="username">
             New username
           </label>
           <input
@@ -156,9 +158,9 @@ function ChangeUsernameSection() {
             pattern="^[a-zA-Z0-9_-]+$"
             title="Letters, numbers, underscores, hyphens only"
             autoComplete="username"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+            className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
           />
-          <p className="text-xs text-gray-400">3–30 characters. Letters, numbers, underscores, hyphens.</p>
+          <p className="text-xs text-[var(--cromo-fg-subtle)]">3–30 characters. Letters, numbers, underscores, hyphens.</p>
         </div>
         {status && <StatusMessage type={status.type} message={status.message} />}
         <SubmitButton loading={loading} label="Save username" loadingLabel="Saving…" />
@@ -202,7 +204,7 @@ function ChangeEmailSection() {
     <SectionCard title="Email Address">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700" htmlFor="email">
+          <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="email">
             New email address
           </label>
           <input
@@ -212,9 +214,9 @@ function ChangeEmailSection() {
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="email"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+            className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
           />
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[var(--cromo-fg-subtle)]">
             You will need to verify your new email address before it is active.
           </p>
         </div>
@@ -262,7 +264,7 @@ function ChangePasswordSection() {
     <SectionCard title="Password">
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700" htmlFor="currentPassword">
+          <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="currentPassword">
             Current password
           </label>
           <input
@@ -272,12 +274,12 @@ function ChangePasswordSection() {
             onChange={(e) => setCurrentPassword(e.target.value)}
             required
             autoComplete="current-password"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+            className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
             placeholder="••••••••"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700" htmlFor="newPassword">
+          <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="newPassword">
             New password
           </label>
           <input
@@ -289,13 +291,13 @@ function ChangePasswordSection() {
             minLength={8}
             maxLength={128}
             autoComplete="new-password"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+            className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
             placeholder="••••••••"
           />
-          <p className="text-xs text-gray-400">Minimum 8 characters.</p>
+          <p className="text-xs text-[var(--cromo-fg-subtle)]">Minimum 8 characters.</p>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-gray-700" htmlFor="confirmPassword">
+          <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="confirmPassword">
             Confirm new password
           </label>
           <input
@@ -305,7 +307,7 @@ function ChangePasswordSection() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             autoComplete="new-password"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 max-w-xs"
+            className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
             placeholder="••••••••"
           />
         </div>
@@ -347,9 +349,9 @@ function LocationSection() {
     >
       <div className="flex flex-col gap-3">
         <CityAutocomplete cities={cities} onChange={handleCitiesChange} />
-        {saving && <p className="text-xs text-gray-400">Saving…</p>}
+        {saving && <p className="text-xs text-[var(--cromo-fg-subtle)]">Saving…</p>}
         {status && <StatusMessage type={status.type} message={status.message} />}
-        <p className="text-xs text-gray-400">Up to 5 cities. Search and select from the dropdown.</p>
+        <p className="text-xs text-[var(--cromo-fg-subtle)]">Up to 5 cities. Search and select from the dropdown.</p>
       </div>
     </SectionCard>
   );
@@ -384,9 +386,9 @@ function DeleteAccountSection() {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-red-200 shadow-sm p-6">
-      <h2 className="text-base font-semibold text-red-700 mb-1">Delete Account</h2>
-      <p className="text-sm text-gray-500 mb-4">
+    <div className="bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-danger)]/30 p-6">
+      <h2 className="text-base font-semibold text-[var(--cromo-danger)] mb-1">Delete Account</h2>
+      <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">
         Permanently deactivates your account. This action cannot be undone.
       </p>
 
@@ -399,27 +401,27 @@ function DeleteAccountSection() {
       {!confirming ? (
         <button
           onClick={() => setConfirming(true)}
-          className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          className="rounded-md border border-[var(--cromo-danger)]/40 px-4 py-2 text-sm font-medium text-[var(--cromo-danger)] hover:bg-[var(--cromo-danger-soft)] transition-colors"
         >
           Delete my account
         </button>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-medium text-gray-800">
+          <p className="text-sm font-medium text-[var(--cromo-fg)]">
             Are you sure? This will permanently deactivate your account.
           </p>
           <div className="flex gap-3">
             <button
               onClick={handleDelete}
               disabled={loading}
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              className="rounded-md bg-[var(--cromo-danger)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Deleting…' : 'Yes, delete my account'}
             </button>
             <button
               onClick={() => setConfirming(false)}
               disabled={loading}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-md border border-[var(--cromo-border-strong)] px-4 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50 transition-colors"
             >
               Cancel
             </button>
@@ -462,19 +464,34 @@ function AlbumSettingsTab() {
             type="checkbox"
             checked={duplicatesCountAllVariants}
             onChange={(e) => handleDuplicatesChange(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
           />
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-medium text-gray-800">
+            <span className="text-sm font-medium text-[var(--cromo-fg)]">
               Count all copies as duplicates, regardless of variant
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-[var(--cromo-fg-muted)]">
               When enabled, owning the same sticker in different variants (e.g. base + foil)
               counts as a duplicate. When disabled, only multiple copies of the same variant
               are considered duplicates.
             </span>
           </div>
         </label>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ─── Appearance tab ───────────────────────────────────────────────────────────
+
+function AppearanceSettingsTab() {
+  return (
+    <div className="flex flex-col gap-6">
+      <SectionCard
+        title="Theme"
+        description="Switch between dark and light mode. Saved per browser."
+      >
+        <ThemeToggle />
       </SectionCard>
     </div>
   );
@@ -497,11 +514,12 @@ function AccountSettingsTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'album';
+type SettingsTab = 'account' | 'album' | 'appearance';
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'account', label: 'Account' },
   { id: 'album', label: 'Album Defaults' },
+  { id: 'appearance', label: 'Appearance' },
 ];
 
 export default function SettingsPage() {
@@ -516,21 +534,19 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
+    <div className="min-h-screen py-10 px-4">
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        </div>
+        <PageHeader eyebrow="Settings" title="Settings" />
 
-        <div className="flex gap-1 border-b border-gray-200">
+        <div className="flex gap-1 border-b border-[var(--cromo-border)]">
           {TABS.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                  : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)]'
               }`}
             >
               {label}
@@ -540,6 +556,7 @@ export default function SettingsPage() {
 
         {activeTab === 'account' && <AccountSettingsTab />}
         {activeTab === 'album' && <AlbumSettingsTab />}
+        {activeTab === 'appearance' && <AppearanceSettingsTab />}
       </div>
     </div>
   );

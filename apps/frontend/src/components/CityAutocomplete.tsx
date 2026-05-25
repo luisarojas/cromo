@@ -141,13 +141,13 @@ export default function CityAutocomplete({ cities, onChange, maxCities = 5 }: Pr
           {cities.map((city) => (
             <span
               key={city.placeId}
-              className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-sm text-blue-800"
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-accent-soft)] border border-[var(--cromo-accent)]/30 px-3 py-1 text-sm text-[var(--cromo-accent)]"
             >
               {city.label}
               <button
                 type="button"
                 onClick={() => removeCity(city.placeId)}
-                className="ml-0.5 text-blue-400 hover:text-blue-700 leading-none"
+                className="ml-0.5 text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] leading-none"
                 aria-label={`Remove ${city.label}`}
               >
                 ×
@@ -166,16 +166,16 @@ export default function CityAutocomplete({ cities, onChange, maxCities = 5 }: Pr
             onFocus={() => suggestions.length > 0 && setOpen(true)}
             onKeyDown={handleKeyDown}
             placeholder="Search for a city…"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
             autoComplete="off"
           />
           {loading && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--cromo-fg-subtle)]">
               Searching…
             </span>
           )}
           {open && suggestions.length > 0 && (
-            <ul ref={listRef} className="absolute z-20 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+            <ul ref={listRef} className="absolute z-20 mt-1 w-full rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl max-h-52 overflow-y-auto">
               {suggestions.map((s, i) => {
                 const alreadyAdded = cities.some((c) => c.placeId === s.placeId);
                 const highlighted = i === activeIndex;
@@ -185,12 +185,12 @@ export default function CityAutocomplete({ cities, onChange, maxCities = 5 }: Pr
                       type="button"
                       onMouseDown={(e) => { e.preventDefault(); addCity(s); }}
                       onMouseEnter={() => setActiveIndex(i)}
-                      className={`w-full text-left px-3 py-2 text-sm disabled:opacity-40 ${highlighted ? 'bg-blue-50' : 'hover:bg-blue-50'}`}
+                      className={`w-full text-left px-3 py-2 text-sm disabled:opacity-40 ${highlighted ? 'bg-[var(--cromo-accent-soft)]' : 'hover:bg-[var(--cromo-accent-soft)]'}`}
                       disabled={alreadyAdded}
                     >
                       {s.label}
                       {alreadyAdded && (
-                        <span className="ml-2 text-xs text-gray-400">already added</span>
+                        <span className="ml-2 text-xs text-[var(--cromo-fg-subtle)]">already added</span>
                       )}
                     </button>
                   </li>
@@ -202,7 +202,7 @@ export default function CityAutocomplete({ cities, onChange, maxCities = 5 }: Pr
       )}
 
       {atLimit && (
-        <p className="text-xs text-gray-400">Maximum of {maxCities} cities reached.</p>
+        <p className="text-xs text-[var(--cromo-fg-subtle)]">Maximum of {maxCities} cities reached.</p>
       )}
     </div>
   );

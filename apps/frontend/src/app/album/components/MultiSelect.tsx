@@ -78,7 +78,7 @@ export default function MultiSelect({
 
   return (
     <div className="flex flex-col gap-1" ref={ref}>
-      <label htmlFor={id} className="text-xs font-medium text-gray-500">
+      <label htmlFor={id} className="text-xs font-medium text-[var(--cromo-fg-muted)]">
         {label}
       </label>
       <div className="relative">
@@ -86,10 +86,10 @@ export default function MultiSelect({
           id={id}
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className={`rounded-md border px-3 py-1.5 text-sm text-left w-full flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white ${
+          className={`rounded-md border px-3 py-1.5 text-sm text-left w-full flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] bg-[var(--cromo-surface)] ${
             hasSelection
-              ? 'border-blue-400 text-blue-700'
-              : 'border-gray-300 text-gray-700'
+              ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+              : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg)]'
           }`}
         >
           <span className="truncate">{buttonLabel}</span>
@@ -104,21 +104,21 @@ export default function MultiSelect({
           </svg>
         </button>
         {open && (
-          <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-64 flex flex-col">
-            <div className="px-2 py-1.5 border-b border-gray-100 shrink-0 flex items-center gap-2">
+          <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-lg shadow-2xl py-1 max-h-64 flex flex-col">
+            <div className="px-2 py-1.5 border-b border-[var(--cromo-border)] shrink-0 flex items-center gap-2">
               <input
                 ref={searchRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search…"
-                className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="flex-1 rounded border border-[var(--cromo-border)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
               />
               {value.length > 0 && (
                 <button
                   type="button"
                   onClick={() => onChange([])}
-                  className="shrink-0 text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap"
+                  className="shrink-0 text-xs text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] whitespace-nowrap"
                 >
                   Clear all
                 </button>
@@ -126,18 +126,18 @@ export default function MultiSelect({
             </div>
             <div className="overflow-y-auto">
               {filteredOptions.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-gray-400">No results</div>
+                <div className="px-3 py-2 text-xs text-[var(--cromo-fg-subtle)]">No results</div>
               ) : (
                 filteredOptions.map((opt) => (
                   <label
                     key={opt.value}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--cromo-surface-2)] cursor-pointer text-sm text-[var(--cromo-fg)]"
                   >
                     <input
                       type="checkbox"
                       checked={value.includes(opt.value)}
                       onChange={() => toggle(opt.value)}
-                      className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
+                      className="rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
                     />
                     {opt.label}
                   </label>

@@ -215,32 +215,32 @@ export default function VariantPopover({
       ref={ref}
       role="dialog"
       aria-label={`Manage variants for sticker ${sticker.albumCode}`}
-      className="fixed z-50 rounded-xl border border-gray-200 bg-white shadow-xl p-3 flex flex-col gap-2 overflow-y-auto"
+      className="fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl p-3 flex flex-col gap-2 overflow-y-auto"
       style={{ ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }}
     >
       <div className="flex items-center justify-between">
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-gray-800">
+          <div className="text-sm font-semibold text-[var(--cromo-fg)]">
             {sticker.albumCode}
           </div>
-          <div className="text-xs text-gray-500 truncate">
+          <div className="text-xs text-[var(--cromo-fg-muted)] truncate">
             {sticker.playerName ?? sticker.teamName ?? '—'}
           </div>
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-700 text-lg leading-none px-1 shrink-0 ml-2"
+          className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-lg leading-none px-1 shrink-0 ml-2"
           aria-label="Close"
         >
           ×
         </button>
       </div>
 
-      <div className="h-px bg-gray-100" />
+      <div className="h-px bg-[var(--cromo-surface-2)]" />
 
       {/* Owned variants */}
       {!showMovePicker && !showMoveFromPicker && (ownedEntries.length === 0 ? (
-        <div className="text-xs text-gray-500 italic py-1">
+        <div className="text-xs text-[var(--cromo-fg-muted)] italic py-1">
           Not in your collection yet.
         </div>
       ) : (
@@ -248,24 +248,24 @@ export default function VariantPopover({
           {ownedEntries.map(([variantType, entry]) => (
             <li
               key={variantType}
-              className="flex flex-col gap-1 rounded-md bg-gray-50 px-2 py-1.5"
+              className="flex flex-col gap-1 rounded-md bg-[var(--cromo-surface-2)] px-2 py-1.5"
             >
               <div className="flex items-center gap-2">
                 <span
-                  className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(variantType)}`}
+                  className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(variantType)}`}
                   aria-hidden
                 />
-                <span className="flex-1 text-xs font-medium text-gray-700 truncate">
+                <span className="flex-1 text-xs font-medium text-[var(--cromo-fg)] truncate">
                   {variantLabel(variantType)}
                 </span>
-                <span className="text-xs font-semibold text-gray-800 tabular-nums w-5 text-right">
+                <span className="text-xs font-semibold text-[var(--cromo-fg)] tabular-nums w-5 text-right">
                   ×{entry.quantity}
                 </span>
                 <div className="flex gap-1">
                   <button
                     onClick={() => handleAdjust(entry.variantId, variantType, -1)}
                     disabled={busy}
-                    className="w-6 h-6 rounded bg-red-100 text-red-600 hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
+                    className="w-6 h-6 rounded bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
                     aria-label={`Remove one ${variantLabel(variantType)}`}
                     title="Remove one"
                   >
@@ -274,7 +274,7 @@ export default function VariantPopover({
                   <button
                     onClick={() => handleAdjust(entry.variantId, variantType, 1)}
                     disabled={busy}
-                    className="w-6 h-6 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 disabled:opacity-50 text-sm font-bold leading-none"
+                    className="w-6 h-6 rounded bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] hover:bg-blue-200 disabled:opacity-50 text-sm font-bold leading-none"
                     aria-label={`Add one ${variantLabel(variantType)}`}
                     title="Add one"
                   >
@@ -293,8 +293,8 @@ export default function VariantPopover({
                     title={entry.tradeForced && !entry.tradeHidden ? 'Cannot hide while forced for trade' : entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeHidden
-                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] hover:bg-red-200'
+                        : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                     }`}
                   >
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -315,8 +315,8 @@ export default function VariantPopover({
                     title={entry.tradeHidden && !entry.tradeForced ? 'Cannot force trade while hidden' : entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeForced
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] hover:bg-green-200'
+                        : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                     }`}
                   >
                     <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -331,20 +331,20 @@ export default function VariantPopover({
         </ul>
       ))}
 
-      {!showMovePicker && !showMoveFromPicker && <div className="h-px bg-gray-100" />}
+      {!showMovePicker && !showMoveFromPicker && <div className="h-px bg-[var(--cromo-surface-2)]" />}
 
       {/* Move to / from another album */}
       {otherAlbums.length > 0 && (ownedEntries.length > 0 || (albumsWithSticker && albumsWithSticker.length > 0)) && (
         <>
           {showMovePicker ? (
             <div className="flex flex-col gap-2">
-              <div className="text-xs font-medium text-gray-700">Move to another album</div>
+              <div className="text-xs font-medium text-[var(--cromo-fg)]">Move to another album</div>
 
               {ownedEntries.length > 1 && (
                 <select
                   value={moveVariantId ?? ''}
                   onChange={(e) => setMoveVariantId(e.target.value)}
-                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                  className="rounded-md border border-[var(--cromo-border)] px-2 py-1 text-xs text-[var(--cromo-fg)] focus:outline-none"
                 >
                   {ownedEntries.map(([vt, entry]) => (
                     <option key={entry.variantId} value={entry.variantId}>
@@ -355,11 +355,11 @@ export default function VariantPopover({
               )}
 
               <div className="flex gap-2 items-center">
-                <label className="text-xs text-gray-500 shrink-0">To</label>
+                <label className="text-xs text-[var(--cromo-fg-muted)] shrink-0">To</label>
                 <select
                   value={moveTargetAlbumId}
                   onChange={(e) => setMoveTargetAlbumId(e.target.value)}
-                  className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                  className="flex-1 rounded-md border border-[var(--cromo-border)] px-2 py-1 text-xs text-[var(--cromo-fg)] focus:outline-none"
                 >
                   {otherAlbums.map((a) => (
                     <option key={a.id} value={a.id}>{albumDisplayName(a)}</option>
@@ -368,7 +368,7 @@ export default function VariantPopover({
               </div>
 
               <div className="flex gap-2 items-center">
-                <label className="text-xs text-gray-500 shrink-0">Qty</label>
+                <label className="text-xs text-[var(--cromo-fg-muted)] shrink-0">Qty</label>
                 <input
                   type="number"
                   min={1}
@@ -377,7 +377,7 @@ export default function VariantPopover({
                   }
                   value={moveQuantity}
                   onChange={(e) => setMoveQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                  className="w-16 rounded-md border border-[var(--cromo-border)] px-2 py-1 text-xs text-[var(--cromo-fg)] focus:outline-none"
                 />
               </div>
 
@@ -392,7 +392,7 @@ export default function VariantPopover({
                 <button
                   onClick={() => setShowMovePicker(false)}
                   disabled={busy}
-                  className="px-3 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  className="px-3 rounded-md border border-[var(--cromo-border)] text-xs text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -400,14 +400,14 @@ export default function VariantPopover({
             </div>
           ) : showMoveFromPicker ? (
             <div className="flex flex-col gap-2">
-              <div className="text-xs font-medium text-gray-700">Move from another album</div>
+              <div className="text-xs font-medium text-[var(--cromo-fg)]">Move from another album</div>
 
               <div className="flex gap-2 items-center">
-                <label className="text-xs text-gray-500 shrink-0">From</label>
+                <label className="text-xs text-[var(--cromo-fg-muted)] shrink-0">From</label>
                 <select
                   value={moveFromSourceAlbumId}
                   onChange={(e) => setMoveFromSourceAlbumId(e.target.value)}
-                  className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                  className="flex-1 rounded-md border border-[var(--cromo-border)] px-2 py-1 text-xs text-[var(--cromo-fg)] focus:outline-none"
                 >
                   {(albumsWithSticker ?? []).map((a) => (
                     <option key={a.id} value={a.id}>{a.name}</option>
@@ -419,7 +419,7 @@ export default function VariantPopover({
                 <select
                   value={moveFromVariantId}
                   onChange={(e) => setMoveFromVariantId(e.target.value)}
-                  className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                  className="rounded-md border border-[var(--cromo-border)] px-2 py-1 text-xs text-[var(--cromo-fg)] focus:outline-none"
                 >
                   {allVariants.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -430,13 +430,13 @@ export default function VariantPopover({
               )}
 
               <div className="flex gap-2 items-center">
-                <label className="text-xs text-gray-500 shrink-0">Qty</label>
+                <label className="text-xs text-[var(--cromo-fg-muted)] shrink-0">Qty</label>
                 <input
                   type="number"
                   min={1}
                   value={moveFromQuantity}
                   onChange={(e) => setMoveFromQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none"
+                  className="w-16 rounded-md border border-[var(--cromo-border)] px-2 py-1 text-xs text-[var(--cromo-fg)] focus:outline-none"
                 />
               </div>
 
@@ -451,7 +451,7 @@ export default function VariantPopover({
                 <button
                   onClick={() => setShowMoveFromPicker(false)}
                   disabled={busy}
-                  className="px-3 rounded-md border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  className="px-3 rounded-md border border-[var(--cromo-border)] text-xs text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -478,15 +478,15 @@ export default function VariantPopover({
               )}
             </div>
           )}
-          <div className="h-px bg-gray-100" />
+          <div className="h-px bg-[var(--cromo-surface-2)]" />
         </>
       )}
 
       {/* Unowned variants: add + want-it */}
       {loadingVariants ? (
-        <div className="text-xs text-gray-400">Loading variants…</div>
+        <div className="text-xs text-[var(--cromo-fg-subtle)]">Loading variants…</div>
       ) : unownedVariants.length === 0 && ownedVariants.size > 0 ? (
-        <div className="text-xs text-gray-500 italic">
+        <div className="text-xs text-[var(--cromo-fg-muted)] italic">
           You already own every variant of this sticker.
         </div>
       ) : unownedVariants.length > 0 ? (
@@ -494,7 +494,7 @@ export default function VariantPopover({
           {!showAddPicker && (
             <button
               onClick={openAddPicker}
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 self-start"
+              className="text-xs font-medium text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] self-start"
             >
               + Add other variant
             </button>
@@ -506,25 +506,25 @@ export default function VariantPopover({
                   key={v.id}
                   onClick={() => handleAddNew(v.id, v.variantType)}
                   disabled={busy}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-blue-50 disabled:opacity-50 text-left"
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--cromo-accent-soft)] disabled:opacity-50 text-left"
                 >
                   <span
-                    className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variantType)}`}
+                    className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(v.variantType)}`}
                     aria-hidden
                   />
-                  <span className="flex-1 text-xs text-gray-700 truncate">
+                  <span className="flex-1 text-xs text-[var(--cromo-fg)] truncate">
                     {VARIANT_META[v.variantType]?.label ?? v.variantType}
                   </span>
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-[var(--cromo-fg-subtle)]">
                     {variantRarity(v.variantType)}
                   </span>
                 </button>
               ))}
             </div>
           )}
-          <div className="h-px bg-gray-100" />
+          <div className="h-px bg-[var(--cromo-surface-2)]" />
           <div className="flex flex-col gap-1">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+            <div className="text-[10px] font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wide">
               Want it
             </div>
             {unownedVariants.map((v) => {
@@ -536,18 +536,18 @@ export default function VariantPopover({
                   disabled={busy}
                   className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left disabled:opacity-50 transition-colors ${
                     wanted
-                      ? 'bg-amber-50 hover:bg-amber-100'
-                      : 'hover:bg-gray-50'
+                      ? 'bg-[var(--cromo-warning-soft)] hover:bg-[var(--cromo-warning-soft)]'
+                      : 'hover:bg-[var(--cromo-surface-2)]'
                   }`}
                 >
                   <span
-                    className={`inline-block w-3 h-3 rounded-full border border-gray-300 ${variantSwatch(v.variantType)}`}
+                    className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(v.variantType)}`}
                     aria-hidden
                   />
-                  <span className="flex-1 text-xs text-gray-700 truncate">
+                  <span className="flex-1 text-xs text-[var(--cromo-fg)] truncate">
                     {VARIANT_META[v.variantType]?.label ?? v.variantType}
                   </span>
-                  <span className={`text-[10px] font-medium ${wanted ? 'text-amber-600' : 'text-gray-400'}`}>
+                  <span className={`text-[10px] font-medium ${wanted ? 'text-[var(--cromo-warning)]' : 'text-[var(--cromo-fg-subtle)]'}`}>
                     {wanted ? '★ Wanted' : '☆ Want it'}
                   </span>
                 </button>

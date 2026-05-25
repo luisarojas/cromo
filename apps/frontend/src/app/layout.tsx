@@ -6,6 +6,7 @@ import NavBar from '@/components/NavBar';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ToastProvider';
 import BanStatusBanner from '@/components/BanStatusBanner';
+import { ThemeProvider, themeBootstrapScript } from '@/components/ThemeProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -42,18 +43,25 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-theme="dark"
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="min-h-screen bg-gray-50 text-gray-900 font-sans antialiased">
-        <AuthProvider>
-          <NavBar />
-          <BanStatusBanner />
-          <ToastProvider>
-            <ErrorBoundary>
-              <main>{children}</main>
-            </ErrorBoundary>
-          </ToastProvider>
-        </AuthProvider>
+      <head>
+        {/* Set theme attribute before paint to prevent flash */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
+      <body className="min-h-screen font-sans antialiased">
+        <ThemeProvider>
+          <AuthProvider>
+            <NavBar />
+            <BanStatusBanner />
+            <ToastProvider>
+              <ErrorBoundary>
+                <main>{children}</main>
+              </ErrorBoundary>
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

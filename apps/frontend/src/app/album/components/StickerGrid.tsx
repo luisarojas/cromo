@@ -188,7 +188,7 @@ export default function StickerGrid({
 
   if (stickers.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center text-gray-400 text-sm">
+      <div className="flex h-40 items-center justify-center text-[var(--cromo-fg-subtle)] text-sm">
         No stickers found.
       </div>
     );

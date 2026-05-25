@@ -27,9 +27,9 @@ type MatchType = 'code' | 'name' | 'manual' | 'none';
 // returns the same number for nearly every scan).
 function MatchBadge({ matchType }: { matchType: MatchType }) {
   const config = {
-    code:   { label: '✓ Matched',                    cls: 'bg-green-100 text-green-700 border-green-200' },
-    name:   { label: 'Partial match — please verify', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
-    manual: { label: '✓ Selected',                   cls: 'bg-green-50 text-green-700 border-green-200' },
+    code:   { label: '✓ Matched',                    cls: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] border-[var(--cromo-success)]/30' },
+    name:   { label: 'Partial match — please verify', cls: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] border-[var(--cromo-warning)]/30' },
+    manual: { label: '✓ Selected',                   cls: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] border-[var(--cromo-success)]/30' },
     none:   { label: 'Not found in catalog',         cls: 'bg-orange-50 text-orange-700 border-orange-200' },
   }[matchType];
   return (
@@ -85,19 +85,19 @@ function CameraModal({ onCapture, onClose }: { onCapture: (file: File) => void; 
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl overflow-hidden w-full max-w-sm">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <span className="font-medium text-sm text-gray-900">Take a photo</span>
+      <div className="bg-[var(--cromo-surface)] rounded-2xl overflow-hidden w-full max-w-sm">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--cromo-border)]">
+          <span className="font-medium text-sm text-[var(--cromo-fg)]">Take a photo</span>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] text-xl leading-none"
             aria-label="Close camera"
           >
             ✕
           </button>
         </div>
         {error ? (
-          <div className="p-6 text-center text-sm text-red-600">{error}</div>
+          <div className="p-6 text-center text-sm text-[var(--cromo-danger)]">{error}</div>
         ) : (
           <div className="bg-black">
             <video ref={videoRef} className="w-full" playsInline muted />
@@ -108,7 +108,7 @@ function CameraModal({ onCapture, onClose }: { onCapture: (file: File) => void; 
           <div className="p-4">
             <button
               onClick={capture}
-              className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+              className="w-full rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--cromo-accent-strong)]"
             >
               Capture
             </button>
@@ -147,10 +147,10 @@ function DropZone({
       <div
         className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
           dragging
-            ? 'border-blue-400 bg-blue-50'
+            ? 'border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)]'
             : disabled
-            ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
-            : 'border-gray-300 bg-white hover:border-blue-300 hover:bg-blue-50'
+            ? 'border-[var(--cromo-border)] bg-transparent cursor-not-allowed opacity-60'
+            : 'border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] hover:border-[var(--cromo-accent)]/40 hover:bg-[var(--cromo-accent-soft)]'
         }`}
         onClick={() => !disabled && inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }}
@@ -171,22 +171,22 @@ function DropZone({
           disabled={disabled}
         />
         <div className="text-4xl mb-3">📷</div>
-        <p className="text-sm font-medium text-gray-700">
+        <p className="text-sm font-medium text-[var(--cromo-fg)]">
           {multiple ? 'Drop sticker images here' : 'Drop a sticker image here'}
         </p>
-        <p className="text-xs text-gray-400 mt-1">or click to browse — JPEG, PNG, or WebP, max 10 MB</p>
+        <p className="text-xs text-[var(--cromo-fg-subtle)] mt-1">or click to browse — JPEG, PNG, or WebP, max 10 MB</p>
 
         <div className="mt-4 flex items-center gap-2 px-2">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200" />
+          <div className="flex-1 h-px bg-[var(--cromo-surface-2)]" />
+          <span className="text-xs text-[var(--cromo-fg-subtle)]">or</span>
+          <div className="flex-1 h-px bg-[var(--cromo-surface-2)]" />
         </div>
 
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); if (!disabled) setCameraOpen(true); }}
           disabled={disabled}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-4 py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-60 disabled:cursor-not-allowed"
         >
           Use camera
         </button>
@@ -251,16 +251,16 @@ function ComboBox({
         onFocus={() => { setOpen(true); setQuery(''); }}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] disabled:opacity-60 disabled:cursor-not-allowed"
       />
       {open && !disabled && filtered.length > 0 && (
-        <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-sm">
+        <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl text-sm">
           {filtered.slice(0, 100).map((opt) => (
             <li
               key={opt.value}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => { onSelect(opt); setQuery(''); setOpen(false); }}
-              className="px-3 py-2 cursor-pointer hover:bg-blue-50 truncate"
+              className="px-3 py-2 cursor-pointer hover:bg-[var(--cromo-accent-soft)] truncate"
             >
               {opt.label}
             </li>
@@ -603,9 +603,9 @@ function ScanMode() {
     <div className="space-y-4">
       {albumTypeOptions.length > 1 && (
         <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-600 block">Album</label>
+          <label className="text-xs font-medium text-[var(--cromo-fg-muted)] block">Album</label>
           <select
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
             value={selectedAlbumTypeKey}
             onChange={(e) => {
               const newType = e.target.value;
@@ -631,14 +631,14 @@ function ScanMode() {
             <img
               src={previewUrl}
               alt="Scanned sticker"
-              className="w-full rounded-xl object-contain max-h-72 border border-gray-200 bg-gray-50"
+              className="w-full rounded-xl object-contain max-h-72 border border-[var(--cromo-border)] bg-transparent"
             />
           )}
 
           {/* Multi-file previews + scan button */}
           {isBatch && status === 'previewing' && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[var(--cromo-fg-muted)]">
                 {staged.length} image{staged.length !== 1 ? 's' : ''} selected
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -647,7 +647,7 @@ function ScanMode() {
                     <img
                       src={item.preview}
                       alt={`Image ${i + 1}`}
-                      className="rounded-lg object-cover w-full aspect-square border border-gray-200"
+                      className="rounded-lg object-cover w-full aspect-square border border-[var(--cromo-border)]"
                     />
                     <button
                       onClick={() => {
@@ -669,7 +669,7 @@ function ScanMode() {
               </div>
               <button
                 onClick={handleBatchScan}
-                className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+                className="w-full rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--cromo-accent-strong)]"
               >
                 Scan {staged.length} image{staged.length !== 1 ? 's' : ''}
               </button>
@@ -677,7 +677,7 @@ function ScanMode() {
           )}
 
           {status === 'scanning' && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 py-4 justify-center">
+            <div className="flex items-center gap-2 text-sm text-[var(--cromo-fg-muted)] py-4 justify-center">
               <span className="animate-spin">⏳</span>
               {isBatch && scanProgress
                 ? scanProgress.done < scanProgress.total
@@ -688,7 +688,7 @@ function ScanMode() {
           )}
 
           {status === 'error' && (
-            <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm p-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger)] text-sm p-4">
               {scanError ?? 'Failed to identify sticker. Please try again.'}
             </div>
           )}
@@ -699,15 +699,15 @@ function ScanMode() {
               {resultCards.map((card, idx) => {
                 if (card.errorMessage) {
                   return (
-                    <div key={idx} className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+                    <div key={idx} className="rounded-xl border border-[var(--cromo-danger)]/30 bg-[var(--cromo-danger-soft)] p-4 flex items-start gap-3">
                       <img
                         src={card.sourcePreview}
                         alt={`Image ${idx + 1}`}
-                        className="w-12 h-12 rounded-lg object-cover border border-red-100 shrink-0"
+                        className="w-12 h-12 rounded-lg object-cover border border-[var(--cromo-danger)]/20 shrink-0"
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-red-700">Failed to identify</p>
-                        <p className="text-xs text-red-500 mt-0.5 break-words">{card.errorMessage}</p>
+                        <p className="text-sm font-medium text-[var(--cromo-danger)]">Failed to identify</p>
+                        <p className="text-xs text-[var(--cromo-danger)] mt-0.5 break-words">{card.errorMessage}</p>
                       </div>
                     </div>
                   );
@@ -725,11 +725,11 @@ function ScanMode() {
                 const stickerDisplayValue = stickerOptions.find((o) => o.value === card.albumCode)?.label ?? '';
 
                 return (
-                  <div key={idx} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                  <div key={idx} className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 space-y-3">
                     <img
                       src={card.sourcePreview}
                       alt={`Sticker ${idx + 1}`}
-                      className="w-full rounded-lg object-contain max-h-64 border border-gray-200 bg-gray-50"
+                      className="w-full rounded-lg object-contain max-h-64 border border-[var(--cromo-border)] bg-transparent"
                     />
                     <div className="flex items-center gap-2 flex-wrap">
                       <MatchBadge matchType={card.matchType} />
@@ -737,7 +737,7 @@ function ScanMode() {
 
                     <div className="space-y-2">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-600 block">Sticker</label>
+                        <label className="text-xs font-medium text-[var(--cromo-fg-muted)] block">Sticker</label>
                         <ComboBox
                           value={stickerDisplayValue}
                           options={stickerOptions}
@@ -749,14 +749,14 @@ function ScanMode() {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-600 block">Team</label>
-                          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 truncate">
+                          <label className="text-xs font-medium text-[var(--cromo-fg-muted)] block">Team</label>
+                          <div className="w-full rounded-lg border border-[var(--cromo-border)] bg-transparent px-3 py-2 text-sm text-[var(--cromo-fg)] truncate">
                             {teamDisplayValue || '—'}
                           </div>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-600 block">Sticker #</label>
-                          <div className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                          <label className="text-xs font-medium text-[var(--cromo-fg-muted)] block">Sticker #</label>
+                          <div className="w-full rounded-lg border border-[var(--cromo-border)] bg-transparent px-3 py-2 text-sm text-[var(--cromo-fg)]">
                             {card.stickerNumber ?? '—'}
                           </div>
                         </div>
@@ -764,7 +764,7 @@ function ScanMode() {
 
                       {card.variants.length > 0 && (
                         <div className="space-y-1">
-                          <label className="text-xs font-medium text-gray-600 block">Border</label>
+                          <label className="text-xs font-medium text-[var(--cromo-fg-muted)] block">Border</label>
                           <ComboBox
                             value={borderDisplayValue}
                             options={borderOptions}
@@ -782,7 +782,7 @@ function ScanMode() {
                           className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                             card.added
                               ? 'bg-green-600 text-white cursor-default'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)]'
                           }`}
                         >
                           {card.added ? '✓ Added to collection' : 'Add to collection'}
@@ -797,9 +797,9 @@ function ScanMode() {
                 <div className="space-y-2">
                   {filteredAlbums.length > 1 && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-600 block">Add to album</label>
+                      <label className="text-xs font-medium text-[var(--cromo-fg-muted)] block">Add to album</label>
                       <select
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
                         value={selectedAlbumId ?? ''}
                         onChange={(e) => setSelectedAlbumId(e.target.value)}
                       >
@@ -813,7 +813,7 @@ function ScanMode() {
                   )}
                   <button
                     onClick={handleAddAll}
-                    className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
+                    className="w-full rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-4 py-2.5 text-sm font-medium hover:bg-[var(--cromo-accent-strong)]"
                   >
                     Add all to collection
                   </button>
@@ -825,7 +825,7 @@ function ScanMode() {
           {(status === 'done' || status === 'error') && (
             <button
               onClick={reset}
-              className="w-full text-sm text-gray-500 hover:text-gray-700 underline"
+              className="w-full text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] underline"
             >
               {status === 'error' ? 'Try again' : 'Scan more stickers'}
             </button>
@@ -843,7 +843,7 @@ export default function ScanPage() {
 
   if (!user) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center text-sm text-gray-500">
+      <div className="max-w-lg mx-auto px-4 py-16 text-center text-sm text-[var(--cromo-fg-muted)]">
         Please log in to use the sticker scanner.
       </div>
     );
@@ -851,8 +851,8 @@ export default function ScanPage() {
 
   return (
     <main className="max-w-lg mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Scan Stickers</h1>
-      <p className="text-sm text-gray-500 mb-6">
+      <h1 className="text-2xl font-bold text-[var(--cromo-fg)] mb-1">Scan Stickers</h1>
+      <p className="text-sm text-[var(--cromo-fg-muted)] mb-6">
         Upload one or more sticker photos and AI will identify them for you.
       </p>
       <ScanMode />

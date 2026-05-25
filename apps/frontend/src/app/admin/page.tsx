@@ -63,46 +63,46 @@ function EditRow({
   };
 
   return (
-    <tr className="bg-blue-50">
+    <tr className="bg-[var(--cromo-accent-soft)]">
       <td colSpan={6} className="px-4 py-3">
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Player name</label>
+            <label className="text-xs text-[var(--cromo-fg-muted)]">Player name</label>
             <input
               value={form.playerName}
               onChange={(e) => setForm((f) => ({ ...f, playerName: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Position</label>
+            <label className="text-xs text-[var(--cromo-fg-muted)]">Position</label>
             <input
               value={form.position}
               onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1 text-sm w-24 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-sm w-24 focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Notes</label>
+            <label className="text-xs text-[var(--cromo-fg-muted)]">Notes</label>
             <input
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
             />
           </div>
-          {error && <span className="text-xs text-red-600 self-end">{error}</span>}
+          {error && <span className="text-xs text-[var(--cromo-danger)] self-end">{error}</span>}
           <div className="flex gap-2 self-end">
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-blue-600 text-white text-xs px-3 py-1.5 font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="rounded bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs px-3 py-1.5 font-medium hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded border border-gray-300 text-xs px-3 py-1.5 text-gray-600 hover:bg-gray-100 transition-colors"
+              className="rounded border border-[var(--cromo-border-strong)] text-xs px-3 py-1.5 text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
             >
               Cancel
             </button>
@@ -169,64 +169,64 @@ function StickersSection({ token }: { token: string }) {
           placeholder="Search by album code, player, team…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full max-w-md rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         />
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+        <div className="flex items-center justify-center h-40 text-[var(--cromo-fg-subtle)] text-sm">
           Loading stickers…
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-transparent border-b border-[var(--cromo-border)]">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Code</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Player</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Team</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Type</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Position</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Actions</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Code</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Player</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Team</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Type</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Position</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[var(--cromo-border)]">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-400">No stickers found.</td>
+                  <td colSpan={7} className="px-4 py-8 text-center text-[var(--cromo-fg-subtle)]">No stickers found.</td>
                 </tr>
               )}
               {filtered.map((sticker) => (
                 <Fragment key={sticker.id}>
                   <tr
-                    className={`hover:bg-gray-50 transition-colors ${editingId === sticker.id ? 'bg-blue-50' : ''}`}
+                    className={`hover:bg-[var(--cromo-surface-2)] transition-colors ${editingId === sticker.id ? 'bg-[var(--cromo-accent-soft)]' : ''}`}
                   >
-                    <td className="px-4 py-2 font-mono font-semibold text-gray-800">{sticker.albumCode}</td>
-                    <td className="px-4 py-2 text-gray-700">
-                      {sticker.playerName ?? <span className="text-gray-300">—</span>}
+                    <td className="px-4 py-2 font-mono font-semibold text-[var(--cromo-fg)]">{sticker.albumCode}</td>
+                    <td className="px-4 py-2 text-[var(--cromo-fg)]">
+                      {sticker.playerName ?? <span className="text-[var(--cromo-fg-subtle)]">—</span>}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">
-                      {sticker.teamName ?? <span className="text-gray-300">—</span>}
+                    <td className="px-4 py-2 text-[var(--cromo-fg-muted)]">
+                      {sticker.teamName ?? <span className="text-[var(--cromo-fg-subtle)]">—</span>}
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded bg-gray-100 text-gray-600 px-1.5 py-0.5 text-xs">{sticker.stickerType}</span>
+                      <span className="rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] px-1.5 py-0.5 text-xs">{sticker.stickerType}</span>
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{sticker.position ?? '—'}</td>
+                    <td className="px-4 py-2 text-[var(--cromo-fg-muted)] text-xs">{sticker.position ?? '—'}</td>
                     <td className="px-4 py-2">
                       {editingId === sticker.id ? (
-                        <button onClick={() => setEditingId(null)} className="text-xs text-gray-400 hover:text-gray-600">
+                        <button onClick={() => setEditingId(null)} className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)]">
                           Cancel
                         </button>
                       ) : (
                         <button
                           onClick={() => setEditingId(sticker.id)}
-                          className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                          className="text-xs text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] font-medium"
                         >
                           Edit
                         </button>
@@ -273,7 +273,7 @@ function SortableHeader({
   const active = sortCol === col;
   return (
     <th
-      className={`px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide cursor-pointer select-none transition-colors ${active ? 'text-blue-600' : 'text-gray-600 hover:text-gray-800'}`}
+      className={`px-4 py-3 text-left font-semibold text-xs uppercase tracking-wide cursor-pointer select-none transition-colors ${active ? 'text-[var(--cromo-accent)]' : 'text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'}`}
       onClick={() => onClick(col)}
     >
       {label}
@@ -284,27 +284,27 @@ function SortableHeader({
 function StatusBadge({ user }: { user: AdminUser }) {
   if (user.deletedAt) {
     return (
-      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">Deleted</span>
+      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">Deleted</span>
     );
   }
   if (user.isBanned) {
     return (
-      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-600">Banned</span>
+      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]">Banned</span>
     );
   }
   return (
-    <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-600">Active</span>
+    <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]">Active</span>
   );
 }
 
 function RoleBadge({ role }: { role: string }) {
   if (role === 'admin') {
     return (
-      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-700">admin</span>
+      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)]">admin</span>
     );
   }
   return (
-    <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">user</span>
+    <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">user</span>
   );
 }
 
@@ -336,32 +336,32 @@ function BanForm({
   };
 
   return (
-    <tr className="bg-red-50">
+    <tr className="bg-[var(--cromo-danger-soft)]">
       <td colSpan={6} className="px-4 py-3">
         <form onSubmit={handleSubmit} className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500">Ban reason</label>
+            <label className="text-xs text-[var(--cromo-fg-muted)]">Ban reason</label>
             <input
               autoFocus
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Reason for ban…"
-              className="rounded border border-gray-300 px-2 py-1 text-sm w-72 focus:outline-none focus:ring-1 focus:ring-red-400"
+              className="rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-sm w-72 focus:outline-none focus:ring-1 focus:ring-red-400"
             />
           </div>
-          {error && <span className="text-xs text-red-600 self-end">{error}</span>}
+          {error && <span className="text-xs text-[var(--cromo-danger)] self-end">{error}</span>}
           <div className="flex gap-2 self-end">
             <button
               type="submit"
               disabled={saving}
-              className="rounded bg-red-600 text-white text-xs px-3 py-1.5 font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+              className="rounded bg-[var(--cromo-danger)] text-white text-xs px-3 py-1.5 font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Banning…' : 'Confirm ban'}
             </button>
             <button
               type="button"
               onClick={onCancel}
-              className="rounded border border-gray-300 text-xs px-3 py-1.5 text-gray-600 hover:bg-gray-100 transition-colors"
+              className="rounded border border-[var(--cromo-border-strong)] text-xs px-3 py-1.5 text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
             >
               Cancel
             </button>
@@ -480,7 +480,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-gray-400">{total} total</span>
+        <span className="text-sm text-[var(--cromo-fg-subtle)]">{total} total</span>
       </div>
 
       <form onSubmit={handleSearch} className="mb-4 flex gap-2">
@@ -489,11 +489,11 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
           placeholder="Search by username or email…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 w-64"
+          className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] w-64"
         />
         <button
           type="submit"
-          className="rounded-md bg-gray-700 text-white text-sm px-4 py-2 hover:bg-gray-800 transition-colors"
+          className="rounded-md bg-[var(--cromo-fg)] text-[var(--cromo-bg)] text-sm px-4 py-2 hover:bg-[var(--cromo-surface-2)] transition-colors"
         >
           Search
         </button>
@@ -501,7 +501,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
           <button
             type="button"
             onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}
-            className="rounded-md border border-gray-300 text-sm px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors"
+            className="rounded-md border border-[var(--cromo-border-strong)] text-sm px-3 py-2 text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
           >
             Clear
           </button>
@@ -509,46 +509,46 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
       </form>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">{error}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">{error}</div>
       )}
       {actionError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">{actionError}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">{actionError}</div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center h-40 text-gray-400 text-sm">Loading users…</div>
+        <div className="flex items-center justify-center h-40 text-[var(--cromo-fg-subtle)] text-sm">Loading users…</div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-transparent border-b border-[var(--cromo-border)]">
                 <tr>
                   <SortableHeader col="username" label="Username" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
                   <SortableHeader col="email" label="Email" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
                   <SortableHeader col="role" label="Role" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
                   <SortableHeader col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
                   <SortableHeader col="joined" label="Joined" sortCol={sortCol} sortDir={sortDir} onClick={handleSortClick} />
-                  <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide">Actions</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[var(--cromo-fg-muted)] text-xs uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[var(--cromo-border)]">
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">No users found.</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-[var(--cromo-fg-subtle)]">No users found.</td>
                   </tr>
                 )}
                 {sorted.map((user) => (
                   <Fragment key={user.id}>
                     <tr
-                      className={`hover:bg-gray-50 transition-colors ${user.deletedAt ? 'opacity-50' : ''}`}
+                      className={`hover:bg-[var(--cromo-surface-2)] transition-colors ${user.deletedAt ? 'opacity-50' : ''}`}
                     >
-                      <td className="px-4 py-2 font-medium text-gray-800">
+                      <td className="px-4 py-2 font-medium text-[var(--cromo-fg)]">
                         {user.username}
                         {user.id === currentUserId && (
-                          <span className="ml-1.5 text-xs text-gray-400">(you)</span>
+                          <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">(you)</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-gray-500">{user.email}</td>
+                      <td className="px-4 py-2 text-[var(--cromo-fg-muted)]">{user.email}</td>
                       <td className="px-4 py-2">
                         {user.id === currentUserId || user.deletedAt ? (
                           <RoleBadge role={user.role} />
@@ -556,7 +556,7 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                           <select
                             value={user.role}
                             onChange={(e) => handleRoleChange(user, e.target.value as 'admin' | 'user')}
-                            className="text-xs rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                            className="text-xs rounded border border-[var(--cromo-border)] bg-transparent px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)] cursor-pointer"
                           >
                             <option value="user">user</option>
                             <option value="admin">admin</option>
@@ -564,32 +564,32 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                         )}
                       </td>
                       <td className="px-4 py-2"><StatusBadge user={user} /></td>
-                      <td className="px-4 py-2 text-gray-400 text-xs">
+                      <td className="px-4 py-2 text-[var(--cromo-fg-subtle)] text-xs">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-2">
                         {user.id === currentUserId || user.deletedAt ? (
-                          <span className="text-xs text-gray-300">—</span>
+                          <span className="text-xs text-[var(--cromo-fg-subtle)]">—</span>
                         ) : (
                           <div className="flex gap-1.5 flex-wrap">
                             {user.isBanned ? (
                               <button
                                 onClick={() => handleUnban(user)}
-                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-green-600 hover:bg-green-50 transition-colors"
+                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-[var(--cromo-success)] hover:bg-[var(--cromo-success-soft)] transition-colors"
                               >
                                 Unban
                               </button>
                             ) : (
                               <button
                                 onClick={() => setBanningId(banningId === user.id ? null : user.id)}
-                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-amber-300 text-amber-600 hover:bg-amber-50 transition-colors"
+                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-[var(--cromo-warning)]/40 text-[var(--cromo-warning)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
                               >
                                 Ban
                               </button>
                             )}
                             <button
                               onClick={() => handleDelete(user)}
-                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-[var(--cromo-danger)]/40 text-[var(--cromo-danger)] hover:bg-[var(--cromo-danger-soft)] transition-colors"
                             >
                               Delete
                             </button>
@@ -610,20 +610,20 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+            <div className="flex items-center justify-between mt-4 text-sm text-[var(--cromo-fg-muted)]">
               <span>Page {page} of {totalPages}</span>
               <div className="flex gap-2">
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => p - 1)}
-                  className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="rounded border border-[var(--cromo-border-strong)] px-3 py-1 hover:bg-[var(--cromo-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
                 <button
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
-                  className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="rounded border border-[var(--cromo-border-strong)] px-3 py-1 hover:bg-[var(--cromo-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Next
                 </button>
@@ -659,10 +659,10 @@ const REPORT_STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-red-100 text-red-700',
-  under_review: 'bg-yellow-100 text-yellow-700',
-  resolved: 'bg-green-100 text-green-700',
-  dismissed: 'bg-gray-100 text-gray-500',
+  open: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]',
+  under_review: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]',
+  resolved: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]',
+  dismissed: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]',
 };
 
 function BanModal({
@@ -710,10 +710,10 @@ function BanModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-gray-800">Ban @{username}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-5 py-4">
+          <h2 className="text-base font-semibold text-[var(--cromo-fg)]">Ban @{username}</h2>
+          <button onClick={onClose} className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)]">
             <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
           </button>
         </div>
@@ -729,11 +729,11 @@ function BanModal({
             </label>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Duration</label>
+            <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">Duration</label>
             <select
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none"
+              className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none"
             >
               <option value="">Permanent</option>
               <option value="24">24 hours</option>
@@ -743,21 +743,21 @@ function BanModal({
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-600">Reason</label>
+            <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">Reason</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value.slice(0, 1000))}
               rows={3}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none resize-none"
+              className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none resize-none"
               placeholder="Reason for ban…"
             />
           </div>
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {error && <div className="text-sm text-[var(--cromo-danger)]">{error}</div>}
           <div className="flex gap-2">
-            <button type="submit" disabled={submitting} className="flex-1 rounded-md bg-red-600 text-white py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50">
+            <button type="submit" disabled={submitting} className="flex-1 rounded-md bg-[var(--cromo-danger)] text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
               {submitting ? 'Banning…' : 'Confirm ban'}
             </button>
-            <button type="button" onClick={onClose} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+            <button type="button" onClick={onClose} className="rounded-md border border-[var(--cromo-border-strong)] px-4 py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]">
               Cancel
             </button>
           </div>
@@ -809,12 +809,12 @@ function ReportsQueue({ token }: { token: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 items-center">
-        <div className="flex gap-1 rounded-md border border-gray-200 overflow-hidden text-sm">
+        <div className="flex gap-1 rounded-md border border-[var(--cromo-border)] overflow-hidden text-sm">
           {['open', 'under_review', 'resolved', 'dismissed'].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1.5 transition-colors ${statusFilter === s ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 transition-colors ${statusFilter === s ? 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)]' : 'text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'}`}
             >
               {REPORT_STATUS_LABELS[s]}
             </button>
@@ -823,7 +823,7 @@ function ReportsQueue({ token }: { token: string }) {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none"
+          className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 text-sm focus:outline-none"
         >
           <option value="">All categories</option>
           {Object.entries(REPORT_CATEGORY_LABELS).map(([v, l]) => (
@@ -833,68 +833,68 @@ function ReportsQueue({ token }: { token: string }) {
       </div>
 
       {actionError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{actionError}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">{actionError}</div>
       )}
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">{error}</div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading reports…</div>
+        <div className="flex items-center justify-center h-32 text-[var(--cromo-fg-subtle)] text-sm">Loading reports…</div>
       ) : reports.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-8 text-center text-sm text-[var(--cromo-fg-subtle)]">
           No reports found.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-transparent border-b border-[var(--cromo-border)]">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Reporter</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Reported</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Reporter</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Reported</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Date</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[var(--cromo-border)]">
               {reports.map((report) => (
                 <Fragment key={report.id}>
                   <tr
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="hover:bg-[var(--cromo-surface-2)] cursor-pointer transition-colors"
                     onClick={() => setExpandedId(expandedId === report.id ? null : report.id)}
                   >
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs font-medium">
+                      <span className="rounded-full bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] px-2 py-0.5 text-xs font-medium">
                         {REPORT_CATEGORY_LABELS[report.category] ?? report.category}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-700">@{report.reporterUsername}</td>
-                    <td className="px-4 py-2 font-medium text-gray-800">@{report.reportedUsername}</td>
+                    <td className="px-4 py-2 text-[var(--cromo-fg)]">@{report.reporterUsername}</td>
+                    <td className="px-4 py-2 font-medium text-[var(--cromo-fg)]">@{report.reportedUsername}</td>
                     <td className="px-4 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[report.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[report.status] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]'}`}>
                         {REPORT_STATUS_LABELS[report.status] ?? report.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-gray-400 text-xs">
+                    <td className="px-4 py-2 text-[var(--cromo-fg-subtle)] text-xs">
                       {new Date(report.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-2 text-right">
-                      <span className="text-xs text-gray-400">{expandedId === report.id ? '▲' : '▼'}</span>
+                      <span className="text-xs text-[var(--cromo-fg-subtle)]">{expandedId === report.id ? '▲' : '▼'}</span>
                     </td>
                   </tr>
                   {expandedId === report.id && (
-                    <tr className="bg-gray-50">
+                    <tr className="bg-transparent">
                       <td colSpan={6} className="px-4 py-4">
                         <div className="space-y-3">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{report.description}</p>
+                          <p className="text-sm text-[var(--cromo-fg)] whitespace-pre-wrap">{report.description}</p>
                           <div className="flex flex-wrap gap-2">
                             {report.status !== 'under_review' && (
                               <button
                                 onClick={() => handleStatus(report.id, 'under_review')}
-                                className="rounded-md bg-yellow-100 text-yellow-800 border border-yellow-300 px-3 py-1.5 text-xs font-medium hover:bg-yellow-200 transition-colors"
+                                className="rounded-md bg-[var(--cromo-warning-soft)] text-yellow-800 border border-[var(--cromo-warning)]/40 px-3 py-1.5 text-xs font-medium hover:bg-yellow-200 transition-colors"
                               >
                                 Mark Under Review
                               </button>
@@ -903,25 +903,25 @@ function ReportsQueue({ token }: { token: string }) {
                               <>
                                 <button
                                   onClick={() => handleStatus(report.id, 'resolved', 'Warned and resolved without ban.')}
-                                  className="rounded-md bg-green-100 text-green-800 border border-green-300 px-3 py-1.5 text-xs font-medium hover:bg-green-200 transition-colors"
+                                  className="rounded-md bg-[var(--cromo-success-soft)] text-green-800 border border-green-300 px-3 py-1.5 text-xs font-medium hover:bg-green-200 transition-colors"
                                 >
                                   Warn & Resolve
                                 </button>
                                 <button
                                   onClick={() => setBanTarget({ userId: report.reportedUserId, username: report.reportedUsername, reportId: report.id })}
-                                  className="rounded-md bg-red-100 text-red-700 border border-red-300 px-3 py-1.5 text-xs font-medium hover:bg-red-200 transition-colors"
+                                  className="rounded-md bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] border border-[var(--cromo-danger)]/40 px-3 py-1.5 text-xs font-medium hover:bg-red-200 transition-colors"
                                 >
                                   Soft Ban
                                 </button>
                                 <button
                                   onClick={() => setBanTarget({ userId: report.reportedUserId, username: report.reportedUsername, reportId: report.id })}
-                                  className="rounded-md bg-red-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-red-700 transition-colors"
+                                  className="rounded-md bg-[var(--cromo-danger)] text-white px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-colors"
                                 >
                                   Hard Ban
                                 </button>
                                 <button
                                   onClick={() => handleStatus(report.id, 'dismissed')}
-                                  className="rounded-md border border-gray-300 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-100 transition-colors"
+                                  className="rounded-md border border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--cromo-surface-2)] transition-colors"
                                 >
                                   Dismiss
                                 </button>
@@ -1007,52 +1007,52 @@ function BannedUsersSection({ token }: { token: string }) {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">{error}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">{error}</div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Loading…</div>
+        <div className="flex items-center justify-center h-32 text-[var(--cromo-fg-subtle)] text-sm">Loading…</div>
       ) : bannedUsers.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-8 text-center text-sm text-[var(--cromo-fg-subtle)]">
           No banned users.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-transparent border-b border-[var(--cromo-border)]">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">User</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Ban details</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">User</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Ban details</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-[var(--cromo-border)]">
               {bannedUsers.map((user) => {
                 const activeBan = banDetails[user.id]?.find(
                   (b) => !b.liftedAt && (!b.expiresAt || new Date(b.expiresAt) > new Date())
                 );
                 return (
                   <Fragment key={user.id}>
-                    <tr className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">
+                    <tr className="hover:bg-[var(--cromo-surface-2)]">
+                      <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">
                         @{user.username}
-                        <div className="text-xs text-gray-400">{user.email}</div>
+                        <div className="text-xs text-[var(--cromo-fg-subtle)]">{user.email}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
                         {activeBan ? (
                           <div className="text-xs space-y-0.5">
-                            <span className={`rounded px-1.5 py-0.5 font-medium ${activeBan.banType === 'hard' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                            <span className={`rounded px-1.5 py-0.5 font-medium ${activeBan.banType === 'hard' ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]' : 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]'}`}>
                               {activeBan.banType}
                             </span>
-                            <p className="text-gray-500 mt-1 truncate max-w-xs">{activeBan.reason}</p>
+                            <p className="text-[var(--cromo-fg-muted)] mt-1 truncate max-w-xs">{activeBan.reason}</p>
                             {activeBan.expiresAt && (
-                              <p className="text-gray-400">Expires {new Date(activeBan.expiresAt).toLocaleString()}</p>
+                              <p className="text-[var(--cromo-fg-subtle)]">Expires {new Date(activeBan.expiresAt).toLocaleString()}</p>
                             )}
                           </div>
                         ) : (
                           <button
                             onClick={() => void loadBanDetails(user.id)}
-                            className="text-xs text-blue-500 hover:underline"
+                            className="text-xs text-[var(--cromo-accent)] hover:underline"
                           >
                             Load details
                           </button>
@@ -1066,9 +1066,9 @@ function BannedUsersSection({ token }: { token: string }) {
                               value={liftReason}
                               onChange={(e) => setLiftReason(e.target.value)}
                               placeholder="Lift reason…"
-                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none"
+                              className="w-full rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-xs focus:outline-none"
                             />
-                            {liftError && <p className="text-xs text-red-600">{liftError}</p>}
+                            {liftError && <p className="text-xs text-[var(--cromo-danger)]">{liftError}</p>}
                             <div className="flex gap-1">
                               <button
                                 onClick={() => {
@@ -1081,7 +1081,7 @@ function BannedUsersSection({ token }: { token: string }) {
                               </button>
                               <button
                                 onClick={() => { setLiftingId(null); setLiftReason(''); setLiftError(null); }}
-                                className="rounded border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                                className="rounded border border-[var(--cromo-border-strong)] px-2.5 py-1 text-xs text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]"
                               >
                                 Cancel
                               </button>
@@ -1093,7 +1093,7 @@ function BannedUsersSection({ token }: { token: string }) {
                               void loadBanDetails(user.id);
                               setLiftingId(user.id);
                             }}
-                            className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-green-600 hover:bg-green-50 transition-colors"
+                            className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-[var(--cromo-success)] hover:bg-[var(--cromo-success-soft)] transition-colors"
                           >
                             Lift ban
                           </button>
@@ -1116,11 +1116,11 @@ function TrustSafetySection({ token }: { token: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 border-b border-gray-100 mb-4">
+      <div className="flex gap-1 border-b border-[var(--cromo-border)] mb-4">
         <button
           onClick={() => setSubTab('reports')}
           className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            subTab === 'reports' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            subTab === 'reports' ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]' : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
           Reports Queue
@@ -1128,7 +1128,7 @@ function TrustSafetySection({ token }: { token: string }) {
         <button
           onClick={() => setSubTab('banned')}
           className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-            subTab === 'banned' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            subTab === 'banned' ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]' : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
           Banned Users
@@ -1176,7 +1176,7 @@ function AdminPageInner() {
 
   if (!hydrated || (!token && hydrated)) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+      <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
         Loading…
       </div>
     );
@@ -1185,17 +1185,17 @@ function AdminPageInner() {
   if (!token || !user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-transparent">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Admin</h1>
+        <h1 className="text-2xl font-bold text-[var(--cromo-fg)] mb-6">Admin</h1>
 
-        <div className="flex gap-1 mb-6 border-b border-gray-200">
+        <div className="flex gap-1 mb-6 border-b border-[var(--cromo-border)]">
           <button
             onClick={() => switchTab('stickers')}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'stickers'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
             }`}
           >
             Stickers
@@ -1204,8 +1204,8 @@ function AdminPageInner() {
             onClick={() => switchTab('users')}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'users'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
             }`}
           >
             Users
@@ -1214,8 +1214,8 @@ function AdminPageInner() {
             onClick={() => switchTab('trust-safety')}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === 'trust-safety'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
             }`}
           >
             Trust & Safety

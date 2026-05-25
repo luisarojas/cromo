@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { loginApi, fetchUserPreferences } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
+import { Button, Card, Field, Input, Alert } from '@/components/ui';
+import { CromoMark } from '@/components/CromoLogo';
 
 const TEST_USERS = [
   { email: 'alice@test.local', label: 'Alice', description: 'Partial collection (1–200)' },
@@ -51,88 +53,79 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 font-display tracking-tight">Sign in to Cromo</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-blue-600 hover:underline">
-              Register
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-40 h-[320px] opacity-20 blur-3xl cromo-chrome-fill"
+        style={{ maskImage: 'radial-gradient(ellipse at top, black 0%, transparent 70%)' }}
+      />
+
+      <div className="w-full max-w-md relative">
+        <div className="text-center mb-8 flex flex-col items-center">
+          <CromoMark size={48} variant="chrome" className="mb-4 cromo-shimmer" />
+          <h1 className="font-display font-bold text-2xl text-[var(--cromo-fg)] tracking-tight">
+            Welcome back
+          </h1>
+          <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">
+            New to Cromo?{' '}
+            <Link href="/register" className="text-[var(--cromo-accent)] hover:underline">
+              Create an account
             </Link>
           </p>
         </div>
 
-        {/* Login form */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+        <Card>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700" htmlFor="email">
-                Email
-              </label>
-              <input
+            <Field label="Email" htmlFor="email">
+              <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 placeholder="you@example.com"
               />
-            </div>
+            </Field>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700" htmlFor="password">
-                Password
-              </label>
-              <input
+            <Field label="Password" htmlFor="password">
+              <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 placeholder="••••••••"
               />
-            </div>
+            </Field>
 
-            {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+            {error && <Alert tone="danger">{error}</Alert>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
+            <Button type="submit" loading={loading} size="lg" className="mt-2">
               {loading ? 'Signing in…' : 'Sign in'}
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
 
-        {/* Test user quick-login */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+        <Card className="mt-4">
+          <p className="text-[11px] font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
             Local dev — quick login
           </p>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {TEST_USERS.map((u) => (
               <button
                 key={u.email}
                 onClick={() => doLogin(u.email, 'any')}
                 disabled={loading}
-                className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors text-left"
+                className="flex items-center justify-between rounded-btn border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-3 py-2 text-sm hover:border-[var(--cromo-border-strong)] disabled:opacity-50 transition-colors text-left"
               >
-                <span className="font-medium text-gray-800">{u.label}</span>
-                <span className="text-gray-400 text-xs">{u.description}</span>
+                <span className="font-medium text-[var(--cromo-fg)]">{u.label}</span>
+                <span className="text-[var(--cromo-fg-subtle)] text-xs">{u.description}</span>
               </button>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

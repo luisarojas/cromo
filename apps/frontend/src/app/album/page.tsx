@@ -29,10 +29,10 @@ import AlbumFormModal from './components/AlbumFormModal';
 const MAX_ALBUMS = 10;
 
 const EDITION_COLORS: Record<string, { bg: string; text: string }> = {
-  north_america: { bg: 'bg-blue-100', text: 'text-blue-700' },
-  international: { bg: 'bg-green-100', text: 'text-green-700' },
-  swiss_gold: { bg: 'bg-amber-100', text: 'text-amber-700' },
-  south_america: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  north_america: { bg: 'bg-[var(--cromo-accent-soft)]', text: 'text-[var(--cromo-accent)]' },
+  international: { bg: 'bg-[var(--cromo-success-soft)]', text: 'text-[var(--cromo-success)]' },
+  swiss_gold: { bg: 'bg-[var(--cromo-warning-soft)]', text: 'text-[var(--cromo-warning)]' },
+  south_america: { bg: 'bg-[var(--cromo-tier-very-rare)]/10', text: 'text-[var(--cromo-tier-very-rare)]' },
 };
 
 export default function AlbumsPage() {
@@ -182,23 +182,23 @@ export default function AlbumsPage() {
 
   if (!hydrated || (!token && hydrated)) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+      <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
         Loading…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-transparent">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">My Albums</h1>
+            <h1 className="text-2xl font-bold text-[var(--cromo-fg)]">My Albums</h1>
           </div>
           {albums.length < MAX_ALBUMS && !loading && (
             <button
               onClick={handleOpenAdd}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-[var(--cromo-accent)] px-4 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -209,7 +209,7 @@ export default function AlbumsPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-6">
+          <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-6">
             {error}
           </div>
         )}
@@ -217,15 +217,15 @@ export default function AlbumsPage() {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-44 rounded-xl bg-gray-200 animate-pulse" />
+              <div key={i} className="h-44 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
             ))}
           </div>
         ) : albums.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-400 mb-4">No albums yet.</p>
+            <p className="text-[var(--cromo-fg-subtle)] mb-4">No albums yet.</p>
             <button
               onClick={handleOpenAdd}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="rounded-lg bg-[var(--cromo-accent)] px-5 py-2.5 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
             >
               Add your first album
             </button>
@@ -234,20 +234,20 @@ export default function AlbumsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {albums.map((album) => {
               const stats = albumStats.get(album.id);
-              const colors = EDITION_COLORS[album.edition] ?? { bg: 'bg-gray-100', text: 'text-gray-600' };
+              const colors = EDITION_COLORS[album.edition] ?? { bg: 'bg-[var(--cromo-surface-2)]', text: 'text-[var(--cromo-fg-muted)]' };
               return (
                 <div
                   key={album.id}
-                  className="relative group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all overflow-hidden"
+                  className="relative group bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] hover:border-[var(--cromo-border-strong)] hover:border-[var(--cromo-accent)]/30 transition-all overflow-hidden"
                 >
                   <Link href={`/album/${album.id}`} className="block p-5">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex-1 min-w-0">
-                        <h2 className="font-semibold text-gray-800 truncate leading-snug">
+                        <h2 className="font-semibold text-[var(--cromo-fg)] truncate leading-snug">
                           {albumDisplayName(album)}
                         </h2>
                         {album.alias && (
-                          <p className="text-[11px] text-gray-400 truncate mt-0.5 leading-snug">
+                          <p className="text-[11px] text-[var(--cromo-fg-subtle)] truncate mt-0.5 leading-snug">
                             {album.albumTypeName}
                           </p>
                         )}
@@ -255,19 +255,19 @@ export default function AlbumsPage() {
                           <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full ${colors.bg} ${colors.text}`}>
                             {album.editionName}
                           </span>
-                          <span className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          <span className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">
                             {album.formatName}
                           </span>
                         </div>
                         {album.notes && (
-                          <p className="text-[11px] text-gray-400 italic truncate mt-1">
+                          <p className="text-[11px] text-[var(--cromo-fg-subtle)] italic truncate mt-1">
                             {album.notes}
                           </p>
                         )}
                       </div>
                       {album.isDefault && (
                         <svg
-                          className="w-4 h-4 text-amber-400 shrink-0 mt-0.5"
+                          className="w-4 h-4 text-[var(--cromo-warning)] shrink-0 mt-0.5"
                           viewBox="0 0 20 20"
                           fill="currentColor"
                           aria-label="Default album"
@@ -279,24 +279,24 @@ export default function AlbumsPage() {
 
                     {stats ? (
                       <>
-                        <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                        <div className="flex justify-between text-xs text-[var(--cromo-fg-muted)] mb-1.5">
                           <span>{stats.owned} owned</span>
                           <span className="font-medium">{stats.percentage.toFixed(0)}%</span>
                         </div>
-                        <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                        <div className="h-1.5 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-green-500 transition-all"
+                            className="h-full rounded-full bg-[var(--cromo-success-soft)]0 transition-all"
                             style={{ width: `${stats.percentage}%` }}
                           />
                         </div>
-                        <p className="text-xs text-gray-400 mt-2.5">
+                        <p className="text-xs text-[var(--cromo-fg-subtle)] mt-2.5">
                           {stats.missing} missing · {stats.duplicates} duplicates
                         </p>
                       </>
                     ) : (
                       <div className="space-y-2">
-                        <div className="h-3 rounded bg-gray-100 animate-pulse" />
-                        <div className="h-1.5 rounded-full bg-gray-100 animate-pulse" />
+                        <div className="h-3 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
+                        <div className="h-1.5 rounded-full bg-[var(--cromo-surface-2)] animate-pulse" />
                       </div>
                     )}
                   </Link>
@@ -304,7 +304,7 @@ export default function AlbumsPage() {
                   {album.albumTypeGuidePath && (
                     <Link
                       href={album.albumTypeGuidePath}
-                      className="block px-5 py-2 text-[11px] text-blue-600 hover:text-blue-800 border-t border-gray-100 bg-blue-50/40 hover:bg-blue-50 transition-colors"
+                      className="block px-5 py-2 text-[11px] text-[var(--cromo-accent)] hover:underline border-t border-[var(--cromo-border)] bg-[var(--cromo-accent-soft)]/40 hover:bg-[var(--cromo-accent-soft)] transition-colors"
                     >
                       View Collection Guide →
                     </Link>
@@ -315,7 +315,7 @@ export default function AlbumsPage() {
                     {!album.isDefault && (
                       <button
                         onClick={(e) => { e.preventDefault(); handleSetDefault(album.id); }}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-amber-500 hover:bg-amber-50 transition-colors"
+                        className="p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-warning)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
                         title="Set as default"
                       >
                         <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -325,7 +325,7 @@ export default function AlbumsPage() {
                     )}
                     <button
                       onClick={(e) => { e.preventDefault(); handleOpenEdit(album); }}
-                      className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                      className="p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
                       title="Edit album"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">

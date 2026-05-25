@@ -4,8 +4,10 @@
 
 /* ============================================================
    Cromo brand tokens — see BRAND.md for the canonical spec.
+   Dark is the default. Light is opt-in via [data-theme="light"].
    ============================================================ */
-:root {
+:root,
+[data-theme='dark'] {
   /* Surface */
   --cromo-bg: #0A0B0F;
   --cromo-surface: #14161D;
@@ -22,8 +24,9 @@
   --cromo-accent: #6EE7F9;
   --cromo-accent-strong: #22D3EE;
   --cromo-accent-soft: rgba(110, 231, 249, 0.12);
+  --cromo-accent-fg: #0A0B0F; /* text color that sits on top of --cromo-accent */
 
-  /* Rarity tiers */
+  /* Rarity tiers — semantic, identical across themes */
   --cromo-tier-common: #94A3B8;
   --cromo-tier-uncommon: #60A5FA;
   --cromo-tier-rare: #F87171;
@@ -35,6 +38,55 @@
   --cromo-warning: #FBBF24;
   --cromo-danger: #F87171;
   --cromo-info: #6EE7F9;
+
+  /* Status backgrounds (subtle) */
+  --cromo-success-soft: rgba(52, 211, 153, 0.12);
+  --cromo-warning-soft: rgba(251, 191, 36, 0.12);
+  --cromo-danger-soft: rgba(248, 113, 113, 0.12);
+
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --cromo-bg: #FAFAFB;
+  --cromo-surface: #FFFFFF;
+  --cromo-surface-2: #F2F3F7;
+  --cromo-border: #E4E7EE;
+  --cromo-border-strong: #CBD0DA;
+
+  --cromo-fg: #0F172A;
+  --cromo-fg-muted: #475569;
+  --cromo-fg-subtle: #94A3B8;
+
+  --cromo-accent: #0891B2;
+  --cromo-accent-strong: #0E7490;
+  --cromo-accent-soft: rgba(8, 145, 178, 0.10);
+  --cromo-accent-fg: #FFFFFF;
+
+  --cromo-success: #059669;
+  --cromo-warning: #D97706;
+  --cromo-danger: #DC2626;
+  --cromo-info: #0891B2;
+
+  --cromo-success-soft: rgba(5, 150, 105, 0.10);
+  --cromo-warning-soft: rgba(217, 119, 6, 0.10);
+  --cromo-danger-soft: rgba(220, 38, 38, 0.10);
+
+  color-scheme: light;
+}
+
+/* ============================================================
+   Body — adopts brand tokens; pages inherit by default.
+   ============================================================ */
+html, body {
+  background: var(--cromo-bg);
+  color: var(--cromo-fg);
+}
+
+body {
+  font-family: var(--font-body), 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ============================================================
@@ -63,22 +115,42 @@
   50%      { background-position: 100% 50%; }
 }
 
-/* ============================================================
-   Marketing-surface base — opt-in via class, so internal
-   product pages keep their existing light theme until
-   they are migrated.
-   ============================================================ */
 .cromo-surface-dark {
   background: var(--cromo-bg);
   color: var(--cromo-fg);
 }
 
-.cromo-surface-dark a {
-  color: var(--cromo-accent);
+/* ============================================================
+   Form controls — adopt theme colors out of the box.
+   ============================================================ */
+input, textarea, select {
+  background: var(--cromo-surface);
+  color: var(--cromo-fg);
+  border-color: var(--cromo-border);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--cromo-fg-subtle);
 }
 
 /* Selection */
 ::selection {
   background: var(--cromo-accent-soft);
   color: var(--cromo-accent);
+}
+
+/* Scrollbar (webkit) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--cromo-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--cromo-border-strong);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cromo-fg-subtle);
 }

@@ -22,12 +22,12 @@ interface Props {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  player: 'bg-blue-100 text-blue-600',
-  badge: 'bg-purple-100 text-purple-600',
-  team_photo: 'bg-yellow-100 text-yellow-700',
+  player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
+  badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)]',
+  team_photo: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]',
   intro: 'bg-teal-100 text-teal-600',
   museum: 'bg-orange-100 text-orange-600',
-  coca_cola_special: 'bg-red-100 text-red-600',
+  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]',
   extra: 'bg-pink-100 text-pink-600',
 };
 
@@ -44,7 +44,7 @@ export default function StickerCard({
   onToggleSelect,
 }: Props) {
   const typeColor =
-    TYPE_COLORS[sticker.stickerType] ?? 'bg-gray-100 text-gray-600';
+    TYPE_COLORS[sticker.stickerType] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]';
 
   const ownedEntries = ownedVariants ? Array.from(ownedVariants.entries()) : [];
   const owned = ownedEntries.length > 0;
@@ -65,10 +65,10 @@ export default function StickerCard({
         transition-all duration-150 select-none w-full
         ${
           selectionMode && isSelected
-            ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200 shadow-sm'
+            ? 'border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] ring-2 ring-blue-200'
             : owned
-              ? 'border-green-400 bg-green-50 shadow-sm hover:shadow-md'
-              : 'border-gray-200 bg-white opacity-70 hover:opacity-100 hover:border-gray-400'
+              ? 'border-green-400 bg-[var(--cromo-success-soft)] hover:border-[var(--cromo-border-strong)]'
+              : 'border-[var(--cromo-border)] bg-[var(--cromo-surface)] opacity-70 hover:opacity-100 hover:border-[var(--cromo-border-strong)]'
         }
       `}
     >
@@ -85,7 +85,7 @@ export default function StickerCard({
       {selectionMode ? (
         <span
           className={`absolute top-1.5 left-1.5 flex items-center justify-center w-4.5 h-4.5 rounded border-2 transition-colors ${
-            isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'
+            isSelected ? 'bg-[var(--cromo-accent)] border-[var(--cromo-accent)]' : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)]'
           }`}
           style={{ width: '18px', height: '18px' }}
         >
@@ -99,7 +99,7 @@ export default function StickerCard({
         /* Total quantity badge */
         owned && totalQuantity > 1 && (
           <span
-            className="absolute top-1.5 left-1.5 rounded-full bg-green-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center"
+            className="absolute top-1.5 left-1.5 rounded-full bg-[var(--cromo-success-soft)]0 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center"
             title={`${totalQuantity} total across variants`}
           >
             {totalQuantity > 9 ? '9+' : totalQuantity}
@@ -108,7 +108,7 @@ export default function StickerCard({
       )}
 
       <div className="flex items-center gap-1.5 mb-1 mt-0.5">
-        <span className="text-lg font-extrabold text-gray-800 leading-none">
+        <span className="text-lg font-extrabold text-[var(--cromo-fg)] leading-none">
           {sticker.albumCode}
         </span>
         {sticker.fifaCode && (
@@ -124,7 +124,7 @@ export default function StickerCard({
         )}
       </div>
 
-      <div className="text-xs font-medium text-gray-700 truncate leading-tight mb-1">
+      <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-1">
         {sticker.playerName ?? sticker.teamName ?? '—'}
       </div>
 
@@ -140,11 +140,11 @@ export default function StickerCard({
           {ownedEntries.map(([variantType, entry]) => (
             <span
               key={variantType}
-              className="inline-flex items-center gap-1 rounded-full bg-white border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-700"
+              className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
               title={variantRarity(variantType)}
             >
               <span
-                className={`inline-block w-2 h-2 rounded-full border border-gray-300 ${variantSwatch(variantType)}`}
+                className={`inline-block w-2 h-2 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(variantType)}`}
                 aria-hidden
               />
               <span>
@@ -163,7 +163,7 @@ export default function StickerCard({
             <span
               key={`need-${name}`}
               title={`"${name}" needs this sticker`}
-              className="inline-block rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold px-1.5 py-0.5 leading-none"
+              className="inline-block rounded-full bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] text-[9px] font-semibold px-1.5 py-0.5 leading-none"
             >
               ↓ {name}
             </span>
@@ -172,7 +172,7 @@ export default function StickerCard({
             <span
               key={`avail-${name}`}
               title={`"${name}" has extra copies`}
-              className="inline-block rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-semibold px-1.5 py-0.5 leading-none"
+              className="inline-block rounded-full bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] text-[9px] font-semibold px-1.5 py-0.5 leading-none"
             >
               ↑ {name}
             </span>
@@ -181,7 +181,7 @@ export default function StickerCard({
       ) : null}
 
       {/* Action hint */}
-      <div className="mt-2 text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="mt-2 text-[10px] text-[var(--cromo-fg-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
         {owned ? 'Click to manage variants' : 'Click to add'}
       </div>
 
@@ -202,8 +202,8 @@ export default function StickerCard({
           }}
           className={`absolute bottom-1.5 right-1.5 transition-all cursor-pointer ${
             isFavourited
-              ? 'text-red-500 opacity-100'
-              : 'text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-400'
+              ? 'text-[var(--cromo-danger)] opacity-100'
+              : 'text-[var(--cromo-fg-subtle)] opacity-0 group-hover:opacity-100 hover:text-[var(--cromo-danger)]'
           }`}
           title={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
           aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}

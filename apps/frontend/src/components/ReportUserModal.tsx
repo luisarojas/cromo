@@ -60,12 +60,12 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-gray-800">Report @{username}</h2>
+      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-5 py-4">
+          <h2 className="text-base font-semibold text-[var(--cromo-fg)]">Report @{username}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] transition-colors"
             aria-label="Close"
           >
             <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
@@ -76,16 +76,16 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
 
         {success ? (
           <div className="px-5 py-8 text-center space-y-3">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--cromo-success-soft)]">
+              <svg className="h-6 w-6 text-[var(--cromo-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-sm text-gray-700 font-medium">Report submitted</p>
-            <p className="text-xs text-gray-500">Our moderation team will review your report.</p>
+            <p className="text-sm text-[var(--cromo-fg)] font-medium">Report submitted</p>
+            <p className="text-xs text-[var(--cromo-fg-muted)]">Our moderation team will review your report.</p>
             <button
               onClick={onClose}
-              className="mt-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              className="mt-2 rounded-md bg-[var(--cromo-surface-2)] px-4 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
             >
               Close
             </button>
@@ -93,11 +93,11 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
         ) : (
           <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-600">Category</label>
+              <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] bg-[var(--cromo-surface)]"
               >
                 <option value="">Select a category…</option>
                 {CATEGORIES.map((c) => (
@@ -107,21 +107,21 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-600">
+              <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">
                 Description
-                <span className="ml-1 font-normal text-gray-400">({description.length}/2000)</span>
+                <span className="ml-1 font-normal text-[var(--cromo-fg-subtle)]">({description.length}/2000)</span>
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value.slice(0, 2000))}
                 rows={4}
                 placeholder="Describe the issue in detail…"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] resize-none"
               />
             </div>
 
             {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
                 {error}
               </div>
             )}
@@ -130,7 +130,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 rounded-md bg-red-600 text-white py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-md bg-[var(--cromo-danger)] text-white py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {submitting ? 'Submitting…' : 'Submit Report'}
               </button>
@@ -138,7 +138,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                className="rounded-md border border-[var(--cromo-border-strong)] px-4 py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
               >
                 Cancel
               </button>

@@ -29,12 +29,12 @@ import { saveDraft, clearDraft, loadDraft } from './draftStorage';
 type Tab = 'find' | 'my';
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
-  pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
-  accepted: { label: 'Accepted', className: 'bg-green-100 text-green-800' },
-  declined: { label: 'Declined', className: 'bg-gray-100 text-gray-700' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-700' },
-  completed: { label: 'Completed', className: 'bg-blue-100 text-blue-800' },
-  expired: { label: 'Expired', className: 'bg-gray-100 text-gray-700' },
+  pending: { label: 'Pending', className: 'bg-[var(--cromo-warning-soft)] text-yellow-800' },
+  accepted: { label: 'Accepted', className: 'bg-[var(--cromo-success-soft)] text-green-800' },
+  declined: { label: 'Declined', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
+  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
+  completed: { label: 'Completed', className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
+  expired: { label: 'Expired', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
 };
 
 interface ProposeModalState {
@@ -387,7 +387,7 @@ function TradePageContent() {
 
   if (!hydrated || (!token && hydrated)) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+      <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
         Loading...
       </div>
     );
@@ -396,28 +396,28 @@ function TradePageContent() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Trades</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-3xl font-bold text-[var(--cromo-fg)]">Trades</h1>
+        <p className="text-sm text-[var(--cromo-fg-muted)] mt-1">
           Find trading partners or manage your active trades.
         </p>
       </div>
 
       <div className="mb-6">
-        <label className="block text-xs font-medium text-gray-600 mb-2">Your cities</label>
+        <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">Your cities</label>
         <CityAutocomplete cities={myCities} onChange={handleCitiesChange} />
-        {citiesSaving && <p className="mt-1.5 text-xs text-gray-400">Saving…</p>}
-        {citiesError && <p className="mt-1.5 text-xs text-red-500">{citiesError}</p>}
-        <p className="mt-1.5 text-xs text-gray-400">Used to filter trade matches by location.</p>
+        {citiesSaving && <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">Saving…</p>}
+        {citiesError && <p className="mt-1.5 text-xs text-[var(--cromo-danger)]">{citiesError}</p>}
+        <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">Used to filter trade matches by location.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200">
+      <div className="flex gap-2 mb-6 border-b border-[var(--cromo-border)]">
         <button
           onClick={() => switchTab('find')}
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             tab === 'find'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+              : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
           Find Trades
@@ -426,8 +426,8 @@ function TradePageContent() {
           onClick={() => switchTab('my')}
           className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
             tab === 'my'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+              : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
           My Trades
@@ -437,15 +437,15 @@ function TradePageContent() {
       {/* Find Trades tab */}
       {tab === 'find' && (
         <div>
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-5 mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Find Trading Partners</h2>
+          <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 mb-6">
+            <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-3">Find Trading Partners</h2>
             <div className="flex gap-3 items-end flex-wrap">
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Album</label>
+                <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">Album</label>
                 <select
                   value={selectedAlbumId}
                   onChange={(e) => setSelectedAlbumId(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
                 >
                   {albums.length === 0 && <option value="">No albums found</option>}
                   {albums.map((album) => (
@@ -458,7 +458,7 @@ function TradePageContent() {
               <button
                 onClick={handleFindMatches}
                 disabled={!selectedAlbumId || matchesLoading}
-                className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {matchesLoading ? 'Searching...' : 'Find Matches'}
               </button>
@@ -466,13 +466,13 @@ function TradePageContent() {
           </div>
 
           {matchesError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">
               {matchesError}
             </div>
           )}
 
           {recipientNotFound && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 mb-4">
+            <div className="rounded-lg bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 p-3 text-sm text-amber-800 mb-4">
               No mutual overlap found with that user in this album yet. Try a different album, or
               check their public profile for what they offer and want.
             </div>
@@ -481,13 +481,13 @@ function TradePageContent() {
           {matchesLoading && (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-24 rounded-xl bg-gray-200 animate-pulse" />
+                <div key={i} className="h-24 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
               ))}
             </div>
           )}
 
           {!matchesLoading && matches.length === 0 && !matchesError && selectedAlbumId && (
-            <p className="text-sm text-gray-500 text-center py-8">
+            <p className="text-sm text-[var(--cromo-fg-muted)] text-center py-8">
               {matchesSearched ? 'No matches found.' : 'Click "Find Matches" to search.'}
             </p>
           )}
@@ -495,7 +495,7 @@ function TradePageContent() {
           {!matchesLoading && matches.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--cromo-fg-muted)]">
                   Found {matches.length} potential {matches.length === 1 ? 'partner' : 'partners'}
                   {nearbyOnly && myCities.length > 0 && ` · ${visibleMatches.length} nearby`}
                 </p>
@@ -505,37 +505,37 @@ function TradePageContent() {
                       type="checkbox"
                       checked={nearbyOnly}
                       onChange={(e) => setNearbyOnly(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                      className="h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
                     />
-                    <span className="text-sm text-gray-600">Nearby only</span>
+                    <span className="text-sm text-[var(--cromo-fg-muted)]">Nearby only</span>
                   </label>
                 )}
               </div>
               {visibleMatches.length === 0 && nearbyOnly && (
-                <p className="text-sm text-gray-500 text-center py-6">
+                <p className="text-sm text-[var(--cromo-fg-muted)] text-center py-6">
                   No matches share your cities. Try disabling &quot;Nearby only&quot; or add more cities in Settings.
                 </p>
               )}
               {matchesTotal > matches.length && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-[var(--cromo-fg-subtle)]">
                   Showing {matches.length} of {matchesTotal}
                 </p>
               )}
               {visibleMatches.map((match) => (
                 <div
                   key={match.userId}
-                  className="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex items-center gap-4"
+                  className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 flex items-center gap-4"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-sm font-bold text-[var(--cromo-accent-fg)]">
                     {(match.displayName ?? match.username).charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-800 truncate">
+                    <div className="font-medium text-[var(--cromo-fg)] truncate">
                       {match.displayName ?? match.username}
                     </div>
-                    <div className="text-xs text-gray-500">@{match.username}</div>
-                    <div className="mt-1 flex gap-3 text-xs text-gray-600 flex-wrap">
-                      <span className="text-blue-600 font-medium">
+                    <div className="text-xs text-[var(--cromo-fg-muted)]">@{match.username}</div>
+                    <div className="mt-1 flex gap-3 text-xs text-[var(--cromo-fg-muted)] flex-wrap">
+                      <span className="text-[var(--cromo-accent)] font-medium">
                         {match.mutualOverlap} mutual stickers
                       </span>
                       <span>They have {match.theyHave.length} you need</span>
@@ -548,8 +548,8 @@ function TradePageContent() {
                             key={city.placeId}
                             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                               myCities.some((mc) => mc.placeId === city.placeId)
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-500'
+                                ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]'
+                                : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]'
                             }`}
                           >
                             {city.label}
@@ -560,7 +560,7 @@ function TradePageContent() {
                   </div>
                   <button
                     onClick={() => openProposeModal(match)}
-                    className="bg-blue-600 text-white hover:bg-blue-700 rounded-md px-4 py-2 text-sm font-medium transition-colors shrink-0"
+                    className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium transition-colors shrink-0"
                   >
                     Propose Trade
                   </button>
@@ -571,7 +571,7 @@ function TradePageContent() {
                   <button
                     onClick={handleLoadMoreMatches}
                     disabled={matchesMoreLoading}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                    className="bg-[var(--cromo-surface-2)] hover:bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
                   >
                     {matchesMoreLoading ? 'Loading…' : 'Load more'}
                   </button>
@@ -586,7 +586,7 @@ function TradePageContent() {
       {tab === 'my' && (
         <div>
           {tradesError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 mb-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">
               {tradesError}
             </div>
           )}
@@ -594,17 +594,17 @@ function TradePageContent() {
           {tradesLoading && (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-16 rounded-xl bg-gray-200 animate-pulse" />
+                <div key={i} className="h-16 rounded-xl bg-[var(--cromo-surface-2)] animate-pulse" />
               ))}
             </div>
           )}
 
           {!tradesLoading && !tradesError && trades.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-sm text-gray-500">You have no trades yet.</p>
+              <p className="text-sm text-[var(--cromo-fg-muted)]">You have no trades yet.</p>
               <button
                 onClick={() => switchTab('find')}
-                className="mt-3 text-sm text-blue-600 hover:underline"
+                className="mt-3 text-sm text-[var(--cromo-accent)] hover:underline"
               >
                 Find trading partners
               </button>
@@ -621,14 +621,14 @@ function TradePageContent() {
                   <button
                     key={trade.id}
                     onClick={() => router.push(`/trade/${trade.id}`)}
-                    className="w-full text-left rounded-xl border border-gray-200 bg-white shadow-sm p-4 hover:border-blue-200 hover:bg-blue-50 transition-colors"
+                    className="w-full text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 hover:border-[var(--cromo-accent)]/30 hover:bg-[var(--cromo-accent-soft)] transition-colors"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-medium text-gray-800 truncate">
+                        <div className="text-sm font-medium text-[var(--cromo-fg)] truncate">
                           {isRequester ? 'To' : 'From'}: @{otherUser}
                         </div>
-                        <div className="text-xs text-gray-400 mt-0.5">
+                        <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
                           {new Date(trade.createdAt).toLocaleDateString()} &middot;{' '}
                           {trade.messageCount} {trade.messageCount === 1 ? 'message' : 'messages'}
                         </div>
@@ -656,7 +656,7 @@ function TradePageContent() {
                     }
                   }}
                   disabled={tradesMoreLoading}
-                  className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-3 disabled:opacity-50"
+                  className="w-full text-sm text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] font-medium py-3 disabled:opacity-50"
                 >
                   {tradesMoreLoading ? 'Loading…' : 'Load more'}
                 </button>
@@ -701,7 +701,7 @@ export default function TradePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-[60vh] text-gray-400 text-sm">
+        <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
           Loading…
         </div>
       }
