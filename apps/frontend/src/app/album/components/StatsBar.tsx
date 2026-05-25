@@ -17,7 +17,7 @@ function StatTile({
   color: string;
 }) {
   return (
-    <div className="flex flex-col items-center rounded-lg bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-4 py-3 min-w-[80px]">
+    <div className="flex flex-col items-center rounded-lg bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-4 py-3 w-full sm:w-auto sm:min-w-[80px]">
       <span className={`text-2xl font-bold ${color}`}>{value}</span>
       <span className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">{label}</span>
     </div>
@@ -29,16 +29,14 @@ export default function StatsBar({ stats, loading }: Props) {
 
   return (
     <div className="flex flex-col gap-3 bg-[var(--cromo-surface-2)] border border-[var(--cromo-border)] rounded-xl p-4">
-      <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:justify-start">
         {loading ? (
-          <div className="flex gap-3">
-            {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="h-16 w-20 rounded-lg bg-[var(--cromo-surface-2)] animate-pulse"
-              />
-            ))}
-          </div>
+          [...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="h-16 w-full sm:w-20 rounded-lg bg-[var(--cromo-surface-2)] animate-pulse"
+            />
+          ))
         ) : (
           <>
             <StatTile
