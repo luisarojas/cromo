@@ -15,7 +15,7 @@ export const VARIANT_META: Record<string, VariantMeta> = {
 black:                  { label: 'Black',                   short: 'Black',     swatch: 'bg-black',                 rarity: 'Masterpiece' },
   orange_amazon:        { label: 'Orange (Amazon)',         short: 'Orange',    swatch: 'bg-orange-500',            rarity: 'Exclusive' },
   gold_crumple:         { label: 'Gold Flood Crumple',      short: 'Gold Crmp', swatch: 'bg-yellow-400',            rarity: 'iCollect' },
-  blue_crumple:         { label: 'Blue Crumple',            short: 'Blue Crmp', swatch: 'bg-blue-400',              rarity: 'iCollect' },
+  blue_crumple:         { label: 'Blue Crumple',            short: 'Blue Crmp', swatch: 'bg-[var(--cromo-accent)]',              rarity: 'iCollect' },
   red_crumple:          { label: 'Red Crumple',             short: 'Red Crmp',  swatch: 'bg-red-400',               rarity: 'iCollect Rare' },
   purple_crumple:       { label: 'Purple Crumple',          short: 'Pur Crmp',  swatch: 'bg-purple-400',            rarity: 'iCollect Very Rare' },
   green_crumple:        { label: 'Green Crumple',           short: 'Grn Crmp',  swatch: 'bg-[var(--cromo-success)]',             rarity: 'iCollect Ultra Rare' },
