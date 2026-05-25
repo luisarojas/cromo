@@ -28,7 +28,9 @@ export default function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="space-y-3">
-            <CromoLogo size={24} variant="chrome" />
+            <Link href="/" className="inline-block hover:opacity-80 transition-opacity" aria-label="Cromo home">
+              <CromoLogo size={24} variant="chrome" />
+            </Link>
             <p className="text-xs leading-relaxed text-[var(--cromo-fg-muted)] max-w-xs">
               Collection tracker and trade matchmaker for stickers, cards, and everything you chase.
             </p>
