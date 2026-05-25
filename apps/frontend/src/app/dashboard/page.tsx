@@ -164,7 +164,7 @@ export default function DashboardPage() {
           title={<>Welcome back, <span className="cromo-chrome-text">{displayName}</span></>}
           subtitle={
             user?.emailVerifiedAt === null
-              ? <span className="text-[var(--cromo-warning)]">Email not verified — check your inbox.</span>
+              ? <span className="text-[var(--cromo-warning-text)]">Email not verified — check your inbox.</span>
               : defaultAlbum
                 ? `Tracking ${albums.length} album${albums.length !== 1 ? 's' : ''}`
                 : 'Add your first album to start tracking'
@@ -204,7 +204,7 @@ export default function DashboardPage() {
               <div
                 className={`h-full rounded-full transition-all duration-700 ${
                   defaultAlbumStats.percentage >= 100
-                    ? 'cromo-chrome-fill cromo-shimmer'
+                    ? 'cromo-chrome-fill'
                     : 'bg-[var(--cromo-accent)]'
                 }`}
                 style={{ width: `${defaultAlbumStats.percentage}%` }}
@@ -499,7 +499,7 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
-                <span className="text-xs text-[var(--cromo-danger)]">
+                <span className="text-xs text-[var(--cromo-danger-text)]">
                   Delete {selectedIds.size} album{selectedIds.size > 1 ? 's' : ''}? This cannot be undone.
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => setConfirmBulkDelete(false)} disabled={bulkBusy}>

@@ -74,7 +74,7 @@ export default function ProposeTradeModal({
           />
 
           {error && (
-            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mt-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mt-4">
               {error}
             </div>
           )}

@@ -265,7 +265,7 @@ export default function VariantPopover({
                   <button
                     onClick={() => handleAdjust(entry.variantId, variantType, -1)}
                     disabled={busy}
-                    className="w-6 h-6 rounded bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
+                    className="w-6 h-6 rounded bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
                     aria-label={`Remove one ${variantLabel(variantType)}`}
                     title="Remove one"
                   >
@@ -293,7 +293,7 @@ export default function VariantPopover({
                     title={entry.tradeForced && !entry.tradeHidden ? 'Cannot hide while forced for trade' : entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeHidden
-                        ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] hover:bg-red-200'
+                        ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200'
                         : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                     }`}
                   >
@@ -315,7 +315,7 @@ export default function VariantPopover({
                     title={entry.tradeHidden && !entry.tradeForced ? 'Cannot force trade while hidden' : entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeForced
-                        ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] hover:bg-green-200'
+                        ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] hover:bg-green-200'
                         : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                     }`}
                   >
@@ -547,7 +547,7 @@ export default function VariantPopover({
                   <span className="flex-1 text-xs text-[var(--cromo-fg)] truncate">
                     {VARIANT_META[v.variantType]?.label ?? v.variantType}
                   </span>
-                  <span className={`text-[10px] font-medium ${wanted ? 'text-[var(--cromo-warning)]' : 'text-[var(--cromo-fg-subtle)]'}`}>
+                  <span className={`text-[10px] font-medium ${wanted ? 'text-[var(--cromo-warning-text)]' : 'text-[var(--cromo-fg-subtle)]'}`}>
                     {wanted ? '★ Wanted' : '☆ Want it'}
                   </span>
                 </button>

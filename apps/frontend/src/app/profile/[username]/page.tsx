@@ -42,7 +42,7 @@ const STICKER_TYPE_COLORS: Record<string, string> = {
   team_photo: 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-[var(--cromo-warning)]/30',
   intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
   museum: 'bg-orange-100 text-orange-700 border-orange-200',
-  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] border-[var(--cromo-danger)]/30',
+  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] border-[var(--cromo-danger)]/30',
   extra: 'bg-pink-100 text-pink-700 border-pink-200',
 };
 
@@ -415,7 +415,7 @@ export default function PublicProfilePage() {
   if (error || !profile) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger)]">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger-text)]">
           {error ?? 'Failed to load profile.'}
         </div>
       </div>
@@ -567,8 +567,8 @@ export default function PublicProfilePage() {
                 const isActive = activeTab === key;
                 const baseClass = isActive
                   ? accent === 'amber'
-                    ? 'border-[var(--cromo-warning)] text-[var(--cromo-warning)]'
-                    : 'border-red-500 text-[var(--cromo-danger)]'
+                    ? 'border-[var(--cromo-warning)] text-[var(--cromo-warning-text)]'
+                    : 'border-red-500 text-[var(--cromo-danger-text)]'
                   : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]';
                 return (
                   <button
@@ -749,7 +749,7 @@ export default function PublicProfilePage() {
                 ))}
               </div>
             ) : activeState?.error ? (
-              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
+              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">
                 {activeState.error}
               </div>
             ) : filteredItems.length === 0 ? (

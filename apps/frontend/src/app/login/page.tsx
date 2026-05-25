@@ -62,7 +62,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative">
         <div className="text-center mb-8 flex flex-col items-center">
-          <CromoMark size={48} variant="chrome" className="mb-4 cromo-shimmer" />
+          <CromoMark size={48} variant="chrome" className="mb-4" />
           <h1 className="font-display font-bold text-2xl text-[var(--cromo-fg)] tracking-tight">
             Welcome back
           </h1>

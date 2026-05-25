@@ -77,7 +77,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
         {success ? (
           <div className="px-5 py-8 text-center space-y-3">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--cromo-success-soft)]">
-              <svg className="h-6 w-6 text-[var(--cromo-success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-6 w-6 text-[var(--cromo-success-text)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -121,7 +121,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
             </div>
 
             {error && (
-              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
+              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">
                 {error}
               </div>
             )}

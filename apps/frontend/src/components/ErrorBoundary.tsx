@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-screen items-center justify-center bg-transparent p-4">
           <div className="w-full max-w-md rounded-xl border border-[var(--cromo-danger)]/30 bg-[var(--cromo-surface)] p-8 text-center">
-            <h2 className="text-xl font-semibold text-[var(--cromo-danger)] mb-2">
+            <h2 className="text-xl font-semibold text-[var(--cromo-danger-text)] mb-2">
               Something went wrong
             </h2>
             <p className="text-sm text-[var(--cromo-fg-muted)] mb-6 break-words">

@@ -210,7 +210,7 @@ export default function FilterBar({
               onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
               className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                 filters.favouritesOnly
-                  ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]'
+                  ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]'
                   : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
               }`}
             >

@@ -13,7 +13,7 @@ export default function WC2026GuidePage() {
       </Link>
 
       {/* Hero */}
-      <div className="rounded-2xl cromo-chrome-fill cromo-shimmer px-8 py-10 text-[#0A0B0F] relative overflow-hidden">
+      <div className="rounded-2xl cromo-chrome-fill px-8 py-10 text-[#0A0B0F] relative overflow-hidden">
         <span className="inline-flex items-center rounded-full bg-black/15 backdrop-blur px-3 py-1 text-[11px] font-semibold uppercase tracking-wider mb-4">
           2026 FIFA World Cup
         </span>
@@ -247,7 +247,7 @@ export default function WC2026GuidePage() {
           </table>
         </div>
         <div className="flex items-start gap-2.5 rounded-lg bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-4 py-3">
-          <span className="text-[var(--cromo-warning)] shrink-0 mt-0.5 text-base leading-none">⚠</span>
+          <span className="text-[var(--cromo-warning-text)] shrink-0 mt-0.5 text-base leading-none">⚠</span>
           <p className="text-xs text-amber-800 leading-relaxed">
             There is no &ldquo;Platinum&rdquo; edition for the 2026 collection. Any listing or
             product using that name is unofficial — do not pay a premium for it.

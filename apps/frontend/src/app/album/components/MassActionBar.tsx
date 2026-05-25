@@ -103,7 +103,7 @@ export default function MassActionBar({
               onClick={onDelete}
               disabled={noneSelected || !hasAnyOwned}
               title="Delete all variants of selected stickers from collection"
-              colorClass="text-[var(--cromo-danger)] hover:bg-[var(--cromo-danger-soft)]"
+              colorClass="text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-danger-soft)]"
               label="Delete"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -117,7 +117,7 @@ export default function MassActionBar({
               onClick={onToggleFavourite}
               disabled={noneSelected}
               title={favouriteState === 'all' ? 'Remove from favourites' : 'Add to favourites'}
-              colorClass={favouriteState === 'all' ? 'text-[var(--cromo-danger)] hover:bg-[var(--cromo-danger-soft)]' : 'text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface-2)]'}
+              colorClass={favouriteState === 'all' ? 'text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-danger-soft)]' : 'text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface-2)]'}
               label={favouriteState === 'all' ? 'Unfav' : 'Fav'}
             >
               <HeartIcon filled={favouriteState === 'all'} className="w-4 h-4" />
@@ -129,7 +129,7 @@ export default function MassActionBar({
               onClick={onAddVariant}
               disabled={noneSelected}
               title="Add a variant type to selected stickers"
-              colorClass="text-[var(--cromo-success)] hover:bg-[var(--cromo-success-soft)]"
+              colorClass="text-[var(--cromo-success-text)] hover:bg-[var(--cromo-success-soft)]"
               label="Add Variant"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">

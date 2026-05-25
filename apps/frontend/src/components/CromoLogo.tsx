@@ -23,7 +23,9 @@ export function CromoMark({ size = 32, variant = 'accent', className, title = 'C
   else if (variant === 'mono') fill = 'currentColor';
   else fill = 'var(--cromo-accent, #6EE7F9)';
 
-  const cutout = variant === 'mono' ? 'var(--cromo-bg, #0A0B0F)' : 'var(--cromo-bg, #0A0B0F)';
+  // The carved "c" is always white. The mark reads as the brand glyph
+  // regardless of which surface (chrome, accent, mono) it sits on.
+  const cutout = '#FFFFFF';
 
   return (
     <svg

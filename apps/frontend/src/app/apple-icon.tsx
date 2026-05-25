@@ -32,12 +32,12 @@ export default function AppleIcon() {
           <svg width="100" height="100" viewBox="0 0 24 24" fill="none">
             <path
               d="M16 8.2a5.5 5.5 0 1 0 0 7.6"
-              stroke="#0A0B0F"
+              stroke="#FFFFFF"
               strokeWidth="3.2"
               strokeLinecap="round"
               fill="none"
             />
-            <circle cx="16.5" cy="12" r="1.4" fill="#0A0B0F" />
+            <circle cx="16.5" cy="12" r="1.4" fill="#FFFFFF" />
           </svg>
         </div>
       </div>

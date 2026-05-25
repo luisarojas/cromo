@@ -85,7 +85,7 @@ function VerifyEmailContent() {
           </div>
 
           {resendDone ? (
-            <p className="text-sm text-[var(--cromo-success)] text-center">
+            <p className="text-sm text-[var(--cromo-success-text)] text-center">
               New verification link sent — check your inbox (or{' '}
               <a
                 href="http://localhost:8025"

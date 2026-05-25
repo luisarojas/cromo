@@ -90,7 +90,7 @@ function EditRow({
               className="rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-sm w-48 focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
             />
           </div>
-          {error && <span className="text-xs text-[var(--cromo-danger)] self-end">{error}</span>}
+          {error && <span className="text-xs text-[var(--cromo-danger-text)] self-end">{error}</span>}
           <div className="flex gap-2 self-end">
             <button
               type="submit"
@@ -174,7 +174,7 @@ function StickersSection({ token }: { token: string }) {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-4">
           {error}
         </div>
       )}
@@ -289,11 +289,11 @@ function StatusBadge({ user }: { user: AdminUser }) {
   }
   if (user.isBanned) {
     return (
-      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]">Banned</span>
+      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]">Banned</span>
     );
   }
   return (
-    <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]">Active</span>
+    <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)]">Active</span>
   );
 }
 
@@ -349,7 +349,7 @@ function BanForm({
               className="rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-sm w-72 focus:outline-none focus:ring-1 focus:ring-red-400"
             />
           </div>
-          {error && <span className="text-xs text-[var(--cromo-danger)] self-end">{error}</span>}
+          {error && <span className="text-xs text-[var(--cromo-danger-text)] self-end">{error}</span>}
           <div className="flex gap-2 self-end">
             <button
               type="submit"
@@ -509,10 +509,10 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
       </form>
 
       {error && (
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">{error}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-4">{error}</div>
       )}
       {actionError && (
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">{actionError}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-4">{actionError}</div>
       )}
 
       {loading ? (
@@ -575,21 +575,21 @@ function UsersSection({ token, currentUserId }: { token: string; currentUserId: 
                             {user.isBanned ? (
                               <button
                                 onClick={() => handleUnban(user)}
-                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-[var(--cromo-success)] hover:bg-[var(--cromo-success-soft)] transition-colors"
+                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-[var(--cromo-success-text)] hover:bg-[var(--cromo-success-soft)] transition-colors"
                               >
                                 Unban
                               </button>
                             ) : (
                               <button
                                 onClick={() => setBanningId(banningId === user.id ? null : user.id)}
-                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-[var(--cromo-warning)]/40 text-[var(--cromo-warning)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
+                                className="text-xs px-2.5 py-1 rounded-full font-medium border border-[var(--cromo-warning)]/40 text-[var(--cromo-warning-text)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
                               >
                                 Ban
                               </button>
                             )}
                             <button
                               onClick={() => handleDelete(user)}
-                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-[var(--cromo-danger)]/40 text-[var(--cromo-danger)] hover:bg-[var(--cromo-danger-soft)] transition-colors"
+                              className="text-xs px-2.5 py-1 rounded-full font-medium border border-[var(--cromo-danger)]/40 text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-danger-soft)] transition-colors"
                             >
                               Delete
                             </button>
@@ -659,9 +659,9 @@ const REPORT_STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]',
-  under_review: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]',
-  resolved: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]',
+  open: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]',
+  under_review: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]',
+  resolved: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)]',
   dismissed: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]',
 };
 
@@ -752,7 +752,7 @@ function BanModal({
               placeholder="Reason for ban…"
             />
           </div>
-          {error && <div className="text-sm text-[var(--cromo-danger)]">{error}</div>}
+          {error && <div className="text-sm text-[var(--cromo-danger-text)]">{error}</div>}
           <div className="flex gap-2">
             <button type="submit" disabled={submitting} className="flex-1 rounded-md bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
               {submitting ? 'Banning…' : 'Confirm ban'}
@@ -833,11 +833,11 @@ function ReportsQueue({ token }: { token: string }) {
       </div>
 
       {actionError && (
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">{actionError}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">{actionError}</div>
       )}
 
       {error && (
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">{error}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">{error}</div>
       )}
 
       {loading ? (
@@ -909,7 +909,7 @@ function ReportsQueue({ token }: { token: string }) {
                                 </button>
                                 <button
                                   onClick={() => setBanTarget({ userId: report.reportedUserId, username: report.reportedUsername, reportId: report.id })}
-                                  className="rounded-md bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] border border-[var(--cromo-danger)]/40 px-3 py-1.5 text-xs font-medium hover:bg-red-200 transition-colors"
+                                  className="rounded-md bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] border border-[var(--cromo-danger)]/40 px-3 py-1.5 text-xs font-medium hover:bg-red-200 transition-colors"
                                 >
                                   Soft Ban
                                 </button>
@@ -1007,7 +1007,7 @@ function BannedUsersSection({ token }: { token: string }) {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">{error}</div>
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">{error}</div>
       )}
 
       {loading ? (
@@ -1041,7 +1041,7 @@ function BannedUsersSection({ token }: { token: string }) {
                       <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
                         {activeBan ? (
                           <div className="text-xs space-y-0.5">
-                            <span className={`rounded px-1.5 py-0.5 font-medium ${activeBan.banType === 'hard' ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]' : 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]'}`}>
+                            <span className={`rounded px-1.5 py-0.5 font-medium ${activeBan.banType === 'hard' ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]' : 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]'}`}>
                               {activeBan.banType}
                             </span>
                             <p className="text-[var(--cromo-fg-muted)] mt-1 truncate max-w-xs">{activeBan.reason}</p>
@@ -1068,7 +1068,7 @@ function BannedUsersSection({ token }: { token: string }) {
                               placeholder="Lift reason…"
                               className="w-full rounded border border-[var(--cromo-border-strong)] px-2 py-1 text-xs focus:outline-none"
                             />
-                            {liftError && <p className="text-xs text-[var(--cromo-danger)]">{liftError}</p>}
+                            {liftError && <p className="text-xs text-[var(--cromo-danger-text)]">{liftError}</p>}
                             <div className="flex gap-1">
                               <button
                                 onClick={() => {
@@ -1093,7 +1093,7 @@ function BannedUsersSection({ token }: { token: string }) {
                               void loadBanDetails(user.id);
                               setLiftingId(user.id);
                             }}
-                            className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-[var(--cromo-success)] hover:bg-[var(--cromo-success-soft)] transition-colors"
+                            className="text-xs px-2.5 py-1 rounded-full font-medium border border-green-300 text-[var(--cromo-success-text)] hover:bg-[var(--cromo-success-soft)] transition-colors"
                           >
                             Lift ban
                           </button>

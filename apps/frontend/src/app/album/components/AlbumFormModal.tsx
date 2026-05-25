@@ -277,7 +277,7 @@ export default function AlbumFormModal({
           </div>
 
           {error && (
-            <p className="text-xs text-[var(--cromo-danger)] rounded-lg bg-[var(--cromo-danger-soft)] px-3 py-2">{error}</p>
+            <p className="text-xs text-[var(--cromo-danger-text)] rounded-lg bg-[var(--cromo-danger-soft)] px-3 py-2">{error}</p>
           )}
 
           <div className="flex gap-2 justify-end">
@@ -305,7 +305,7 @@ export default function AlbumFormModal({
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={busy}
-                className="w-full text-sm text-[var(--cromo-danger)] hover:text-[var(--cromo-danger)] font-medium disabled:opacity-50 text-left"
+                className="w-full text-sm text-[var(--cromo-danger-text)] hover:text-[var(--cromo-danger-text)] font-medium disabled:opacity-50 text-left"
               >
                 Delete this album…
               </button>

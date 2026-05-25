@@ -37,8 +37,8 @@ function StatusMessage({ type, message }: { type: 'success' | 'error'; message: 
     <div
       className={`rounded-md px-3 py-2 text-sm ${
         type === 'success'
-          ? 'bg-[var(--cromo-success-soft)] border border-[var(--cromo-success)]/30 text-[var(--cromo-success)]'
-          : 'bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger)]'
+          ? 'bg-[var(--cromo-success-soft)] border border-[var(--cromo-success)]/30 text-[var(--cromo-success-text)]'
+          : 'bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger-text)]'
       }`}
     >
       {message}
@@ -387,7 +387,7 @@ function DeleteAccountSection() {
 
   return (
     <div className="bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-danger)]/30 p-6">
-      <h2 className="text-base font-semibold text-[var(--cromo-danger)] mb-1">Delete Account</h2>
+      <h2 className="text-base font-semibold text-[var(--cromo-danger-text)] mb-1">Delete Account</h2>
       <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">
         Permanently deactivates your account. This action cannot be undone.
       </p>
@@ -401,7 +401,7 @@ function DeleteAccountSection() {
       {!confirming ? (
         <button
           onClick={() => setConfirming(true)}
-          className="rounded-md border border-[var(--cromo-danger)]/40 px-4 py-2 text-sm font-medium text-[var(--cromo-danger)] hover:bg-[var(--cromo-danger-soft)] transition-colors"
+          className="rounded-md border border-[var(--cromo-danger)]/40 px-4 py-2 text-sm font-medium text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-danger-soft)] transition-colors"
         >
           Delete my account
         </button>

@@ -29,7 +29,7 @@ export default function NavBar() {
           className="hover:opacity-80 transition-opacity"
           aria-label="Cromo home"
         >
-          <CromoLogo size={26} variant="chrome" markClassName="cromo-shimmer" />
+          <CromoLogo size={26} variant="chrome"  />
         </Link>
 
         <div className="flex gap-4 text-sm font-medium">
@@ -52,7 +52,7 @@ export default function NavBar() {
                 localStorage.clear();
                 window.location.reload();
               }}
-              className="rounded-chip px-2 py-1 text-xs font-mono bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] border border-[var(--cromo-warning)]/30 transition-colors"
+              className="rounded-chip px-2 py-1 text-xs font-mono bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border border-[var(--cromo-warning)]/30 transition-colors"
               title="Clear localStorage and reload"
             >
               clear cache

@@ -24,10 +24,10 @@ interface Props {
 const TYPE_COLORS: Record<string, string> = {
   player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
   badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)]',
-  team_photo: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)]',
+  team_photo: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]',
   intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
   museum: 'bg-orange-100 text-orange-600',
-  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]',
+  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]',
   extra: 'bg-pink-100 text-pink-600',
 };
 
@@ -163,7 +163,7 @@ export default function StickerCard({
             <span
               key={`need-${name}`}
               title={`"${name}" needs this sticker`}
-              className="inline-block rounded-full bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] text-[9px] font-semibold px-1.5 py-0.5 leading-none"
+              className="inline-block rounded-full bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] text-[9px] font-semibold px-1.5 py-0.5 leading-none"
             >
               ↓ {name}
             </span>
@@ -172,7 +172,7 @@ export default function StickerCard({
             <span
               key={`avail-${name}`}
               title={`"${name}" has extra copies`}
-              className="inline-block rounded-full bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] text-[9px] font-semibold px-1.5 py-0.5 leading-none"
+              className="inline-block rounded-full bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] text-[9px] font-semibold px-1.5 py-0.5 leading-none"
             >
               ↑ {name}
             </span>
@@ -202,8 +202,8 @@ export default function StickerCard({
           }}
           className={`absolute bottom-1.5 right-1.5 transition-all cursor-pointer ${
             isFavourited
-              ? 'text-[var(--cromo-danger)] opacity-100'
-              : 'text-[var(--cromo-fg-subtle)] opacity-0 group-hover:opacity-100 hover:text-[var(--cromo-danger)]'
+              ? 'text-[var(--cromo-danger-text)] opacity-100'
+              : 'text-[var(--cromo-fg-subtle)] opacity-0 group-hover:opacity-100 hover:text-[var(--cromo-danger-text)]'
           }`}
           title={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
           aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}

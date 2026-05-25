@@ -188,7 +188,7 @@ export function Field({ label, htmlFor, hint, error, children }: FieldProps) {
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {error ? (
-        <p className="text-xs text-[var(--cromo-danger)]">{error}</p>
+        <p className="text-xs text-[var(--cromo-danger-text)]">{error}</p>
       ) : hint ? (
         <p className="text-xs text-[var(--cromo-fg-subtle)]">{hint}</p>
       ) : null}
@@ -220,9 +220,9 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 const badgeTones: Record<BadgeTone, string> = {
   neutral: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] border-[var(--cromo-border)]',
   accent: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
-  success: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] border-[var(--cromo-success)]/30',
-  warning: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] border-[var(--cromo-warning)]/30',
-  danger: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)] border-[var(--cromo-danger)]/30',
+  success: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] border-[var(--cromo-success)]/30',
+  warning: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border-[var(--cromo-warning)]/30',
+  danger: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] border-[var(--cromo-danger)]/30',
   common: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-tier-common)] border-[var(--cromo-tier-common)]/30',
   uncommon: 'bg-[var(--cromo-tier-uncommon)]/10 text-[var(--cromo-tier-uncommon)] border-[var(--cromo-tier-uncommon)]/30',
   rare: 'bg-[var(--cromo-tier-rare)]/10 text-[var(--cromo-tier-rare)] border-[var(--cromo-tier-rare)]/30',
@@ -255,20 +255,15 @@ interface PageHeaderProps {
   subtitle?: ReactNode;
   actions?: ReactNode;
   eyebrow?: ReactNode;
-  /** Hide the chrome accent stripe under the title (default: shown). */
-  noAccent?: boolean;
 }
 
-export function PageHeader({ title, subtitle, actions, eyebrow, noAccent }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, eyebrow }: PageHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
       <div className="min-w-0">
         {eyebrow && (
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="h-px w-6 cromo-chrome-fill cromo-shimmer" aria-hidden />
-            <span className="text-xs uppercase tracking-wider text-[var(--cromo-fg-subtle)] font-semibold">
-              {eyebrow}
-            </span>
+          <div className="text-xs uppercase tracking-wider text-[var(--cromo-fg-subtle)] font-semibold mb-1.5">
+            {eyebrow}
           </div>
         )}
         <h1
@@ -277,14 +272,8 @@ export function PageHeader({ title, subtitle, actions, eyebrow, noAccent }: Page
         >
           {title}
         </h1>
-        {!noAccent && (
-          <span
-            className="block mt-2 h-[2px] w-12 rounded-full cromo-chrome-fill cromo-shimmer"
-            aria-hidden
-          />
-        )}
         {subtitle && (
-          <p className="mt-2.5 text-sm text-[var(--cromo-fg-muted)]">{subtitle}</p>
+          <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">{subtitle}</p>
         )}
       </div>
       {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
@@ -355,9 +344,9 @@ interface AlertProps {
 
 const alertTones = {
   info: 'bg-[var(--cromo-accent-soft)] border-[var(--cromo-accent)]/30 text-[var(--cromo-accent)]',
-  success: 'bg-[var(--cromo-success-soft)] border-[var(--cromo-success)]/30 text-[var(--cromo-success)]',
-  warning: 'bg-[var(--cromo-warning-soft)] border-[var(--cromo-warning)]/30 text-[var(--cromo-warning)]',
-  danger: 'bg-[var(--cromo-danger-soft)] border-[var(--cromo-danger)]/30 text-[var(--cromo-danger)]',
+  success: 'bg-[var(--cromo-success-soft)] border-[var(--cromo-success)]/30 text-[var(--cromo-success-text)]',
+  warning: 'bg-[var(--cromo-warning-soft)] border-[var(--cromo-warning)]/30 text-[var(--cromo-warning-text)]',
+  danger: 'bg-[var(--cromo-danger-soft)] border-[var(--cromo-danger)]/30 text-[var(--cromo-danger-text)]',
 };
 
 export function Alert({ tone = 'info', title, children }: AlertProps) {
@@ -390,8 +379,8 @@ export function Stat({ label, value, hint, tone = 'default' }: StatProps) {
   let valueClass: string;
   switch (tone) {
     case 'accent':  valueClass = 'text-[var(--cromo-accent)]'; break;
-    case 'success': valueClass = 'text-[var(--cromo-success)]'; break;
-    case 'chrome':  valueClass = 'cromo-chrome-text cromo-shimmer'; break;
+    case 'success': valueClass = 'text-[var(--cromo-success-text)]'; break;
+    case 'chrome':  valueClass = 'cromo-chrome-text'; break;
     default:        valueClass = 'text-[var(--cromo-fg)]';
   }
   return (

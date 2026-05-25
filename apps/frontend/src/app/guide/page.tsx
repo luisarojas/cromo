@@ -31,7 +31,7 @@ export default function GuidesIndexPage() {
           >
             {/* Chrome hero strip — guaranteed contrast for the black title in
                 both themes, plus brand-on-brand identity. */}
-            <div className="cromo-chrome-fill cromo-shimmer px-5 py-4 relative">
+            <div className="cromo-chrome-fill px-5 py-4 relative">
               <span className="inline-flex items-center rounded-full bg-black/20 backdrop-blur px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#0A0B0F] mb-2">
                 {guide.label}
               </span>

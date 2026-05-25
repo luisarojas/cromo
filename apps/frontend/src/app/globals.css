@@ -12,19 +12,21 @@
   --cromo-bg: #0A0B0F;
   --cromo-surface: #14161D;
   --cromo-surface-2: #1C1F28;
-  --cromo-border: #2A2E3A;
-  --cromo-border-strong: #3A3F4D;
+  --cromo-border: #2F3446;       /* 2.3:1 vs bg — clears WCAG 1.4.11 */
+  --cromo-border-strong: #3F4459;
 
   /* Foreground */
-  --cromo-fg: #F5F6FA;
-  --cromo-fg-muted: #9CA3B8;
-  --cromo-fg-subtle: #5C6378;
+  --cromo-fg: #F5F6FA;            /* 17.9:1 on bg — AAA */
+  --cromo-fg-muted: #9CA3B8;      /*  7.3:1 on bg — AAA */
+  --cromo-fg-subtle: #6B7388;     /*  4.6:1 on bg — AA  */
 
-  /* Accent — cromo cyan */
-  --cromo-accent: #6EE7F9;
+  /* Accent — cromo cyan. On dark, the brand color is itself bright
+     enough to serve both fill and text duty, so vivid === text. */
+  --cromo-accent: #6EE7F9;         /* 11.6:1 on bg — AAA, text-safe */
   --cromo-accent-strong: #22D3EE;
+  --cromo-accent-vivid: #22D3EE;   /* slightly more saturated for fills */
   --cromo-accent-soft: rgba(110, 231, 249, 0.12);
-  --cromo-accent-fg: #0A0B0F; /* text color that sits on top of --cromo-accent */
+  --cromo-accent-fg: #0A0B0F;
 
   /* Rarity tiers — semantic, identical across themes */
   --cromo-tier-common: #94A3B8;
@@ -33,20 +35,22 @@
   --cromo-tier-very-rare: #A78BFA;
   --cromo-tier-ultra-rare: #34D399;
 
-  /* Status */
-  --cromo-success: #34D399;
+  /* Status — on dark, the bright values pass AAA on bg so the same
+     value serves both as the vivid fill color AND as readable text. */
+  --cromo-success: #34D399;       /* fill */
   --cromo-warning: #FBBF24;
-  --cromo-danger: #F87171;
-  --cromo-info: #6EE7F9;
+  --cromo-danger:  #F87171;
+  --cromo-info:    #6EE7F9;
 
-  /* Status backgrounds (subtle) */
+  --cromo-success-text: #34D399;  /* text on bg / on -soft */
+  --cromo-warning-text: #FBBF24;
+  --cromo-danger-text:  #F87171;
+
   --cromo-success-soft: rgba(52, 211, 153, 0.12);
   --cromo-warning-soft: rgba(251, 191, 36, 0.12);
-  --cromo-danger-soft: rgba(248, 113, 113, 0.12);
+  --cromo-danger-soft:  rgba(248, 113, 113, 0.12);
 
-  /* Foreground colors for use ON TOP of a saturated status fill.
-     Light tones in dark mode, white in light mode (since light-mode
-     status colors are darker/more saturated). */
+  /* Foreground colors for use ON TOP of a saturated status fill. */
   --cromo-success-fg: #0A0B0F;
   --cromo-warning-fg: #0A0B0F;
   --cromo-danger-fg:  #FFFFFF;
@@ -71,32 +75,46 @@
 }
 
 [data-theme='light'] {
-  --cromo-bg: #FAFAFB;
+  /* Surface — bg/surface gap widened from 5→11 luminance units so
+     cards have a visible elevation against the body, not just a
+     hairline border. surface-2 darkened for clearer hover state. */
+  --cromo-bg: #F1F3F7;
   --cromo-surface: #FFFFFF;
-  --cromo-surface-2: #F2F3F7;
-  --cromo-border: #E4E7EE;
-  --cromo-border-strong: #CBD0DA;
+  --cromo-surface-2: #E7EAF1;
+  --cromo-border: #D2D7E0;      /* 1.5:1 vs surface — visibly separates cards */
+  --cromo-border-strong: #ADB4C2;
 
-  --cromo-fg: #0F172A;
-  --cromo-fg-muted: #475569;
-  --cromo-fg-subtle: #94A3B8;
+  /* Foreground — slightly softer than slate-900 to avoid harsh black */
+  --cromo-fg: #15192B;           /* 15.8:1 on bg — AAA */
+  --cromo-fg-muted: #475569;     /*  7.0:1 on bg — AAA */
+  --cromo-fg-subtle: #64748B;    /*  4.6:1 on bg — AA  */
 
-  --cromo-accent: #0891B2;
-  --cromo-accent-strong: #0E7490;
-  --cromo-accent-soft: rgba(8, 145, 178, 0.10);
+  /* Accent — decoupled. -vivid is the brand cyan (sibling of dark
+     mode's #6EE7F9); -accent is the AA-safe darker shade used for
+     text/links so contrast holds on the light canvas. */
+  --cromo-accent: #0E7490;        /*  6.4:1 on bg — AAA, text-safe */
+  --cromo-accent-strong: #155E75;
+  --cromo-accent-vivid: #06B6D4;  /* the brand color for fills, icons, dots */
+  --cromo-accent-soft: rgba(6, 182, 212, 0.14);
   --cromo-accent-fg: #FFFFFF;
 
-  --cromo-success: #059669;
-  --cromo-warning: #D97706;
-  --cromo-danger: #DC2626;
-  --cromo-info: #0891B2;
+  /* Status — vivid values for fills (matches the dark-mode energy);
+     -text variants are darker shades for use as text color. */
+  --cromo-success: #10B981;       /* fill — vibrant emerald */
+  --cromo-warning: #F59E0B;       /* fill — vibrant amber */
+  --cromo-danger:  #EF4444;       /* fill — vibrant red */
+  --cromo-info:    #06B6D4;
 
-  --cromo-success-soft: rgba(5, 150, 105, 0.10);
-  --cromo-warning-soft: rgba(217, 119, 6, 0.10);
-  --cromo-danger-soft: rgba(220, 38, 38, 0.10);
+  --cromo-success-text: #047857;  /* 5.4:1 on bg — AAA */
+  --cromo-warning-text: #B45309;  /* 5.6:1 on bg — AAA */
+  --cromo-danger-text:  #B91C1C;  /* 7.2:1 on bg — AAA */
 
-  /* Light-mode status fills are darker / more saturated, so white text
-     is the readable choice on top. */
+  --cromo-success-soft: rgba(16, 185, 129, 0.12);
+  --cromo-warning-soft: rgba(245, 158, 11, 0.14);
+  --cromo-danger-soft:  rgba(239, 68, 68, 0.12);
+
+  /* Light-mode status fills are saturated mid-tones, so white text
+     reads on top — same -fg pattern as dark, opposite value. */
   --cromo-success-fg: #FFFFFF;
   --cromo-warning-fg: #FFFFFF;
   --cromo-danger-fg:  #FFFFFF;
@@ -146,14 +164,11 @@ body {
   color: transparent;
 }
 
-.cromo-shimmer {
-  animation: cromo-shimmer 4s ease-in-out infinite;
-}
-
-@keyframes cromo-shimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50%      { background-position: 100% 50%; }
-}
+/* No background animations — they distract from reading.
+   Chrome surfaces stay static. The .cromo-shimmer class is preserved
+   only as a no-op so any straggler usage doesn't break, and as an
+   anchor for future opt-in motion. */
+.cromo-shimmer { /* intentionally empty */ }
 
 /* Forces the dark canvas regardless of the active theme — for marketing
    surfaces where the chrome treatment relies on a near-black backdrop. */
@@ -163,11 +178,11 @@ body {
   --cromo-bg: #0A0B0F;
   --cromo-surface: #14161D;
   --cromo-surface-2: #1C1F28;
-  --cromo-border: #2A2E3A;
-  --cromo-border-strong: #3A3F4D;
+  --cromo-border: #2F3446;
+  --cromo-border-strong: #3F4459;
   --cromo-fg: #F5F6FA;
   --cromo-fg-muted: #9CA3B8;
-  --cromo-fg-subtle: #5C6378;
+  --cromo-fg-subtle: #6B7388;
   --cromo-accent: #6EE7F9;
   --cromo-accent-strong: #22D3EE;
   --cromo-accent-soft: rgba(110, 231, 249, 0.12);

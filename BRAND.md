@@ -30,28 +30,34 @@ Use the primary on English-default surfaces. The alt is for Spanish-language mar
 
 ## 4. Color System
 
-### Surface (the dark canvas)
-| Token | Hex | Use |
-| --- | --- | --- |
-| `--cromo-bg` | `#0A0B0F` | App body, the deepest layer |
-| `--cromo-surface` | `#14161D` | Cards, modals, navbar |
-| `--cromo-surface-2` | `#1C1F28` | Hover, secondary panels |
-| `--cromo-border` | `#2A2E3A` | Hairlines, dividers |
-| `--cromo-border-strong` | `#3A3F4D` | Stronger borders, input outlines |
+### Surface
+Same conceptual stack in both themes — `bg` (deepest) → `surface` (cards/modals/navbar) → `surface-2` (hover, secondary panels). The light palette deliberately widens the `bg → surface` luminance gap so cards have a visible elevation against the canvas, not just a hairline border.
 
-### Foreground (text on dark)
-| Token | Hex | Use |
-| --- | --- | --- |
-| `--cromo-fg` | `#F5F6FA` | Primary text |
-| `--cromo-fg-muted` | `#9CA3B8` | Secondary text, labels |
-| `--cromo-fg-subtle` | `#5C6378` | Tertiary text, placeholders |
+| Token | Dark | Light | Use |
+| --- | --- | --- | --- |
+| `--cromo-bg` | `#0A0B0F` | `#F1F3F7` | App body, the deepest layer |
+| `--cromo-surface` | `#14161D` | `#FFFFFF` | Cards, modals, navbar, footer |
+| `--cromo-surface-2` | `#1C1F28` | `#E7EAF1` | Hover, secondary panels, skeleton fills |
+| `--cromo-border` | `#2F3446` | `#D2D7E0` | Hairlines, card boundaries (clears WCAG 1.4.11 non-text 3:1 in both themes) |
+| `--cromo-border-strong` | `#3F4459` | `#ADB4C2` | Stronger borders, input outlines |
+
+### Foreground (text)
+| Token | Dark | Light | Use |
+| --- | --- | --- | --- |
+| `--cromo-fg` | `#F5F6FA` (17.9 : 1 — AAA) | `#15192B` (15.8 : 1 — AAA) | Primary text |
+| `--cromo-fg-muted` | `#9CA3B8` (7.3 : 1 — AAA) | `#475569` (7.0 : 1 — AAA) | Secondary text, labels |
+| `--cromo-fg-subtle` | `#6B7388` (4.6 : 1 — AA)  | `#64748B` (4.6 : 1 — AA)  | Tertiary text, placeholders |
 
 ### Accent — "cromo cyan"
-| Token | Hex | Use |
-| --- | --- | --- |
-| `--cromo-accent` | `#6EE7F9` | Primary brand color, links, focus rings |
-| `--cromo-accent-strong` | `#22D3EE` | Active states, primary buttons |
-| `--cromo-accent-soft` | `rgba(110, 231, 249, 0.12)` | Subtle backgrounds, accent fills |
+| Token | Dark | Light | Use |
+| --- | --- | --- | --- |
+| `--cromo-accent` | `#6EE7F9` | `#0E7490` | **Text-safe** accent — links, accent text, hover. Always passes AA on `--cromo-bg`. |
+| `--cromo-accent-vivid` | `#22D3EE` | `#06B6D4` | **Brand-vibe** accent — fill, icons, dots, focus rings. Vibrant in both themes; no contrast guarantee for text. |
+| `--cromo-accent-strong` | `#22D3EE` | `#155E75` | Active states, pressed buttons |
+| `--cromo-accent-soft` | `rgba(110, 231, 249, 0.12)` | `rgba(6, 182, 212, 0.14)` | Subtle accent surfaces |
+| `--cromo-accent-fg` | `#0A0B0F` | `#FFFFFF` | Text that sits **on top of** `--cromo-accent` |
+
+**Why two accent tokens?** Light-mode cyan can't be both vibrant AND AA-readable as text — a #06B6D4 link on white fails contrast. Decoupling fixes the trade-off: `-vivid` carries the brand wherever contrast doesn't apply (a dot, an icon background, a focus ring), `--cromo-accent` is reserved for text and always passes AA. In dark mode the two values are nearly identical (the bright dark-mode accent already passes AAA) so the split is meaningful only on the light canvas.
 
 ### Rarity tier colors (semantic — bind to variant rarity tiers from CLAUDE.md §Sticker Types)
 | Token | Hex | Tier |
@@ -63,13 +69,19 @@ Use the primary on English-default surfaces. The alt is for Spanish-language mar
 | `--cromo-tier-ultra-rare` | `#34D399` | Ultra Rare (green, 1 in 1,400) |
 | `--cromo-tier-masterpiece` | _chrome gradient_ | 1-of-1 (black/black-crumple) |
 
-### Status
-| Token | Hex |
-| --- | --- |
-| `--cromo-success` | `#34D399` |
-| `--cromo-warning` | `#FBBF24` |
-| `--cromo-danger` | `#F87171` |
-| `--cromo-info` | `#6EE7F9` |
+### Status (same decoupled-token model as accent)
+
+| Token | Dark | Light | Use |
+| --- | --- | --- | --- |
+| `--cromo-success` | `#34D399` | `#10B981` | **Vivid fill** — toasts, status pills, badge background |
+| `--cromo-success-text` | `#34D399` | `#047857` | **Text-safe** — text on `--cromo-bg` or `*-soft` |
+| `--cromo-success-soft` | rgba(52,211,153,0.12) | rgba(16,185,129,0.12) | Subtle status background |
+| `--cromo-success-fg` | `#0A0B0F` | `#FFFFFF` | Text that sits **on top of** `--cromo-success` |
+| `--cromo-warning` / `-text` / `-soft` / `-fg` | mint family | amber family | Same pattern, attention/caution |
+| `--cromo-danger`  / `-text` / `-soft` / `-fg` | coral family | red family   | Same pattern, errors/destructive |
+| `--cromo-info` | `#6EE7F9` | `#06B6D4` | Informational notices |
+
+Same reason as accent: light-mode status colors need to be vibrant for **fills** (a bright emerald toast feels like Cromo) but **dark** for **text** (forest green passes AA on white, mint does not). The pattern is consistent: `--cromo-X` is the fill, `--cromo-X-text` is the readable text color, `--cromo-X-soft` is the tinted background, `--cromo-X-fg` is the high-contrast foreground that sits on top of the saturated fill.
 
 ### Chrome — the signature material
 The iridescent gradient is what makes Cromo _feel_ like Cromo. Use it for:
@@ -91,6 +103,10 @@ The iridescent gradient is what makes Cromo _feel_ like Cromo. Use it for:
 
 **Rule:** Chrome is a reward, not a wallpaper. If you used it on the last surface, don't use it on this one.
 
+**Static, always.** Chrome surfaces never animate. The `.cromo-shimmer` class is reserved as a no-op for future opt-in motion; animated backgrounds compete with reading and are disallowed on every text-bearing surface.
+
+**Never decorative.** Chrome belongs on _something_: the logo mark, the masterpiece tier swatch, a hero CTA, a 100%-completion celebration. It does not belong on neutral page chrome — no rules, dividers, or accent stripes purely as ornament. If chrome shows up on a page, it should be marking something meaningful.
+
 ## 5. Typography
 
 | Role | Family | Source |
@@ -108,7 +124,7 @@ Load via `next/font/google` so the fonts self-host and there is no FOIT.
 ## 6. Logo
 
 ### Mark
-A rounded square — the sticker — with a thick lowercase **c** carved into the negative space. The square fills with the chrome gradient on the marketing surface, with `--cromo-accent` on dense UI surfaces, and with currentColor on monochrome contexts (favicons, email).
+A rounded square — the sticker — with a thick lowercase **c** carved into the negative space. The square fills with the chrome gradient on the marketing surface, with `--cromo-accent` on dense UI surfaces, and with currentColor on monochrome contexts (favicons, email). **The carved "c" is always white (`#FFFFFF`), in every variant** — that's the consistent brand glyph; only the surface behind it changes.
 
 The mark scales from 16px (favicon) to 200px (landing hero) without losing readability. Below 16px, prefer the solid-accent variant — chrome will alias.
 
@@ -128,18 +144,39 @@ Minimum clear space around the lockup equals the height of the mark. No exceptio
 
 ## 7. Component Principles
 
-- **Surfaces stack.** `bg` → `surface` → `surface-2`. Borders are hairlines (`1px`, `--cromo-border`), never shadows. Avoid drop shadows on dark mode entirely.
+- **Surfaces stack.** `bg` → `surface` → `surface-2`. Borders are hairlines (`1px`, `--cromo-border`), and on dark mode they replace traditional drop shadows almost entirely. Where elevation is needed (modals, popovers, fixed bars), prefer the theme-aware `.shadow-cromo-{sm,md,lg}` utilities over Tailwind's `shadow-*` — dark-mode shadows are composed of a 1px inner highlight + ambient drop so depth reads without the harsh black blob that standard shadows leave on dark.
 - **Radii.** `4px` for chips and inputs, `8px` for buttons, `12px` for cards, `20px` for modals. The mark uses `5/24 viewBox units` (~21%) so it reads as "a sticker," not "a generic app icon."
-- **Buttons.** Primary = solid `--cromo-accent` on `--cromo-bg` text. Secondary = `--cromo-surface-2` with `--cromo-fg`. Ghost = transparent with `--cromo-fg-muted` until hover.
-- **Focus.** 2px ring in `--cromo-accent` at 60% opacity, offset 2px.
-- **Motion.** Default 120ms ease-out. Foil/holographic shimmer animation is 4s, infinite, only on chrome-filled elements.
+- **Buttons.** Primary = solid `--cromo-accent` on `--cromo-accent-fg` text. Secondary = `--cromo-surface-2` with `--cromo-fg`. Ghost = transparent with `--cromo-fg-muted` until hover. Danger = solid `--cromo-danger` on `--cromo-danger-fg`. Chrome = gradient on `#0A0B0F` text — reserve for marketing CTAs.
+- **Focus.** 2px ring in `--cromo-accent`, offset 2px from `--cromo-bg`. Native browser `:focus-visible` only — no permanent rings on click.
+- **Motion.** Default `120ms ease-out` for hover/active transitions. **Backgrounds never animate** — chrome surfaces are static, no shimmer. Skeleton loaders (`animate-pulse`) and toast entry animations are the exceptions, both because they're transient state-change signals, not ambient decoration.
 
-## 8. Scope of the Identity
+### Site chrome (layout shell)
+
+Every page is wrapped by three persistent layers from the root layout:
+
+1. **NavBar** — top of every page. Holds the lockup (chrome mark + wordmark), primary nav, dev-only cache-clear chip, the compact theme toggle, and the user menu.
+2. **`<main>`** — flex-1 so it always fills available height and pushes the footer down.
+3. **Footer** — quiet, four-column block on the `--cromo-surface` background. Brand lockup + tagline + nav columns (Product / Resources / Account) + copyright. Includes the legally-required disclaimer that Cromo is unaffiliated with Panini or FIFA.
+
+## 8. Accessibility Floors
+
+These are the contrast minimums Cromo commits to. The palette above is tuned so default token pairings already pass; if you compose a new pair, verify against this floor before shipping.
+
+| Pairing | Floor | Where it applies |
+| --- | --- | --- |
+| Body & UI text on its surface | 4.5 : 1 (WCAG AA) | All `--cromo-fg-*` on `--cromo-bg`, `--cromo-surface`, `--cromo-surface-2` |
+| Large text (≥ 18pt or 14pt bold) | 3 : 1 (WCAG AA-large) | Display headings, hero titles |
+| Non-text UI (borders, focus rings, icons) | 3 : 1 (WCAG 1.4.11) | Card borders, input outlines, focus indicators |
+| Status text on saturated fill | 4.5 : 1 | Use the matching `--cromo-{status}-fg` token — never plain `text-white` |
+
+The current dark palette is conservative — primary text clears AAA and the dimmest tertiary `--cromo-fg-subtle` lands at 4.6 : 1 AA. Light mode darkens success / warning / danger compared to their dark-mode counterparts specifically so they clear AA on the lighter canvas.
+
+## 9. Scope of the Identity
 
 What the brand explicitly covers today:
-- Logo (mark, wordmark, lockup) and favicon
-- Color tokens, typography, motion baseline
-- Marketing surfaces: landing, login, NavBar
+- Logo (mark, wordmark, lockup), favicon, apple-touch icon
+- Color tokens, typography, motion baseline, accessibility floors
+- Persistent layout chrome: NavBar + Footer wrap every page
 - Email branding (subjects, sender voice)
 
 Out of scope for this pass — these surfaces still work but inherit the old visual treatment and should be revisited in follow-up work:

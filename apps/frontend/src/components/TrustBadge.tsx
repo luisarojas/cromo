@@ -6,8 +6,8 @@ import { fetchUserRatings, type TrustScore, type TrustTier, type TradeRating } f
 const TIER_CONFIG: Record<TrustTier, { label: string; className: string; icon: string }> = {
   new_trader:     { label: 'New Trader',          className: 'text-[var(--cromo-fg-muted)]',   icon: '' },
   good_trader:    { label: 'Good Trader',          className: 'text-[var(--cromo-accent)]',   icon: '' },
-  trusted_trader: { label: 'Trusted Trader',       className: 'text-[var(--cromo-success)]',  icon: '' },
-  caution:        { label: 'Trade with Caution',   className: 'text-[var(--cromo-warning)]',  icon: '' },
+  trusted_trader: { label: 'Trusted Trader',       className: 'text-[var(--cromo-success-text)]',  icon: '' },
+  caution:        { label: 'Trade with Caution',   className: 'text-[var(--cromo-warning-text)]',  icon: '' },
 };
 
 interface Props {
@@ -82,7 +82,7 @@ export default function TrustBadge({ userId, size = 'small' }: Props) {
             <div key={r.id} className="flex items-start gap-2 text-sm">
               <span
                 className={`mt-0.5 shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                  r.isPositive ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]' : 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger)]'
+                  r.isPositive ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)]' : 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]'
                 }`}
                 aria-label={r.isPositive ? 'Positive' : 'Negative'}
               >

@@ -30,8 +30,8 @@ const MAX_ALBUMS = 10;
 
 const EDITION_COLORS: Record<string, { bg: string; text: string }> = {
   north_america: { bg: 'bg-[var(--cromo-accent-soft)]', text: 'text-[var(--cromo-accent)]' },
-  international: { bg: 'bg-[var(--cromo-success-soft)]', text: 'text-[var(--cromo-success)]' },
-  swiss_gold: { bg: 'bg-[var(--cromo-warning-soft)]', text: 'text-[var(--cromo-warning)]' },
+  international: { bg: 'bg-[var(--cromo-success-soft)]', text: 'text-[var(--cromo-success-text)]' },
+  swiss_gold: { bg: 'bg-[var(--cromo-warning-soft)]', text: 'text-[var(--cromo-warning-text)]' },
   south_america: { bg: 'bg-[var(--cromo-tier-very-rare)]/10', text: 'text-[var(--cromo-tier-very-rare)]' },
 };
 
@@ -209,7 +209,7 @@ export default function AlbumsPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-6">
+          <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-6">
             {error}
           </div>
         )}
@@ -267,7 +267,7 @@ export default function AlbumsPage() {
                       </div>
                       {album.isDefault && (
                         <svg
-                          className="w-4 h-4 text-[var(--cromo-warning)] shrink-0 mt-0.5"
+                          className="w-4 h-4 text-[var(--cromo-warning-text)] shrink-0 mt-0.5"
                           viewBox="0 0 20 20"
                           fill="currentColor"
                           aria-label="Default album"
@@ -315,7 +315,7 @@ export default function AlbumsPage() {
                     {!album.isDefault && (
                       <button
                         onClick={(e) => { e.preventDefault(); handleSetDefault(album.id); }}
-                        className="p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-warning)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
+                        className="p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-warning-text)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
                         title="Set as default"
                       >
                         <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">

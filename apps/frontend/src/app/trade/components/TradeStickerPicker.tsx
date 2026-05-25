@@ -470,7 +470,7 @@ export default function TradeStickerPicker({
                       </div>
                     </div>
                     {isLastCopy ? (
-                      <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-warning)] bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-1 py-px rounded leading-none">
+                      <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-warning-text)] bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-1 py-px rounded leading-none">
                         last copy
                       </span>
                     ) : (
@@ -482,7 +482,7 @@ export default function TradeStickerPicker({
                       <button
                         onClick={(e) => { e.stopPropagation(); onHideSticker(item.stickerVariantId); }}
                         title="Hide from trades"
-                        className="shrink-0 text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger)] transition-colors"
+                        className="shrink-0 text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] transition-colors"
                       >
                         <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
@@ -507,7 +507,7 @@ export default function TradeStickerPicker({
         {/* ── Want Panel ──────────────────────────────────────────────────── */}
         <div className="rounded-xl border border-emerald-100 bg-[var(--cromo-success-soft)] p-4 flex flex-col gap-2.5 min-h-0">
           <div className="flex items-center justify-between shrink-0">
-            <h3 className="text-sm font-semibold text-[var(--cromo-success)]">You Want</h3>
+            <h3 className="text-sm font-semibold text-[var(--cromo-success-text)]">You Want</h3>
           </div>
 
           {suggestions.length > 0 ? (
@@ -610,7 +610,7 @@ export default function TradeStickerPicker({
                               </span>
                               {isFavourited && (
                                 <span
-                                  className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-medium text-[var(--cromo-warning)] bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-1 py-px rounded leading-none"
+                                  className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-medium text-[var(--cromo-warning-text)] bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-1 py-px rounded leading-none"
                                   title="In your favourites"
                                 >
                                   <HeartIcon filled className="w-2 h-2" />
@@ -625,7 +625,7 @@ export default function TradeStickerPicker({
                           </div>
                           <span
                             className={`shrink-0 text-sm font-medium transition-colors ${
-                              w.selected ? 'text-[var(--cromo-success)]' : 'text-[var(--cromo-fg-subtle)]'
+                              w.selected ? 'text-[var(--cromo-success-text)]' : 'text-[var(--cromo-fg-subtle)]'
                             }`}
                           >
                             {w.selected ? '✓' : '+'}
@@ -685,7 +685,7 @@ export default function TradeStickerPicker({
                   </div>
                   <button
                     onClick={() => setSelectedOffers((prev) => prev.filter((x) => x.variantId !== o.variantId))}
-                    className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger)] transition-colors text-base leading-none"
+                    className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] transition-colors text-base leading-none"
                     aria-label={`Remove ${o.albumCode}`}
                   >
                     ×
@@ -708,7 +708,7 @@ export default function TradeStickerPicker({
 
         {/* Wanting row */}
         <div className="flex items-start gap-3">
-          <span className="shrink-0 text-xs font-semibold text-[var(--cromo-success)] w-14 pt-1">Wanting</span>
+          <span className="shrink-0 text-xs font-semibold text-[var(--cromo-success-text)] w-14 pt-1">Wanting</span>
           <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
             {selectedWants.length === 0 ? (
               <span className="text-xs text-[var(--cromo-fg-subtle)] italic">Nothing selected yet</span>
@@ -718,10 +718,10 @@ export default function TradeStickerPicker({
                   <div key={w.key} className="w-16 h-7 rounded-md bg-[var(--cromo-surface-2)] animate-pulse shrink-0" />
                 ) : w.error ? (
                   <div key={w.key} className="flex items-center gap-1 rounded-md border border-[var(--cromo-danger)]/20 bg-[var(--cromo-surface)] px-2 py-1 shrink-0">
-                    <span className="text-xs text-[var(--cromo-danger)]">{w.albumCode}</span>
+                    <span className="text-xs text-[var(--cromo-danger-text)]">{w.albumCode}</span>
                     <button
                       onClick={() => toggleWantSuggestion(w.key)}
-                      className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger)] transition-colors text-base leading-none"
+                      className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] transition-colors text-base leading-none"
                     >
                       ×
                     </button>
@@ -736,7 +736,7 @@ export default function TradeStickerPicker({
                       </span>
                     )}
                     {favouriteCodes.has(w.albumCode) && (
-                      <span className="shrink-0 inline-flex items-center text-[var(--cromo-warning)] bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-1 py-px rounded leading-none" title="In your favourites">
+                      <span className="shrink-0 inline-flex items-center text-[var(--cromo-warning-text)] bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-1 py-px rounded leading-none" title="In your favourites">
                         <HeartIcon filled className="w-2 h-2" />
                       </span>
                     )}
@@ -758,7 +758,7 @@ export default function TradeStickerPicker({
                     )}
                     <button
                       onClick={() => toggleWantSuggestion(w.key)}
-                      className="shrink-0 text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger)] transition-colors text-base leading-none"
+                      className="shrink-0 text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] transition-colors text-base leading-none"
                       aria-label={`Remove ${w.albumCode}`}
                     >
                       ×
@@ -770,7 +770,7 @@ export default function TradeStickerPicker({
           </div>
           <div className="shrink-0 flex items-center gap-1.5 pt-1">
             {selectedWantCount > 0 && (
-              <span className="text-xs font-medium text-[var(--cromo-success)] bg-[var(--cromo-success-soft)] px-2 py-0.5 rounded-full tabular-nums">
+              <span className="text-xs font-medium text-[var(--cromo-success-text)] bg-[var(--cromo-success-soft)] px-2 py-0.5 rounded-full tabular-nums">
                 {selectedWantCount} {selectedWantCount === 1 ? 'item' : 'items'}
               </span>
             )}

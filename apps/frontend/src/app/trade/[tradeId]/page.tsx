@@ -441,7 +441,7 @@ export default function TradeDetailPage() {
   if (error || !trade) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-10">
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger)]">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger-text)]">
           {error ?? 'Trade not found.'}
         </div>
         <button
@@ -524,7 +524,7 @@ export default function TradeDetailPage() {
             {(isRequester || isRecipient) && token && (
               <button
                 onClick={() => setShowReportModal(true)}
-                className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger)] transition-colors"
+                className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] transition-colors"
               >
                 Report user
               </button>
@@ -543,7 +543,7 @@ export default function TradeDetailPage() {
             How was your trade with @{partnerUsername}?
           </h2>
           {ratingError && (
-            <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-3">
+            <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-3">
               {ratingError}
             </div>
           )}
@@ -574,7 +574,7 @@ export default function TradeDetailPage() {
       )}
 
       {ratingSubmitted && (
-        <div className="rounded-xl border border-[var(--cromo-success)]/30 bg-[var(--cromo-success-soft)] p-4 mb-5 text-sm text-[var(--cromo-success)] font-medium text-center">
+        <div className="rounded-xl border border-[var(--cromo-success)]/30 bg-[var(--cromo-success-soft)] p-4 mb-5 text-sm text-[var(--cromo-success-text)] font-medium text-center">
           Rating submitted. Thank you!
         </div>
       )}
@@ -611,7 +611,7 @@ export default function TradeDetailPage() {
             ) : (
               <div className="space-y-2">
                 {trade.wantCash > 0 && (
-                  <div className="rounded-lg border border-emerald-100 bg-[var(--cromo-success-soft)] px-3 py-2 text-sm font-medium text-[var(--cromo-success)]">
+                  <div className="rounded-lg border border-emerald-100 bg-[var(--cromo-success-soft)] px-3 py-2 text-sm font-medium text-[var(--cromo-success-text)]">
                     {formatCash(trade.wantCash)} cash
                   </div>
                 )}
@@ -630,7 +630,7 @@ export default function TradeDetailPage() {
           <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-3">Actions</h2>
 
           {actionError && (
-            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-3">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-3">
               {actionError}
             </div>
           )}
@@ -682,7 +682,7 @@ export default function TradeDetailPage() {
               </button>
             )}
             {iHaveConfirmedComplete && (
-              <span className="rounded-md px-4 py-2 text-sm font-medium bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] border border-[var(--cromo-warning)]/30">
+              <span className="rounded-md px-4 py-2 text-sm font-medium bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border border-[var(--cromo-warning)]/30">
                 Waiting for other participant to confirm
               </span>
             )}
@@ -721,7 +721,7 @@ export default function TradeDetailPage() {
                 }}
               />
               {counterError && (
-                <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
+                <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">
                   {counterError}
                 </div>
               )}
@@ -768,7 +768,7 @@ export default function TradeDetailPage() {
                 }}
               />
               {editError && (
-                <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)]">
+                <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">
                   {editError}
                 </div>
               )}

@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import AuthProvider from '@/components/AuthProvider';
 import NavBar from '@/components/NavBar';
+import Footer from '@/components/Footer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ToastProvider';
 import BanStatusBanner from '@/components/BanStatusBanner';
@@ -50,16 +51,17 @@ export default function RootLayout({
         {/* Set theme attribute before paint to prevent flash */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
-      <body className="min-h-screen font-sans antialiased">
+      <body className="min-h-screen font-sans antialiased flex flex-col">
         <ThemeProvider>
           <AuthProvider>
             <NavBar />
             <BanStatusBanner />
             <ToastProvider>
               <ErrorBoundary>
-                <main>{children}</main>
+                <main className="flex-1">{children}</main>
               </ErrorBoundary>
             </ToastProvider>
+            <Footer />
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -27,9 +27,9 @@ type MatchType = 'code' | 'name' | 'manual' | 'none';
 // returns the same number for nearly every scan).
 function MatchBadge({ matchType }: { matchType: MatchType }) {
   const config = {
-    code:   { label: '✓ Matched',                    cls: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] border-[var(--cromo-success)]/30' },
-    name:   { label: 'Partial match — please verify', cls: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] border-[var(--cromo-warning)]/30' },
-    manual: { label: '✓ Selected',                   cls: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)] border-[var(--cromo-success)]/30' },
+    code:   { label: '✓ Matched',                    cls: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] border-[var(--cromo-success)]/30' },
+    name:   { label: 'Partial match — please verify', cls: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border-[var(--cromo-warning)]/30' },
+    manual: { label: '✓ Selected',                   cls: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] border-[var(--cromo-success)]/30' },
     none:   { label: 'Not found in catalog',         cls: 'bg-orange-50 text-orange-700 border-orange-200' },
   }[matchType];
   return (
@@ -97,7 +97,7 @@ function CameraModal({ onCapture, onClose }: { onCapture: (file: File) => void; 
           </button>
         </div>
         {error ? (
-          <div className="p-6 text-center text-sm text-[var(--cromo-danger)]">{error}</div>
+          <div className="p-6 text-center text-sm text-[var(--cromo-danger-text)]">{error}</div>
         ) : (
           <div className="bg-black">
             <video ref={videoRef} className="w-full" playsInline muted />
@@ -688,7 +688,7 @@ function ScanMode() {
           )}
 
           {status === 'error' && (
-            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger)] text-sm p-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger-text)] text-sm p-4">
               {scanError ?? 'Failed to identify sticker. Please try again.'}
             </div>
           )}
@@ -706,8 +706,8 @@ function ScanMode() {
                         className="w-12 h-12 rounded-lg object-cover border border-[var(--cromo-danger)]/20 shrink-0"
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[var(--cromo-danger)]">Failed to identify</p>
-                        <p className="text-xs text-[var(--cromo-danger)] mt-0.5 break-words">{card.errorMessage}</p>
+                        <p className="text-sm font-medium text-[var(--cromo-danger-text)]">Failed to identify</p>
+                        <p className="text-xs text-[var(--cromo-danger-text)] mt-0.5 break-words">{card.errorMessage}</p>
                       </div>
                     </div>
                   );

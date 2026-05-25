@@ -49,17 +49,17 @@ export default function StatsBar({ stats, loading }: Props) {
             <StatTile
               label="Owned"
               value={stats?.owned ?? 0}
-              color="text-[var(--cromo-success)]"
+              color="text-[var(--cromo-success-text)]"
             />
             <StatTile
               label="Missing"
               value={stats?.missing ?? 0}
-              color="text-[var(--cromo-danger)]"
+              color="text-[var(--cromo-danger-text)]"
             />
             <StatTile
               label="Duplicates"
               value={stats?.duplicates ?? 0}
-              color="text-[var(--cromo-warning)]"
+              color="text-[var(--cromo-warning-text)]"
             />
           </>
         )}

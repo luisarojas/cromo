@@ -112,7 +112,7 @@ export default function ShareListPage() {
   if (error || !list) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-10">
-        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger)]">
+        <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger-text)]">
           {error ?? 'Failed to load list.'}
         </div>
       </div>
@@ -206,7 +206,7 @@ export default function ShareListPage() {
                       </div>
                     </div>
                     {showQuantity && item.quantity != null && item.quantity > 1 && (
-                      <span className="shrink-0 rounded-full bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning)] px-2 py-0.5 text-xs font-medium">
+                      <span className="shrink-0 rounded-full bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] px-2 py-0.5 text-xs font-medium">
                         &times;{item.quantity}
                       </span>
                     )}

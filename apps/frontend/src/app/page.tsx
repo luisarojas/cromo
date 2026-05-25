@@ -24,18 +24,18 @@ export default function Home() {
       {/* Ambient chrome glow */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-40 h-[480px] opacity-30 blur-3xl cromo-shimmer cromo-chrome-fill"
+        className="pointer-events-none absolute inset-x-0 -top-40 h-[480px] opacity-30 blur-3xl cromo-chrome-fill"
         style={{ maskImage: 'radial-gradient(ellipse at top, black 0%, transparent 70%)' }}
       />
 
       {/* Hero */}
       <section className="relative flex flex-col items-center justify-center text-center px-4 pt-24 pb-20">
         <div className="mb-8">
-          <CromoMark size={72} variant="chrome" className="cromo-shimmer" />
+          <CromoMark size={72} variant="chrome" />
         </div>
 
         <h1
-          className="font-display font-bold tracking-tight text-5xl sm:text-6xl mb-5 cromo-chrome-text cromo-shimmer"
+          className="font-display font-bold tracking-tight text-5xl sm:text-6xl mb-5 cromo-chrome-text"
           style={{ letterSpacing: '-0.04em' }}
         >
           Every variant. Every trade.
@@ -51,7 +51,7 @@ export default function Home() {
         <div className="flex gap-3">
           <Link
             href="/register"
-            className="cromo-chrome-fill cromo-shimmer rounded-btn px-6 py-3 text-sm font-semibold text-[#0A0B0F] hover:brightness-110 transition-all"
+            className="cromo-chrome-fill rounded-btn px-6 py-3 text-sm font-semibold text-[#0A0B0F] hover:brightness-110 transition-all"
           >
             Start collecting
           </Link>

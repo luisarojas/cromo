@@ -406,7 +406,7 @@ function TradePageContent() {
         <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">Your cities</label>
         <CityAutocomplete cities={myCities} onChange={handleCitiesChange} />
         {citiesSaving && <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">Saving…</p>}
-        {citiesError && <p className="mt-1.5 text-xs text-[var(--cromo-danger)]">{citiesError}</p>}
+        {citiesError && <p className="mt-1.5 text-xs text-[var(--cromo-danger-text)]">{citiesError}</p>}
         <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">Used to filter trade matches by location.</p>
       </div>
 
@@ -466,7 +466,7 @@ function TradePageContent() {
           </div>
 
           {matchesError && (
-            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-4">
               {matchesError}
             </div>
           )}
@@ -548,7 +548,7 @@ function TradePageContent() {
                             key={city.placeId}
                             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                               myCities.some((mc) => mc.placeId === city.placeId)
-                                ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success)]'
+                                ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)]'
                                 : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]'
                             }`}
                           >
@@ -586,7 +586,7 @@ function TradePageContent() {
       {tab === 'my' && (
         <div>
           {tradesError && (
-            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger)] mb-4">
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-4">
               {tradesError}
             </div>
           )}
