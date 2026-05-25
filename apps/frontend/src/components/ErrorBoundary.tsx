@@ -2,6 +2,19 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+async function reportToSentry(error: Error, info: ErrorInfo): Promise<void> {
+  if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return;
+  try {
+    const Sentry = await import('@sentry/nextjs');
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info.componentStack } },
+    });
+  } catch {
+    // If @sentry/nextjs is not installed, swallow — the console.error above
+    // already captures the failure for the developer.
+  }
+}
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -24,6 +37,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary] Caught error:', error, info);
+    // Report to Sentry when configured. The import is lazy so projects without
+    // Sentry installed (or with the DSN unset) don't pay the bundle cost.
+    void reportToSentry(error, info);
   }
 
   handleReset = () => {

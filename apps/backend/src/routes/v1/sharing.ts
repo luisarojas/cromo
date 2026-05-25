@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as sharingService from '../../services/sharing.service.js';
+import { idempotency, storeIdempotent } from '../../services/idempotency.service.js';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ export async function sharingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     '/api/v1/users/:userId/share',
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, idempotency(fastify, 'sharing:create-token')],
       schema: {
         tags: ['Sharing'],
         summary: 'Create a share link for a sticker list',
@@ -71,6 +72,12 @@ export async function sharingRoutes(fastify: FastifyInstance): Promise<void> {
       const link = await sharingService.createShareLink(
         fastify.db, userId, parsed.data.listType, parsed.data.albumId
       );
+
+      // Cache so a retry with the same Idempotency-Key returns the same token
+      // rather than minting a fresh one (which would invalidate the prior link).
+      const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
+      await storeIdempotent(fastify.redis, 'sharing:create-token', userId, idempotencyKey, link);
+
       return reply.status(201).send(link);
     }
   );

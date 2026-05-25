@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import AuthProvider from '@/components/AuthProvider';
 import NavBar from '@/components/NavBar';
@@ -8,6 +10,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ToastProvider';
 import BanStatusBanner from '@/components/BanStatusBanner';
 import { ThemeProvider, themeBootstrapScript } from '@/components/ThemeProvider';
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -36,14 +39,17 @@ export const metadata: Metadata = {
   applicationName: 'Cromo',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       data-theme="dark"
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >
@@ -52,18 +58,21 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="min-h-screen font-sans antialiased flex flex-col">
-        <ThemeProvider>
-          <AuthProvider>
-            <NavBar />
-            <BanStatusBanner />
-            <ToastProvider>
-              <ErrorBoundary>
-                <main className="flex-1">{children}</main>
-              </ErrorBoundary>
-            </ToastProvider>
-            <Footer />
-          </AuthProvider>
-        </ThemeProvider>
+        <ServiceWorkerRegistration />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ThemeProvider>
+            <AuthProvider>
+              <NavBar />
+              <BanStatusBanner />
+              <ToastProvider>
+                <ErrorBoundary>
+                  <main className="flex-1">{children}</main>
+                </ErrorBoundary>
+              </ToastProvider>
+              <Footer />
+            </AuthProvider>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

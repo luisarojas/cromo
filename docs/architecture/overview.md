@@ -32,7 +32,7 @@ Detailed subsystem documentation lives in sibling files. Read this map first; lo
 | [`local-development.md`](./local-development.md) | Setting up the local Docker environment, dev workflow | §2, §4 |
 | [`frontend.md`](./frontend.md) | Working on the Next.js UI, PWA, i18n, screens | §5 |
 | [`backend.md`](./backend.md) | Fastify routes, CORS, pooling, AI scan endpoint | §6, §10 |
-| [`database.md`](./database.md) | Schema, migrations (Drizzle), Redis cache keys | §7 |
+| [`database.md`](./database.md) | Schema (single `schema.sql` in Phase A, Drizzle migrations in Phase B), Redis cache keys | §7 |
 | [`seed-data.md`](./seed-data.md) | Compiling and loading 2026 World Cup seed data | §8 |
 | [`auth-security.md`](./auth-security.md) | Email verification, Cognito, headers, cookies, lockout | §9 |
 | [`trading.md`](./trading.md) | Trade-flow rules, SSE messaging, disputes, public lists | §11 |
@@ -57,7 +57,7 @@ Stickfolio is a multi-user web application for tracking, managing, and trading s
 
 ### 1.2 The Album
 
-The 2026 FIFA World Cup Panini sticker collection officially launched on April 29/30, 2026. It contains **980 stickers** in total and covers all 48 teams in the expanded tournament, offering 20 stickers per team. The set also includes nine Introduction stickers and 11 FIFA Museum stickers featuring past World Cup Champions. Each team has 20 stickers: 1 team crest (shiny foil), 1 team photo, and 18 player stickers. Packs contain 7 stickers each — the first time since 2014 that packs have held more than 5 stickers.
+The 2026 FIFA World Cup Panini sticker collection officially launched on April 29/30, 2026. The **core album contains 980 stickers**: 20 intro/FWC stickers (Panini logo, FWC1–FWC8 emblem/mascot/host-country spreads at the front, and FWC9–FWC19 past-champion spreads at the back) plus 960 team stickers (48 teams × 20). Each team has 1 team crest (shiny foil), 1 team photo, and 18 player stickers. Beyond the core 980, the set also includes **12 Coca-Cola partnership stickers** (bottle-label exclusives, CC1–CC12) and **20 Extra stickers** (EX1–EX20, four rarities each). Packs contain 7 stickers each — the first time since 2014 that packs have held more than 5 stickers.
 
 ### 1.3 The 48 Teams & Groups
 
@@ -179,7 +179,8 @@ A production-ready system: never loses data, recovers automatically from failure
 | Auth (cloud) | AWS Cognito | Cloud only |
 | Database (local) | PostgreSQL 16 in Docker | Yes |
 | Database (cloud) | Aurora PostgreSQL Serverless v2 | Cloud only |
-| Migrations | Drizzle ORM | Yes |
+| Schema (Phase A) | Single `apps/backend/src/db/schema.sql` applied at startup | Yes |
+| Migrations (Phase B) | Drizzle ORM | Cloud only |
 | Connection pooling | `pg` pool (local) / RDS Proxy (cloud) | Yes |
 | Cache (local) | Redis 7 in Docker | Yes |
 | Cache (cloud) | AWS ElastiCache Redis | Cloud only |
@@ -234,9 +235,9 @@ A production-ready system: never loses data, recovers automatically from failure
 - Monorepo scaffolded with Turborepo
 - `docker-compose.yml` working — `docker compose up` starts all services
 - README "Getting Started" tested by a second person from scratch
-- Database schema deployed via Drizzle ORM migrations
+- Database schema deployed by applying a single `apps/backend/src/db/schema.sql` file at API startup. **No incremental migration files in Phase A**; the file is idempotent (`IF NOT EXISTS`, `CREATE OR REPLACE`, `ON CONFLICT`). Phase B will introduce Drizzle ORM migrations once the schema stabilises in production.
 - CORS and connection pooling configured in the API
-- All seed data loaded and verified (48 teams, 980 stickers, all variants)
+- All seed data loaded and verified: 48 teams · **980 core stickers (20 intro/FWC + 960 team)** · plus 12 Coca-Cola and 20 Extra stickers · all variants
 - `/health` and `/health/ready` endpoints live
 - OpenAPI docs available at `http://localhost:3001/docs`
 - Local auth mock working — all 6 test users can log in (pre-verified, no email step)
@@ -247,7 +248,7 @@ A production-ready system: never loses data, recovers automatically from failure
 - All collection API endpoints working with filtering and pagination
 - Multiple albums per user with gallery UI, per-album routes, and edition selection
 - Album view UI (all sticker slots, filterable by team/group/type/variant/status/page range)
-- Per-album sticker visibility settings (Coca-Cola, Extra, Museum sticker toggles)
+- Per-album sticker visibility settings (Coca-Cola, Extra sticker toggles)
 - Have / missing / duplicates views
 - Collection stats and completion percentage
 - Avatar upload working
@@ -443,7 +444,7 @@ Provide this document as the technical specification. The developer should be ab
 | Milestone | Success Criteria |
 |---|---|
 | Pre-development | All 960 team sticker records compiled with sequential numbers — `03_team_stickers.sql` is complete |
-| End of Phase A1 | `docker compose up && pnpm db:seed` works. 48 teams and 980 stickers in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
+| End of Phase A1 | `docker compose up && pnpm db:seed` works. 48 teams, 980 core stickers (20 intro + 960 team), plus 12 Coca-Cola + 20 Extra in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
 | End of Phase A2 | All stickers visible in album UI with filtering. Can add/remove/mark duplicates. Multiple albums per user. Avatar upload working. Test suite ≥ 60% coverage. |
 | End of Phase A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
 | End of Phase A4 | Mock AI scan adds a sticker to Alice's collection. Real Groq vision API works in dev cloud. |

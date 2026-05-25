@@ -16,7 +16,7 @@ Each subsystem is documented in its own file. Load only the file relevant to you
 | [`local-development.md`](./local-development.md) | Setting up the local Docker environment, `.env` config, dev workflow. |
 | [`frontend.md`](./frontend.md) | Working on the Next.js UI, PWA, i18n, or page routes. |
 | [`backend.md`](./backend.md) | Fastify routes, CORS, DB pooling, rate limits, AI-scan endpoint. |
-| [`database.md`](./database.md) | Schema design, Drizzle migrations, Redis cache keys. |
+| [`database.md`](./database.md) | Schema design (single `schema.sql` in Phase A, Drizzle migrations in Phase B), Redis cache keys. |
 | [`seed-data.md`](./seed-data.md) | Compiling or loading the 2026 World Cup seed data. |
 | [`auth-security.md`](./auth-security.md) | Email verification, Cognito, security headers, cookies, lockout, PII logging. |
 | [`trading.md`](./trading.md) | Trade-flow rules, SSE messaging, disputes, public list sharing. |

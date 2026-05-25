@@ -56,6 +56,35 @@ export async function sendVerificationEmail(
   });
 }
 
+export async function sendRatingReminderEmail(
+  toEmail: string,
+  username: string,
+  tradeId: string,
+): Promise<void> {
+  const tradeUrl = `${process.env['FRONTEND_URL'] ?? 'http://localhost:3000'}/trade/${tradeId}`;
+
+  await getTransporter().sendMail({
+    from: env.EMAIL_FROM,
+    to: toEmail,
+    subject: 'Rate your recent trade on Cromo',
+    text: [
+      `Hi ${username},`,
+      '',
+      'You completed a trade on Cromo yesterday. Leaving a quick thumbs up or down helps other collectors trust their next swap.',
+      '',
+      tradeUrl,
+      '',
+      'You have up to 14 days from when the trade completed to leave a rating.',
+    ].join('\n'),
+    html: `
+      <p>Hi <strong>${username}</strong>,</p>
+      <p>You completed a trade on Cromo yesterday. A quick thumbs up or down helps other collectors trust their next swap.</p>
+      <p><a href="${tradeUrl}">Rate this trade</a></p>
+      <p>You have up to <strong>14 days</strong> from when the trade completed to leave a rating.</p>
+    `,
+  });
+}
+
 export async function sendPasswordResetEmail(
   toEmail: string,
   username: string,

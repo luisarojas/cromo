@@ -261,9 +261,21 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_ENV=development
 ```
 
-### 4.3 Database Migrations & First-Run Setup
+### 4.3 Database Schema & First-Run Setup
 
-Drizzle ORM migration files in `apps/backend/src/db/migrations/` are applied by running `pnpm db:migrate`. The API server applies pending migrations automatically on startup in all environments. The migration files are committed to git — every developer and every cloud environment runs the same numbered migrations in order.
+**Phase A approach (current).** The entire database schema lives in a single file:
+`apps/backend/src/db/schema.sql`. The API server applies this file at startup via
+`runMigrations()` in `apps/backend/src/db/migrate.ts`. Every `CREATE TABLE`, `CREATE INDEX`,
+`CREATE FUNCTION`, and seed `INSERT` is idempotent (`IF NOT EXISTS`, `CREATE OR REPLACE`,
+`ON CONFLICT`), so the file is safe to re-apply on an existing database. There are **no
+incremental migration files** during Phase A — schema changes are made by editing
+`schema.sql` directly. This is intentional: while the schema is in flux, a single source-of-truth
+file is much easier to reason about than a numbered chain of migrations.
+
+**Phase B transition.** Once the schema stabilises and Stickfolio is deployed to AWS, Phase B
+will switch to Drizzle ORM migrations. `apps/backend/src/db/schema.ts` (the Drizzle table
+definitions) and `apps/backend/drizzle.config.ts` are already in the repo for that future
+work. Until then `db:generate` is a no-op for actual deployments.
 
 ```bash
 # After docker compose up, seed the database with World Cup data:
@@ -272,10 +284,7 @@ pnpm db:seed
 # To reset the local database entirely (wipes all data):
 pnpm db:reset && pnpm db:seed
 
-# To generate a migration after changing the schema:
-pnpm db:generate
-
-# To run pending migrations manually:
+# To apply schema.sql manually (the API also does this at startup):
 pnpm db:migrate
 ```
 

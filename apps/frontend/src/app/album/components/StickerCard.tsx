@@ -26,7 +26,6 @@ const TYPE_COLORS: Record<string, string> = {
   badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)]',
   team_photo: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]',
   intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
-  museum: 'bg-orange-100 text-orange-600',
   coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]',
   extra: 'bg-pink-100 text-pink-600',
 };

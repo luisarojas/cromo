@@ -457,13 +457,13 @@ export default function WC2026GuidePage() {
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">FIFA Museum (Past Champions)</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Past Champions</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">11</td>
-                <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">FWC-9+</td>
+                <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">FWC-9 to FWC-19</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Team photos of past World Cup winners. Some champions (e.g. Italy &apos;38,
-                  Brazil &apos;58, England &apos;66) are printed directly in the album — they are
-                  not collectible sticker slots.
+                  Team photos of past World Cup winners (back of album). Some champions
+                  (e.g. Italy &apos;38, Brazil &apos;58, England &apos;66) are printed directly
+                  in the album and are not collectible sticker slots.
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">

@@ -27,6 +27,20 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
 
   /**
    * GET /api/v1/users/:userId/collection
+   *
+   * Album-view filtering surface for the UI. The collection endpoint accepts
+   * the static facets (team, group, type, variant). Status-based filtering
+   * (have / missing / duplicate) is split across sibling endpoints:
+   *
+   *   - have       → GET /api/v1/users/:userId/collection           (this route)
+   *   - missing    → GET /api/v1/users/:userId/missing
+   *   - duplicate  → GET /api/v1/users/:userId/duplicates
+   *
+   * Album page-range filtering (`pageFrom`/`pageTo`) is applied client-side
+   * after a `bundle=page` fetch so the UI can combine it with the other
+   * facets without re-querying. The server-side query intentionally does not
+   * accept page-range — sticker_album_pages is per-edition and joining it on
+   * every paginated read would regress the hot path.
    */
   fastify.get(
     '/api/v1/users/:userId/collection',
@@ -35,6 +49,8 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       schema: {
         tags: ['Collection'],
         summary: "List a user's sticker collection with optional filters",
+        description:
+          'Filters: team (FIFA code), group (A–L), type (player|badge|team_photo|intro|coca_cola_special|extra), variant. Use bundle=page for the single-call album-view payload (items + stats + filter options). Status filtering: see /missing and /duplicates for the other two statuses; album page-range is filtered client-side.',
         security: [{ bearerAuth: [] }],
         params: {
           type: 'object',

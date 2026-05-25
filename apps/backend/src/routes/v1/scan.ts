@@ -8,6 +8,7 @@ import { validateImageBuffer } from '../../services/upload.service.js';
 import { identifySticker, type ScanResult } from '../../services/scan.service.js';
 import { getStickerByAlbumCode, getStickerByPlayerName } from '../../services/stickers.service.js';
 import { isFeatureFlagEnabled } from '../../services/trust-safety.service.js';
+import { idempotency, storeIdempotent } from '../../services/idempotency.service.js';
 import { writeSSEEvent } from '../../utils/sse.js';
 
 const SCANS_DIR = '/app/uploads/scans';
@@ -131,7 +132,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     '/api/v1/scan/identify',
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, idempotency(fastify, 'scan:identify')],
       config: {
         rateLimit: {
           max: 20,
@@ -211,6 +212,12 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
 
       await deleteScanTemp(tempPath);
       const enriched = await Promise.all(results.map((r) => enrichFromCatalog(fastify.db, r, albumTypeKey)));
+
+      // Cache the successful response so a retry with the same Idempotency-Key
+      // returns the same enriched results instead of burning another Groq call.
+      const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
+      await storeIdempotent(fastify.redis, 'scan:identify', request.userId!, idempotencyKey, enriched);
+
       return reply.status(200).send(enriched);
     },
   );

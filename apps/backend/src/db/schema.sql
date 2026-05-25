@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS stickers (
   position      TEXT,
   sticker_type  TEXT    NOT NULL CHECK (sticker_type IN (
     'intro', 'badge', 'team_photo', 'player',
-    'museum', 'coca_cola_special', 'extra'
+    'coca_cola_special', 'extra'
   )),
   is_foil       BOOLEAN NOT NULL DEFAULT false,
   notes         TEXT,
@@ -322,6 +322,24 @@ CREATE TABLE IF NOT EXISTS public_lists (
 );
 
 CREATE INDEX IF NOT EXISTS idx_public_lists_user_id ON public_lists(user_id);
+
+-- Web push subscriptions (FEATURE_WEB_PUSH). Each device that opts in
+-- generates a unique endpoint with p256dh + auth keys; we POST every push
+-- payload to that endpoint via the web-push library. One user → many rows
+-- (phone + laptop + tablet).
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint     TEXT        NOT NULL,
+  p256dh       TEXT        NOT NULL,
+  auth         TEXT        NOT NULL,
+  user_agent   TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, endpoint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
 
 CREATE TABLE IF NOT EXISTS feature_flags (
   key         TEXT    PRIMARY KEY,

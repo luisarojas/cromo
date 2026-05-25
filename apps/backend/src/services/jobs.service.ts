@@ -1,5 +1,9 @@
 import type { Redis } from 'ioredis';
-import { sendVerificationEmail, sendPasswordResetEmail } from './email.service.js';
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendRatingReminderEmail,
+} from './email.service.js';
 
 // Lightweight Redis-list-backed job queue. We don't need BullMQ's full feature
 // set (priorities, repeatables, rate limiting); a single FIFO queue with a
@@ -12,7 +16,8 @@ const MAX_ATTEMPTS = 3;
 
 export type Job =
   | { type: 'email:verify'; email: string; username: string; token: string }
-  | { type: 'email:reset'; email: string; username: string; token: string };
+  | { type: 'email:reset'; email: string; username: string; token: string }
+  | { type: 'email:rating-reminder'; email: string; username: string; tradeId: string };
 
 interface QueueEntry {
   id: string;
@@ -38,6 +43,9 @@ async function runJob(job: Job): Promise<void> {
       return;
     case 'email:reset':
       await sendPasswordResetEmail(job.email, job.username, job.token);
+      return;
+    case 'email:rating-reminder':
+      await sendRatingReminderEmail(job.email, job.username, job.tradeId);
       return;
   }
 }

@@ -34,7 +34,6 @@ export type StickerType =
   | 'badge'
   | 'team_photo'
   | 'player'
-  | 'museum'
   | 'coca_cola_special'
   | 'extra'
 

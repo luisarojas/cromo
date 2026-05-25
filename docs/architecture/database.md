@@ -9,11 +9,13 @@
 | Local | PostgreSQL 16 in Docker | Identical schema to cloud |
 | Cloud | AWS Aurora PostgreSQL Serverless v2 | Scales to zero overnight |
 
-The schema, migrations, and seed scripts are **identical** in both environments. This guarantees that what works locally will work in the cloud.
+The schema and seed scripts are **identical** in both environments. This guarantees that what works locally will work in the cloud.
 
 ## 7.2 Full Database Schema
 
-The schema is defined in `apps/backend/src/db/schema.ts` (Drizzle ORM) and applied via migrations in `apps/backend/src/db/migrations/`.
+**Phase A (current).** The schema lives entirely in `apps/backend/src/db/schema.sql` and is applied at API startup by `runMigrations()` (`apps/backend/src/db/migrate.ts`). Every `CREATE TABLE`/`CREATE INDEX` uses `IF NOT EXISTS`, every function uses `CREATE OR REPLACE`, and every seed `INSERT` uses `ON CONFLICT`, so the file can be safely re-applied. There are **no incremental migration files** in Phase A — schema changes are made by editing `schema.sql` directly.
+
+**Phase B (planned).** Once the schema stabilises and Stickfolio is deployed to AWS, Drizzle ORM migrations will take over. The Drizzle table definitions live in `apps/backend/src/db/schema.ts` and are kept in sync with `schema.sql` so the future migration is mechanical.
 
 ```sql
 -- USERS ───────────────────────────────────────────────────
@@ -109,7 +111,7 @@ CREATE TABLE stickers (
   player_name   TEXT,
   position      TEXT,  -- 'GK'|'DEF'|'MID'|'FWD'|null
   sticker_type  TEXT NOT NULL,
-  -- 'intro'|'badge'|'team_photo'|'player'|'museum'|'coca_cola'
+  -- 'intro'|'badge'|'team_photo'|'player'|'coca_cola_special'|'extra'
   is_foil       BOOLEAN NOT NULL DEFAULT false,
   album_page    INT,  -- NOT USED: page numbers vary by regional edition; reserved for future use
   notes         TEXT,
@@ -152,7 +154,7 @@ CREATE TABLE user_albums (
   album_edition_id UUID NOT NULL,
   alias            TEXT CHECK (alias IS NULL OR char_length(alias) BETWEEN 1 AND 100),
   is_default       BOOLEAN NOT NULL DEFAULT false,
-  settings         JSONB NOT NULL DEFAULT '{"include_all_stickers":true,"include_coca_cola":true,"include_non_album_museum":true}',
+  settings         JSONB NOT NULL DEFAULT '{"includeExtras":true,"includeCocaCola":true}',
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -235,7 +237,7 @@ CREATE TABLE audit_log (
   occurred_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- TRUST & SAFETY (tables present; API not yet implemented — Phase A5) ──────────
+-- TRUST & SAFETY (Phase A5 — feature-flagged behind FEATURE_TRUST_SAFETY) ──────────
 CREATE TABLE trade_ratings (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trade_id       UUID NOT NULL REFERENCES trade_requests(id),
@@ -279,29 +281,34 @@ CREATE TABLE user_bans (
 );
 ```
 
-## 7.3 Migrations: Drizzle ORM
+## 7.3 Schema Management
 
-Drizzle ORM defines the schema in TypeScript (`apps/backend/src/db/schema.ts`) and generates SQL migration files you can inspect, commit, and run.
+### Phase A — Single `schema.sql`
 
 ```
 apps/backend/src/db/
-  schema.ts              # TypeScript definitions of every table — single source of truth
-  migrations/
-    0001_initial.sql           # full initial schema + album catalog seed
-    0002_team_album_pages.sql  # team-level album page assignments
-    0003_complete_sticker_catalog.sql
-    0004_sticker_album_pages.sql
-    0005_album_settings.sql    # per-album display settings JSONB column
+  schema.sql       # Source of truth: every CREATE TABLE / INDEX / FUNCTION + idempotency guards
+  schema.ts        # Drizzle table definitions kept in sync, used for type-safe queries
+  migrate.ts       # runMigrations(): reads schema.sql and pool.query()s it at API startup
 ```
+
+To change the schema in Phase A: edit `schema.sql` directly, and mirror the change in
+`schema.ts` so the Drizzle-typed services keep compiling. Apply with `pnpm db:migrate`
+(or just restart the API — startup applies the file automatically).
 
 Commands:
 ```bash
-pnpm db:generate   # generate a new migration from schema changes
-pnpm db:migrate    # apply pending migrations to the local database
+pnpm db:migrate    # apply schema.sql to the local database
+pnpm db:reset      # drop public schema then re-apply (destructive)
 pnpm db:studio     # open Drizzle Studio (visual database browser)
 ```
 
-When you add a column to `schema.ts`, run `pnpm db:generate` and a new migration file appears automatically. The same migration files run in every environment.
+### Phase B — Drizzle migrations (planned)
+
+When Stickfolio is deployed to AWS and the schema has stabilised, Phase B will introduce
+Drizzle ORM migrations (`apps/backend/src/db/migrations/`) generated via `pnpm db:generate`.
+At that point `schema.sql` is retired and migrations become the source of truth — but only
+once destructive replays against a real database become unacceptable.
 
 ## 7.4 Redis Cache
 

@@ -13,7 +13,8 @@
     "db:generate": "pnpm --filter @stickfolio/backend db:generate",
     "db:seed": "bash scripts/seed-database.sh",
     "db:reset": "pnpm --filter @stickfolio/backend db:reset && bash scripts/seed-database.sh",
-    "db:studio": "pnpm --filter @stickfolio/backend db:studio"
+    "db:studio": "pnpm --filter @stickfolio/backend db:studio",
+    "load-test": "docker run --rm -i --network host -v $PWD/infrastructure/loadtest:/loadtest grafana/k6 run /loadtest/k6-smoke.js"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

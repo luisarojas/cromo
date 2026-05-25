@@ -44,6 +44,19 @@ const envSchema = z.object({
 
   // AI scanning — set to 'mock' to skip real API calls (default for local dev)
   GROQ_API_KEY: z.string().default('mock'),
+
+  // Scheduled jobs. 'enabled' registers the §34 cron catalog at API startup;
+  // 'disabled' skips all registration (default for tests + iteration speed in
+  // local dev — flip to 'enabled' to exercise the catalog locally).
+  JOBS_MODE: z.enum(['enabled', 'disabled']).default('disabled'),
+
+  // Web push (FEATURE_WEB_PUSH). VAPID keys are required for the web-push
+  // library to sign push payloads. Generate locally with:
+  //   npx web-push generate-vapid-keys
+  // The PUBLIC key is also exposed to the frontend via NEXT_PUBLIC_VAPID_PUBLIC_KEY.
+  VAPID_PUBLIC_KEY:  z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT:     z.string().default('mailto:noreply@stickfolio.local'),
 });
 
 export type Env = z.infer<typeof envSchema>;

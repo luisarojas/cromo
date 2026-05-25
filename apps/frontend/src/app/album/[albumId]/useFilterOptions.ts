@@ -11,7 +11,6 @@ const TYPE_LABELS: Record<string, string> = {
   badge: 'Badge',
   team_photo: 'Team Photo',
   intro: 'Intro',
-  museum: 'Museum',
   coca_cola_special: 'Coca-Cola',
   extra: 'Extra',
 };

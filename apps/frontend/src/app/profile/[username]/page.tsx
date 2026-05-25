@@ -41,7 +41,6 @@ const STICKER_TYPE_COLORS: Record<string, string> = {
   badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)] border-purple-200',
   team_photo: 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-[var(--cromo-warning)]/30',
   intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
-  museum: 'bg-orange-100 text-orange-700 border-orange-200',
   coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] border-[var(--cromo-danger)]/30',
   extra: 'bg-pink-100 text-pink-700 border-pink-200',
 };

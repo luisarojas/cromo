@@ -90,3 +90,72 @@ export async function invalidateUserCaches(redis: Redis, userId: string): Promis
     // out via TTL.
   }
 }
+
+// ─── Singleflight: stampede protection on hot cache keys ─────────────────────
+//
+// Problem: when a cached value expires under load, N concurrent requests all
+// miss the cache, all hit the expensive backing query at once, and all rewrite
+// the entry. Stampede = thundering herd against the DB.
+//
+// Fix: the first miss takes a short-lived Redis lock and computes the value;
+// concurrent misses see the lock, busy-wait (with bounded retries) for the
+// computed result, then read the freshly populated cache entry. If the lock
+// holder dies before completing, the lock TTL releases the queue.
+//
+// This is intentionally NOT a distributed mutex — it is a best-effort hint.
+// It is correct under contention and degrades to the original behaviour
+// (everyone recomputes) when Redis is unreachable.
+
+const LOCK_TTL_MS = 5_000;
+const LOCK_POLL_MS = 50;
+const LOCK_MAX_WAIT_MS = 4_000;
+
+export async function singleflight<T>(
+  redis: Redis,
+  key: string,
+  ttlSeconds: number,
+  compute: () => Promise<T>,
+): Promise<T> {
+  // Fast path: cache hit.
+  const cached = await safeCacheGet(redis, key);
+  if (cached !== null) {
+    try { return JSON.parse(cached) as T; } catch { /* fall through and recompute */ }
+  }
+
+  const lockKey = `${key}:lock`;
+  const lockId = crypto.randomUUID();
+  let acquired = false;
+  try {
+    acquired = (await redis.set(lockKey, lockId, 'PX', LOCK_TTL_MS, 'NX')) === 'OK';
+  } catch {
+    // Redis unreachable: compute directly, no caching.
+    return compute();
+  }
+
+  if (acquired) {
+    try {
+      const value = await compute();
+      await safeCacheSet(redis, key, JSON.stringify(value), ttlSeconds);
+      return value;
+    } finally {
+      // Best-effort release; only delete if we still own the lock.
+      try {
+        const held = await redis.get(lockKey);
+        if (held === lockId) await redis.del(lockKey);
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Waiter path: poll the cache key briefly, give up and compute on timeout.
+  const deadline = Date.now() + LOCK_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, LOCK_POLL_MS));
+    const settled = await safeCacheGet(redis, key);
+    if (settled !== null) {
+      try { return JSON.parse(settled) as T; } catch { break; }
+    }
+  }
+  // The lock holder may have crashed or computed something un-parseable.
+  // Fall back to recomputing — we accept one extra DB hit over an infinite hang.
+  return compute();
+}

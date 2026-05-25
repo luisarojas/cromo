@@ -505,8 +505,7 @@ export async function getCrossAlbum(
 /**
  * getAlbumStats — per-album completion stats for ALL of a user's albums,
  * computed server-side respecting each album's edition + settings (which stickers
- * count toward the total based on `include_all_stickers`, `include_coca_cola`,
- * `include_non_album_museum`).
+ * count toward the total based on `includeCocaCola` and `includeExtras`).
  *
  * Replaces the previous client-side `computeAlbumStats` that pulled the entire
  * sticker catalog and filtered in JS.

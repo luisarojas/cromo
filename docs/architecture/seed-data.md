@@ -21,17 +21,19 @@ scripts/
   seed-database.sh          # master script — runs all seeds in order
   seeds/
     01_teams.sql            # 48 teams with FIFA codes and group assignments
-    02_intro_stickers.sql   # stickers 00, FWC1–FWC8 (intro/emblem pages)
+    02_intro_stickers.sql   # 20 intro/FWC stickers — Panini logo, FWC1–FWC8 (front), FWC9–FWC19 (back / past champions)
     03_team_stickers.sql    # all 960 team stickers (MEX1–MEX20, etc.)
-    04_museum_stickers.sql  # FIFA Museum stickers (past champions)
     05_variants.sql         # generates all variant records per sticker
     06_feature_flags.sql    # initial feature flag state
-    07_test_users.sql       # DEV/LOCAL ONLY — test accounts
-    08_coca_cola_stickers.sql  # Coca-Cola bottle sticker series
+    07_test_users.sql       # DEV/LOCAL ONLY — 6 pre-verified test accounts
+    08_coca_cola_stickers.sql  # 12 Coca-Cola bottle stickers (CC1–CC12)
     09_trust_safety.sql     # DEV/LOCAL ONLY — sample ratings/reports for admin UI
-    10_extra_stickers.sql   # Panini Extra Sticker inserts (foil set)
+    10_extra_stickers.sql   # 20 Panini Extra Sticker inserts (EX1–EX20, 4 rarities each)
     13_team_album_pages.sql    # Team-level album page assignments
     14_sticker_album_pages.sql # Per-sticker album page assignments
+
+Core album = 980 stickers (20 intro/FWC + 960 team). Beyond the core, the album also tracks
+12 Coca-Cola stickers and 20 Extra stickers.
 ```
 
 The master script checks the `NODE_ENV` environment variable. If it is `production`, it refuses to run seed files 07 and 09 (test users and trust & safety sample data). Feature flags (file 06) are required in every environment, so they are not gated. This is a safety guard.
@@ -306,28 +308,20 @@ ON CONFLICT (album_code) DO UPDATE SET
 
 > **Important note on sequential numbers:** The exact sequential integer numbers (1–980) for stickers beyond the confirmed checklist entries are derived from album page order. The developer should assign these sequentially when loading the complete data. The `album_code` (e.g., `MEX1`) is the stable identifier; the `number` is just a display convenience. The `album_code` is what the AI scan uses for identification.
 
-## 6. Seed File 04: FIFA Museum Stickers
+## 6. Intro / Back-of-Album Past-Champion Stickers
+
+The 11 past-champion stickers (FWC9–FWC19) live in the back of the album and are part of
+the FWC intro series. They are seeded inside `02_intro_stickers.sql` with
+`sticker_type = 'intro'` and `is_foil = true`. There is no separate seed file or
+sticker-type value for them.
 
 ```sql
--- scripts/seeds/04_museum_stickers.sql
--- 11 FIFA Museum stickers — past World Cup champions
--- These appear at the back of the album, continuing the FWC series (FWC9–FWC19)
-
-INSERT INTO stickers (number, album_code, team_id, player_name, sticker_type, is_foil)
-VALUES
-  (970, 'FWC9',  NULL, 'FIFA World Cup Champion — Italy 1934',        'museum', true),
-  (971, 'FWC10', NULL, 'FIFA World Cup Champion — Uruguay 1950',      'museum', true),
-  (972, 'FWC11', NULL, 'FIFA World Cup Champion — West Germany 1954', 'museum', true),
-  (973, 'FWC12', NULL, 'FIFA World Cup Champion — Brazil 1962',       'museum', true),
-  (974, 'FWC13', NULL, 'FIFA World Cup Champion — West Germany 1974', 'museum', true),
-  (975, 'FWC14', NULL, 'FIFA World Cup Champion — Argentina 1986',    'museum', true),
-  (976, 'FWC15', NULL, 'FIFA World Cup Champion — Brazil 1994',       'museum', true),
-  (977, 'FWC16', NULL, 'FIFA World Cup Champion — Brazil 2002',       'museum', true),
-  (978, 'FWC17', NULL, 'FIFA World Cup Champion — Italy 2006',        'museum', true),
-  (979, 'FWC18', NULL, 'FIFA World Cup Champion — Germany 2014',      'museum', true),
-  (980, 'FWC19', NULL, 'FIFA World Cup Champion — Argentina 2022',    'museum', true)
-ON CONFLICT (album_code) DO UPDATE SET
-  player_name = EXCLUDED.player_name;
+-- excerpt from scripts/seeds/02_intro_stickers.sql
+(970, 'FWC9',  NULL, 'FIFA World Cup Champion — Italy 1934',        'intro', true),
+(971, 'FWC10', NULL, 'FIFA World Cup Champion — Uruguay 1950',      'intro', true),
+(972, 'FWC11', NULL, 'FIFA World Cup Champion — West Germany 1954', 'intro', true),
+-- … FWC12–FWC19 continue the series …
+(980, 'FWC19', NULL, 'FIFA World Cup Champion — Argentina 2022',    'intro', true)
 ```
 
 ## 7. Seed File 05: Sticker Variants
@@ -508,22 +502,17 @@ This file seeds enough state to exercise every panel of the moderation admin UI:
 
 ## 11. Data Maintenance: Handling Panini Corrections
 
-Panini occasionally corrects player names or sticker details after release. When this happens:
+Panini occasionally corrects player names or sticker details after release. In Phase A the
+flow is:
 
-1. Update the relevant row in the seed file (`03_team_stickers.sql`)
-2. Create a new Drizzle migration: `apps/backend/src/db/migrations/{N}_correct_sticker_{album_code}.sql`
-3. The migration applies the specific correction to production
-4. Re-running the full seed (safe due to upserts) also applies it to local/dev
-
-```sql
--- Example: apps/backend/src/db/migrations/0003_correct_sticker_USA10.sql
-UPDATE stickers
-SET player_name = 'Weston McKennie',  -- corrected spelling
-    updated_at  = now()
-WHERE album_code = 'USA10';
-```
-
-The admin interface allows the same correction without a migration for urgent fixes in production.
+1. Update the relevant row in the seed file (e.g. `03_team_stickers.sql`)
+2. Re-run `pnpm db:seed` — every seed uses `ON CONFLICT DO UPDATE`, so the correction is
+   applied to local/dev without re-running the full schema
+3. For urgent fixes in production, use the admin sticker-correction interface
+   (`PATCH /api/v1/admin/stickers/:id`), which busts the catalog-version cache key so
+   every browser picks up the change on next page load
+4. In Phase B (Drizzle migrations), one-off SQL corrections will become numbered migration
+   files alongside the regular schema migrations
 
 ## 12. How to Verify the Seed Ran Correctly
 

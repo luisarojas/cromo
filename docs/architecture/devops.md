@@ -68,9 +68,10 @@ stickfolio/
 │           └── production/
 │
 ├── apps/backend/src/db/
-│   ├── schema.ts                     # Drizzle schema (single source of truth)
-│   └── migrations/                   # Drizzle-generated SQL migration files
-│       └── 0001_initial.sql
+│   ├── schema.sql                    # Phase A: single source-of-truth, applied at startup
+│   ├── schema.ts                     # Drizzle table definitions (used in Phase B for migrations)
+│   ├── migrate.ts                    # runMigrations() — applies schema.sql
+│   └── migrations/                   # (Phase B) Drizzle-generated SQL migrations — empty in Phase A
 │
 ├── scripts/
 │   ├── seed-database.sh              # Master seed script — runs all seeds in order
@@ -78,15 +79,14 @@ stickfolio/
 │   ├── load-test.sh
 │   └── seeds/                        # Seed data scripts
 │       ├── 01_teams.sql
-│       ├── 02_intro_stickers.sql
-│       ├── 03_team_stickers.sql      # Complete 960-record file
-│       ├── 04_museum_stickers.sql
+│       ├── 02_intro_stickers.sql     # 20 intro/FWC stickers (front FWC1–FWC8 + back FWC9–FWC19)
+│       ├── 03_team_stickers.sql      # 960 team stickers (48 × 20)
 │       ├── 05_variants.sql
 │       ├── 06_feature_flags.sql
 │       ├── 07_test_users.sql
-│       ├── 08_coca_cola_stickers.sql
+│       ├── 08_coca_cola_stickers.sql # 12 Coca-Cola partnership stickers
 │       ├── 09_trust_safety.sql
-│       ├── 10_extra_stickers.sql
+│       ├── 10_extra_stickers.sql     # 20 Extra stickers, 4 rarities each
 │       ├── 13_team_album_pages.sql
 │       └── 14_sticker_album_pages.sql
 │
@@ -136,8 +136,10 @@ The repository README is the single most important document for a new developer.
 4. Start all services
    docker compose -f infrastructure/docker/docker-compose.yml up -d
 
-5. Run migrations and seed data
+5. Apply schema and seed data
    pnpm db:migrate && pnpm db:seed
+   # Phase A: pnpm db:migrate executes apps/backend/src/db/schema.sql once.
+   # Phase B will replace this with Drizzle migrations.
 
 6. Open the app
    Frontend:        http://localhost:3000
@@ -146,10 +148,13 @@ The repository README is the single most important document for a new developer.
    Cache browser:   http://localhost:8081
    Database viewer: http://localhost:5050
 
-### Test accounts
-  Admin:   admin@test.local  / any password
-  Alice:   alice@test.local  / any password  (has a partial collection)
-  Bob:     bob@test.local    / any password  (overlapping collection for trade testing)
+### Test accounts (6 pre-verified users — any password works in local mode)
+  Admin:   admin@test.local
+  Alice:   alice@test.local   (partial collection)
+  Bob:     bob@test.local     (overlapping collection for trade testing)
+  Charlie: charlie@test.local
+  Diana:   diana@test.local
+  Evan:    evan@test.local
 ```
 
 ### 14.3 Branch Strategy: GitHub Flow

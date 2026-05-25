@@ -12,6 +12,7 @@ import { databasePluginWrapped } from './plugins/database.js';
 import { redisPluginWrapped } from './plugins/redis.js';
 import { tradeBusPluginWrapped } from './plugins/tradeBus.js';
 import { startWorker } from './services/jobs.service.js';
+import { registerJobs } from './jobs/scheduler.js';
 
 import { healthRoutes } from './routes/v1/health.js';
 import { versionRoutes } from './routes/v1/version.js';
@@ -26,6 +27,7 @@ import { sharingRoutes } from './routes/v1/sharing.js';
 import { profileRoutes } from './routes/v1/profiles.js';
 import { trustSafetyRoutes } from './routes/v1/trust-safety.js';
 import { scanRoutes } from './routes/v1/scan.js';
+import { pushRoutes } from './routes/v1/push.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -104,6 +106,23 @@ export async function buildApp(): Promise<FastifyInstance> {
     fastify.addHook('onClose', async () => { await stopWorker(); });
   }
 
+  // ── Scheduled jobs (node-cron, §34 catalog) ──────────────────────────────
+  // Skipped in tests and when JOBS_MODE=disabled (default for local dev to
+  // keep iteration fast). Set JOBS_MODE=enabled in .env.local to exercise.
+  if (env.NODE_ENV !== 'test' && env.JOBS_MODE === 'enabled') {
+    const stopScheduler = registerJobs({
+      db: fastify.db,
+      redis: fastify.redis,
+      log: {
+        info:  (msg, fields) => fastify.log.info(fields ?? {}, msg),
+        warn:  (msg, fields) => fastify.log.warn(fields ?? {}, msg),
+        error: (err, msg, fields) => fastify.log.error({ err, ...(fields ?? {}) }, msg ?? '[jobs]'),
+      },
+      cloud: env.NODE_ENV === 'production',
+    });
+    fastify.addHook('onClose', async () => { stopScheduler(); });
+  }
+
   // ── Routes ────────────────────────────────────────────────────────────────
   await fastify.register(healthRoutes);
   await fastify.register(versionRoutes);
@@ -118,6 +137,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(profileRoutes);
   await fastify.register(trustSafetyRoutes);
   await fastify.register(scanRoutes);
+  await fastify.register(pushRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   // Standard HTTP labels per status code, so every route returns a consistent

@@ -40,3 +40,39 @@ export async function storeIdempotent<T>(
   if (!idempotencyKey) return;
   await redis.set(key(scope, userId, idempotencyKey), JSON.stringify(value), 'EX', TTL_SECONDS);
 }
+
+// ─── Idempotency preHandler ──────────────────────────────────────────────────
+//
+// A Fastify preHandler that short-circuits the request if the caller previously
+// succeeded with the same `Idempotency-Key`. Usage:
+//
+//   fastify.post('/route', {
+//     preHandler: [verifyToken, idempotency(fastify, 'route-scope')],
+//   }, handler);
+//
+// The handler MUST also call storeIdempotent(...) once it has computed the
+// response body. We don't auto-store from the preHandler because the route
+// handler is the only place that knows whether the operation succeeded — a
+// 4xx or 5xx response should NOT poison the cache.
+
+import type { FastifyInstance, FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
+
+export function idempotency(
+  fastify: FastifyInstance,
+  scope: string,
+): preHandlerHookHandler {
+  return async function idempotencyPreHandler(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
+    const userId = request.userId;
+    if (!idempotencyKey || !userId) return;
+
+    const cached = await lookupIdempotent<unknown>(fastify.redis, scope, userId, idempotencyKey);
+    if (cached !== null) {
+      reply.header('idempotent-replay', 'true');
+      reply.status(200).send(cached);
+    }
+  };
+}

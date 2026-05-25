@@ -1,8 +1,9 @@
-export const STICKER_COUNT = 980
+export const STICKER_COUNT = 980        // core album stickers (intro + team)
 export const TEAM_COUNT = 48
 export const STICKERS_PER_TEAM = 20
-export const INTRO_STICKER_COUNT = 9
-export const MUSEUM_STICKER_COUNT = 11
+export const INTRO_STICKER_COUNT = 20    // 9 front (Panini logo + FWC1–FWC8) + 11 back (FWC9–FWC19 past champions)
+export const COCA_COLA_STICKER_COUNT = 12
+export const EXTRA_STICKER_COUNT = 20
 
 export const VARIANT_RARITY: Record<string, number> = {
   base_border: 1,

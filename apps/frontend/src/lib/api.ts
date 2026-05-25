@@ -51,6 +51,46 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // ---------------------------------------------------------------------------
+// retryFetch
+// Read-only requests (GET, HEAD) retry on transient failures: network errors,
+// 502/503/504. Writes (POST/PUT/PATCH/DELETE) are NEVER retried automatically
+// — they need idempotency keys to be safe, and the caller knows whether to
+// retry. 5xx on a non-GET means the caller decides.
+// ---------------------------------------------------------------------------
+const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+const RETRYABLE_METHODS = new Set(['GET', 'HEAD', undefined]);
+const MAX_ATTEMPTS = 3;
+const BASE_DELAY_MS = 200;
+
+export async function retryFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const retryable = RETRYABLE_METHODS.has(method);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(input, init);
+      if (retryable && TRANSIENT_STATUSES.has(res.status) && attempt < MAX_ATTEMPTS) {
+        // Read + discard body so the connection can be pooled.
+        await res.text().catch(() => undefined);
+      } else {
+        return res;
+      }
+    } catch (err) {
+      lastError = err;
+      if (!retryable || attempt >= MAX_ATTEMPTS) throw err;
+    }
+    const jitter = Math.random() * BASE_DELAY_MS;
+    await new Promise((r) => setTimeout(r, BASE_DELAY_MS * 2 ** (attempt - 1) + jitter));
+  }
+  // Loop exits via return on success; unreachable, but keeps TS happy.
+  throw lastError ?? new Error('retryFetch: exhausted attempts');
+}
+
+// ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
 
@@ -60,7 +100,7 @@ export async function loginApi(
   email: string,
   password: string,
 ): Promise<{ accessToken: string; user: AuthUser }> {
-  const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -74,7 +114,7 @@ export async function loginApi(
 }
 
 export async function refreshApi(): Promise<{ accessToken: string; user: AuthUser } | null> {
-  const res = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -85,7 +125,7 @@ export async function refreshApi(): Promise<{ accessToken: string; user: AuthUse
 }
 
 export async function logoutApi(): Promise<void> {
-  await fetch(`${BASE_URL}/api/v1/auth/logout`, {
+  await retryFetch(`${BASE_URL}/api/v1/auth/logout`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -97,7 +137,7 @@ export async function registerApi(body: {
   password: string;
   displayName?: string;
 }): Promise<{ message: string; userId: string }> {
-  const res = await fetch(`${BASE_URL}/api/v1/auth/register`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -110,7 +150,7 @@ export async function registerApi(body: {
 }
 
 export async function verifyEmailApi(token: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/v1/auth/verify-email`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/auth/verify-email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token }),
@@ -126,7 +166,7 @@ export async function verifyEmailApi(token: string): Promise<void> {
 }
 
 export async function resendVerificationApi(email: string): Promise<void> {
-  await fetch(`${BASE_URL}/api/v1/auth/resend-verification`, {
+  await retryFetch(`${BASE_URL}/api/v1/auth/resend-verification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -137,7 +177,7 @@ export async function updateUsernameApi(
   username: string,
   token: string,
 ): Promise<{ username: string }> {
-  const res = await fetch(`${BASE_URL}/api/v1/users/me/username`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/users/me/username`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ username }),
@@ -153,7 +193,7 @@ export async function updateDisplayNameApi(
   displayName: string | null,
   token: string,
 ): Promise<{ displayName: string | null }> {
-  const res = await fetch(`${BASE_URL}/api/v1/users/me/display-name`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/users/me/display-name`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ displayName }),
@@ -169,7 +209,7 @@ export async function updateEmailApi(
   email: string,
   token: string,
 ): Promise<{ email: string }> {
-  const res = await fetch(`${BASE_URL}/api/v1/users/me/email`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/users/me/email`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ email }),
@@ -186,7 +226,7 @@ export async function updatePasswordApi(
   newPassword: string,
   token: string,
 ): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/v1/users/me/password`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/users/me/password`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ currentPassword, newPassword }),
@@ -198,7 +238,7 @@ export async function updatePasswordApi(
 }
 
 export async function deleteAccountApi(token: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/v1/users/me`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/users/me`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -269,7 +309,7 @@ async function apiFetch<T>(
   const run = (async (): Promise<T> => {
     let res: Response;
     try {
-      res = await fetch(`${BASE_URL}${path}`, {
+      res = await retryFetch(`${BASE_URL}${path}`, {
         ...options,
         signal,
         headers: {
@@ -1458,7 +1498,7 @@ export async function scanIdentify(file: File, token: string, albumTypeKey?: str
   const form = new FormData();
   form.append('file', file);
   const qs = albumTypeKey ? `?albumTypeKey=${encodeURIComponent(albumTypeKey)}` : '';
-  const res = await fetch(`${BASE_URL}/api/v1/scan/identify${qs}`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/scan/identify${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -1481,7 +1521,7 @@ export async function scanBatchStream(
     form.append('files', file);
   }
   const qs = albumTypeKey ? `?albumTypeKey=${encodeURIComponent(albumTypeKey)}` : '';
-  const res = await fetch(`${BASE_URL}/api/v1/scan/batch${qs}`, {
+  const res = await retryFetch(`${BASE_URL}/api/v1/scan/batch${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,

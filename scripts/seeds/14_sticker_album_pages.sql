@@ -1,6 +1,6 @@
 -- Seed 14: sticker_album_pages
--- Per-edition page locations for non-team stickers (CC, intro/FWC, museum).
--- Must run after 02_intro_stickers.sql, 04_museum_stickers.sql, 08_coca_cola_stickers.sql.
+-- Per-edition page locations for non-team stickers (CC, intro/FWC).
+-- Must run after 02_intro_stickers.sql and 08_coca_cola_stickers.sql.
 
 -- Coca-Cola stickers (all CC stickers share the same spread per edition)
 INSERT INTO sticker_album_pages (sticker_id, edition, page_start, page_end, description)
@@ -67,17 +67,17 @@ ON CONFLICT (sticker_id, edition) DO UPDATE SET
   page_end    = EXCLUDED.page_end,
   description = EXCLUDED.description;
 
--- FIFA Museum stickers (FWC9–FWC19) — past World Cup champions
--- These are real album slots present in every edition (not the "non-album" extras).
+-- Past-champion intro stickers (FWC9–FWC19) — back-of-album section.
+-- These are real album slots present in every edition (sticker_type = 'intro').
 -- Page numbers are approximate; exact placement shifts between regional editions.
--- NA teams start at p. 12 → museum occupies pp. 3–10.
--- Swiss gold teams start at p. 8 → museum occupies pp. 3–7.
--- International/South America teams start at p. 4 → museum occupies p. 3.
+-- NA teams start at p. 12 → champions occupy pp. 3–10.
+-- Swiss gold teams start at p. 8 → champions occupy pp. 3–7.
+-- International/South America teams start at p. 4 → champions occupy p. 3.
 INSERT INTO sticker_album_pages (sticker_id, edition, page_start, page_end, description)
 SELECT s.id, v.edition, v.page_start::INTEGER, v.page_end::INTEGER, v.description
 FROM stickers s
 JOIN (VALUES
-  -- North America (teams start p. 12; museum pp. 3–10)
+  -- North America (teams start p. 12; champions pp. 3–10)
   ('FWC9',  'north_america',  '3',  '3',  NULL),
   ('FWC10', 'north_america',  '4',  '4',  NULL),
   ('FWC11', 'north_america',  '5',  '5',  NULL),
@@ -89,7 +89,7 @@ JOIN (VALUES
   ('FWC17', 'north_america',  '8',  '8',  NULL),
   ('FWC18', 'north_america',  '9',  '9',  NULL),
   ('FWC19', 'north_america', '10', '10',  NULL),
-  -- International (teams start p. 4; museum p. 3)
+  -- International (teams start p. 4; champions p. 3)
   ('FWC9',  'international',  '3',  '3',  NULL),
   ('FWC10', 'international',  '3',  '3',  NULL),
   ('FWC11', 'international',  '3',  '3',  NULL),
@@ -101,7 +101,7 @@ JOIN (VALUES
   ('FWC17', 'international',  '3',  '3',  NULL),
   ('FWC18', 'international',  '3',  '3',  NULL),
   ('FWC19', 'international',  '3',  '3',  NULL),
-  -- Swiss gold (teams start p. 8; museum pp. 3–7)
+  -- Swiss gold (teams start p. 8; champions pp. 3–7)
   ('FWC9',  'swiss_gold',     '3',  '3',  NULL),
   ('FWC10', 'swiss_gold',     '3',  '3',  NULL),
   ('FWC11', 'swiss_gold',     '4',  '4',  NULL),
@@ -113,7 +113,7 @@ JOIN (VALUES
   ('FWC17', 'swiss_gold',     '7',  '7',  NULL),
   ('FWC18', 'swiss_gold',     '7',  '7',  NULL),
   ('FWC19', 'swiss_gold',     '7',  '7',  NULL),
-  -- South America (teams start p. 4; museum p. 3)
+  -- South America (teams start p. 4; champions p. 3)
   ('FWC9',  'south_america',  '3',  '3',  NULL),
   ('FWC10', 'south_america',  '3',  '3',  NULL),
   ('FWC11', 'south_america',  '3',  '3',  NULL),

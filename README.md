@@ -39,10 +39,13 @@ The repository name and internal workspace package names (`@stickfolio/*`) still
    docker compose -f infrastructure/docker/docker-compose.yml up -d
    ```
 
-5. **Run migrations and seed data**
+5. **Apply schema and seed data**
    ```bash
    pnpm db:migrate && pnpm db:seed
    ```
+   In Phase A the database schema lives in a single `apps/backend/src/db/schema.sql` file
+   that is applied at API startup (and by `pnpm db:migrate` for manual runs). Phase B will
+   migrate to Drizzle ORM migrations once the schema stabilises.
 
 6. **Open the app**
 
@@ -66,6 +69,7 @@ In local mode, any password is accepted.
 | Bob (overlapping collection) | bob@test.local |
 | Charlie | charlie@test.local |
 | Diana | diana@test.local |
+| Evan | evan@test.local |
 
 ### Development workflow
 
@@ -101,5 +105,5 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md) for the ful
 | Cache | Redis 7 (Docker) → ElastiCache (cloud) |
 | Auth | Local mock → AWS Cognito (cloud) |
 | Email | Mailpit (local) → AWS SES (cloud) |
-| Migrations | Drizzle ORM |
+| Schema (Phase A) | Single `schema.sql` applied at startup → Drizzle ORM migrations in Phase B |
 | Monorepo | Turborepo |

@@ -1,0 +1,65 @@
+{
+  "_note": "Phase A ships English only. Spanish keys mirror en.json but values are placeholders — replace before launching es as a supported locale.",
+  "nav": {
+    "album": "Álbum",
+    "trade": "Intercambiar",
+    "scan": "Escanear",
+    "guide": "Guía",
+    "settings": "Ajustes",
+    "admin": "Admin",
+    "login": "Iniciar sesión",
+    "register": "Crear cuenta",
+    "logout": "Cerrar sesión"
+  },
+  "footer": {
+    "tagline": "Cromo — tu colección, completa.",
+    "copyright": "© 2026 Cromo",
+    "links": {
+      "privacy": "Privacidad",
+      "terms": "Términos",
+      "support": "Soporte"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Bienvenido de nuevo",
+      "emailLabel": "Correo",
+      "passwordLabel": "Contraseña",
+      "submit": "Iniciar sesión",
+      "noAccount": "¿No tienes cuenta?",
+      "signUp": "Crear cuenta"
+    },
+    "register": {
+      "title": "Empieza tu álbum",
+      "emailLabel": "Correo",
+      "usernameLabel": "Nombre de usuario",
+      "passwordLabel": "Contraseña",
+      "submit": "Crear cuenta",
+      "haveAccount": "¿Ya tienes cuenta?",
+      "logIn": "Iniciar sesión"
+    }
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "loading": "Cargando…",
+    "retry": "Reintentar",
+    "back": "Atrás",
+    "next": "Siguiente"
+  },
+  "errors": {
+    "notFound": {
+      "code": "404",
+      "title": "No encontramos esa página",
+      "body": "El enlace puede estar caducado, el álbum se movió, o el cromo nunca fue numerado.",
+      "cta": "Volver al álbum"
+    },
+    "internal": {
+      "code": "500 · algo salió mal",
+      "title": "Esta página falló",
+      "body": "No eres tú — es un fallo nuestro. Intenta de nuevo; si vuelve a fallar, los detalles abajo nos ayudan a rastrearlo.",
+      "retry": "Reintentar"
+    }
+  }
+}

@@ -18,13 +18,10 @@ run_seed scripts/seeds/01_teams.sql
 echo "✓ Teams seeded (48 teams)"
 
 run_seed scripts/seeds/02_intro_stickers.sql
-echo "✓ Introduction stickers seeded"
+echo "✓ Introduction stickers seeded (FWC1–FWC19 + Panini logo, 20 total)"
 
 run_seed scripts/seeds/03_team_stickers.sql
 echo "✓ Team stickers seeded (960 stickers)"
-
-run_seed scripts/seeds/04_museum_stickers.sql
-echo "✓ FIFA Museum stickers seeded"
 
 run_seed scripts/seeds/05_variants.sql
 echo "✓ Sticker variants generated"
