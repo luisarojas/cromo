@@ -12,7 +12,9 @@ COPY apps/backend/package.json ./apps/backend/
 # Install all workspace dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy shared package source
+# Copy shared package source + tsconfig (so `pnpm --filter @cromo/shared
+# typecheck` actually finds a tsconfig inside the container)
+COPY packages/shared/tsconfig.json ./packages/shared/
 COPY packages/shared/src/ ./packages/shared/src/
 
 # Copy backend config and source (src/ is overridden by volume mount at runtime)
