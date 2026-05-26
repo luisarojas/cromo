@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cromo"]
+      test: ["CMD-SHELL", "pg_isready -U cromo -d cromo_dev"]
       interval: 5s
       timeout: 3s
       retries: 5
