@@ -23,6 +23,7 @@ interface Args {
   ownedMap: Map<string, Map<string, unknown>>;
   activeAlbum: UserAlbum | undefined;
   favouriteSet: Set<string>;
+  wantedAlbumCodeSet: Set<string>;
 }
 
 /**
@@ -34,7 +35,7 @@ interface Args {
  * filter*, so toggling a single team value doesn't immediately drop the
  * other team options from the dropdown.
  */
-export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favouriteSet }: Args) {
+export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favouriteSet, wantedAlbumCodeSet }: Args) {
   return useMemo(() => {
     const edition = activeAlbum?.edition;
 
@@ -61,6 +62,7 @@ export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favo
     const filterExcept = (exclude: keyof FilterState): Sticker[] =>
       tabBase.filter((s) => {
         if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
+        if (exclude !== 'wantedOnly' && filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
         if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
         if (exclude !== 'team' && filters.team?.length && !filters.team.includes(s.teamName ?? '') && !filters.team.includes(s.fifaCode ?? '')) return false;
         if (exclude !== 'type' && filters.type?.length && !filters.type.includes(s.stickerType)) return false;
@@ -106,5 +108,5 @@ export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favo
     const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
 
     return { groupOptions, teamOptions, typeOptions, variantOptions };
-  }, [tabBase, filters, ownedMap, activeAlbum, favouriteSet]);
+  }, [tabBase, filters, ownedMap, activeAlbum, favouriteSet, wantedAlbumCodeSet]);
 }

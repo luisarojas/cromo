@@ -13,6 +13,7 @@ export interface FilterState {
   pageFrom?: number;
   pageTo?: number;
   favouritesOnly?: boolean;
+  wantedOnly?: boolean;
 }
 
 interface Props {
@@ -54,7 +55,8 @@ export default function FilterBar({
     (filters.type?.length ?? 0) +
     (filters.variant?.length ?? 0) +
     (filters.pageFrom != null || filters.pageTo != null ? 1 : 0) +
-    (filters.favouritesOnly ? 1 : 0);
+    (filters.favouritesOnly ? 1 : 0) +
+    (filters.wantedOnly ? 1 : 0);
 
   const hasActiveFilter = nonSearchActiveCount > 0 || !!filters.search;
 
@@ -70,6 +72,12 @@ export default function FilterBar({
     activeChips.push({
       label: 'Favourites',
       onRemove: () => onChange({ ...filters, favouritesOnly: undefined }),
+    });
+  }
+  if (filters.wantedOnly) {
+    activeChips.push({
+      label: 'Wanted',
+      onRemove: () => onChange({ ...filters, wantedOnly: undefined }),
     });
   }
   (filters.group ?? []).forEach((v) => {
@@ -216,6 +224,24 @@ export default function FilterBar({
             >
               <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
               Only
+            </button>
+          </div>
+
+          {/* Wishlist toggle */}
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Wishlist</span>
+            <button
+              type="button"
+              onClick={() => onChange({ ...filters, wantedOnly: filters.wantedOnly ? undefined : true })}
+              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                filters.wantedOnly
+                  ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
+                  : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
+              }`}
+              aria-pressed={filters.wantedOnly ?? false}
+            >
+              <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
+              Wanted
             </button>
           </div>
 

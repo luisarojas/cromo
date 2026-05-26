@@ -1245,17 +1245,22 @@ export async function fetchPublicOffered(
 // Wanted variants — explicit per-variant wishlist
 // ---------------------------------------------------------------------------
 
+export interface WantedVariantEntry {
+  variantId: string;
+  stickerId: string;
+}
+
 export async function fetchAlbumWantedVariants(
   userId: string,
   albumId: string,
   token: string,
-): Promise<string[]> {
-  const data = await apiFetch<{ variantIds: string[] }>(
+): Promise<WantedVariantEntry[]> {
+  const data = await apiFetch<{ items: WantedVariantEntry[] }>(
     `/api/v1/users/${userId}/albums/${albumId}/wanted-variants`,
     {},
     token,
   );
-  return data.variantIds;
+  return data.items;
 }
 
 export async function addAlbumWantedVariant(

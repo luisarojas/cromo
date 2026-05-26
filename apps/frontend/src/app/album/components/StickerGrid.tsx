@@ -30,6 +30,8 @@ interface Props {
   crossAlbumHasSticker?: Map<string, Array<{ id: string; name: string }>>;
   favouriteSet?: Set<string>;
   onToggleFavourite?: (albumCode: string) => void;
+  wantedVariantIds: Set<string>;
+  onToggleWanted: (variantId: string, stickerId: string) => Promise<void> | void;
   selectionMode?: boolean;
   selectedCodes?: Set<string>;
   onToggleSelect?: (albumCode: string) => void;
@@ -56,6 +58,8 @@ export default function StickerGrid({
   crossAlbumHasSticker,
   favouriteSet,
   onToggleFavourite,
+  wantedVariantIds,
+  onToggleWanted,
   selectionMode,
   selectedCodes,
   onToggleSelect,
@@ -272,7 +276,6 @@ export default function StickerGrid({
           }
           anchorRect={popover.rect}
           albumId={albumId}
-          userId={userId}
           token={token}
           onClose={() => setPopover(null)}
           onAdjust={(variantId, variantType, delta) =>
@@ -285,6 +288,8 @@ export default function StickerGrid({
           onMoveFrom={handleMoveFrom}
           onSetTradeFlag={handleSetTradeFlag}
           albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.albumCode)}
+          wantedVariantIds={wantedVariantIds}
+          onToggleWanted={onToggleWanted}
         />
       )}
     </>

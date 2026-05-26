@@ -4,9 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   fetchStickerVariants,
-  fetchAlbumWantedVariants,
-  addAlbumWantedVariant,
-  removeAlbumWantedVariant,
   type Sticker,
   type StickerVariant,
 } from '@/lib/api';
@@ -26,7 +23,6 @@ interface Props {
   ownedVariants: Map<string, OwnedVariantEntry>; // keyed by variantType
   anchorRect: DOMRect;
   albumId: string;
-  userId: string;
   token: string;
   onClose: () => void;
   onAdjust: (variantId: string, variantType: string, delta: 1 | -1) => Promise<void>;
@@ -35,6 +31,8 @@ interface Props {
   onMoveFrom: (variantId: string, sourceAlbumId: string, quantity: number) => Promise<void>;
   onSetTradeFlag?: (variantId: string, flags: { tradeHidden?: boolean; tradeForced?: boolean }) => Promise<void>;
   albumsWithSticker?: Array<{ id: string; name: string }>;
+  wantedVariantIds: Set<string>;
+  onToggleWanted: (variantId: string, stickerId: string) => Promise<void> | void;
 }
 
 const POPOVER_WIDTH = 280;
@@ -44,7 +42,6 @@ export default function VariantPopover({
   ownedVariants,
   anchorRect,
   albumId,
-  userId,
   token,
   onClose,
   onAdjust,
@@ -53,12 +50,14 @@ export default function VariantPopover({
   onMoveFrom,
   onSetTradeFlag,
   albumsWithSticker,
+  wantedVariantIds,
+  onToggleWanted,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [allVariants, setAllVariants] = useState<StickerVariant[] | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(false);
-  const [wantedVariantIds, setWantedVariantIds] = useState<Set<string>>(new Set());
   const [showAddPicker, setShowAddPicker] = useState(false);
+  const [showWantedPicker, setShowWantedPicker] = useState(false);
   const [showMovePicker, setShowMovePicker] = useState(false);
   const [moveVariantId, setMoveVariantId] = useState<string | null>(null);
   const [moveTargetAlbumId, setMoveTargetAlbumId] = useState<string>('');
@@ -72,25 +71,17 @@ export default function VariantPopover({
   const albums = useAlbumsStore((s) => s.albums);
   const otherAlbums = albums.filter((a) => a.id !== albumId);
 
-  // Fetch all variants and current wanted state on mount.
+  // Fetch the variant catalog on mount. Wanted state is owned by the page so
+  // toggles here stay in sync with the filter bar.
   useEffect(() => {
-    async function load() {
-      setLoadingVariants(true);
-      try {
-        const [items, wanted] = await Promise.all([
-          fetchStickerVariants(sticker.albumCode, token),
-          fetchAlbumWantedVariants(userId, albumId, token),
-        ]);
-        setAllVariants(items);
-        setWantedVariantIds(new Set(wanted));
-      } catch (err) {
-        console.error('Failed to fetch variants', err);
-      } finally {
-        setLoadingVariants(false);
-      }
-    }
-    load();
-  }, [sticker.albumCode, userId, albumId, token]);
+    let cancelled = false;
+    setLoadingVariants(true);
+    fetchStickerVariants(sticker.albumCode, token)
+      .then((items) => { if (!cancelled) setAllVariants(items); })
+      .catch((err) => console.error('Failed to fetch variants', err))
+      .finally(() => { if (!cancelled) setLoadingVariants(false); });
+    return () => { cancelled = true; };
+  }, [sticker.albumCode, token]);
 
   // Close on outside click / Esc
   useEffect(() => {
@@ -192,15 +183,7 @@ export default function VariantPopover({
     if (busy) return;
     setBusy(true);
     try {
-      if (wantedVariantIds.has(variantId)) {
-        await removeAlbumWantedVariant(userId, albumId, variantId, token);
-        setWantedVariantIds((prev) => { const s = new Set(prev); s.delete(variantId); return s; });
-      } else {
-        await addAlbumWantedVariant(userId, albumId, variantId, token);
-        setWantedVariantIds((prev) => new Set([...prev, variantId]));
-      }
-    } catch (err) {
-      console.error('Failed to update wanted', err);
+      await onToggleWanted(variantId, sticker.id);
     } finally {
       setBusy(false);
     }
@@ -522,38 +505,50 @@ export default function VariantPopover({
               ))}
             </div>
           )}
-          <div className="h-px bg-[var(--cromo-surface-2)]" />
-          <div className="flex flex-col gap-1">
-            <div className="text-[10px] font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wide">
-              Want it
+          {!showWantedPicker && (() => {
+            const wantedHere = unownedVariants.filter((v) => wantedVariantIds.has(v.id)).length;
+            return (
+              <button
+                onClick={() => setShowWantedPicker(true)}
+                className="text-xs font-medium text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] self-start"
+              >
+                {wantedHere > 0 ? `★ Edit wishlist (${wantedHere})` : '☆ Add to wishlist'}
+              </button>
+            );
+          })()}
+          {showWantedPicker && (
+            <div className="flex flex-col gap-1">
+              <p className="text-[10px] text-[var(--cromo-fg-muted)] leading-snug">
+                Shown on your public profile so traders can offer matches.
+              </p>
+              {unownedVariants.map((v) => {
+                const wanted = wantedVariantIds.has(v.id);
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => handleToggleWanted(v.id)}
+                    disabled={busy}
+                    className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left disabled:opacity-50 transition-colors ${
+                      wanted
+                        ? 'bg-[var(--cromo-accent-soft)] hover:bg-[var(--cromo-accent-soft)]'
+                        : 'hover:bg-[var(--cromo-surface-2)]'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(v.variantType)}`}
+                      aria-hidden
+                    />
+                    <span className="flex-1 text-xs text-[var(--cromo-fg)] truncate">
+                      {VARIANT_META[v.variantType]?.label ?? v.variantType}
+                    </span>
+                    <span className={`text-[10px] font-medium ${wanted ? 'text-[var(--cromo-accent)]' : 'text-[var(--cromo-fg-subtle)]'}`}>
+                      {wanted ? '★ Wanted' : '☆ Want it'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            {unownedVariants.map((v) => {
-              const wanted = wantedVariantIds.has(v.id);
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => handleToggleWanted(v.id)}
-                  disabled={busy}
-                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left disabled:opacity-50 transition-colors ${
-                    wanted
-                      ? 'bg-[var(--cromo-warning-soft)] hover:bg-[var(--cromo-warning-soft)]'
-                      : 'hover:bg-[var(--cromo-surface-2)]'
-                  }`}
-                >
-                  <span
-                    className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(v.variantType)}`}
-                    aria-hidden
-                  />
-                  <span className="flex-1 text-xs text-[var(--cromo-fg)] truncate">
-                    {VARIANT_META[v.variantType]?.label ?? v.variantType}
-                  </span>
-                  <span className={`text-[10px] font-medium ${wanted ? 'text-[var(--cromo-warning-text)]' : 'text-[var(--cromo-fg-subtle)]'}`}>
-                    {wanted ? '★ Wanted' : '☆ Want it'}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          )}
         </>
       ) : null}
     </div>

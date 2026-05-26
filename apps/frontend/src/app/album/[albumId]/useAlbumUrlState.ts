@@ -43,6 +43,7 @@ export function useAlbumUrlState() {
     pageFrom: parseInt10(searchParams.get('pageFrom')),
     pageTo: parseInt10(searchParams.get('pageTo')),
     favouritesOnly: searchParams.get('fav') === '1' ? true : undefined,
+    wantedOnly: searchParams.get('wanted') === '1' ? true : undefined,
   }), [searchParams]);
 
   const apply = useCallback(
@@ -73,6 +74,8 @@ export function useAlbumUrlState() {
         setScalar('pageTo', f.pageTo);
         if (f.favouritesOnly) params.set('fav', '1');
         else params.delete('fav');
+        if (f.wantedOnly) params.set('wanted', '1');
+        else params.delete('wanted');
       }
 
       const qs = params.toString();

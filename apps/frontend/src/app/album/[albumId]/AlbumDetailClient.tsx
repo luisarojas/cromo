@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAlbumUrlState, type Tab } from './useAlbumUrlState';
 import { useFavourites } from './useFavourites';
+import { useWantedVariants } from './useWantedVariants';
 import { useFilterOptions } from './useFilterOptions';
 import { useStickerSelection } from './useStickerSelection';
 import {
@@ -199,6 +200,19 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     stickersByAlbumCode,
   });
 
+  const {
+    wantedVariantIds,
+    wantedStickerIds,
+    toggle: handleToggleWanted,
+  } = useWantedVariants({ userId: user?.id ?? null, albumId, token });
+
+  // Cards are keyed by album_code; the wanted set is keyed by sticker UUID.
+  const wantedAlbumCodeSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of stickers) if (wantedStickerIds.has(s.id)) set.add(s.albumCode);
+    return set;
+  }, [stickers, wantedStickerIds]);
+
   // ---------------------------------------------------------------------------
   // Data loaders
   // ---------------------------------------------------------------------------
@@ -355,6 +369,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     ownedMap: ownedMap as unknown as Map<string, Map<string, unknown>>,
     activeAlbum,
     favouriteSet,
+    wantedAlbumCodeSet,
   });
 
   // Stats come from user_albums (denormalized columns kept fresh by the
@@ -436,6 +451,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
     return base.filter((s) => {
       if (filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
+      if (filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
       if (filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
       if (filters.team?.length && !filters.team.includes(s.teamName ?? '') && !filters.team.includes(s.fifaCode ?? '')) return false;
       if (filters.type?.length && !filters.type.includes(s.stickerType)) return false;
@@ -462,7 +478,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       }
       return true;
     });
-  }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum, favouriteSet]);
+  }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum, favouriteSet, wantedAlbumCodeSet]);
 
   // ---------------------------------------------------------------------------
   // Selection helpers
@@ -921,6 +937,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               crossAlbumHasSticker={crossAlbumHasSticker}
               favouriteSet={favouriteSet}
               onToggleFavourite={handleToggleFavourite}
+              wantedVariantIds={wantedVariantIds}
+              onToggleWanted={handleToggleWanted}
               selectionMode={selectionMode}
               selectedCodes={selectedCodes}
               onToggleSelect={handleToggleSelect}

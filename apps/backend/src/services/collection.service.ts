@@ -664,13 +664,15 @@ export async function getWantedVariants(
   db: Pool,
   userId: string,
   albumId: string,
-): Promise<string[]> {
-  const { rows } = await db.query<{ sticker_variant_id: string }>(
-    `SELECT sticker_variant_id FROM user_wanted_variants
-     WHERE user_id = $1 AND album_id = $2`,
+): Promise<Array<{ variantId: string; stickerId: string }>> {
+  const { rows } = await db.query<{ sticker_variant_id: string; sticker_id: string }>(
+    `SELECT w.sticker_variant_id, v.sticker_id
+     FROM user_wanted_variants w
+     JOIN sticker_variants v ON v.id = w.sticker_variant_id
+     WHERE w.user_id = $1 AND w.album_id = $2`,
     [userId, albumId],
   );
-  return rows.map((r) => r.sticker_variant_id);
+  return rows.map((r) => ({ variantId: r.sticker_variant_id, stickerId: r.sticker_id }));
 }
 
 export async function addWantedVariant(

@@ -584,7 +584,18 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
         response: {
           200: {
             type: 'object',
-            properties: { variantIds: { type: 'array', items: { type: 'string' } } },
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    variantId: { type: 'string' },
+                    stickerId: { type: 'string' },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -593,8 +604,8 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'collection')) return;
 
-      const variantIds = await collectionService.getWantedVariants(fastify.db, userId, albumId);
-      return reply.status(200).send({ variantIds });
+      const items = await collectionService.getWantedVariants(fastify.db, userId, albumId);
+      return reply.status(200).send({ items });
     },
   );
 
