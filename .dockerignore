@@ -1,0 +1,33 @@
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/.turbo
+**/test-results
+**/playwright-report
+
+# Local-only
+.env
+.env.local
+.env.*.local
+.pnpm-store
+
+# VCS / editor
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Build artefacts that shouldn't enter the build context
+*.log
+*.tsbuildinfo
+
+# Docs / repo metadata not needed in the runtime image
+docs
+infrastructure/loadtest
+infrastructure/terraform
+README.md
+CHANGELOG.md
+BRAND.md
+CLAUDE.md

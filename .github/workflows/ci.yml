@@ -1,0 +1,113 @@
+# Pull-request CI: lint, typecheck, unit + integration tests against an
+# ephemeral Postgres + Redis stack started inside the runner.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cromo
+          POSTGRES_PASSWORD: localpassword
+          POSTGRES_DB: cromo_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cromo"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://cromo:localpassword@localhost:5432/cromo_dev
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      AUTH_MODE: local
+      JWT_SECRET: ci-test-secret-not-used-anywhere-else
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Apply Drizzle migrations
+        run: pnpm --filter @cromo/backend db:migrate
+
+      # --remote forces the seed script to talk directly to $DATABASE_URL
+      # via psql, instead of trying to docker-compose-exec a db container.
+      - name: Seed catalog
+        run: ./scripts/seed-database.sh --remote
+
+      - name: Unit + integration tests
+        run: pnpm test
+
+  build:
+    name: Build production images
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile.prod
+          push: false
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build frontend image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/frontend/Dockerfile.prod
+          push: false
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://dev.cromotrade.ca
+            NEXT_PUBLIC_ENV=ci

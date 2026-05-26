@@ -2,17 +2,32 @@
 # scripts/seed-database.sh
 # Runs all seed files in order against $DATABASE_URL.
 # Files 07 and 09 are skipped in production to prevent test data from leaking.
+#
+# Default target: local Docker dev DB. To seed a remote DB (e.g. dev AWS RDS),
+# set DATABASE_URL and pass --remote:
+#   DATABASE_URL="postgres://..." ./scripts/seed-database.sh --remote
 
 set -e
 
-DOCKER_COMPOSE="docker compose -f infrastructure/docker/docker-compose.yml"
-PSQL="$DOCKER_COMPOSE exec -T db psql -U cromo cromo_dev"
+if [ "$1" = "--remote" ]; then
+  if [ -z "$DATABASE_URL" ]; then
+    echo "DATABASE_URL must be set when --remote is passed" >&2
+    exit 1
+  fi
+  PSQL="psql $DATABASE_URL"
+else
+  DOCKER_COMPOSE="docker compose -f infrastructure/docker/docker-compose.yml"
+  PSQL="$DOCKER_COMPOSE exec -T db psql -U cromo cromo_dev"
+fi
 
 run_seed() {
   $PSQL < "$1"
 }
 
 echo "▶ Running database seeds..."
+
+run_seed scripts/seeds/00_album_catalog.sql
+echo "✓ Album catalog seeded (album_types, editions, formats, scan prompt)"
 
 run_seed scripts/seeds/01_teams.sql
 echo "✓ Teams seeded (48 teams)"

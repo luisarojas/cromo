@@ -13,9 +13,11 @@ The schema and seed scripts are **identical** in both environments. This guarant
 
 ## 7.2 Full Database Schema
 
-**Phase A (current).** The schema lives entirely in `apps/backend/src/db/schema.sql` and is applied at API startup by `runMigrations()` (`apps/backend/src/db/migrate.ts`). Every `CREATE TABLE`/`CREATE INDEX` uses `IF NOT EXISTS`, every function uses `CREATE OR REPLACE`, and every seed `INSERT` uses `ON CONFLICT`, so the file can be safely re-applied. There are **no incremental migration files** in Phase A — schema changes are made by editing `schema.sql` directly.
+**Schema management.** The schema is managed by Drizzle ORM. Drizzle table definitions live in `apps/backend/src/db/schema.ts`; generated migration SQL lives in `apps/backend/src/db/migrations/` alongside a `meta/_journal.json` index. The backend runs `migrate()` from `drizzle-orm/node-postgres/migrator` at startup (see `apps/backend/src/db/migrate.ts`), which records each applied migration in a `drizzle.__drizzle_migrations` table.
 
-**Phase B (planned).** Once the schema stabilises and Cromo is deployed to AWS, Drizzle ORM migrations will take over. The Drizzle table definitions live in `apps/backend/src/db/schema.ts` and are kept in sync with `schema.sql` so the future migration is mechanical.
+Things Drizzle's generator can't infer — PL/pgSQL functions, triggers, views — live in a hand-written migration (`0001_functions_triggers_views.sql`) with a matching journal entry and snapshot.
+
+Catalog seed data (album types, editions, formats, scan prompt) lives in `scripts/seeds/00_album_catalog.sql` and is applied by `pnpm db:seed`, not by the migration system.
 
 ```sql
 -- USERS ───────────────────────────────────────────────────
@@ -283,32 +285,44 @@ CREATE TABLE user_bans (
 
 ## 7.3 Schema Management
 
-### Phase A — Single `schema.sql`
+Drizzle migrations are the source of truth. Layout:
 
 ```
 apps/backend/src/db/
-  schema.sql       # Source of truth: every CREATE TABLE / INDEX / FUNCTION + idempotency guards
-  schema.ts        # Drizzle table definitions kept in sync, used for type-safe queries
-  migrate.ts       # runMigrations(): reads schema.sql and pool.query()s it at API startup
+  schema.ts                          # Drizzle table definitions — source of truth for DDL
+  migrate.ts                         # runMigrations(): calls drizzle's migrate() at API startup
+  migrations/
+    0000_<auto-tag>.sql              # Generated baseline DDL
+    0001_functions_triggers_views.sql  # Hand-written: plpgsql functions, triggers, views
+    meta/
+      _journal.json                  # Ordered list of migrations Drizzle should apply
+      0000_snapshot.json             # Schema snapshot used by drizzle-kit generate for diffing
+      0001_snapshot.json
 ```
 
-To change the schema in Phase A: edit `schema.sql` directly, and mirror the change in
-`schema.ts` so the Drizzle-typed services keep compiling. Apply with `pnpm db:migrate`
-(or just restart the API — startup applies the file automatically).
+To change the schema:
+1. Edit `schema.ts`.
+2. Generate the migration:
+   ```bash
+   docker compose -f infrastructure/docker/docker-compose.yml exec api \
+     sh -c "cd /app/apps/backend && npx drizzle-kit generate --config=drizzle.config.ts"
+   ```
+3. For anything Drizzle can't infer (PL/pgSQL, triggers, views), add a hand-written `NNNN_*.sql` file, append a journal entry, and add a placeholder `meta/NNNN_snapshot.json` (copy the previous snapshot, refresh `id`/`prevId`).
+4. Apply:
+   ```bash
+   pnpm db:migrate
+   ```
+   The API also runs `migrate()` at startup, so a redeploy will pick up new migrations automatically.
 
 Commands:
 ```bash
-pnpm db:migrate    # apply schema.sql to the local database
-pnpm db:reset      # drop public schema then re-apply (destructive)
+pnpm db:generate   # drizzle-kit generate (creates a new NNNN migration from schema.ts diff)
+pnpm db:migrate    # apply pending migrations
+pnpm db:reset      # drop public schema then re-apply (destructive — dev only)
 pnpm db:studio     # open Drizzle Studio (visual database browser)
 ```
 
-### Phase B — Drizzle migrations (planned)
-
-When Cromo is deployed to AWS and the schema has stabilised, Phase B will introduce
-Drizzle ORM migrations (`apps/backend/src/db/migrations/`) generated via `pnpm db:generate`.
-At that point `schema.sql` is retired and migrations become the source of truth — but only
-once destructive replays against a real database become unacceptable.
+Drizzle bookkeeping lives in the `drizzle.__drizzle_migrations` table; every applied migration is recorded with a SHA-256 hash of its SQL, so re-applying a modified migration will fail loudly rather than corrupt schema state.
 
 ## 7.4 Redis Cache
 

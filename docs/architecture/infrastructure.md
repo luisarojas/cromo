@@ -73,7 +73,20 @@ All personal data stored in Canada. PIPEDA-compliant by default. Secondary regio
 
 ### 19.2 Domain & DNS
 
-Register domain via AWS Route 53 or Namecheap (~$15–20 CAD/year for `.ca`). DNS via Route 53 with DNSSEC. SSL/TLS via AWS Certificate Manager (free, auto-renewing).
+**Production domain: `cromotrade.ca`** — registered through Namecheap (May 2026). Authoritative DNS lives in **Route 53**: a hosted zone for `cromotrade.ca` is created in AWS, and the four `ns-*.awsdns-*` records returned by AWS are set as the custom nameservers at Namecheap. This keeps every DNS record in Terraform without paying to transfer the registration. DNSSEC is enabled on the Route 53 hosted zone.
+
+SSL/TLS certificates are issued via AWS Certificate Manager in `ca-central-1` for use with the ALB (free, auto-renewing). DNS validation is automatic because the hosted zone is in the same AWS account.
+
+Environment subdomains:
+- `cromotrade.ca` → production
+- `staging.cromotrade.ca` → staging
+- `dev.cromotrade.ca` → dev
+
+### 19.2.1 AWS Account & Budget
+
+- **Region:** `ca-central-1` (Montréal). All resources and Terraform providers default here.
+- **Root account:** MFA enabled. Day-to-day work uses an IAM admin user (or Identity Center) — root credentials are not used after initial setup.
+- **Budget alert:** $50 USD/month (configured in AWS Budgets). The spec's launch estimate is ~$55–61/month, so the alert is intentionally tight — it will fire as soon as a full environment is running. Treat it as a tripwire, not a headroom buffer. Raise it before standing up staging or production.
 
 ### 19.3 Infrastructure as Code: Terraform
 

@@ -32,8 +32,16 @@ Rules to follow:
 
 If both `setSerializerCompiler` and `setReplySerializer` need to be kept in sync (e.g. when changing the casing strategy), update both — losing one silently regresses every route on the wrong side of the schema/no-schema split.
 
-### Single Schema File — No Migration Files
-The database schema lives entirely in `apps/backend/src/db/schema.sql`. There are no incremental migration files. When schema changes are needed, edit `schema.sql` directly. The backend applies it at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`, which simply executes the file against the database. Every table and index uses `IF NOT EXISTS`, functions use `CREATE OR REPLACE`, and seed inserts use `ON CONFLICT`, so the file is safe to re-run on an existing database.
+### Drizzle Migrations — Single Migrations Folder
+The database schema is managed by Drizzle ORM. The Drizzle table definitions live in `apps/backend/src/db/schema.ts`; migration SQL files live in `apps/backend/src/db/migrations/` (alongside a `meta/_journal.json` index and per-migration snapshots). The backend applies pending migrations at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`, which delegates to Drizzle's `migrate()` and writes its bookkeeping into a `drizzle.__drizzle_migrations` table on the target DB.
+
+To change the schema:
+1. Edit `apps/backend/src/db/schema.ts`.
+2. Generate a migration: `docker compose -f infrastructure/docker/docker-compose.yml exec api sh -c "cd /app/apps/backend && npx drizzle-kit generate --config=drizzle.config.ts"`.
+3. Review the generated SQL in `src/db/migrations/`. For things Drizzle can't infer (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` file and add a matching entry to `meta/_journal.json` plus a placeholder `meta/NNNN_snapshot.json` (copy the previous snapshot, refresh `id`/`prevId`).
+4. Apply: `pnpm db:migrate` (via docker compose exec). On the next API startup the migration is also applied automatically.
+
+Catalog seed data (album types, editions, formats, scan prompts) lives in `scripts/seeds/00_album_catalog.sql` and is loaded by `pnpm db:seed`, not by the migration system.
 
 ### Sticker Types & Rarities — Source of Truth
 

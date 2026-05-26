@@ -26,6 +26,9 @@ const envSchema = z.object({
   COGNITO_USER_POOL_ID: z.string().optional(),
   COGNITO_CLIENT_ID: z.string().optional(),
   COGNITO_REGION: z.string().default('ca-central-1'),
+  // Cognito JWT `token_use` claim to accept. "access" for API auth (default);
+  // "id" if the frontend sends ID tokens instead.
+  COGNITO_TOKEN_USE: z.enum(['access', 'id']).default('access'),
 
   // Email / Nodemailer
   SMTP_HOST: z.string().default('localhost'),

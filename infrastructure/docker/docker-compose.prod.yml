@@ -1,0 +1,84 @@
+# Production docker-compose, applied on the EC2 host (Phase B1 EC2 + Docker
+# Compose architecture — see ADR-0001). All persistent state lives in managed
+# AWS services (RDS, ElastiCache, S3, SES); the host stays stateless.
+#
+# Image tags are injected by the deploy pipeline:
+#   IMAGE_TAG=<git-sha> ECR_REGISTRY=<account>.dkr.ecr.ca-central-1.amazonaws.com
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Secrets and per-environment config come from /etc/cromo/cromo.env on the
+# host, which is rendered from AWS Secrets Manager by the user-data script.
+
+services:
+
+  api:
+    image: ${ECR_REGISTRY}/cromo-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file:
+      - /etc/cromo/cromo.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      AUTH_MODE: cognito
+      JOBS_MODE: enabled
+    ports:
+      - "3001:3001"
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.5"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ca-central-1
+        awslogs-group: /cromo/${CROMO_ENV}/api
+        awslogs-create-group: "true"
+
+  frontend:
+    image: ${ECR_REGISTRY}/cromo-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file:
+      - /etc/cromo/cromo.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.0"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ca-central-1
+        awslogs-group: /cromo/${CROMO_ENV}/frontend
+        awslogs-create-group: "true"

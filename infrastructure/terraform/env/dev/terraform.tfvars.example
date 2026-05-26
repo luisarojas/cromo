@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in. Never commit terraform.tfvars.
+
+account_id   = "123456789012"
+apex_domain  = "cromotrade.ca"
+ecr_registry = "123456789012.dkr.ecr.ca-central-1.amazonaws.com"
+alert_email  = "alerts@example.com"
+
+# Generate with: openssl rand -base64 32
+jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
+
+# 'mock' keeps the dev environment off real Groq API calls.
+groq_api_key = "mock"

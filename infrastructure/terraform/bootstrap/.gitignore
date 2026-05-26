@@ -1,0 +1,4 @@
+*.tfstate
+*.tfstate.*
+.terraform/
+# .terraform.lock.hcl is intentionally NOT ignored — pin provider versions.

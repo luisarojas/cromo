@@ -1,0 +1,6 @@
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+# .terraform.lock.hcl is intentionally NOT ignored — committing it pins
+# provider versions across machines per HashiCorp's recommendation.

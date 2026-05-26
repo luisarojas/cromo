@@ -1,20 +1,24 @@
 import { Pool } from 'pg';
-import { readFile } from 'node:fs/promises';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from '../env.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Resolves to .../src/db/migrations in dev (ts-source) and .../dist/db/migrations
+// in the production image — the Dockerfile copies the migrations dir into
+// dist/ so the same relative path works either way.
+const MIGRATIONS_FOLDER = path.resolve(__dirname, 'migrations');
+
 export async function runMigrations(pool: Pool): Promise<void> {
-  const schemaPath = path.resolve(__dirname, 'schema.sql');
+  console.log('[migrate] Applying Drizzle migrations from:', MIGRATIONS_FOLDER);
 
-  console.log('[migrate] Applying schema from:', schemaPath);
+  const db = drizzle(pool);
+  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 
-  const sql = await readFile(schemaPath, 'utf8');
-  await pool.query(sql);
-
-  console.log('[migrate] Schema applied.');
+  console.log('[migrate] Migrations applied.');
 }
 
 // Allow running directly: tsx src/db/migrate.ts

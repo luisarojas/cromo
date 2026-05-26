@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
 import { env } from '../env.js';
+import { verifyCognitoJwt } from './cognito.js';
 
 export interface JwtPayload {
   sub: string;       // user ID
@@ -32,15 +33,6 @@ export async function verifyToken(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  if (env.AUTH_MODE === 'cognito') {
-    return reply.status(501).send({
-      statusCode: 501,
-      error: 'Not Implemented',
-      message: 'Cognito authentication is not yet implemented (Phase B).',
-    });
-  }
-
-  // AUTH_MODE === 'local'
   const token = extractBearerToken(request);
 
   if (!token) {
@@ -51,6 +43,24 @@ export async function verifyToken(
     });
   }
 
+  if (env.AUTH_MODE === 'cognito') {
+    try {
+      const claims = await verifyCognitoJwt(token);
+      request.userId = claims.sub;
+      request.userEmail = claims.email;
+      request.userRole = claims.role;
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid Cognito token.';
+      return reply.status(401).send({
+        statusCode: 401,
+        error: 'Unauthorized',
+        message,
+      });
+    }
+  }
+
+  // AUTH_MODE === 'local'
   let payload: JwtPayload;
   try {
     payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;

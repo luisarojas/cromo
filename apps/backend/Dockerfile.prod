@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1.7
+
+# ─── Builder ──────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@10.33.3 --activate
+
+WORKDIR /app
+
+# Workspace manifests — copied first so dependency install layer caches well.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
+COPY apps/backend/package.json ./apps/backend/
+
+RUN pnpm install --frozen-lockfile
+
+# Sources
+COPY packages/shared/ ./packages/shared/
+COPY apps/backend/ ./apps/backend/
+
+# Compile TypeScript → dist/. Backend imports from @cromo/shared are type-only,
+# so tsc strips them at build time and runtime needs no shared JS artefact.
+RUN pnpm --filter @cromo/backend build
+
+# Prune devDependencies for the runtime image.
+RUN pnpm --filter @cromo/backend --prod deploy /deploy/backend
+
+
+# ─── Runtime ──────────────────────────────────────────────────────────────────
+FROM node:22-alpine AS runtime
+
+# Health-check uses node fetch — no curl needed. tini gives us proper PID 1
+# signal handling so SIGTERM from the orchestrator actually reaches Node.
+RUN apk add --no-cache tini
+
+ENV NODE_ENV=production
+ENV PORT=3001
+ENV HOST=0.0.0.0
+
+WORKDIR /app
+
+# pnpm deploy produced a self-contained app dir with hoisted node_modules.
+COPY --from=builder /deploy/backend/node_modules ./node_modules
+COPY --from=builder /deploy/backend/package.json ./package.json
+COPY --from=builder /app/apps/backend/dist ./dist
+
+# Drizzle migration SQL is read at startup by migrate.ts; the migrations
+# folder is plain SQL files plus a journal — keep them next to the compiled
+# JS so the relative path resolution in dist/db/migrate.js still works.
+COPY --from=builder /app/apps/backend/src/db/migrations ./dist/db/migrations
+
+# Run as non-root.
+RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
+USER app
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/server.js"]

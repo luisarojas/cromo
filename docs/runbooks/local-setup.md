@@ -33,9 +33,8 @@ cp .env.example .env.local      # defaults work for local dev — no edits neede
 # Start everything in the background
 docker compose -f infrastructure/docker/docker-compose.yml up -d
 
-# Apply schema.sql and seed all sticker / variant / user data.
-# Phase A: pnpm db:migrate executes apps/backend/src/db/schema.sql once;
-# the API also does this at startup.
+# Apply Drizzle migrations and seed all sticker / variant / user data.
+# The API also runs migrations at startup, so db:migrate is optional here.
 pnpm db:migrate && pnpm db:seed
 ```
 
