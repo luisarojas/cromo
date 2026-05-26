@@ -1,6 +1,6 @@
 {
-  "id": "1b4b0855-9d5c-4819-8ad4-8723b67d232d",
-  "prevId": "9791a790-7aa3-41d8-a787-2536eb1b36e2",
+  "id": "2c81b90c-a1af-4d21-9ac5-d86f5f07c29f",
+  "prevId": "09e34698-d6f0-4064-a026-2f534b3db435",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -340,6 +340,12 @@
         },
         "guide_path": {
           "name": "guide_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scan_prompt": {
+          "name": "scan_prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -791,6 +797,106 @@
           "nullsNotDistinct": false,
           "columns": [
             "share_token"
+          ]
+        }
+      }
+    },
+    "public.push_subscriptions": {
+      "name": "push_subscriptions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_push_subscriptions_user_id": {
+          "name": "idx_push_subscriptions_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "push_subscriptions_user_id_users_id_fk": {
+          "name": "push_subscriptions_user_id_users_id_fk",
+          "tableFrom": "push_subscriptions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "push_subscriptions_user_id_endpoint_key": {
+          "name": "push_subscriptions_user_id_endpoint_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "endpoint"
           ]
         }
       }
@@ -1385,13 +1491,20 @@
           "name": "sender_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "body": {
           "name": "body",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_system": {
+          "name": "is_system",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "sent_at": {
           "name": "sent_at",

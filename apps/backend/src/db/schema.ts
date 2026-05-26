@@ -46,6 +46,7 @@ export const albumTypes = pgTable('album_types', {
   key: text('key').unique().notNull(),
   name: text('name').notNull(),
   guidePath: text('guide_path'),
+  scanPrompt: text('scan_prompt'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 });
 
@@ -398,12 +399,32 @@ export const tradeItems = pgTable('trade_items', {
 export const tradeMessages = pgTable('trade_messages', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tradeId: uuid('trade_id').notNull().references(() => tradeRequests.id, { onDelete: 'cascade' }),
-  senderId: uuid('sender_id').notNull().references(() => users.id),
+  // Nullable so a deleted user's messages survive with a tombstone sender.
+  senderId: uuid('sender_id').references(() => users.id),
   body: text('body').notNull(),
+  isSystem: boolean('is_system').notNull().default(false),
   sentAt: timestamp('sent_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
   tradeIdIdx: index('idx_trade_messages_trade_id').on(table.tradeId, table.sentAt),
   bodyCheck: check('trade_messages_body_check', sql`char_length(${table.body}) BETWEEN 1 AND 2000`),
+}));
+
+// ─── push_subscriptions ───────────────────────────────────────────────────────
+// Web Push (VAPID) endpoints per user device. A user can have multiple rows
+// (phone + laptop + tablet).
+
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  userEndpointUnique: unique('push_subscriptions_user_id_endpoint_key').on(table.userId, table.endpoint),
+  userIdIdx: index('idx_push_subscriptions_user_id').on(table.userId),
 }));
 
 // ─── public_lists ─────────────────────────────────────────────────────────────
@@ -568,4 +589,6 @@ export type NewUserWantedVariant = typeof userWantedVariants.$inferInsert;
 export type TradeRequest = typeof tradeRequests.$inferSelect;
 export type TradeItem = typeof tradeItems.$inferSelect;
 export type TradeMessage = typeof tradeMessages.$inferSelect;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 export type AuditLogEntry = typeof auditLog.$inferSelect;

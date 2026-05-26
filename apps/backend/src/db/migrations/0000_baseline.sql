@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "album_types" (
 	"key" text NOT NULL,
 	"name" text NOT NULL,
 	"guide_path" text,
+	"scan_prompt" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "album_types_key_unique" UNIQUE("key")
 );
@@ -86,6 +87,18 @@ CREATE TABLE IF NOT EXISTS "public_lists" (
 	"expires_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "public_lists_share_token_unique" UNIQUE("share_token")
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "push_subscriptions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"endpoint" text NOT NULL,
+	"p256dh" text NOT NULL,
+	"auth" text NOT NULL,
+	"user_agent" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "push_subscriptions_user_id_endpoint_key" UNIQUE("user_id","endpoint")
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "sticker_album_pages" (
@@ -152,8 +165,9 @@ CREATE TABLE IF NOT EXISTS "trade_items" (
 CREATE TABLE IF NOT EXISTS "trade_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"trade_id" uuid NOT NULL,
-	"sender_id" uuid NOT NULL,
+	"sender_id" uuid,
 	"body" text NOT NULL,
+	"is_system" boolean DEFAULT false NOT NULL,
 	"sent_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -347,6 +361,12 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "public_lists" ADD CONSTRAINT "public_lists_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -582,6 +602,7 @@ CREATE INDEX IF NOT EXISTS "idx_audit_log_user_id_occurred_at" ON "audit_log" US
 CREATE INDEX IF NOT EXISTS "idx_consent_records_user_id_type" ON "consent_records" USING btree ("user_id","consent_type");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_email_verification_tokens_user_id" ON "email_verification_tokens" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_password_reset_tokens_user_id" ON "password_reset_tokens" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_push_subscriptions_user_id" ON "push_subscriptions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_sticker_album_pages_sticker_id" ON "sticker_album_pages" USING btree ("sticker_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "sticker_variants_sticker_id_variant_type_unique" ON "sticker_variants" USING btree ("sticker_id","variant_type");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_sticker_variants_sticker_id" ON "sticker_variants" USING btree ("sticker_id");--> statement-breakpoint

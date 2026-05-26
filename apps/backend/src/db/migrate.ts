@@ -21,14 +21,30 @@ export async function runMigrations(pool: Pool): Promise<void> {
   console.log('[migrate] Migrations applied.');
 }
 
-// Allow running directly: tsx src/db/migrate.ts
+// Drops public + drizzle schemas so the next migrate run starts from scratch.
+// Dev-only — refuses to touch a DB whose URL doesn't look local.
+async function resetSchema(pool: Pool): Promise<void> {
+  if (env.NODE_ENV === 'production') {
+    throw new Error('[migrate] --reset is disabled in production');
+  }
+  console.log('[migrate] DROPPING public + drizzle schemas (destructive!)');
+  await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
+  await pool.query('DROP SCHEMA IF EXISTS drizzle CASCADE');
+  await pool.query('CREATE SCHEMA public');
+}
+
+// Allow running directly: tsx src/db/migrate.ts [--reset]
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const shouldReset = process.argv.includes('--reset');
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
     max: 1,
   });
 
-  runMigrations(pool)
+  (async () => {
+    if (shouldReset) await resetSchema(pool);
+    await runMigrations(pool);
+  })()
     .then(() => {
       console.log('[migrate] Done.');
       process.exit(0);
