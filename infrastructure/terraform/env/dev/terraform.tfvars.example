@@ -10,3 +10,7 @@ jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
 
 # 'mock' keeps the dev environment off real Groq API calls.
 groq_api_key = "mock"
+
+# GitHub repo slug allowed to assume the deploy role (OIDC). Dev trusts
+# pushes to main.
+github_repo = "Luisarojas/cromo"

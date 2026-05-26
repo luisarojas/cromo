@@ -168,3 +168,16 @@ module "scheduling" {
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
 }
+
+# ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────
+# Dev trusts every push to main. See modules/cicd/variables.tf for the sub
+# pattern syntax.
+
+module "cicd" {
+  source = "../../modules/cicd"
+  env    = local.env
+  github_sub_patterns = [
+    "repo:${var.github_repo}:ref:refs/heads/main",
+  ]
+  uploads_bucket_arn = module.storage.uploads_bucket_arn
+}

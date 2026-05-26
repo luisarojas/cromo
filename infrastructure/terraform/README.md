@@ -18,6 +18,8 @@ infrastructure/terraform/
     dns/                 # Route 53 hosted zone + ALB alias records
     ses/                 # SES domain identity + DKIM
     secrets/             # Secrets Manager entries
+    scheduling/          # EventBridge + ASG schedules (dev business-hours shutoff)
+    cicd/                # GitHub Actions deploy IAM role (per env)
   env/
     dev/                 # Dev environment — dev.cromotrade.ca, business-hours schedule, mock Groq
     prod/                # Prod environment — cromotrade.ca, multi-AZ RDS, deletion protection, real Groq

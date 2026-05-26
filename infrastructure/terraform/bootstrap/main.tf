@@ -85,6 +85,18 @@ resource "aws_ecr_repository" "frontend" {
   }
 }
 
+# ─── GitHub OIDC provider ─────────────────────────────────────────────────────
+# Account-scoped, one per AWS account. Per-env IAM roles trust this provider
+# and gate access via the `sub` claim (repo + branch/tag pattern).
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+  # AWS validates the OIDC token via the cert chain, but the API requires at
+  # least one thumbprint. GitHub's has been stable since 2023.
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
 # Keep only the 20 most-recent images per repo to control storage cost.
 resource "aws_ecr_lifecycle_policy" "backend" {
   repository = aws_ecr_repository.backend.name

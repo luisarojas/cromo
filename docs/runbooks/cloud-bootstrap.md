@@ -147,16 +147,30 @@ aws secretsmanager get-secret-value \
 
 ## 7. Wire CI/CD
 
+The OIDC provider and the per-env IAM role are both provisioned by Terraform — bootstrap creates the account-wide GitHub OIDC provider, and `modules/cicd/` creates the env-scoped role. Dev's role only trusts pushes to `main`; prod's only trusts `v*` tag pushes.
+
+Collect the four GitHub secret values from Terraform outputs:
+
+```bash
+cd infrastructure/terraform/env/dev
+terraform output github_actions_deploy_role_arn   # → AWS_DEPLOY_ROLE_ARN
+terraform output uploads_bucket                   # → DEV_S3_BUCKET
+# ECR_REGISTRY = first segment of `terraform output -raw ecr_backend_url`
+# DEV_ASG_NAME = "cromo-dev-app" (hard-coded in env/dev/main.tf)
+```
+
 In GitHub repo settings → Secrets and variables → Actions, add:
 
 | Secret              | Value |
 |---------------------|-------|
-| `AWS_DEPLOY_ROLE_ARN` | ARN of an IAM role with `AssumeRoleWithWebIdentity` trust on the GitHub OIDC provider, granted ECR push, S3 write to the deploy prefix, and `ssm:SendCommand` |
+| `AWS_DEPLOY_ROLE_ARN` | `github_actions_deploy_role_arn` output |
 | `ECR_REGISTRY`        | `<account>.dkr.ecr.ca-central-1.amazonaws.com` |
 | `DEV_ASG_NAME`        | `cromo-dev-app` |
-| `DEV_S3_BUCKET`       | Terraform output `uploads_bucket` |
+| `DEV_S3_BUCKET`       | `uploads_bucket` output |
 
 The first push to `main` after that triggers `.github/workflows/deploy-dev.yml`, which builds, pushes, and SSM-runs `docker compose pull && up -d` on the instance.
+
+> **Trust-policy gotcha.** The role's trust is scoped via the OIDC `sub` claim to one repo and one ref pattern. If you fork the repo or rename it, update `github_repo` in `terraform.tfvars` and re-apply — otherwise STS will reject the assume call with `AccessDenied`.
 
 ## 8. Smoke test
 

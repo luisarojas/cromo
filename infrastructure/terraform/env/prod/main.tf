@@ -173,3 +173,16 @@ module "scheduling" {
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
 }
+
+# ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────
+# Prod trusts only v-prefix tag pushes — `git tag v1.0.0 && git push --tags`.
+# Pushes to main can't assume this role; that's deliberate.
+
+module "cicd" {
+  source = "../../modules/cicd"
+  env    = local.env
+  github_sub_patterns = [
+    "repo:${var.github_repo}:ref:refs/tags/v*",
+  ]
+  uploads_bucket_arn = module.storage.uploads_bucket_arn
+}

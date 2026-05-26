@@ -35,3 +35,8 @@ variable "groq_api_key" {
   type        = string
   default     = "mock"
 }
+
+variable "github_repo" {
+  description = "GitHub repo slug (`owner/name`) that's allowed to assume the deploy role via OIDC."
+  type        = string
+}
