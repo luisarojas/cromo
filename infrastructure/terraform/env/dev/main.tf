@@ -150,6 +150,20 @@ module "monitoring" {
   env                = local.env
   log_retention_days = 7
   alert_email        = var.alert_email
-  db_identifier      = "cromo-${local.env}-db"
+  db_identifier      = module.database.identifier
   alb_arn_suffix     = module.compute.alb_arn_suffix
+}
+
+# ─── Business-hours schedule (dev only) ───────────────────────────────────────
+# Scales the ASG to 0 and stops RDS outside Mon-Fri 08:00-19:00 ET, cutting
+# dev cost from ~$55-60/mo to ~$20-25/mo. See infrastructure.md §19.2.2.
+# MUST stay disabled for prod.
+
+module "scheduling" {
+  source        = "../../modules/scheduling"
+  env           = local.env
+  enable        = true
+  asg_name      = module.compute.asg_name
+  db_identifier = module.database.identifier
+  db_arn        = module.database.arn
 }

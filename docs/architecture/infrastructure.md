@@ -102,7 +102,7 @@ The dev environment is scheduled **down outside business hours** to keep dev cos
 | Mon–Fri 19:00 ET | EC2 ASG scaled to 0, RDS stopped |
 | Sat / Sun | Down all day |
 
-Implementation: `aws_autoscaling_schedule` on the dev ASG plus EventBridge Scheduler universal targets calling `rds:StopDBInstance` / `rds:StartDBInstance`. Both are gated on a `enable_business_hours_schedule` Terraform variable that defaults to `true` for dev and **must be `false` for prod**.
+Implementation lives in `infrastructure/terraform/modules/scheduling/`: three `aws_autoscaling_schedule` resources (up, down, weekend safety-net) plus two `aws_scheduler_schedule` resources calling `rds:StartDBInstance` / `rds:StopDBInstance` via EventBridge Scheduler universal targets, with a scoped IAM role. The whole module is gated on an `enable` variable that defaults to `true` for dev and **must be `false` in the prod env config**.
 
 ALB, NAT Gateway, and ElastiCache stay up — stopping them either breaks DNS or doesn't save money (NAT bills per AZ-hour regardless of traffic).
 
