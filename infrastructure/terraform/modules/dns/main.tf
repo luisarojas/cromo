@@ -5,29 +5,16 @@ terraform {
   }
 }
 
-# The hosted zone is created once, at the apex domain, and re-used across
-# environments. Subdomain records (dev.cromotrade.ca, staging.cromotrade.ca)
-# all live inside it. Pass create_zone=false from staging/prod so they don't
-# try to recreate it.
-
-resource "aws_route53_zone" "apex" {
-  count = var.create_zone ? 1 : 0
-  name  = var.apex_domain
-}
+# This module assumes the hosted zone already exists (provisioned by
+# env/shared). It looks the zone up by name and writes a single A-alias
+# record pointing this env's hostname at the env's ALB.
 
 data "aws_route53_zone" "apex" {
-  count = var.create_zone ? 0 : 1
-  name  = var.apex_domain
+  name = var.apex_domain
 }
-
-locals {
-  zone_id = var.create_zone ? aws_route53_zone.apex[0].zone_id : data.aws_route53_zone.apex[0].zone_id
-}
-
-# Alias the environment hostname at the ALB.
 
 resource "aws_route53_record" "app" {
-  zone_id = local.zone_id
+  zone_id = data.aws_route53_zone.apex.zone_id
   name    = var.hostname
   type    = "A"
 

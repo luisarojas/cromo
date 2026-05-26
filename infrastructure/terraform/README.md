@@ -21,9 +21,12 @@ infrastructure/terraform/
     scheduling/          # EventBridge + ASG schedules (dev business-hours shutoff)
     cicd/                # GitHub Actions deploy IAM role (per env)
   env/
+    shared/              # Account-wide: Route 53 hosted zone + SES domain identity. Outlives any env.
     dev/                 # Dev environment — dev.cromotrade.ca, business-hours schedule, mock Groq
     prod/                # Prod environment — cromotrade.ca, multi-AZ RDS, deletion protection, real Groq
 ```
+
+Compositions are deliberately decoupled: `shared/` owns the resources that survive an env nuke (hosted zone, SES identity), so `terraform destroy` on dev or prod is safe even when both exist. See `docs/runbooks/cloud-recreate.md` for the nuke + recreate flow.
 
 ## Region
 
@@ -40,13 +43,18 @@ Remote state is stored in an S3 bucket with a DynamoDB lock table. Both are prov
 ## First-time setup
 
 ```bash
-# 1. Apply the bootstrap (creates state bucket, lock table, ECR repos).
+# 1. Apply the bootstrap (creates state bucket, lock table, ECR repos, OIDC).
 cd infrastructure/terraform/bootstrap
 terraform init
 terraform apply
 
-# 2. Apply the dev environment.
-cd ../env/dev
+# 2. Apply the shared composition (hosted zone, SES identity).
+cd ../env/shared
+terraform init
+terraform apply
+
+# 3. Apply the dev environment.
+cd ../dev
 terraform init
 terraform apply
 ```

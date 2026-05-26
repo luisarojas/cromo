@@ -35,12 +35,11 @@ module "networking" {
 }
 
 # ─── DNS ──────────────────────────────────────────────────────────────────────
-# Dev's terraform state owns the hosted zone; prod just looks it up.
+# Hosted zone is owned by env/shared; this looks it up.
 
 module "dns" {
   source       = "../../modules/dns"
   apex_domain  = var.apex_domain
-  create_zone  = false
   hostname     = local.hostname
   alb_dns_name = module.compute.alb_dns_name
   alb_zone_id  = module.compute.alb_zone_id
@@ -83,14 +82,9 @@ module "storage" {
   deletion_protection  = true
 }
 
-# ─── SES ──────────────────────────────────────────────────────────────────────
-# Domain identity is one per AWS account, so prod and dev share it. The first
-# env to apply created it; subsequent applies are a no-op as long as the
-# domain hasn't been deleted. Either env can re-render the DNS records
-# idempotently. NOTE: only one Terraform state should "own" the SES identity
-# to avoid resource conflicts — we let dev own it. Skip the module here.
-
 # ─── Cognito ──────────────────────────────────────────────────────────────────
+# SES identity lives in env/shared (account-wide). Referenced via deterministic
+# ARN so we don't need a cross-state data source.
 
 module "auth" {
   source              = "../../modules/auth"

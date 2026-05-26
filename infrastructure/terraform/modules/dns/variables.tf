@@ -1,16 +1,10 @@
 variable "apex_domain" {
-  description = "Apex registered domain — for Cromo this is cromotrade.ca."
+  description = "Apex registered domain. The hosted zone is provisioned by env/shared; this module just looks it up."
   type        = string
 }
 
-variable "create_zone" {
-  description = "Create the hosted zone (only true in the first env that runs)."
-  type        = bool
-  default     = false
-}
-
 variable "hostname" {
-  description = "Fully-qualified hostname to point at the ALB (e.g. dev.cromotrade.ca)."
+  description = "Fully-qualified hostname to point at this env's ALB (e.g. dev.cromotrade.ca)."
   type        = string
 }
 

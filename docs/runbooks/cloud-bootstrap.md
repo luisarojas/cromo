@@ -22,7 +22,7 @@ export AWS_PROFILE=cromo
 export AWS_REGION=ca-central-1
 ```
 
-## 1. Apply the bootstrap (state bucket, lock table, ECR repos)
+## 1. Apply the bootstrap (state bucket, lock table, ECR repos, OIDC)
 
 ```bash
 cd infrastructure/terraform/bootstrap
@@ -32,33 +32,26 @@ terraform apply \
 ```
 
 Outputs to keep handy:
-- `tfstate_bucket` — paste into `env/dev/backend.tf` (replace `REPLACE_WITH_ACCOUNT_ID`)
+- `tfstate_bucket` — paste into every `env/*/backend.tf` (replace `REPLACE_WITH_ACCOUNT_ID`)
 - `ecr_backend_url` / `ecr_frontend_url` — strip the trailing repo name; the registry-only host (e.g. `123456789012.dkr.ecr.ca-central-1.amazonaws.com`) goes into `ecr_registry` in `terraform.tfvars`
 
-## 2. Apply the dev environment
+## 2. Apply the shared composition (hosted zone, SES identity)
 
 ```bash
-cd ../env/dev
+cd ../env/shared
 cp terraform.tfvars.example terraform.tfvars
-# Fill in account_id, ecr_registry, alert_email, jwt_secret (openssl rand -base64 32)
+# Fill in dmarc_report_email
 
 terraform init
 terraform apply
 ```
 
-This provisions: VPC, subnets, security groups, NAT, ALB + ACM cert, EC2 (in a 1-node ASG), RDS Postgres, ElastiCache Redis, S3 uploads bucket, Cognito user pool, SES domain identity + DKIM, Secrets Manager entry, CloudWatch log groups + SNS alarm topic, and the Route 53 hosted zone for `cromotrade.ca`.
+This composition owns the resources that outlive any specific env — the Route 53 hosted zone for `cromotrade.ca` and the SES domain identity + DKIM + SPF + DMARC records. Both dev and prod look them up by name / deterministic ARN, so `terraform destroy` on either env is safe with this in place.
 
-> **Cost reality check.** A full dev environment running 24/7 costs roughly $55–60 USD/month (RDS $15, ElastiCache $12, EC2 $15, ALB $8, NAT $3, plus a few cents of CloudWatch/Secrets/S3). The business-hours schedule (`docs/architecture/infrastructure.md` §19.2.2) brings that to roughly $20–25/month by stopping the ASG and RDS instance nights + weekends. The $75 budget alert is sized to fit that scheduled-dev footprint plus prod.
+Grab the nameservers immediately — propagation runs in parallel with the rest of the setup:
 
-## 3. Delegate DNS at Namecheap
-
-Terraform output `route53_nameservers` gives four hostnames like:
-
-```
-ns-1234.awsdns-12.org
-ns-567.awsdns-34.com
-ns-890.awsdns-56.net
-ns-1111.awsdns-78.co.uk
+```bash
+terraform output route53_nameservers
 ```
 
 Log into Namecheap → `cromotrade.ca` → Domain → Nameservers → set to **Custom DNS** and paste all four. Propagation takes 10 minutes to a few hours. Verify with:
@@ -67,7 +60,22 @@ Log into Namecheap → `cromotrade.ca` → Domain → Nameservers → set to **C
 dig +short NS cromotrade.ca
 ```
 
-Until propagation completes, ACM certificate validation will be pending and the ALB listener won't be reachable on HTTPS.
+Until propagation completes, ACM certificate validation in step 3 will be pending and the ALB listener won't be reachable on HTTPS.
+
+## 3. Apply the dev environment
+
+```bash
+cd ../dev
+cp terraform.tfvars.example terraform.tfvars
+# Fill in account_id, ecr_registry, alert_email, jwt_secret (openssl rand -base64 32), github_repo
+
+terraform init
+terraform apply
+```
+
+This provisions: VPC, subnets, security groups, NAT, ALB + ACM cert, EC2 (in a 1-node ASG), RDS Postgres, ElastiCache Redis, S3 uploads bucket, Cognito user pool, Secrets Manager entry, CloudWatch log groups + SNS alarm topic, and the env-specific `dev.cromotrade.ca` alias record in the shared hosted zone.
+
+> **Cost reality check.** A full dev environment running 24/7 costs roughly $55–60 USD/month (RDS $15, ElastiCache $12, EC2 $15, ALB $8, NAT $3, plus a few cents of CloudWatch/Secrets/S3). The business-hours schedule (`docs/architecture/infrastructure.md` §19.2.2) brings that to roughly $20–25/month by stopping the ASG and RDS instance nights + weekends. The $75 budget alert is sized to fit that scheduled-dev footprint plus prod.
 
 ## 4. Verify SES domain & request production access
 
@@ -149,10 +157,10 @@ If anything is red, the logs land in CloudWatch:
 
 ## 8. Standing up prod
 
-Once dev is healthy and you're ready for Phase B3, prod uses the same modules with different inputs. The workflow is the same as §2–7, with these differences:
+Once dev is healthy and you're ready for Phase B3, prod uses the same modules with different inputs. The workflow is the same as §3–7, with these differences:
 
-- **Run dev first.** Prod's DNS module is configured with `create_zone = false` — it looks up the existing `cromotrade.ca` hosted zone created by the dev `terraform apply`. Applying prod before dev will fail at the DNS lookup.
-- **SES identity is shared.** SES domain identities are AWS-account-scoped, so dev already verified `cromotrade.ca`. Prod's `env/prod/main.tf` deliberately does NOT include the SES module — it just references the existing identity ARN. Don't add a duplicate SES module.
+- **Shared comes first.** Both envs assume `env/shared` is already applied. If you got dev running, you already did this — no extra step. Prod can be applied without dev existing.
+- **SES identity is shared.** Lives in `env/shared`; prod just references it by deterministic ARN. Don't add a duplicate SES module to prod.
 - **Sandbox exit is a prerequisite, not a post-launch task.** Follow §4 to leave the SES sandbox *before* prod accepts sign-ups, otherwise verification emails won't reach real users.
 - **terraform.tfvars values change.** Real `groq_api_key` (not `mock`), on-call distribution for `alert_email`, fresh `jwt_secret`. Copy `env/prod/terraform.tfvars.example` and treat it as a launch checklist.
 - **Backend state is separate.** Replace `REPLACE_WITH_ACCOUNT_ID` in `env/prod/backend.tf` with your account ID, then `terraform init`.
@@ -161,11 +169,6 @@ Once dev is healthy and you're ready for Phase B3, prod uses the same modules wi
 - **CI deploy needs a second workflow.** `.github/workflows/deploy-dev.yml` only targets dev. Copy it to `deploy-prod.yml` and trigger on a tag push (`v*`) rather than every merge to main.
 - **HA differences from dev.** Prod runs one NAT gateway per AZ (`single_nat_gateway = false`), a multi-AZ Redis replication group (`num_cache_clusters = 2`, `automatic_failover_enabled = true`), and a multi-AZ RDS instance. Dev runs single instances of all three to keep cost in the $20–25/mo range. The compute module puts the EC2 ASG in private subnets in both envs; only the ALB sits in public.
 
-## 9. Tear-down (when needed)
+## 9. Tear-down and recreate
 
-```bash
-cd infrastructure/terraform/env/dev
-terraform destroy
-```
-
-Order matters — destroy will fail if the RDS deletion-protection or S3 force-destroy variables are flipped on. For dev they default to `false`, so this should clean up in one shot. The bootstrap (state bucket + ECR repos) is preserved.
+See **`docs/runbooks/cloud-recreate.md`** for the safe nuke + recreate flow. The short version: `terraform destroy` in `env/dev` (or `env/prod`) leaves the shared hosted zone, SES identity, ECR images, and state bucket intact — so the next `apply` doesn't require re-delegating DNS or re-verifying SES.

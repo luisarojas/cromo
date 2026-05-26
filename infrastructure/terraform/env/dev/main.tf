@@ -29,12 +29,11 @@ module "networking" {
   env    = local.env
 }
 
-# ─── DNS (creates the apex hosted zone the first time) ────────────────────────
+# ─── DNS (looks up the hosted zone owned by env/shared) ───────────────────────
 
 module "dns" {
   source       = "../../modules/dns"
   apex_domain  = var.apex_domain
-  create_zone  = true # dev environment owns the zone creation
   hostname     = local.hostname
   alb_dns_name = module.compute.alb_dns_name
   alb_zone_id  = module.compute.alb_zone_id
@@ -72,23 +71,15 @@ module "storage" {
   deletion_protection  = false
 }
 
-# ─── SES (requires the hosted zone) ───────────────────────────────────────────
-
-module "ses" {
-  source             = "../../modules/ses"
-  domain             = var.apex_domain
-  route53_zone_id    = module.dns.zone_id
-  region             = var.region
-  dmarc_report_email = var.alert_email
-}
-
 # ─── Cognito ──────────────────────────────────────────────────────────────────
+# SES identity lives in env/shared. We reference it by its deterministic ARN
+# so we don't need a cross-state data source.
 
 module "auth" {
   source           = "../../modules/auth"
   env              = local.env
   from_email       = "no-reply@${var.apex_domain}"
-  ses_identity_arn = module.ses.identity_arn
+  ses_identity_arn = "arn:aws:ses:${var.region}:${var.account_id}:identity/${var.apex_domain}"
 }
 
 # ─── Secrets ──────────────────────────────────────────────────────────────────

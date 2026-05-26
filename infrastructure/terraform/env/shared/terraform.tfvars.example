@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in. Never commit terraform.tfvars.
+#
+# This composition owns the hosted zone and SES identity. They outlive any
+# specific environment — nuking dev or prod doesn't touch them.
+
+dmarc_report_email = "alerts@example.com"
