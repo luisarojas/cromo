@@ -5,7 +5,7 @@ How to take a fresh AWS account and turn it into a running Cromo `dev` environme
 > **Prerequisites already met:**
 > - AWS account with MFA on the root user, region `ca-central-1` (Montréal)
 > - Domain `cromotrade.ca` registered at Namecheap
-> - AWS Budget alert at $50 USD/month
+> - AWS Budget alert at $75 USD/month
 >
 > If any of these are missing, see `docs/architecture/infrastructure.md` §19.2.1.
 
@@ -48,7 +48,7 @@ terraform apply
 
 This provisions: VPC, subnets, security groups, NAT, ALB + ACM cert, EC2 (in a 1-node ASG), RDS Postgres, ElastiCache Redis, S3 uploads bucket, Cognito user pool, SES domain identity + DKIM, Secrets Manager entry, CloudWatch log groups + SNS alarm topic, and the Route 53 hosted zone for `cromotrade.ca`.
 
-> **Cost reality check.** A full dev environment running 24/7 costs roughly $40–50 USD/month (RDS $15, ElastiCache $12, EC2 $15, ALB $8, NAT $3, plus a few cents of CloudWatch/Secrets/S3). The $50 budget alert will fire within the first month. Either raise the budget or schedule the ASG/RDS down outside business hours.
+> **Cost reality check.** A full dev environment running 24/7 costs roughly $55–60 USD/month (RDS $15, ElastiCache $12, EC2 $15, ALB $8, NAT $3, plus a few cents of CloudWatch/Secrets/S3). The business-hours schedule (`docs/architecture/infrastructure.md` §19.2.2) brings that to roughly $20–25/month by stopping the ASG and RDS instance nights + weekends. The $75 budget alert is sized to fit that scheduled-dev footprint plus prod.
 
 ## 3. Delegate DNS at Namecheap
 
@@ -76,10 +76,16 @@ aws ses get-identity-verification-attributes --identities cromotrade.ca
 # expect VerificationStatus=Success once DNS propagates
 ```
 
-SES starts in the **sandbox** — you can only send to verified addresses. To leave the sandbox:
+SES starts in the **sandbox** — you can only send to verified addresses, and the daily quota is 200 messages. Prod can't sign up real users until you leave the sandbox. Plan for this **at least a week before prod launch** — AWS reviews the request manually and looks at your account's sending history before approving, so you need actual sends on the books first.
 
-1. Send a test email to a verified address (e.g. your own) and confirm it lands.
-2. Open the SES console → Account dashboard → Request production access. Mention CASL compliance, the consent-record flow in the database, and the bounce/complaint handler.
+Because Cromo has no staging environment (see `infrastructure.md` §17.1), the only place to build that sending history is **dev**:
+
+1. Verify your own email address in SES (`aws ses verify-email-identity --email-address you@example.com`).
+2. From dev, trigger the real flows that send mail — sign up a test user (email verification flow), request a password reset, accept a trade with notifications enabled. A handful of these is enough to give AWS something to look at.
+3. Open the SES console → Account dashboard → Request production access. In the request mention: CASL compliance, the consent-record flow in the database, and the bounce/complaint handler webhook (`/api/v1/webhooks/ses-bounce`).
+4. AWS turnaround is typically <24h. If approval comes back conditional ("describe your unsubscribe flow"), respond promptly — the case stays open for 14 days.
+
+Until production access is granted, prod cannot send to any address that isn't manually verified, so don't open prod sign-ups before this is approved.
 
 ## 5. Push the first images
 

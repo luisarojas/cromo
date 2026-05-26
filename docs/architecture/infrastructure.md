@@ -4,23 +4,26 @@
 
 ## 17. Environment Strategy
 
-### 17.1 The Four Environments
+### 17.1 The Three Environments
 
 ```
-LOCAL → DEV → STAGING → PRODUCTION
+LOCAL → DEV → PRODUCTION
 ```
 
-| Aspect | Local | Dev | Staging | Production |
-|---|---|---|---|---|
-| Runs on | Laptop (Docker) | AWS | AWS | AWS |
-| Cost | $0 | $15–30 USD/mo | $80–120 USD/mo | $110–253 USD/mo |
-| Auth | Mock | Cognito | Cognito | Cognito |
-| Claude API | Mock | Mock | Real | Real |
-| Email | Mailpit | SES sandbox | SES | SES |
-| Data | Seeded test data | Synthetic | Anonymised prod | Real user data |
-| Deletion protection | N/A | No | No | Yes |
-| Log retention | Terminal only | 7 days | 30 days | 365 days |
-| Public access | localhost only | IP allowlist | Basic Auth | Yes |
+> **Staging is intentionally deferred.** Cromo runs only `dev` and `prod` in AWS for now (decided 2026-05-25) to control cost — staging alone would add another $80–120 USD/mo. A `staging` row will be inserted into this table when the environment is added; until then, anything the spec assigns to staging (anonymised-prod snapshots, nightly E2E against staging, OWASP ZAP staging scans, soft-launch on staging) is either re-targeted to `dev` with synthetic data or skipped.
+
+| Aspect | Local | Dev | Production |
+|---|---|---|---|
+| Runs on | Laptop (Docker) | AWS | AWS |
+| Cost | $0 | ~$20–25 USD/mo (scheduled) | $110–253 USD/mo |
+| Auth | Mock | Cognito | Cognito |
+| Groq vision API | Mock | Mock | Real |
+| Email | Mailpit | SES sandbox | SES (production access) |
+| Data | Seeded test data | Synthetic | Real user data |
+| Deletion protection | N/A | No | Yes |
+| Log retention | Terminal only | 7 days | 365 days |
+| Uptime | On-demand | **Mon–Fri 08:00–19:00 ET** (see §19.2.2) | 24/7 |
+| Public access | localhost only | Public DNS, no allowlist | Public |
 
 ### 17.2 Moving from Local to Cloud (Phase B)
 
@@ -42,7 +45,7 @@ There is no code rewrite. The only changes are configuration (environment variab
 
 ### 17.3 Feature Flags
 
-Feature flags are stored in the `feature_flags` database table in **all environments** (local, dev, staging, and production). This is simpler than managing a separate AWS AppConfig service and requires no extra infrastructure.
+Feature flags are stored in the `feature_flags` database table in **all environments** (local, dev, and production). This is simpler than managing a separate AWS AppConfig service and requires no extra infrastructure.
 
 To toggle a flag, update the row directly (or build a simple admin UI toggle):
 ```sql
@@ -79,14 +82,31 @@ SSL/TLS certificates are issued via AWS Certificate Manager in `ca-central-1` fo
 
 Environment subdomains:
 - `cromotrade.ca` → production
-- `staging.cromotrade.ca` → staging
 - `dev.cromotrade.ca` → dev
+
+(`staging.cromotrade.ca` will be added when staging is introduced — see §17.1.)
 
 ### 19.2.1 AWS Account & Budget
 
 - **Region:** `ca-central-1` (Montréal). All resources and Terraform providers default here.
 - **Root account:** MFA enabled. Day-to-day work uses an IAM admin user (or Identity Center) — root credentials are not used after initial setup.
-- **Budget alert:** $50 USD/month (configured in AWS Budgets). The spec's launch estimate is ~$55–61/month, so the alert is intentionally tight — it will fire as soon as a full environment is running. Treat it as a tripwire, not a headroom buffer. Raise it before standing up staging or production.
+- **Budget alert:** $75 USD/month (configured in AWS Budgets). Sits ~$15 above a steady-state dev+prod footprint with the business-hours schedule below, so it's a real alert rather than a tripwire. Raise it again before standing up staging or growing the prod instance class.
+
+### 19.2.2 Business-Hours Schedule (dev only)
+
+The dev environment is scheduled **down outside business hours** to keep dev cost in the $20–25 USD/mo range instead of the $55–60 it would cost running 24/7:
+
+| Window | State |
+|---|---|
+| Mon–Fri 08:00 ET | EC2 ASG scaled to 1, RDS started |
+| Mon–Fri 19:00 ET | EC2 ASG scaled to 0, RDS stopped |
+| Sat / Sun | Down all day |
+
+Implementation: `aws_autoscaling_schedule` on the dev ASG plus EventBridge Scheduler universal targets calling `rds:StopDBInstance` / `rds:StartDBInstance`. Both are gated on a `enable_business_hours_schedule` Terraform variable that defaults to `true` for dev and **must be `false` for prod**.
+
+ALB, NAT Gateway, and ElastiCache stay up — stopping them either breaks DNS or doesn't save money (NAT bills per AZ-hour regardless of traffic).
+
+If dev returns 502s outside the window, it's the schedule, not an incident.
 
 ### 19.3 Infrastructure as Code: Terraform
 

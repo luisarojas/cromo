@@ -20,13 +20,16 @@ infrastructure/terraform/
     secrets/             # Secrets Manager entries
   env/
     dev/                 # Dev environment composition — wires modules together
-    staging/             # (Phase B2)
-    prod/                # (Phase B2/B3)
+    prod/                # (Phase B3) — copy of dev/ with deletion protection, real Groq key, etc.
 ```
 
 ## Region
 
 All resources live in **`ca-central-1`** (Montréal) for PIPEDA compliance. The Terraform provider defaults here — don't override unless you know why.
+
+## Environments
+
+Cromo runs **dev + prod only** (decided 2026-05-25). Staging is intentionally deferred to control cost — see `docs/architecture/infrastructure.md` §17.1.
 
 ## State backend
 
