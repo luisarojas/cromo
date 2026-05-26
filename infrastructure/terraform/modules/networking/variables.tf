@@ -8,3 +8,9 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.20.0.0/16"
 }
+
+variable "single_nat_gateway" {
+  description = "When true, provision one NAT gateway in AZ-a and route every private subnet through it (cheap, AZ-fragile). When false, provision one NAT per AZ — each private subnet routes through the NAT in its own AZ, so an AZ outage doesn't sever egress for the surviving AZ."
+  type        = bool
+  default     = true
+}

@@ -132,7 +132,8 @@ module "compute" {
   region             = var.region
   hostname           = local.hostname
   vpc_id             = module.networking.vpc_id
-  public_subnet_ids  = module.networking.public_subnet_ids
+  alb_subnet_ids     = module.networking.public_subnet_ids
+  app_subnet_ids     = module.networking.private_subnet_ids
   alb_sg_id          = module.networking.alb_sg_id
   app_sg_id          = module.networking.app_sg_id
   route53_zone_id    = module.dns.zone_id

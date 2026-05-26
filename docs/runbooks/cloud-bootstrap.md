@@ -187,12 +187,7 @@ Once dev is healthy and you're ready for Phase B3, prod uses the same modules wi
 - **Resources are destroy-protected.** Prod RDS, S3, Cognito, and ALB all have deletion protection on. A `terraform destroy` of the prod env will fail until you `terraform apply -var 'deletion_protection=false'` first — that's intentional friction.
 - **No business-hours schedule.** The `scheduling` module is wired into `env/prod/main.tf` with `enable = false` so it renders no resources. Don't flip this to true unless you intend to take prod offline outside business hours (you don't).
 - **CI deploy needs a second workflow.** `.github/workflows/deploy-dev.yml` only targets dev. Copy it to `deploy-prod.yml` and trigger on a tag push (`v*`) rather than every merge to main.
-
-Known prod-grade follow-ups documented inline in `env/prod/main.tf`:
-1. Single NAT Gateway (acceptable for soft launch, fix before scale).
-2. EC2 instances run in public subnets behind security groups (functional, but should be moved to private subnets for defence-in-depth).
-
-Neither blocks launch, but both are worth tracking in your post-launch backlog.
+- **HA differences from dev.** Prod runs one NAT gateway per AZ (`single_nat_gateway = false`), a multi-AZ Redis replication group (`num_cache_clusters = 2`, `automatic_failover_enabled = true`), and a multi-AZ RDS instance. Dev runs single instances of all three to keep cost in the $20–25/mo range. The compute module puts the EC2 ASG in private subnets in both envs; only the ALB sits in public.
 
 ## 10. Tear-down (when needed)
 

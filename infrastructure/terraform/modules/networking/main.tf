@@ -8,7 +8,8 @@ terraform {
 data "aws_availability_zones" "available" { state = "available" }
 
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 2)
+  azs       = slice(data.aws_availability_zones.available.names, 0, 2)
+  nat_count = var.single_nat_gateway ? 1 : length(local.azs)
 }
 
 # ─── VPC ──────────────────────────────────────────────────────────────────────
@@ -61,32 +62,38 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Single NAT for cost — dev/staging only. Prod should run one NAT per AZ.
+# NAT gateway(s) — one or one-per-AZ, controlled by var.single_nat_gateway.
 resource "aws_eip" "nat" {
+  count  = local.nat_count
   domain = "vpc"
-  tags   = { Name = "cromo-${var.env}-nat-eip" }
+  tags   = { Name = "cromo-${var.env}-nat-eip-${count.index}" }
 }
 
 resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
-  tags          = { Name = "cromo-${var.env}-nat" }
+  count         = local.nat_count
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
+  tags          = { Name = "cromo-${var.env}-nat-${count.index}" }
   depends_on    = [aws_internet_gateway.main]
 }
 
+# One private RT per NAT. Single-NAT mode → one RT shared by all private
+# subnets. Per-AZ mode → each private subnet routes through the NAT in its
+# own AZ so a NAT/AZ outage only takes out that AZ's egress.
 resource "aws_route_table" "private" {
+  count  = local.nat_count
   vpc_id = aws_vpc.main.id
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
+    nat_gateway_id = aws_nat_gateway.main[count.index].id
   }
-  tags = { Name = "cromo-${var.env}-private-rt" }
+  tags = { Name = "cromo-${var.env}-private-rt-${count.index}" }
 }
 
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[var.single_nat_gateway ? 0 : count.index].id
 }
 
 # ─── Security groups ──────────────────────────────────────────────────────────

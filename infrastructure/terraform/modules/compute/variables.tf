@@ -5,7 +5,14 @@ variable "hostname" {
   type        = string
 }
 variable "vpc_id" { type = string }
-variable "public_subnet_ids" { type = list(string) }
+variable "alb_subnet_ids" {
+  description = "Public subnet IDs the ALB attaches to (one per AZ)."
+  type        = list(string)
+}
+variable "app_subnet_ids" {
+  description = "Subnet IDs the EC2 ASG launches in. Should be private subnets — the ALB SG is the only thing allowed to reach 3000/3001."
+  type        = list(string)
+}
 variable "alb_sg_id" { type = string }
 variable "app_sg_id" { type = string }
 variable "route53_zone_id" { type = string }

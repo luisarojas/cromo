@@ -22,33 +22,16 @@ locals {
   hostname = var.apex_domain # production lives at the apex (cromotrade.ca)
 }
 
-# ─── Known follow-ups for prod hardening (not blocking initial launch) ────────
-# These are dev-grade simplifications that should be revisited before
-# meaningful production traffic. They're acceptable for a soft launch but
-# document them here so they don't get lost:
-#
-#   1. Single NAT Gateway — the networking module provisions one NAT in AZ-a
-#      regardless of env. If AZ-a has an outage, outbound calls (Groq vision
-#      API, SES) from the surviving AZ break. ALB ingress and DB access still
-#      work. Fix: parameterise networking module for one-NAT-per-AZ.
-#
-#   2. EC2 instances run in PUBLIC subnets. Locked down by the app SG (only
-#      ALB SG can reach 3000/3001), so not directly exploitable, but the
-#      proper pattern is private subnets with the ALB straddling public.
-#      Fix: parameterise compute module to put the ASG in private subnets,
-#      keep ALB in public.
-#
-#   3. RDS is single-AZ when multi_az = false. We turn it on below.
-#      Multi-AZ adds ~$15/mo but gives synchronous standby + faster failover.
-#
-# ──────────────────────────────────────────────────────────────────────────────
-
 # ─── Networking ───────────────────────────────────────────────────────────────
+# Prod runs one NAT per AZ so an AZ outage doesn't sever outbound egress
+# (Groq vision API, SES, ECR pulls) for the surviving AZ. Adds ~$32/mo for
+# the second NAT — accepted for HA.
 
 module "networking" {
-  source   = "../../modules/networking"
-  env      = local.env
-  vpc_cidr = "10.30.0.0/16" # distinct from dev (10.20.0.0/16) so future VPC peering doesn't conflict
+  source             = "../../modules/networking"
+  env                = local.env
+  vpc_cidr           = "10.30.0.0/16" # distinct from dev (10.20.0.0/16) so future VPC peering doesn't conflict
+  single_nat_gateway = false
 }
 
 # ─── DNS ──────────────────────────────────────────────────────────────────────
@@ -79,10 +62,13 @@ module "database" {
 # ─── Cache ────────────────────────────────────────────────────────────────────
 
 module "cache" {
-  source             = "../../modules/cache"
-  env                = local.env
-  private_subnet_ids = module.networking.private_subnet_ids
-  cache_sg_id        = module.networking.cache_sg_id
+  source                     = "../../modules/cache"
+  env                        = local.env
+  private_subnet_ids         = module.networking.private_subnet_ids
+  cache_sg_id                = module.networking.cache_sg_id
+  num_cache_clusters         = 2 # primary + 1 replica
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
   # cache.t3.micro is the spec's launch sizing — bump to t3.small if Redis
   # memory pressure shows up in CloudWatch.
 }
@@ -151,7 +137,8 @@ module "compute" {
   region              = var.region
   hostname            = local.hostname
   vpc_id              = module.networking.vpc_id
-  public_subnet_ids   = module.networking.public_subnet_ids
+  alb_subnet_ids      = module.networking.public_subnet_ids
+  app_subnet_ids      = module.networking.private_subnet_ids
   alb_sg_id           = module.networking.alb_sg_id
   app_sg_id           = module.networking.app_sg_id
   route53_zone_id     = module.dns.zone_id

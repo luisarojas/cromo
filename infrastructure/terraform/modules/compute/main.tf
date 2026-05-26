@@ -116,7 +116,7 @@ resource "aws_lb" "main" {
   internal                   = false
   load_balancer_type         = "application"
   security_groups            = [var.alb_sg_id]
-  subnets                    = var.public_subnet_ids
+  subnets                    = var.alb_subnet_ids
   enable_deletion_protection = var.deletion_protection
   drop_invalid_header_fields = true
 }
@@ -280,7 +280,7 @@ resource "aws_launch_template" "app" {
 # multi-instance orchestration.
 resource "aws_autoscaling_group" "app" {
   name                = "cromo-${var.env}-app"
-  vpc_zone_identifier = var.public_subnet_ids
+  vpc_zone_identifier = var.app_subnet_ids
   min_size            = 1
   max_size            = 1
   desired_capacity    = 1
