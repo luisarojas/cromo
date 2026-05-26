@@ -22,6 +22,10 @@ export interface TradeMatchesPage {
 const TRADE_MATCHES_DEFAULT_LIMIT = 50;
 const TRADE_MATCHES_MAX_LIMIT = 200;
 const TRADE_MATCHES_TTL_SECONDS = 120;
+// Buffer keeps the index alive well past the longest cache entry it tracks,
+// so a write that races near the TTL boundary still finds the membership row
+// and can invalidate the in-flight cache. 300s ≫ 120s cache lifetime.
+const MATCHES_INDEX_BUFFER_SECONDS = 300;
 
 /**
  * Per-user index of trade-matches cache keys. invalidateMatches() (in
@@ -208,7 +212,7 @@ export async function getTradeMatches(
     .multi()
     .set(cacheKey, JSON.stringify(result), 'EX', TRADE_MATCHES_TTL_SECONDS)
     .sadd(indexKey, cacheKey)
-    .expire(indexKey, TRADE_MATCHES_TTL_SECONDS + 30)
+    .expire(indexKey, TRADE_MATCHES_TTL_SECONDS + MATCHES_INDEX_BUFFER_SECONDS)
     .exec();
 
   return result;

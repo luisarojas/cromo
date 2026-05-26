@@ -123,13 +123,14 @@ export async function getCollection(
   }
 
   const { team, group, type, variant, cursor } = filters;
+  // When no filters are active, the result count is just the album's
+  // denormalized owned_count (no scan needed). Window function fires only
+  // for the filtered path. teams.pages is a denormalized JSONB column on
+  // teams, kept fresh by trg_team_album_pages_sync, so we no longer pay for
+  // the team_pages_json() STABLE function per row.
+  const hasFilters = team != null || group != null || type != null || variant != null;
+  const countExpr = hasFilters ? 'COUNT(*) OVER ()' : '0';
 
-  // One round-trip via window function. The inner SELECT applies the static
-  // filters (album + facets); COUNT(*) OVER () is evaluated over THAT set, so
-  // `total` is unaffected by cursor pagination. The outer query then applies
-  // cursor + LIMIT to slice a page. team_pages_json is hoisted to a CTE keyed
-  // on distinct team_ids so the STABLE helper executes once per team in the
-  // page rather than once per row.
   const { rows: items } = await db.query<CollectionItem & { total_count: string }>(
     `WITH page AS (
        SELECT us.id AS user_sticker_id,
@@ -149,7 +150,8 @@ export async function getCollection(
               t.name AS team_name,
               t.fifa_code,
               t.group_name,
-              COUNT(*) OVER () AS total_count
+              t.pages AS team_pages,
+              ${countExpr} AS total_count
        FROM user_stickers us
        JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
        JOIN stickers s ON sv.sticker_id = s.id
@@ -160,20 +162,9 @@ export async function getCollection(
          AND ($3::text IS NULL OR t.group_name = $3)
          AND ($4::text IS NULL OR s.sticker_type = $4)
          AND ($5::text IS NULL OR sv.variant_type = $5)
-     ),
-     team_pages AS (
-       SELECT DISTINCT team_id, team_pages_json(team_id) AS team_pages
-       FROM page WHERE team_id IS NOT NULL
      )
-     SELECT page.user_sticker_id, page.sticker_variant_id, page.variant_type,
-            page.quantity, page.trade_hidden, page.trade_forced,
-            page.sticker_id, page.number, page.album_code, page.player_name,
-            page.position, page.sticker_type, page.notes,
-            page.team_name, page.fifa_code, page.group_name,
-            tp.team_pages,
-            page.total_count
+     SELECT page.*
      FROM page
-     LEFT JOIN team_pages tp ON tp.team_id = page.team_id
      WHERE ($6::int IS NULL OR page.number > $6)
      ORDER BY page.number
      LIMIT $7`,
@@ -183,12 +174,22 @@ export async function getCollection(
   const hasMore = items.length > limit;
   const pageItems = hasMore ? items.slice(0, limit) : items;
   const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
-  const total = items[0] ? parseInt(items[0].total_count, 10) : 0;
+  let total = 0;
+  if (hasFilters) {
+    total = items[0] ? parseInt(items[0].total_count, 10) : 0;
+  } else {
+    const { rows: owned } = await db.query<{ owned: number }>(
+      `SELECT owned_count AS owned FROM user_albums WHERE id = $1`,
+      [albumId],
+    );
+    total = owned[0]?.owned ?? 0;
+  }
 
-  // total_count is implementation detail of the page query — strip it before
-  // returning so the wire format matches CollectionItem.
+  // total_count and team_id are implementation details of the page query;
+  // strip before returning so the wire format matches CollectionItem.
   for (const row of pageItems) {
     delete (row as Partial<typeof row>).total_count;
+    delete (row as { team_id?: string }).team_id;
   }
 
   const result: PaginatedResult<CollectionItem> = {
@@ -223,6 +224,8 @@ export async function getMissing(
   }
 
   const { team, group, cursor } = filters;
+  const hasFilters = team != null || group != null;
+  const countExpr = hasFilters ? 'COUNT(*) OVER ()' : '0';
 
   const { rows: items } = await db.query<MissingItem & { total_count: string }>(
     `WITH page AS (
@@ -234,12 +237,12 @@ export async function getMissing(
               s.sticker_type,
               s.is_foil,
               s.notes,
-              s.team_id,
               t.name AS team_name,
               t.fifa_code,
               t.group_name,
+              t.pages AS team_pages,
               base_sv.id AS base_variant_id,
-              COUNT(*) OVER () AS total_count
+              ${countExpr} AS total_count
        FROM stickers s
        LEFT JOIN teams t ON s.team_id = t.id
        LEFT JOIN LATERAL (
@@ -258,18 +261,9 @@ export async function getMissing(
        )
          AND ($2::text IS NULL OR t.fifa_code = $2)
          AND ($3::text IS NULL OR t.group_name = $3)
-     ),
-     team_pages AS (
-       SELECT DISTINCT team_id, team_pages_json(team_id) AS team_pages
-       FROM page WHERE team_id IS NOT NULL
      )
-     SELECT page.id, page.number, page.album_code, page.player_name,
-            page.position, page.sticker_type, page.is_foil, page.notes,
-            page.team_name, page.fifa_code, page.group_name,
-            page.base_variant_id, tp.team_pages,
-            page.total_count
+     SELECT page.*
      FROM page
-     LEFT JOIN team_pages tp ON tp.team_id = page.team_id
      WHERE ($4::int IS NULL OR page.number > $4)
      ORDER BY page.number
      LIMIT $5`,
@@ -279,7 +273,16 @@ export async function getMissing(
   const hasMore = items.length > limit;
   const pageItems = hasMore ? items.slice(0, limit) : items;
   const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
-  const total = items[0] ? parseInt(items[0].total_count, 10) : 0;
+  let total = 0;
+  if (hasFilters) {
+    total = items[0] ? parseInt(items[0].total_count, 10) : 0;
+  } else {
+    const { rows: ua } = await db.query<{ total: number; owned: number }>(
+      `SELECT total_count AS total, owned_count AS owned FROM user_albums WHERE id = $1`,
+      [albumId],
+    );
+    total = (ua[0]?.total ?? 0) - (ua[0]?.owned ?? 0);
+  }
   for (const row of pageItems) {
     delete (row as Partial<typeof row>).total_count;
   }
@@ -315,7 +318,7 @@ export async function getDuplicates(
     return JSON.parse(cached) as PaginatedResult<DuplicateItem>;
   }
 
-  const { rows: items } = await db.query<DuplicateItem & { total_count: string }>(
+  const { rows: items } = await db.query<DuplicateItem>(
     `SELECT * FROM (
        SELECT us.id AS user_sticker_id,
               us.sticker_variant_id,
@@ -331,8 +334,7 @@ export async function getDuplicates(
               s.is_foil,
               t.name AS team_name,
               t.fifa_code,
-              t.group_name,
-              COUNT(*) OVER () AS total_count
+              t.group_name
        FROM user_stickers us
        JOIN sticker_variants sv ON us.sticker_variant_id = sv.id
        JOIN stickers s ON sv.sticker_id = s.id
@@ -349,10 +351,13 @@ export async function getDuplicates(
   const hasMore = items.length > pageSize;
   const pageItems = hasMore ? items.slice(0, pageSize) : items;
   const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
-  const total = items[0] ? parseInt(items[0].total_count, 10) : 0;
-  for (const row of pageItems) {
-    delete (row as Partial<typeof row>).total_count;
-  }
+  // Always equal to the album's denormalized duplicate_count (this endpoint
+  // has no facet filters), so no window function needed.
+  const { rows: ua } = await db.query<{ duplicates: number }>(
+    `SELECT duplicate_count AS duplicates FROM user_albums WHERE id = $1`,
+    [albumId],
+  );
+  const total = ua[0]?.duplicates ?? 0;
 
   const result: PaginatedResult<DuplicateItem> = {
     items: pageItems,
@@ -402,7 +407,7 @@ export async function getStats(
  * copies in a single round trip. Replaces parallel getStats + getTotalExtraCopies
  * calls in getCollectionPage (2 connection acquires → 1).
  */
-async function getStatsAndExtras(
+export async function getStatsAndExtras(
   db: Pool,
   albumId: string,
 ): Promise<{ stats: CollectionStats; totalExtraCopies: number }> {
@@ -635,6 +640,161 @@ export async function setTradeFlags(
   );
 
   await invalidateUserCaches(redis, userId);
+}
+
+// ─── Owned variants ───────────────────────────────────────────────────────────
+
+export interface OwnedVariantRow {
+  album_code: string;
+  variant_type: string;
+  sticker_variant_id: string;
+  quantity: number;
+  trade_hidden: boolean;
+  trade_forced: boolean;
+}
+
+/**
+ * getOwnedVariants — every (album_code, variant) the user owns in this album.
+ * Returns a flat list (no pagination); the album fits comfortably in one
+ * payload (~700 stickers × up to 8 variants × small row → tens of KB max),
+ * which is why the previous "loop fetchCollection until exhausted" client
+ * pattern was wasted work.
+ */
+export async function getOwnedVariants(
+  db: Pool,
+  redis: Redis,
+  userId: string,
+  albumId: string,
+): Promise<OwnedVariantRow[]> {
+  const cacheKey = await userCacheKey(redis, userId, `owned_variants:${albumId}`);
+  const cached = await redis.get(cacheKey);
+  if (cached) return JSON.parse(cached) as OwnedVariantRow[];
+
+  const { rows } = await db.query<OwnedVariantRow>(
+    `SELECT s.album_code,
+            sv.variant_type,
+            us.sticker_variant_id,
+            us.quantity,
+            us.trade_hidden,
+            us.trade_forced
+       FROM user_stickers us
+       JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
+      WHERE us.album_id = $1
+        AND us.quantity > 0
+      ORDER BY s.album_code`,
+    [albumId],
+  );
+
+  await redis.set(cacheKey, JSON.stringify(rows), 'EX', 300);
+  return rows;
+}
+
+// ─── Bulk mutations ───────────────────────────────────────────────────────────
+
+export interface BulkOp {
+  op: 'add' | 'set' | 'remove' | 'flags';
+  variantId: string;
+  // For op=add / op=set
+  quantity?: number;
+  // For op=flags
+  tradeHidden?: boolean;
+  tradeForced?: boolean;
+}
+
+const BULK_OP_LIMIT = 500;
+
+/**
+ * applyBulk — execute a batch of (add | set | remove | flags) operations on a
+ * single album in one transaction. Replaces the previous client-side pattern
+ * of N sequential HTTP calls for mass actions on the album page.
+ *
+ * Ops are deduplicated by (variantId, op) — last write wins — so a client can
+ * naively assemble the batch from a selection without worrying about
+ * conflicts. Trigger trg_user_stickers_sync_counts fires once per affected
+ * row but the surrounding tx amortises the round-trip cost.
+ */
+export async function applyBulk(
+  db: Pool,
+  redis: Redis,
+  userId: string,
+  albumId: string,
+  ops: BulkOp[],
+): Promise<{ applied: number }> {
+  if (ops.length === 0) return { applied: 0 };
+  if (ops.length > BULK_OP_LIMIT) {
+    throw new Error(`Bulk operation count ${ops.length} exceeds limit ${BULK_OP_LIMIT}`);
+  }
+
+  let applied = 0;
+  await withTx(db, async (client) => {
+    for (const op of ops) {
+      if (op.op === 'add') {
+        const qty = op.quantity ?? 1;
+        if (qty <= 0) continue;
+        await client.query(
+          `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (album_id, sticker_variant_id)
+           DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
+                         updated_at = NOW()`,
+          [albumId, op.variantId, qty],
+        );
+        applied++;
+      } else if (op.op === 'set') {
+        const qty = op.quantity ?? 0;
+        if (qty <= 0) {
+          await client.query(
+            `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+            [albumId, op.variantId],
+          );
+        } else {
+          await client.query(
+            `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (album_id, sticker_variant_id)
+             DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()`,
+            [albumId, op.variantId, qty],
+          );
+        }
+        applied++;
+      } else if (op.op === 'remove') {
+        await client.query(
+          `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+          [albumId, op.variantId],
+        );
+        applied++;
+      } else if (op.op === 'flags') {
+        // Same exclusivity logic as setTradeFlags: setting one true clears the
+        // other. Skipping the row entirely when both are undefined keeps the
+        // partial-update semantics.
+        const resolvedHidden = op.tradeHidden ?? (op.tradeForced ? false : undefined);
+        const resolvedForced = op.tradeForced ?? (op.tradeHidden ? false : undefined);
+        if (resolvedHidden === undefined && resolvedForced === undefined) continue;
+
+        const setParts: string[] = [];
+        const values: (boolean | string)[] = [albumId, op.variantId];
+        let idx = 3;
+        if (resolvedHidden !== undefined) {
+          setParts.push(`trade_hidden = $${idx++}`);
+          values.push(resolvedHidden);
+        }
+        if (resolvedForced !== undefined) {
+          setParts.push(`trade_forced = $${idx++}`);
+          values.push(resolvedForced);
+        }
+        await client.query(
+          `UPDATE user_stickers SET ${setParts.join(', ')}, updated_at = NOW()
+           WHERE album_id = $1 AND sticker_variant_id = $2`,
+          values,
+        );
+        applied++;
+      }
+    }
+  });
+
+  await invalidateUserCaches(redis, userId);
+  return { applied };
 }
 
 /**

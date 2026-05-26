@@ -66,6 +66,12 @@ export const JOB_CATALOG: JobDefinition[] = [
     handler: handlers.purgeOldShareTokens,
   },
   {
+    name: 'purge-stale-push-subscriptions',
+    cron: '30 5 * * *',                 // daily 05:30 UTC
+    flagKey: 'JOB_PURGE_PUSH_SUBSCRIPTIONS',
+    handler: handlers.purgeStalePushSubscriptions,
+  },
+  {
     name: 'cache-warm-stickers',
     cron: '*/50 * * * *',               // every 50 minutes
     flagKey: 'JOB_CACHE_WARM_STICKERS',

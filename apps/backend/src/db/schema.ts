@@ -139,6 +139,11 @@ export const userAlbums = pgTable('user_albums', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
   userIdIdx: index('idx_user_albums_user_id').on(table.userId),
+  // Enforce one default album per user at the storage layer so a logic bug
+  // can't quietly produce two defaults.
+  oneDefaultPerUser: uniqueIndex('user_albums_one_default_per_user')
+    .on(table.userId)
+    .where(sql`is_default`),
   albumTypeIdx: index('idx_user_albums_album_type_id').on(table.albumTypeId),
   albumEditionIdx: index('idx_user_albums_album_edition_id').on(table.albumEditionId),
   albumFormatIdx: index('idx_user_albums_album_format_id').on(table.albumFormatId),
@@ -204,8 +209,10 @@ export const consentRecords = pgTable('consent_records', {
 
 // ─── email_verification_tokens ────────────────────────────────────────────────
 
+// Token at rest is SHA-256(cleartext). The cleartext only exists in the
+// outgoing email link; even a DB read can't yield a usable token.
 export const emailVerificationTokens = pgTable('email_verification_tokens', {
-  token: text('token').primaryKey().$defaultFn(() => crypto.randomBytes(32).toString('hex')),
+  tokenHash: text('token_hash').primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull().default(
     sql`now() + INTERVAL '24 hours'`
@@ -222,6 +229,10 @@ export const teams = pgTable('teams', {
   fifaCode: text('fifa_code').unique().notNull(),
   name: text('name').notNull(),
   groupName: text('group_name').notNull(),
+  // Denormalized { edition: [pageStart, pageEnd] } map. Kept fresh by
+  // trg_team_album_pages_sync. Lets the collection read path skip the
+  // per-team STABLE function call.
+  pages: jsonb('pages').notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 });
 
@@ -442,8 +453,9 @@ export const publicLists = pgTable('public_lists', {
 
 // ─── password_reset_tokens ────────────────────────────────────────────────────
 
+// See emailVerificationTokens for the at-rest hashing rationale.
 export const passwordResetTokens = pgTable('password_reset_tokens', {
-  token: text('token').primaryKey().$defaultFn(() => crypto.randomBytes(32).toString('hex')),
+  tokenHash: text('token_hash').primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull().default(
     sql`now() + INTERVAL '1 hour'`

@@ -60,6 +60,16 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY:  z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT:     z.string().default('mailto:noreply@cromo.local'),
+
+  // Uploads — when UPLOADS_DRIVER=s3 the upload service writes to S3 and
+  // returns the public URL (CloudFront in front in prod). Local dev defaults
+  // to 'local' which keeps the previous /app/uploads behaviour.
+  UPLOADS_DRIVER:    z.enum(['local', 's3']).default('local'),
+  UPLOADS_BUCKET:    z.string().optional(),
+  UPLOADS_REGION:    z.string().default('ca-central-1'),
+  // Public base URL the frontend resolves avatar paths against. CloudFront
+  // domain in prod (e.g. https://cdn.cromotrade.ca); raw S3 URL in dev.
+  UPLOADS_PUBLIC_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -47,48 +47,10 @@ import type {
   PublicWantedPage as SharedPublicWantedPage,
 } from '@cromo/shared';
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
-// ---------------------------------------------------------------------------
-// retryFetch
-// Read-only requests (GET, HEAD) retry on transient failures: network errors,
-// 502/503/504. Writes (POST/PUT/PATCH/DELETE) are NEVER retried automatically
-// — they need idempotency keys to be safe, and the caller knows whether to
-// retry. 5xx on a non-GET means the caller decides.
-// ---------------------------------------------------------------------------
-const TRANSIENT_STATUSES = new Set([502, 503, 504]);
-const RETRYABLE_METHODS = new Set(['GET', 'HEAD', undefined]);
-const MAX_ATTEMPTS = 3;
-const BASE_DELAY_MS = 200;
-
-export async function retryFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  const method = (init?.method ?? 'GET').toUpperCase();
-  const retryable = RETRYABLE_METHODS.has(method);
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      const res = await fetch(input, init);
-      if (retryable && TRANSIENT_STATUSES.has(res.status) && attempt < MAX_ATTEMPTS) {
-        // Read + discard body so the connection can be pooled.
-        await res.text().catch(() => undefined);
-      } else {
-        return res;
-      }
-    } catch (err) {
-      lastError = err;
-      if (!retryable || attempt >= MAX_ATTEMPTS) throw err;
-    }
-    const jitter = Math.random() * BASE_DELAY_MS;
-    await new Promise((r) => setTimeout(r, BASE_DELAY_MS * 2 ** (attempt - 1) + jitter));
-  }
-  // Loop exits via return on success; unreachable, but keeps TS happy.
-  throw lastError ?? new Error('retryFetch: exhausted attempts');
-}
+// Infrastructure (apiFetch / retryFetch / toQueryString / BASE_URL) lives in
+// apiClient.ts so this module can focus on endpoint surface area.
+import { apiFetch, retryFetch, toQueryString, BASE_URL } from './apiClient';
+export { retryFetch };
 
 // ---------------------------------------------------------------------------
 // Auth API
@@ -265,98 +227,7 @@ export type DuplicateItem = SharedDuplicateItem;
 export type CollectionStats = CollectionStatsDto;
 export type PagedResult<T> = SharedPagedResult<T>;
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function buildHeaders(token?: string, hasBody = false): HeadersInit {
-  const headers: Record<string, string> = {};
-  if (hasBody) {
-    headers['Content-Type'] = 'application/json';
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-}
-
-const DEFAULT_TIMEOUT_MS = 30_000;
-
-// In-flight GET dedup: if two components hit the same path with the same token
-// concurrently, share a single fetch. Cleared as soon as the promise settles
-// — this is *not* a persistent cache, just a way to collapse stampedes during
-// initial render. Mutations bypass this entirely.
-const inFlightGets = new Map<string, Promise<unknown>>();
-
-async function apiFetch<T>(
-  path: string,
-  options: RequestInit = {},
-  token?: string,
-): Promise<T> {
-  const method = (options.method ?? 'GET').toUpperCase();
-  const hasBody = options.body !== undefined;
-  const dedupable = method === 'GET' && !hasBody && !options.signal;
-  const key = dedupable ? `${token ?? ''}|${path}` : null;
-
-  if (key) {
-    const existing = inFlightGets.get(key) as Promise<T> | undefined;
-    if (existing) return existing;
-  }
-
-  // If the caller already passed a signal, respect it; otherwise apply a default timeout.
-  const signal = options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
-
-  const run = (async (): Promise<T> => {
-    let res: Response;
-    try {
-      res = await retryFetch(`${BASE_URL}${path}`, {
-        ...options,
-        signal,
-        headers: {
-          ...buildHeaders(token, hasBody),
-          ...(options.headers ?? {}),
-        },
-      });
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'TimeoutError') {
-        throw new Error(`API timeout after ${DEFAULT_TIMEOUT_MS}ms: ${path}`);
-      }
-      throw err;
-    }
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new Error(`API error ${res.status}: ${text}`);
-    }
-
-    // DELETE returns 204 with no body
-    if (res.status === 204) return undefined as unknown as T;
-
-    return res.json() as Promise<T>;
-  })();
-
-  if (key) {
-    inFlightGets.set(key, run);
-    // The side-channel chain is fire-and-forget; if the underlying `run`
-    // rejects, this would surface as an unhandled rejection on top of the
-    // one the caller will already handle. Swallow it here — the caller
-    // still receives the rejection via the returned `run`.
-    run.finally(() => inFlightGets.delete(key)).catch(() => {});
-  }
-  return run;
-}
-
-function toQueryString(
-  params: Record<string, string | number | boolean | undefined>,
-): string {
-  const parts: string[] = [];
-  for (const [key, val] of Object.entries(params)) {
-    if (val !== undefined && val !== '') {
-      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(val))}`);
-    }
-  }
-  return parts.length ? `?${parts.join('&')}` : '';
-}
+// Internal helpers moved to apiClient.ts.
 
 // ---------------------------------------------------------------------------
 // Sticker catalog — relies on HTTP caching, not localStorage.
@@ -738,6 +609,37 @@ export async function fetchAlbumCrossAlbum(
   );
 }
 
+// One-shot album-page payload — replaces the (fetchCollectionPage loop +
+// fetchAlbumCrossAlbum) pair the page used to spin up on mount.
+export interface OwnedVariantRow {
+  albumCode: string;
+  variantType: string;
+  stickerVariantId: string;
+  quantity: number;
+  tradeHidden: boolean;
+  tradeForced: boolean;
+}
+
+export interface AlbumView {
+  ownedVariants: OwnedVariantRow[];
+  stats: CollectionStats;
+  totalExtraCopies: number;
+  filterOptions: FilterOptions;
+  crossAlbum: CrossAlbum;
+}
+
+export async function fetchAlbumView(
+  userId: string,
+  albumId: string,
+  token: string,
+): Promise<AlbumView> {
+  return apiFetch<AlbumView>(
+    `/api/v1/users/${userId}/albums/${albumId}/view`,
+    {},
+    token,
+  );
+}
+
 export type AlbumStats = AlbumStatsDto;
 export type UserAlbumWithStats = SharedUserAlbumWithStats;
 
@@ -807,6 +709,32 @@ export async function moveSticker(
   return apiFetch<void>(
     `/api/v1/users/${userId}/albums/${sourceAlbumId}/stickers/${variantId}/move`,
     { method: 'POST', body: JSON.stringify({ targetAlbumId, quantity }) },
+    token,
+  );
+}
+
+// Bulk mutation — single round-trip for mass actions. The previous
+// `runBatched(items, 10, fn)` pattern collapsed into one POST.
+export interface BulkOp {
+  op: 'add' | 'set' | 'remove' | 'flags';
+  variantId: string;
+  quantity?: number;
+  tradeHidden?: boolean;
+  tradeForced?: boolean;
+}
+
+export async function bulkStickers(
+  userId: string,
+  albumId: string,
+  ops: BulkOp[],
+  token: string,
+): Promise<{ applied: number }> {
+  return apiFetch<{ applied: number }>(
+    `/api/v1/users/${userId}/stickers/bulk`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ albumId, ops }),
+    },
     token,
   );
 }

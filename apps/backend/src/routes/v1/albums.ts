@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, assertAccess } from '../../middleware/auth.js';
 import * as albumsService from '../../services/albums.service.js';
+import * as collectionService from '../../services/collection.service.js';
 import * as favouritesService from '../../services/favourites.service.js';
 
 const albumSettingsShape = {
@@ -139,6 +140,54 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
       const items = await albumsService.getAlbumStats(fastify.db, fastify.redis, userId);
       return reply.status(200).send({ items });
     }
+  );
+
+  /**
+   * GET /api/v1/users/:userId/albums/:albumId/view
+   *
+   * The album detail page's single source of truth. Bundles every payload the
+   * page used to fetch separately:
+   *   - ownedVariants  (was: 50-iteration fetchCollection loop)
+   *   - stats          (denormalized on user_albums)
+   *   - totalExtraCopies
+   *   - filterOptions  (distinct (group, team, type, variant) in the album)
+   *   - crossAlbum     ({neededIn, availableIn, presentIn} for indicators)
+   * One round-trip end-to-end; one cache lookup per sub-payload.
+   */
+  fastify.get(
+    '/api/v1/users/:userId/albums/:albumId/view',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Albums'],
+        summary: 'Bundled album-page payload (owned + stats + filters + cross-album)',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId', 'albumId'],
+          properties: { userId: { type: 'string' }, albumId: { type: 'string' } },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, albumId } = request.params as { userId: string; albumId: string };
+      if (!assertAccess(request, reply, userId, 'albums')) return;
+
+      const [ownedVariants, statsAndExtras, filterOptions, crossAlbum] = await Promise.all([
+        collectionService.getOwnedVariants(fastify.db, fastify.redis, userId, albumId),
+        collectionService.getStatsAndExtras(fastify.db, albumId),
+        collectionService.getFilterOptions(fastify.db, fastify.redis, userId, albumId),
+        albumsService.getCrossAlbum(fastify.db, fastify.redis, userId, albumId),
+      ]);
+
+      return reply.status(200).send({
+        ownedVariants,
+        stats: statsAndExtras.stats,
+        totalExtraCopies: statsAndExtras.totalExtraCopies,
+        filterOptions,
+        crossAlbum,
+      });
+    },
   );
 
   /**

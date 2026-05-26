@@ -25,6 +25,7 @@ VALUES
   ('JOB_HARD_DELETE_USERS',         true, 100, 'Daily: hard-deletes users 14 days after deleted_at'),
   ('JOB_PURGE_VERIFICATION_TOKENS', true, 100, 'Daily: deletes email_verification_tokens 7 days past expiry'),
   ('JOB_PURGE_SHARE_TOKENS',        true, 100, 'Daily: deletes expired public_lists rows'),
+  ('JOB_PURGE_PUSH_SUBSCRIPTIONS',  true, 100, 'Daily: deletes push_subscriptions not seen for 90 days'),
   ('JOB_CACHE_WARM_STICKERS',       true, 100, 'Every 50 min: repopulates stickers:all before the 1h TTL'),
   ('JOB_DMARC_REPORT_AGG',          false, 0,  'Cloud-only weekly: aggregates DMARC reports from SES inbox'),
   ('JOB_SYNTHETIC_CANARY',          false, 0,  'Cloud-only every 4 min: keeps Aurora connection pool warm')

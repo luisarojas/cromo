@@ -82,6 +82,19 @@ module "storage" {
   deletion_protection  = true
 }
 
+# ─── CDN ──────────────────────────────────────────────────────────────────────
+# Prod uses the default *.cloudfront.net hostname for now; flip to
+# cdn.${apex_domain} once a us-east-1 ACM cert is provisioned. Until then the
+# UPLOADS_PUBLIC_URL env var resolves to the CloudFront default URL.
+
+module "cdn" {
+  source                         = "../../modules/cdn"
+  env                            = local.env
+  uploads_bucket_name            = module.storage.uploads_bucket
+  uploads_bucket_arn             = module.storage.uploads_bucket_arn
+  uploads_bucket_regional_domain = module.storage.uploads_bucket_regional_domain
+}
+
 # ─── Cognito ──────────────────────────────────────────────────────────────────
 # SES identity lives in env/shared (account-wide). Referenced via deterministic
 # ARN so we don't need a cross-state data source.
@@ -118,8 +131,11 @@ module "secrets" {
     GROQ_API_KEY = var.groq_api_key # real key in prod — gate via tfvars
     JOBS_MODE    = "enabled"
 
-    UPLOADS_BUCKET = module.storage.uploads_bucket
-    AWS_REGION     = var.region
+    UPLOADS_DRIVER     = "s3"
+    UPLOADS_BUCKET     = module.storage.uploads_bucket
+    UPLOADS_REGION     = var.region
+    UPLOADS_PUBLIC_URL = module.cdn.uploads_url
+    AWS_REGION         = var.region
   }
 }
 

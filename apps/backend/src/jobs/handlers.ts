@@ -157,6 +157,19 @@ export async function purgeEmailVerificationTokens({ db, log }: JobDeps): Promis
   return { affected: rowCount ?? 0 };
 }
 
+export async function purgeStalePushSubscriptions({ db, log }: JobDeps): Promise<JobResult> {
+  // A push endpoint that hasn't been seen for 90 days has effectively gone
+  // away (uninstalled the PWA, denied notifications, expired endpoint). The
+  // VAPID retry path also marks 410 GONE responses by bumping last_seen_at
+  // backwards — anything older than 90 days is safe to drop.
+  const { rowCount } = await db.query(
+    `DELETE FROM push_subscriptions
+      WHERE last_seen_at < now() - INTERVAL '90 days'`,
+  );
+  log.info('purge-stale-push-subscriptions complete', { affected: rowCount ?? 0 });
+  return { affected: rowCount ?? 0 };
+}
+
 export async function purgeOldShareTokens({ db, log }: JobDeps): Promise<JobResult> {
   const { rowCount } = await db.query(
     `DELETE FROM public_lists

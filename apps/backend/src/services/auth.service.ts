@@ -56,6 +56,12 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Tokens are stored as sha256(cleartext) at rest so a DB read can't yield a
+// usable token; the cleartext only exists in the outgoing email link.
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 // ─── Service functions ────────────────────────────────────────────────────────
 
 /**
@@ -122,7 +128,7 @@ export async function register(
     });
 
     await tx.insert(emailVerificationTokens).values({
-      token: verificationToken,
+      tokenHash: hashToken(verificationToken),
       userId: id,
     });
 
@@ -208,10 +214,11 @@ export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTo
  * verifyEmail — marks email_verified_at when given a valid token.
  */
 export async function verifyEmail(db: Drizzle, token: string): Promise<void> {
+  const tokenHash = hashToken(token);
   const [row] = await db
     .select({ userId: emailVerificationTokens.userId, expiresAt: emailVerificationTokens.expiresAt })
     .from(emailVerificationTokens)
-    .where(eq(emailVerificationTokens.token, token))
+    .where(eq(emailVerificationTokens.tokenHash, tokenHash))
     .limit(1);
 
   if (!row) throw statusError('Verification token not found.', 404);
@@ -219,7 +226,7 @@ export async function verifyEmail(db: Drizzle, token: string): Promise<void> {
 
   await db.transaction(async (tx) => {
     await tx.update(users).set({ emailVerifiedAt: sql`now()`, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
-    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.token, token));
+    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.tokenHash, tokenHash));
   });
 }
 
@@ -242,7 +249,7 @@ export async function resendVerification(db: Drizzle, redis: Redis, email: strin
   const token = generateToken();
   await db.transaction(async (tx) => {
     await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, user.id));
-    await tx.insert(emailVerificationTokens).values({ token, userId: user.id });
+    await tx.insert(emailVerificationTokens).values({ tokenHash: hashToken(token), userId: user.id });
   });
 
   await enqueue(redis, {
@@ -272,7 +279,7 @@ export async function forgotPassword(db: Drizzle, redis: Redis, email: string): 
   try {
     await db.transaction(async (tx) => {
       await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
-      await tx.insert(passwordResetTokens).values({ token, userId: user.id });
+      await tx.insert(passwordResetTokens).values({ tokenHash: hashToken(token), userId: user.id });
     });
   } catch (err) {
     console.error('[auth] forgotPassword error:', err);
@@ -300,10 +307,11 @@ export async function resetPassword(
     throw statusError('AUTH_MODE not supported for password reset.', 501);
   }
 
+  const tokenHash = hashToken(token);
   const [row] = await db
     .select({ userId: passwordResetTokens.userId, expiresAt: passwordResetTokens.expiresAt })
     .from(passwordResetTokens)
-    .where(eq(passwordResetTokens.token, token))
+    .where(eq(passwordResetTokens.tokenHash, tokenHash))
     .limit(1);
 
   if (!row || new Date() > row.expiresAt) {
@@ -311,7 +319,7 @@ export async function resetPassword(
   }
 
   await db.transaction(async (tx) => {
-    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.token, token));
+    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.tokenHash, tokenHash));
     await tx.insert(auditLog).values({ userId: row.userId, action: 'password_reset_completed' });
   });
 }

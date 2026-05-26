@@ -522,6 +522,83 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
   );
 
   /**
+   * POST /api/v1/users/:userId/stickers/bulk
+   *
+   * One-shot mutation for mass-actions on the album page. Replaces the
+   * previous client-side pattern of N sequential PATCH/DELETE/POST calls.
+   * All ops execute in a single transaction; cache is invalidated once.
+   */
+  fastify.post(
+    '/api/v1/users/:userId/stickers/bulk',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Collection'],
+        summary: 'Bulk apply add/set/remove/flags ops to a user collection',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['userId'],
+          properties: { userId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['ops'],
+          properties: {
+            albumId: { type: 'string' },
+            ops: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 500,
+              items: {
+                type: 'object',
+                required: ['op', 'variantId'],
+                properties: {
+                  op:          { type: 'string', enum: ['add', 'set', 'remove', 'flags'] },
+                  variantId:   { type: 'string' },
+                  quantity:    { type: 'integer', minimum: 0 },
+                  tradeHidden: { type: 'boolean' },
+                  tradeForced: { type: 'boolean' },
+                },
+              },
+            },
+          },
+        },
+        response: {
+          200: {
+            type: 'object',
+            properties: { applied: { type: 'integer' } },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId } = request.params as { userId: string };
+      if (!assertAccess(request, reply, userId, 'collection')) return;
+
+      const { albumId: bodyAlbumId, ops } = request.body as {
+        albumId?: string;
+        ops: collectionService.BulkOp[];
+      };
+
+      const albumId = await resolveAlbum(fastify, reply, userId, bodyAlbumId);
+      if (!albumId) return;
+
+      const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
+      const cached = await lookupIdempotent<{ applied: number }>(
+        fastify.redis, 'collection:bulk', userId, idempotencyKey,
+      );
+      if (cached) return reply.status(200).send(cached);
+
+      const result = await collectionService.applyBulk(
+        fastify.db, fastify.redis, userId, albumId, ops,
+      );
+      await storeIdempotent(fastify.redis, 'collection:bulk', userId, idempotencyKey, result);
+      return reply.status(200).send(result);
+    },
+  );
+
+  /**
    * POST /api/v1/users/:userId/avatar
    */
   fastify.post(

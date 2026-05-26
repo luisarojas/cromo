@@ -71,6 +71,18 @@ module "storage" {
   deletion_protection  = false
 }
 
+# ─── CDN (CloudFront in front of the uploads bucket) ──────────────────────────
+# Dev keeps the default *.cloudfront.net hostname — no ACM cert needed. Prod
+# layers a custom CNAME via cdn_hostname + acm_certificate_arn.
+
+module "cdn" {
+  source                         = "../../modules/cdn"
+  env                            = local.env
+  uploads_bucket_name            = module.storage.uploads_bucket
+  uploads_bucket_arn             = module.storage.uploads_bucket_arn
+  uploads_bucket_regional_domain = module.storage.uploads_bucket_regional_domain
+}
+
 # ─── Cognito ──────────────────────────────────────────────────────────────────
 # SES identity lives in env/shared. We reference it by its deterministic ARN
 # so we don't need a cross-state data source.
@@ -110,8 +122,11 @@ module "secrets" {
     GROQ_API_KEY = var.groq_api_key
     JOBS_MODE    = "enabled"
 
-    UPLOADS_BUCKET = module.storage.uploads_bucket
-    AWS_REGION     = var.region
+    UPLOADS_DRIVER     = "s3"
+    UPLOADS_BUCKET     = module.storage.uploads_bucket
+    UPLOADS_REGION     = var.region
+    UPLOADS_PUBLIC_URL = module.cdn.uploads_url
+    AWS_REGION         = var.region
   }
 }
 

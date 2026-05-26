@@ -14,6 +14,10 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 export async function updateUsername(
   db: Pool,
   userId: string,
@@ -80,8 +84,8 @@ export async function updateEmail(
     await client.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [userId]);
     const t = generateToken();
     await client.query(
-      'INSERT INTO email_verification_tokens (token, user_id) VALUES ($1, $2)',
-      [t, userId]
+      'INSERT INTO email_verification_tokens (token_hash, user_id) VALUES ($1, $2)',
+      [hashToken(t), userId]
     );
 
     await recordAudit(client, userId, 'email_changed', { to: normalizedEmail });

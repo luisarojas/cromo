@@ -19,6 +19,7 @@
     "job": "tsx src/jobs/run-once.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.658.0",
     "@cromo/shared": "workspace:*",
     "@fastify/cookie": "^11.0.0",
     "@fastify/cors": "^11.0.0",

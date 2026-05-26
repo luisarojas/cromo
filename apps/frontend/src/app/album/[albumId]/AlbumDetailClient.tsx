@@ -10,22 +10,16 @@ import { useFilterOptions } from './useFilterOptions';
 import { useStickerSelection } from './useStickerSelection';
 import {
   fetchAllStickersCached,
-  fetchCollection,
-  fetchCollectionPage,
-  fetchMissing,
-  fetchDuplicates,
+  fetchAlbumView,
   fetchUserAlbums,
-  fetchAlbumCrossAlbum,
   fetchAlbumEditions,
   fetchAlbumFormats,
   fetchStickersBulk,
+  bulkStickers,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
   setDefaultUserAlbum,
-  addSticker,
-  deleteSticker,
-  setTradeFlags,
   albumDisplayName,
   toEditionKey,
   DEFAULT_ALBUM_TYPE_KEY,
@@ -34,10 +28,9 @@ import {
   type AlbumSettings,
   type Sticker,
   type CollectionStats,
-  type MissingItem,
-  type DuplicateItem,
   type UserAlbum,
   type CrossAlbum,
+  type BulkOp,
 } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import { useAuthStore } from '@/store/auth';
@@ -52,71 +45,42 @@ import MassActionBar from '../components/MassActionBar';
 import VariantPickerModal from '../components/VariantPickerModal';
 import type { OwnedVariantEntry } from '../components/VariantPopover';
 
-async function runBatched<T>(
-  items: T[],
-  batchSize: number,
-  fn: (item: T) => Promise<unknown>,
-): Promise<void> {
-  for (let i = 0; i < items.length; i += batchSize) {
-    await Promise.allSettled(items.slice(i, i + batchSize).map(fn));
-  }
-}
-
 type OwnedMap = Map<string, OwnedVariantMap>;
 
-interface LoadedCollection {
+interface LoadedView {
   ownedMap: OwnedMap;
   stats: CollectionStats;
   totalExtraCopies: number;
+  crossAlbum: CrossAlbum;
 }
 
-async function loadOwnedAndStats(
+async function loadAlbumView(
   userId: string,
   albumId: string,
   token: string,
-): Promise<LoadedCollection> {
-  // First request uses the bundled endpoint so we get server-authoritative
-  // stats + total-extra-copies in the same round trip as the first page of
-  // items. Subsequent pages use the lighter items-only endpoint.
-  const first = await fetchCollectionPage(
-    userId,
-    { albumId, limit: 1000 },
-    token,
-  );
+): Promise<LoadedView> {
+  // One round-trip — server returns every (album_code, variant) the user owns
+  // in this album, plus stats, plus cross-album indicators.
+  const view = await fetchAlbumView(userId, albumId, token);
   const map: OwnedMap = new Map();
-  const consume = (items: typeof first.items): void => {
-    for (const item of items) {
-      let perSticker = map.get(item.albumCode);
-      if (!perSticker) {
-        perSticker = new Map<string, OwnedVariantEntry>();
-        map.set(item.albumCode, perSticker);
-      }
-      perSticker.set(item.variantType, {
-        variantId: item.stickerVariantId,
-        quantity: item.quantity,
-        tradeHidden: item.tradeHidden,
-        tradeForced: item.tradeForced,
-      });
+  for (const row of view.ownedVariants) {
+    let perSticker = map.get(row.albumCode);
+    if (!perSticker) {
+      perSticker = new Map<string, OwnedVariantEntry>();
+      map.set(row.albumCode, perSticker);
     }
-  };
-
-  consume(first.items);
-  let cursor: number | null = first.nextCursor;
-  for (let i = 0; i < 50 && cursor !== null; i++) {
-    const page = await fetchCollection(
-      userId,
-      { albumId, limit: 1000, cursor },
-      token,
-    );
-    consume(page.items);
-    if (page.items.length === 0) break;
-    cursor = page.nextCursor;
+    perSticker.set(row.variantType, {
+      variantId: row.stickerVariantId,
+      quantity: row.quantity,
+      tradeHidden: row.tradeHidden,
+      tradeForced: row.tradeForced,
+    });
   }
-
   return {
     ownedMap: map,
-    stats: first.stats,
-    totalExtraCopies: first.totalExtraCopies,
+    stats: view.stats,
+    totalExtraCopies: view.totalExtraCopies,
+    crossAlbum: view.crossAlbum,
   };
 }
 
@@ -155,9 +119,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [serverStats, setServerStats] = useState<CollectionStats | null>(null);
   const [serverExtraCopies, setServerExtraCopies] = useState<number>(0);
   const [crossAlbum, setCrossAlbum] = useState<CrossAlbum>({ neededIn: {}, availableIn: {}, presentIn: {} });
-  const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
-  const [duplicateItems, setDuplicateItems] = useState<DuplicateItem[]>([]);
-
   const { tab, filters, setTab, setFilters } = useAlbumUrlState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,16 +177,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // ---------------------------------------------------------------------------
   // Data loaders
   // ---------------------------------------------------------------------------
-  const loadCollection = useCallback(async (tok: string, userId: string, aid: string) => {
-    const { ownedMap: map, stats, totalExtraCopies } = await loadOwnedAndStats(userId, aid, tok);
+  const loadView = useCallback(async (tok: string, userId: string, aid: string) => {
+    const { ownedMap: map, stats, totalExtraCopies, crossAlbum: ca } = await loadAlbumView(userId, aid, tok);
     setOwnedMap(map);
     setServerStats(stats);
     setServerExtraCopies(totalExtraCopies);
-  }, []);
-
-  const loadCrossAlbum = useCallback(async (tok: string, userId: string, aid: string) => {
-    const data = await fetchAlbumCrossAlbum(userId, aid, tok);
-    setCrossAlbum(data);
+    setCrossAlbum(ca);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -247,9 +204,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
       setLoading(true);
       setError(null);
-      // Tab + filters live in the URL now — no localStorage restore needed.
-      setMissingItems([]);
-      setDuplicateItems([]);
 
       try {
         const [allStickers, userAlbums, editionList, formatList] = await Promise.all([
@@ -271,10 +225,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           return;
         }
 
-        await Promise.all([
-          loadCollection(tok, usr.id, albumId),
-          loadCrossAlbum(tok, usr.id, albumId),
-        ]);
+        await loadView(tok, usr.id, albumId);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -288,28 +239,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, albumId, router]);
-
-  // ---------------------------------------------------------------------------
-  // Load missing/duplicates on demand
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const tok = tokenRef.current;
-    const usr = userRef.current;
-    if (!tok || !usr || !albumId) return;
-
-    if (tab === 'missing' && missingItems.length === 0) {
-      fetchMissing(usr.id, { albumId, limit: 200 }, tok)
-        .then((r) => setMissingItems(r.items))
-        .catch((err) => console.error('Failed to load missing', err));
-    }
-
-    if (tab === 'duplicates' && duplicateItems.length === 0) {
-      fetchDuplicates(usr.id, { albumId, limit: 200 }, tok)
-        .then((r) => setDuplicateItems(r.items))
-        .catch((err) => console.error('Failed to load duplicates', err));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, albumId]);
 
   // ---------------------------------------------------------------------------
   // Cross-album indicators — computed server-side in a single SQL query.
@@ -425,26 +354,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     } else if (tab === 'have') {
       base = settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
     } else if (tab === 'missing') {
-      base = missingItems.length > 0
-        ? missingItems.filter((s) => settingsFilteredStickers.some((sf) => sf.albumCode === s.albumCode))
-        : settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
+      base = settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
     } else {
-      if (duplicateItems.length > 0) {
-        const seen = new Set<string>();
-        base = [];
-        for (const d of duplicateItems) {
-          if (seen.has(d.albumCode)) continue;
-          seen.add(d.albumCode);
-          const match = settingsFilteredStickers.find((s) => s.albumCode === d.albumCode);
-          if (match) base.push(match);
-          else base.push(d as unknown as Sticker);
-        }
-      } else {
-        base = settingsFilteredStickers.filter((s) => {
-          const p = ownedMap.get(s.albumCode);
-          return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
-        });
-      }
+      base = settingsFilteredStickers.filter((s) => {
+        const p = ownedMap.get(s.albumCode);
+        return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
+      });
     }
 
     const edition = activeAlbum?.edition;
@@ -478,7 +393,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       }
       return true;
     });
-  }, [settingsFilteredStickers, tab, filters, ownedMap, missingItems, duplicateItems, duplicatesCountAllVariants, activeAlbum, favouriteSet, wantedAlbumCodeSet]);
+  }, [settingsFilteredStickers, tab, filters, ownedMap, duplicatesCountAllVariants, activeAlbum, favouriteSet, wantedAlbumCodeSet]);
 
   // ---------------------------------------------------------------------------
   // Selection helpers
@@ -501,34 +416,53 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // ---------------------------------------------------------------------------
   // Mass action handlers
   // ---------------------------------------------------------------------------
-  const handleMassDelete = useCallback(async () => {
+  // Shared shape for every mass action: build the op list, POST in one shot,
+  // reload the view, toast.
+  const runMassAction = useCallback(async (
+    buildOps: () => { ops: BulkOp[]; emptyMessage?: string; successMessage: (n: number) => string; failMessage: string },
+  ) => {
     const tok = tokenRef.current;
     const usr = userRef.current;
     if (!tok || !usr || selectedCodes.size === 0) return;
     setMassWorking(true);
     try {
-      const toDelete: string[] = [];
-      for (const code of selectedCodes) {
-        const variants = ownedMap.get(code);
-        if (variants) {
-          for (const entry of variants.values()) toDelete.push(entry.variantId);
-        }
+      const { ops, emptyMessage, successMessage, failMessage } = buildOps();
+      if (ops.length === 0) {
+        if (emptyMessage) addToast(emptyMessage);
+        return;
       }
-      await runBatched(toDelete, 10, (variantId) =>
-        deleteSticker(usr.id, variantId, tok, albumId),
-      );
-      setSelectedCodes(new Set());
-      await loadCollection(tok, usr.id, albumId);
-      setMissingItems([]);
-      setDuplicateItems([]);
-      addToast(`Removed ${toDelete.length} sticker variant${toDelete.length === 1 ? '' : 's'} from collection`);
+      await bulkStickers(usr.id, albumId, ops, tok);
+      await loadView(tok, usr.id, albumId);
+      addToast(successMessage(ops.length));
     } catch (err) {
-      console.error('Mass delete failed', err);
-      addToast('Failed to delete stickers. Please try again.');
+      console.error('Mass action failed', err);
+      addToast(buildOps().failMessage);
     } finally {
       setMassWorking(false);
     }
-  }, [selectedCodes, ownedMap, albumId, loadCollection, addToast]);
+  // buildOps closes over selectedCodes/ownedMap/etc. via the caller's closure.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCodes, albumId, loadView, addToast]);
+
+  const handleMassDelete = useCallback(async () => {
+    await runMassAction(() => {
+      const ops: BulkOp[] = [];
+      for (const code of selectedCodes) {
+        const variants = ownedMap.get(code);
+        if (variants) {
+          for (const entry of variants.values()) {
+            ops.push({ op: 'remove', variantId: entry.variantId });
+          }
+        }
+      }
+      return {
+        ops,
+        successMessage: (n) => `Removed ${n} sticker variant${n === 1 ? '' : 's'} from collection`,
+        failMessage: 'Failed to delete stickers. Please try again.',
+      };
+    });
+    setSelectedCodes(new Set());
+  }, [selectedCodes, ownedMap, runMassAction, setSelectedCodes]);
 
   const handleMassAddVariant = useCallback(async (variantType: string) => {
     const tok = tokenRef.current;
@@ -552,48 +486,37 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           if (v) variantIdMap.set(lookup.albumCode, v.id);
         }
       }
-      await runBatched(selectedStickerList, 10, async (sticker) => {
+      const ops: BulkOp[] = [];
+      for (const sticker of selectedStickerList) {
         const variantId = variantIdMap.get(sticker.albumCode);
-        if (!variantId) return;
-        await addSticker(usr.id, variantId, 1, tok, albumId);
-      });
-      await loadCollection(tok, usr.id, albumId);
-      setMissingItems([]);
-      setDuplicateItems([]);
-      addToast(`Added ${variantType} variant to ${selectedStickerList.length} sticker${selectedStickerList.length === 1 ? '' : 's'}`);
+        if (variantId) ops.push({ op: 'add', variantId, quantity: 1 });
+      }
+      if (ops.length === 0) return;
+      await bulkStickers(usr.id, albumId, ops, tok);
+      await loadView(tok, usr.id, albumId);
+      addToast(`Added ${variantType} variant to ${ops.length} sticker${ops.length === 1 ? '' : 's'}`);
     } catch (err) {
       console.error('Mass add variant failed', err);
       addToast('Failed to add variants. Please try again.');
     } finally {
       setMassWorking(false);
     }
-  }, [selectedCodes, stickers, ownedMap, albumId, loadCollection, addToast]);
+  }, [selectedCodes, stickers, ownedMap, albumId, loadView, addToast]);
 
   const handleMassRemoveVariant = useCallback(async (variantType: string) => {
-    const tok = tokenRef.current;
-    const usr = userRef.current;
-    if (!tok || !usr || selectedCodes.size === 0) return;
-    setMassWorking(true);
-    try {
-      const toRemove: string[] = [];
+    await runMassAction(() => {
+      const ops: BulkOp[] = [];
       for (const code of selectedCodes) {
         const entry = ownedMap.get(code)?.get(variantType);
-        if (entry) toRemove.push(entry.variantId);
+        if (entry) ops.push({ op: 'remove', variantId: entry.variantId });
       }
-      await runBatched(toRemove, 10, (variantId) =>
-        deleteSticker(usr.id, variantId, tok, albumId),
-      );
-      await loadCollection(tok, usr.id, albumId);
-      setMissingItems([]);
-      setDuplicateItems([]);
-      addToast(`Removed ${variantType} from ${toRemove.length} sticker${toRemove.length === 1 ? '' : 's'}`);
-    } catch (err) {
-      console.error('Mass remove variant failed', err);
-      addToast('Failed to remove variants. Please try again.');
-    } finally {
-      setMassWorking(false);
-    }
-  }, [selectedCodes, ownedMap, albumId, loadCollection, addToast]);
+      return {
+        ops,
+        successMessage: (n) => `Removed ${variantType} from ${n} sticker${n === 1 ? '' : 's'}`,
+        failMessage: 'Failed to remove variants. Please try again.',
+      };
+    });
+  }, [selectedCodes, ownedMap, runMassAction]);
 
   const handleMassToggleFavourite = useCallback(() => {
     const addFav = selectedFavouriteState !== 'all';
@@ -601,47 +524,36 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   }, [selectedCodes, selectedFavouriteState, setFavouritesBulk]);
 
   const handleMassTradeFlags = useCallback(async (flags: { tradeHidden?: boolean; tradeForced?: boolean }) => {
-    const tok = tokenRef.current;
-    const usr = userRef.current;
-    if (!tok || !usr || selectedCodes.size === 0) return;
-    setMassWorking(true);
-    try {
-      const toUpdate: string[] = [];
+    await runMassAction(() => {
+      const ops: BulkOp[] = [];
       for (const code of selectedCodes) {
         const variants = ownedMap.get(code);
         if (variants) {
-          for (const entry of variants.values()) toUpdate.push(entry.variantId);
+          for (const entry of variants.values()) {
+            ops.push({ op: 'flags', variantId: entry.variantId, ...flags });
+          }
         }
       }
-      await runBatched(toUpdate, 10, (variantId) =>
-        setTradeFlags(usr.id, variantId, flags, tok, albumId),
-      );
-      await loadCollection(tok, usr.id, albumId);
-      setMissingItems([]);
-      setDuplicateItems([]);
-      addToast(`Updated trade flags for ${toUpdate.length} sticker variant${toUpdate.length === 1 ? '' : 's'}`);
-    } catch (err) {
-      console.error('Mass trade flags failed', err);
-      addToast('Failed to update trade flags. Please try again.');
-    } finally {
-      setMassWorking(false);
-    }
-  }, [selectedCodes, ownedMap, albumId, loadCollection, addToast]);
+      return {
+        ops,
+        successMessage: (n) => `Updated trade flags for ${n} sticker variant${n === 1 ? '' : 's'}`,
+        failMessage: 'Failed to update trade flags. Please try again.',
+      };
+    });
+  }, [selectedCodes, ownedMap, runMassAction]);
 
   // ---------------------------------------------------------------------------
   // Mutation handlers
   // ---------------------------------------------------------------------------
-  const handleCollectionChange = useCallback(async (options?: { reloadSummaries?: boolean }) => {
+  const handleCollectionChange = useCallback(async () => {
     const tok = tokenRef.current;
     const usr = userRef.current;
     if (tok && usr && albumId) {
-      const tasks: Promise<unknown>[] = [loadCollection(tok, usr.id, albumId)];
-      if (options?.reloadSummaries) tasks.push(loadCrossAlbum(tok, usr.id, albumId));
-      await Promise.all(tasks);
+      // loadView refreshes ownedMap + stats + crossAlbum in one round trip,
+      // so the previous `reloadSummaries` knob is no longer meaningful.
+      await loadView(tok, usr.id, albumId);
     }
-    setMissingItems([]);
-    setDuplicateItems([]);
-  }, [albumId, loadCollection, loadCrossAlbum]);
+  }, [albumId, loadView]);
 
   const handleOptimisticAdjust = useCallback(
     (albumCode: string, variantType: string, variantId: string, delta: number) => {
