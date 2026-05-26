@@ -2,6 +2,7 @@
 node_modules/
 .pnp
 .pnp.js
+.pnpm-store/
 
 # npm lockfile (project uses pnpm)
 package-lock.json
