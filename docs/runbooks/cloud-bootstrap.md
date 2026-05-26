@@ -87,65 +87,23 @@ Because Cromo has no staging environment (see `infrastructure.md` §17.1), the o
 
 Until production access is granted, prod cannot send to any address that isn't manually verified, so don't open prod sign-ups before this is approved.
 
-## 5. Push the first images
+## 5. First deploy — one-shot bootstrap script
 
-Once `terraform apply` finishes, the EC2 user-data script has tried to pull `latest` from ECR — but no images exist yet. Push them once manually so the instance has something to run:
-
-```bash
-ECR_REGISTRY=$(terraform output -raw ecr_backend_url | cut -d/ -f1)
-aws ecr get-login-password | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-# Build for amd64 even if you're on Apple Silicon.
-docker buildx build --platform linux/amd64 \
-  -f apps/backend/Dockerfile.prod \
-  -t "$ECR_REGISTRY/cromo-backend:latest" --push .
-
-docker buildx build --platform linux/amd64 \
-  -f apps/frontend/Dockerfile.prod \
-  --build-arg NEXT_PUBLIC_API_URL=https://dev.cromotrade.ca \
-  --build-arg NEXT_PUBLIC_ENV=dev \
-  -t "$ECR_REGISTRY/cromo-frontend:latest" --push .
-```
-
-Then upload the compose file and trigger the first deploy:
+The first deploy is a chicken-and-egg dance: EC2's user-data tries to pull from ECR, but no images exist yet; the compose file isn't in S3 yet; the catalog isn't seeded. `scripts/deploy-dev-bootstrap.sh` does the whole sequence in one command — build and push prod images, upload the compose file to S3, SSM the ASG instance into pulling and starting containers, seed the catalog from `cromo/dev/app` in Secrets Manager, smoke-test the public health endpoints.
 
 ```bash
-S3_BUCKET=$(terraform output -raw uploads_bucket)
-aws s3 cp infrastructure/docker/docker-compose.prod.yml \
-  "s3://$S3_BUCKET/_deploy/docker-compose.prod.yml"
-
-# Use SSM to start the containers (no SSH).
-INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups \
-  --auto-scaling-group-names cromo-dev-app \
-  --query "AutoScalingGroups[0].Instances[0].InstanceId" --output text)
-aws ssm start-session --target "$INSTANCE_ID"
-# Inside the session:
-#   sudo su -
-#   cd /opt/cromo
-#   export ECR_REGISTRY=... IMAGE_TAG=latest CROMO_ENV=dev
-#   aws s3 cp s3://"$S3_BUCKET"/_deploy/docker-compose.prod.yml docker-compose.yml
-#   docker compose pull && docker compose up -d
-#   exit
+./scripts/deploy-dev-bootstrap.sh
 ```
 
-## 6. Run migrations and seed the catalog
+What it requires: `aws`, `docker` (with buildx), `jq`, `psql`, `terraform`. Run from the repo root with `AWS_PROFILE` already exported.
 
-The backend's `runMigrations()` runs at startup, so the schema is applied automatically the moment the API container boots. Seed the catalog from your laptop:
+What it does NOT do: trigger the GitHub Actions workflow. That's step 6 — once secrets are wired, every subsequent push to `main` redeploys automatically and you never need to run this script again.
 
-```bash
-DATABASE_URL="$(terraform output -raw database_endpoint | sed 's/^/postgres:\/\/cromo_admin:PASSWORD@/')/cromo" \
-  ./scripts/seed-database.sh --remote
-```
+> **The script is single-use.** Use it for the very first dev bring-up and any time you nuke + recreate the env. For everyday changes, push to `main` and let CI deploy.
 
-The password lives in Secrets Manager — pull it with:
+> **If the ASG is paused.** The business-hours schedule scales the ASG to 0 outside Mon–Fri 08–19 ET. The script will fail at the "look up ASG instance" step in that case — either run during business hours, or temporarily set `desired_capacity = 1` via console / `aws autoscaling set-desired-capacity`.
 
-```bash
-aws secretsmanager get-secret-value \
-  --secret-id cromo/dev/app --query SecretString --output text \
-  | jq -r '.DATABASE_URL'
-```
-
-## 7. Wire CI/CD
+## 6. Wire CI/CD
 
 The OIDC provider and the per-env IAM role are both provisioned by Terraform — bootstrap creates the account-wide GitHub OIDC provider, and `modules/cicd/` creates the env-scoped role. Dev's role only trusts pushes to `main`; prod's only trusts `v*` tag pushes.
 
@@ -172,7 +130,7 @@ The first push to `main` after that triggers `.github/workflows/deploy-dev.yml`,
 
 > **Trust-policy gotcha.** The role's trust is scoped via the OIDC `sub` claim to one repo and one ref pattern. If you fork the repo or rename it, update `github_repo` in `terraform.tfvars` and re-apply — otherwise STS will reject the assume call with `AccessDenied`.
 
-## 8. Smoke test
+## 7. Smoke test
 
 ```bash
 curl -sf https://dev.cromotrade.ca/api/v1/health
@@ -189,9 +147,9 @@ If anything is red, the logs land in CloudWatch:
 - `/cromo/dev/api`
 - `/cromo/dev/frontend`
 
-## 9. Standing up prod
+## 8. Standing up prod
 
-Once dev is healthy and you're ready for Phase B3, prod uses the same modules with different inputs. The workflow is the same as §2–8, with these differences:
+Once dev is healthy and you're ready for Phase B3, prod uses the same modules with different inputs. The workflow is the same as §2–7, with these differences:
 
 - **Run dev first.** Prod's DNS module is configured with `create_zone = false` — it looks up the existing `cromotrade.ca` hosted zone created by the dev `terraform apply`. Applying prod before dev will fail at the DNS lookup.
 - **SES identity is shared.** SES domain identities are AWS-account-scoped, so dev already verified `cromotrade.ca`. Prod's `env/prod/main.tf` deliberately does NOT include the SES module — it just references the existing identity ARN. Don't add a duplicate SES module.
@@ -203,7 +161,7 @@ Once dev is healthy and you're ready for Phase B3, prod uses the same modules wi
 - **CI deploy needs a second workflow.** `.github/workflows/deploy-dev.yml` only targets dev. Copy it to `deploy-prod.yml` and trigger on a tag push (`v*`) rather than every merge to main.
 - **HA differences from dev.** Prod runs one NAT gateway per AZ (`single_nat_gateway = false`), a multi-AZ Redis replication group (`num_cache_clusters = 2`, `automatic_failover_enabled = true`), and a multi-AZ RDS instance. Dev runs single instances of all three to keep cost in the $20–25/mo range. The compute module puts the EC2 ASG in private subnets in both envs; only the ALB sits in public.
 
-## 10. Tear-down (when needed)
+## 9. Tear-down (when needed)
 
 ```bash
 cd infrastructure/terraform/env/dev
