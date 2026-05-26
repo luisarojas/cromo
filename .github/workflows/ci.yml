@@ -63,6 +63,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Backend eslint + frontend next-lint, run via turbo across workspaces.
       - name: Lint
         run: pnpm lint
 

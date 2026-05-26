@@ -158,7 +158,7 @@ export async function identifySticker(
     throw new Error('No text response from Groq API');
   }
 
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
@@ -166,9 +166,10 @@ export async function identifySticker(
   }
 
   // Gracefully handle both the preferred wrapper object or an array fallback
+  const parsedObj = (parsed ?? {}) as { stickers?: unknown };
   const items: unknown[] = Array.isArray(parsed)
     ? parsed
-    : (parsed.stickers && Array.isArray(parsed.stickers) ? parsed.stickers : [parsed]);
+    : (Array.isArray(parsedObj.stickers) ? parsedObj.stickers : [parsed]);
 
   return items.map((item): ScanResult => {
     const p = item as Record<string, unknown>;

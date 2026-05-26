@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from 'pg';
+import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 import { withTx } from '../db/transaction.js';
 import { hashFilters, invalidateUserCaches, userCacheKey } from './cache.js';
