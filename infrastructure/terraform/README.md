@@ -19,8 +19,8 @@ infrastructure/terraform/
     ses/                 # SES domain identity + DKIM
     secrets/             # Secrets Manager entries
   env/
-    dev/                 # Dev environment composition — wires modules together
-    prod/                # (Phase B3) — copy of dev/ with deletion protection, real Groq key, etc.
+    dev/                 # Dev environment — dev.cromotrade.ca, business-hours schedule, mock Groq
+    prod/                # Prod environment — cromotrade.ca, multi-AZ RDS, deletion protection, real Groq
 ```
 
 ## Region

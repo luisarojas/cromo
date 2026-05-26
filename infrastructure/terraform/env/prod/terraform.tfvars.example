@@ -1,0 +1,19 @@
+# Copy to terraform.tfvars and fill in. Never commit terraform.tfvars.
+#
+# IMPORTANT: this is the production environment. Double-check every value
+# before `terraform apply`. Treat this file like a checklist.
+
+account_id   = "123456789012"
+apex_domain  = "cromotrade.ca"
+ecr_registry = "123456789012.dkr.ecr.ca-central-1.amazonaws.com"
+
+# Use a real on-call distribution list, not a personal inbox.
+alert_email = "oncall@cromotrade.ca"
+
+# Generate with: openssl rand -base64 32
+# This signs internal short-lived tokens. Cognito tokens are RS256-verified
+# via JWKS, so this secret does NOT gate user authentication directly.
+jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
+
+# Real Groq key — 'mock' will break AI scanning in prod.
+groq_api_key = "REPLACE_WITH_REAL_GROQ_KEY"

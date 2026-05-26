@@ -175,7 +175,26 @@ If anything is red, the logs land in CloudWatch:
 - `/cromo/dev/api`
 - `/cromo/dev/frontend`
 
-## 9. Tear-down (when needed)
+## 9. Standing up prod
+
+Once dev is healthy and you're ready for Phase B3, prod uses the same modules with different inputs. The workflow is the same as §2–8, with these differences:
+
+- **Run dev first.** Prod's DNS module is configured with `create_zone = false` — it looks up the existing `cromotrade.ca` hosted zone created by the dev `terraform apply`. Applying prod before dev will fail at the DNS lookup.
+- **SES identity is shared.** SES domain identities are AWS-account-scoped, so dev already verified `cromotrade.ca`. Prod's `env/prod/main.tf` deliberately does NOT include the SES module — it just references the existing identity ARN. Don't add a duplicate SES module.
+- **Sandbox exit is a prerequisite, not a post-launch task.** Follow §4 to leave the SES sandbox *before* prod accepts sign-ups, otherwise verification emails won't reach real users.
+- **terraform.tfvars values change.** Real `groq_api_key` (not `mock`), on-call distribution for `alert_email`, fresh `jwt_secret`. Copy `env/prod/terraform.tfvars.example` and treat it as a launch checklist.
+- **Backend state is separate.** Replace `REPLACE_WITH_ACCOUNT_ID` in `env/prod/backend.tf` with your account ID, then `terraform init`.
+- **Resources are destroy-protected.** Prod RDS, S3, Cognito, and ALB all have deletion protection on. A `terraform destroy` of the prod env will fail until you `terraform apply -var 'deletion_protection=false'` first — that's intentional friction.
+- **No business-hours schedule.** The `scheduling` module is wired into `env/prod/main.tf` with `enable = false` so it renders no resources. Don't flip this to true unless you intend to take prod offline outside business hours (you don't).
+- **CI deploy needs a second workflow.** `.github/workflows/deploy-dev.yml` only targets dev. Copy it to `deploy-prod.yml` and trigger on a tag push (`v*`) rather than every merge to main.
+
+Known prod-grade follow-ups documented inline in `env/prod/main.tf`:
+1. Single NAT Gateway (acceptable for soft launch, fix before scale).
+2. EC2 instances run in public subnets behind security groups (functional, but should be moved to private subnets for defence-in-depth).
+
+Neither blocks launch, but both are worth tracking in your post-launch backlog.
+
+## 10. Tear-down (when needed)
 
 ```bash
 cd infrastructure/terraform/env/dev

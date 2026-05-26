@@ -23,3 +23,9 @@ variable "instance_type" {
   type    = string
   default = "t3.small"
 }
+
+variable "deletion_protection" {
+  description = "Whether to enable deletion protection on the ALB. Set true for prod."
+  type        = bool
+  default     = false
+}

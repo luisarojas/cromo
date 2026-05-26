@@ -112,11 +112,13 @@ resource "aws_acm_certificate_validation" "alb" {
 # ─── ALB ──────────────────────────────────────────────────────────────────────
 
 resource "aws_lb" "main" {
-  name               = "cromo-${var.env}"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [var.alb_sg_id]
-  subnets            = var.public_subnet_ids
+  name                       = "cromo-${var.env}"
+  internal                   = false
+  load_balancer_type         = "application"
+  security_groups            = [var.alb_sg_id]
+  subnets                    = var.public_subnet_ids
+  enable_deletion_protection = var.deletion_protection
+  drop_invalid_header_fields = true
 }
 
 resource "aws_lb_target_group" "frontend" {
