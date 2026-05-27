@@ -23,7 +23,7 @@ LOCAL → DEV → PRODUCTION
 | Deletion protection | N/A | No | Yes |
 | Log retention | Terminal only | 7 days | 365 days |
 | Uptime | On-demand | **Mon–Fri 08:00–19:00 ET** (see §19.2.2) | 24/7 |
-| Public access | localhost only | Public DNS, no allowlist | Public |
+| Public access | localhost only | IP allowlist only (see §19.2.3) | Public |
 
 ### 17.2 Moving from Local to Cloud (Phase B)
 
@@ -108,6 +108,22 @@ ALB, NAT Gateway, and ElastiCache stay up — stopping them either breaks DNS or
 
 If dev returns 502s outside the window, it's the schedule, not an incident.
 
+### 19.2.3 Dev ALB IP Allowlist
+
+The dev environment is not publicly accessible. The ALB security group restricts inbound traffic (ports 80 and 443) to an explicit CIDR allowlist defined in `infrastructure/terraform/env/dev/terraform.tfvars`:
+
+```hcl
+alb_ingress_cidrs = ["<your-ip>/32"]
+```
+
+Anyone outside the allowlist receives a connection timeout. Production is unaffected — its networking module defaults to `["0.0.0.0/0"]`.
+
+**Updating the allowlist** (e.g. when your home IP changes):
+
+1. Get your current IP: `curl https://checkip.amazonaws.com`
+2. Update `alb_ingress_cidrs` in `infrastructure/terraform/env/dev/terraform.tfvars`
+3. Apply: `AWS_PROFILE=cromo terraform -chdir=infrastructure/terraform/env/dev apply -target=module.networking -auto-approve`
+
 ### 19.3 Infrastructure as Code: Terraform
 
 All AWS resources defined in Terraform. Never click resources into existence in the console.
@@ -170,6 +186,7 @@ Replaces Mailpit. Domain verified in SES with SPF/DKIM/DMARC. Start in SES sandb
 ### 19.10 Security
 
 - ALB + ACM — all traffic HTTPS; HTTP redirects to HTTPS at the load balancer
+- Dev ALB IP allowlist — dev environment not publicly reachable; see §19.2.3
 - Private VPC subnets — RDS and ElastiCache never exposed to the public internet
 - EC2 security group — inbound 443/80 from ALB only; no direct SSH from the internet (use AWS Systems Manager Session Manager)
 - AWS Shield Standard (free) — DDoS protection
