@@ -110,8 +110,8 @@ module "secrets" {
     DATABASE_URL = module.database.connection_url
     REDIS_URL    = module.cache.redis_url
 
-    AUTH_MODE            = "cognito"
-    JWT_SECRET           = var.jwt_secret # used for any internal token signing; Cognito JWTs are RS256-verified separately
+    AUTH_MODE            = "local"
+    JWT_SECRET           = var.jwt_secret
     COGNITO_USER_POOL_ID = module.auth.user_pool_id
     COGNITO_CLIENT_ID    = module.auth.client_id
     COGNITO_REGION       = var.region

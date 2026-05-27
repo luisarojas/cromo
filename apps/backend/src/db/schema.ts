@@ -30,6 +30,7 @@ export const users = pgTable('users', {
   locale: text('locale').notNull().default('en'),
   emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   hashedEmail: text('hashed_email'),
+  passwordHash: text('password_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),

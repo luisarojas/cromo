@@ -118,7 +118,7 @@ module "secrets" {
     DATABASE_URL = module.database.connection_url
     REDIS_URL    = module.cache.redis_url
 
-    AUTH_MODE            = "cognito"
+    AUTH_MODE            = "local"
     JWT_SECRET           = var.jwt_secret
     COGNITO_USER_POOL_ID = module.auth.user_pool_id
     COGNITO_CLIENT_ID    = module.auth.client_id

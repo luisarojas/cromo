@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 import { eq, sql } from 'drizzle-orm';
 import type { Drizzle } from '../db/index.js';
 import {
@@ -12,7 +13,6 @@ import {
   passwordResetTokens,
   auditLog,
 } from '../db/schema.js';
-import { env } from '../env.js';
 import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY, DEFAULT_ALBUM_FORMAT_KEY } from '../constants.js';
 import type { Redis } from 'ioredis';
 import { enqueue } from './jobs.service.js';
@@ -62,6 +62,22 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+const scryptAsync = promisify(crypto.scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString('hex')}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [salt, hash] = stored.split(':');
+  const derived = (await scryptAsync(password, salt!, 64)) as Buffer;
+  const expected = Buffer.from(hash!, 'hex');
+  if (derived.length !== expected.length) return false;
+  return crypto.timingSafeEqual(expected, derived);
+}
+
 // ─── Service functions ────────────────────────────────────────────────────────
 
 /**
@@ -84,6 +100,7 @@ export async function register(
   if (existingUsername) throw statusError('Username is already taken.', 409);
 
   const verificationToken = generateToken();
+  const passwordHash = await hashPassword(input.password);
 
   const userId = await db.transaction(async (tx) => {
     const [newUser] = await tx
@@ -93,6 +110,7 @@ export async function register(
         username: normalizedUsername,
         displayName: input.displayName ?? null,
         hashedEmail,
+        passwordHash,
       })
       .returning({ id: users.id });
 
@@ -147,7 +165,6 @@ export async function register(
 
 /**
  * login — authenticates a user.
- * In AUTH_MODE=local: any password is accepted; user must exist.
  */
 export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens> {
   const normalizedEmail = input.email.toLowerCase().trim();
@@ -157,8 +174,8 @@ export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens>
   if (!user) throw statusError('Invalid email or password.', 401);
   if (user.deletedAt) throw statusError('This account has been deactivated.', 403);
 
-  if (env.AUTH_MODE !== 'local') {
-    throw statusError('AUTH_MODE not supported.', 501);
+  if (!user.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
+    throw statusError('Invalid email or password.', 401);
   }
 
   const tokenPayload = { sub: user.id, email: user.email, role: user.role };
@@ -295,18 +312,13 @@ export async function forgotPassword(db: Drizzle, redis: Redis, email: string): 
 }
 
 /**
- * resetPassword — validates the reset token and logs the completion.
- * In local mode passwords are not stored, so we only verify token validity.
+ * resetPassword — validates the reset token and updates the user's password.
  */
 export async function resetPassword(
   db: Drizzle,
   token: string,
-  _newPassword: string
+  newPassword: string
 ): Promise<void> {
-  if (env.AUTH_MODE !== 'local') {
-    throw statusError('AUTH_MODE not supported for password reset.', 501);
-  }
-
   const tokenHash = hashToken(token);
   const [row] = await db
     .select({ userId: passwordResetTokens.userId, expiresAt: passwordResetTokens.expiresAt })
@@ -318,7 +330,10 @@ export async function resetPassword(
     throw statusError('Reset token is invalid or has expired.', 400);
   }
 
+  const passwordHash = await hashPassword(newPassword);
+
   await db.transaction(async (tx) => {
+    await tx.update(users).set({ passwordHash, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
     await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.tokenHash, tokenHash));
     await tx.insert(auditLog).values({ userId: row.userId, action: 'password_reset_completed' });
   });
