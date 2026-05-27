@@ -1,7 +1,7 @@
 terraform {
   required_version = ">= 1.7.0"
   backend "s3" {
-    bucket         = "cromo-tfstate-REPLACE_WITH_ACCOUNT_ID"
+    bucket         = "cromo-tfstate-584133415742"
     key            = "env/shared/terraform.tfstate"
     region         = "ca-central-1"
     dynamodb_table = "cromo-tfstate-lock"
