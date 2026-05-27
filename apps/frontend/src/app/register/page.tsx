@@ -47,18 +47,20 @@ export default function RegisterPage() {
             <strong className="text-[var(--cromo-fg)]">{email}</strong>. Click the link to activate
             your account.
           </p>
-          <p className="text-xs text-[var(--cromo-fg-subtle)]">
-            Running locally?{' '}
-            <a
-              href="http://localhost:8025"
-              target="_blank"
-              rel="noreferrer"
-              className="text-[var(--cromo-accent)] hover:underline"
-            >
-              Open Mailpit
-            </a>{' '}
-            to view your email.
-          </p>
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-xs text-[var(--cromo-fg-subtle)]">
+              Running locally?{' '}
+              <a
+                href="http://localhost:8025"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--cromo-accent)] hover:underline"
+              >
+                Open Mailpit
+              </a>{' '}
+              to view your email.
+            </p>
+          )}
           <div className="mt-6">
             <Link
               href="/login"

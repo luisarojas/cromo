@@ -86,16 +86,21 @@ function VerifyEmailContent() {
 
           {resendDone ? (
             <p className="text-sm text-[var(--cromo-success-text)] text-center">
-              New verification link sent — check your inbox (or{' '}
-              <a
-                href="http://localhost:8025"
-                target="_blank"
-                rel="noreferrer"
-                className="underline"
-              >
-                Mailpit
-              </a>
-              ).
+              New verification link sent — check your inbox
+              {process.env.NODE_ENV === 'development' && (
+                <>
+                  {' '}(or{' '}
+                  <a
+                    href="http://localhost:8025"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    Mailpit
+                  </a>
+                  )
+                </>
+              )}.
             </p>
           ) : (
             <form onSubmit={handleResend} className="flex flex-col gap-3">
