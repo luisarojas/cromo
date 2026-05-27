@@ -36,7 +36,7 @@ export default function Home() {
 
         <h1
           className="font-display font-bold tracking-tight text-5xl sm:text-6xl mb-5 cromo-chrome-text"
-          style={{ letterSpacing: '-0.04em' }}
+          style={{ letterSpacing: '-0.04em', paddingBottom: '0.15em', marginBottom: 'calc(1.25rem - 0.15em)' }}
         >
           Every variant. Every trade.
         </h1>
