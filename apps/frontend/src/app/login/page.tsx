@@ -108,24 +108,26 @@ export default function LoginPage() {
           </form>
         </Card>
 
-        <Card className="mt-4">
-          <p className="text-[11px] font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
-            Local dev — quick login
-          </p>
-          <div className="flex flex-col gap-1.5">
-            {TEST_USERS.map((u) => (
-              <button
-                key={u.email}
-                onClick={() => doLogin(u.email, 'any')}
-                disabled={loading}
-                className="flex items-center justify-between rounded-btn border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-3 py-2 text-sm hover:border-[var(--cromo-border-strong)] disabled:opacity-50 transition-colors text-left"
-              >
-                <span className="font-medium text-[var(--cromo-fg)]">{u.label}</span>
-                <span className="text-[var(--cromo-fg-subtle)] text-xs">{u.description}</span>
-              </button>
-            ))}
-          </div>
-        </Card>
+        {process.env.NEXT_PUBLIC_ENV === 'development' && (
+          <Card className="mt-4">
+            <p className="text-[11px] font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
+              Local dev — quick login
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {TEST_USERS.map((u) => (
+                <button
+                  key={u.email}
+                  onClick={() => doLogin(u.email, 'any')}
+                  disabled={loading}
+                  className="flex items-center justify-between rounded-btn border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-3 py-2 text-sm hover:border-[var(--cromo-border-strong)] disabled:opacity-50 transition-colors text-left"
+                >
+                  <span className="font-medium text-[var(--cromo-fg)]">{u.label}</span>
+                  <span className="text-[var(--cromo-fg-subtle)] text-xs">{u.description}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
