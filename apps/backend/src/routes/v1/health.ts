@@ -6,7 +6,7 @@ export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
    * Liveness check — returns 200 if the process is alive.
    */
   fastify.get(
-    '/health',
+    '/api/v1/health',
     {
       logLevel: 'warn',
       schema: {
@@ -39,7 +39,7 @@ export async function healthRoutes(fastify: FastifyInstance): Promise<void> {
    * Readiness check — verifies DB and Redis connectivity.
    */
   fastify.get(
-    '/health/ready',
+    '/api/v1/health/ready',
     {
       schema: {
         tags: ['Health'],

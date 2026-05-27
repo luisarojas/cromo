@@ -138,8 +138,10 @@ COMMAND_ID=$(aws ssm send-command \
   --output text)
 
 echo "  COMMAND_ID   = $COMMAND_ID"
-echo "▶ Waiting for SSM command to finish"
-aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
+echo "▶ Waiting for SSM command to finish (pulling images may take several minutes)"
+aws ssm wait command-executed \
+  --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+  --cli-read-timeout 600
 STATUS=$(aws ssm get-command-invocation \
   --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
   --query "Status" --output text)

@@ -146,7 +146,7 @@ resource "aws_lb_target_group" "api" {
   target_type = "instance"
 
   health_check {
-    path                = "/health"
+    path                = "/api/v1/health"
     matcher             = "200"
     interval            = 15
     timeout             = 5

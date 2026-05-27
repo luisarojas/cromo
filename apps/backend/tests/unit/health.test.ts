@@ -7,7 +7,7 @@ async function buildTestApp(): Promise<FastifyInstance> {
   const fastify = Fastify({ logger: false });
 
   // Register a minimal set of routes without the database/redis plugins
-  fastify.get('/health', async (_req, reply) => {
+  fastify.get('/api/v1/health', async (_req, reply) => {
     return reply.status(200).send({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -17,7 +17,7 @@ async function buildTestApp(): Promise<FastifyInstance> {
 
   // /health/ready cannot be properly unit-tested without a real DB.
   // We test that it exists and returns an appropriate shape via mocking.
-  fastify.get('/health/ready', async (_req, reply) => {
+  fastify.get('/api/v1/health/ready', async (_req, reply) => {
     // Stub: always healthy in unit tests
     return reply.status(200).send({
       status: 'ready',
@@ -42,11 +42,11 @@ afterAll(async () => {
   await app.close();
 });
 
-describe('GET /health', () => {
+describe('GET /api/v1/health', () => {
   it('returns 200 with status "ok"', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/health',
+      url: '/api/v1/health',
     });
 
     expect(response.statusCode).toBe(200);
@@ -61,18 +61,18 @@ describe('GET /health', () => {
   it('includes Content-Type: application/json', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/health',
+      url: '/api/v1/health',
     });
 
     expect(response.headers['content-type']).toMatch(/application\/json/);
   });
 });
 
-describe('GET /health/ready', () => {
+describe('GET /api/v1/health/ready', () => {
   it('returns 200 with both checks "ok" when services are healthy', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/health/ready',
+      url: '/api/v1/health/ready',
     });
 
     expect(response.statusCode).toBe(200);
