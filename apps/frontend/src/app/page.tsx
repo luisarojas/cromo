@@ -108,7 +108,7 @@ interface FeatureCardProps {
 function FeatureCard({ iconPath, tone, title, body }: FeatureCardProps) {
   const iconStyle =
     tone === 'chrome'
-      ? { background: 'linear-gradient(135deg, #22D3EE, #A78BFA, #F472B6, #FBBF24)', color: '#0E1117' }
+      ? { background: 'var(--cromo-warning-soft)', color: 'var(--cromo-warning)' }
       : tone === 'success'
         ? { background: 'rgba(52, 211, 153, 0.12)', color: 'var(--cromo-success)' }
         : { background: 'var(--cromo-accent-soft)', color: 'var(--cromo-accent)' };
