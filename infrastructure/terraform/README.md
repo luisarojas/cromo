@@ -44,7 +44,7 @@ Remote state is stored in S3 with DynamoDB locking. Both resources are provision
 |---|---|
 | Bucket | `cromo-tfstate-584133415742` |
 | Region | `ca-central-1` |
-| Lock table | `cromo-tfstate-lock` (DynamoDB) |
+| Locking | S3 native lockfile (`use_lockfile = true`) |
 | Encryption | SSE enabled |
 
 Each workspace has its own key within the same bucket:

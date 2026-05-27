@@ -4,7 +4,7 @@ terraform {
     bucket         = "cromo-tfstate-584133415742"
     key            = "env/dev/terraform.tfstate"
     region         = "ca-central-1"
-    dynamodb_table = "cromo-tfstate-lock"
+    use_lockfile   = true
     encrypt        = true
   }
 }
