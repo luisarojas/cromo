@@ -23,7 +23,7 @@ COPY apps/backend/ ./apps/backend/
 RUN pnpm --filter @cromo/backend build
 
 # Prune devDependencies for the runtime image.
-RUN pnpm --filter @cromo/backend --prod deploy /deploy/backend
+RUN pnpm --filter @cromo/backend --prod deploy --legacy /deploy/backend
 
 
 # ─── Runtime ──────────────────────────────────────────────────────────────────

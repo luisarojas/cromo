@@ -41,7 +41,7 @@ services:
   api:
     build:
       context: ../../
-      dockerfile: apps/backend/Dockerfile.dev
+      dockerfile: apps/backend/Dockerfile.local
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -84,7 +84,7 @@ services:
   frontend:
     build:
       context: ../../
-      dockerfile: apps/frontend/Dockerfile.dev
+      dockerfile: apps/frontend/Dockerfile.local
     restart: unless-stopped
     ports:
       - "3000:3000"

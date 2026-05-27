@@ -33,8 +33,8 @@ cromo/
 │   │   ├── tests/
 │   │   │   ├── unit/
 │   │   │   └── e2e/                  # Playwright
-│   │   ├── Dockerfile.dev
-│   │   ├── Dockerfile                # Production build
+│   │   ├── Dockerfile.local
+│   │   ├── Dockerfile.cloud          # Cloud build (dev + prod environments)
 │   │   └── package.json
 │   │
 │   └── backend/                      # Fastify API
@@ -47,8 +47,8 @@ cromo/
 │       ├── tests/
 │       │   ├── unit/
 │       │   └── integration/
-│       ├── Dockerfile.dev
-│       ├── Dockerfile                # Production build
+│       ├── Dockerfile.local
+│       ├── Dockerfile.cloud          # Cloud build (dev + prod environments)
 │       └── package.json
 │
 ├── packages/

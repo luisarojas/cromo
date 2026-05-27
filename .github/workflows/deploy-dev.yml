@@ -50,7 +50,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/backend/Dockerfile.prod
+          file: apps/backend/Dockerfile.cloud
           push: true
           tags: |
             ${{ secrets.ECR_REGISTRY }}/cromo-backend:${{ env.IMAGE_TAG }}
@@ -62,7 +62,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/frontend/Dockerfile.prod
+          file: apps/frontend/Dockerfile.cloud
           push: true
           tags: |
             ${{ secrets.ECR_REGISTRY }}/cromo-frontend:${{ env.IMAGE_TAG }}

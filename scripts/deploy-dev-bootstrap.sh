@@ -54,7 +54,7 @@ aws ecr get-login-password --region "$AWS_REGION" \
 IMAGE_TAG="${IMAGE_TAG:-bootstrap-$(date -u +%Y%m%d%H%M%S)}"
 echo "▶ Building & pushing backend (tag: $IMAGE_TAG)"
 docker buildx build --platform linux/amd64 \
-  -f apps/backend/Dockerfile.prod \
+  -f apps/backend/Dockerfile.cloud \
   -t "$ECR_REGISTRY/cromo-backend:$IMAGE_TAG" \
   -t "$ECR_REGISTRY/cromo-backend:dev-latest" \
   -t "$ECR_REGISTRY/cromo-backend:latest" \
@@ -62,7 +62,7 @@ docker buildx build --platform linux/amd64 \
 
 echo "▶ Building & pushing frontend (tag: $IMAGE_TAG)"
 docker buildx build --platform linux/amd64 \
-  -f apps/frontend/Dockerfile.prod \
+  -f apps/frontend/Dockerfile.cloud \
   --build-arg "NEXT_PUBLIC_API_URL=https://$HOSTNAME" \
   --build-arg NEXT_PUBLIC_ENV=dev \
   -t "$ECR_REGISTRY/cromo-frontend:$IMAGE_TAG" \

@@ -129,7 +129,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "app" {
   name        = "cromo-${var.env}-app"
-  description = "EC2 app instance — accepts traffic from the ALB only"
+  description = "EC2 app instance - accepts traffic from the ALB only"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -160,7 +160,7 @@ resource "aws_security_group" "app" {
 
 resource "aws_security_group" "db" {
   name        = "cromo-${var.env}-db"
-  description = "RDS — accepts Postgres from app SG only"
+  description = "RDS - accepts Postgres from app SG only"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -180,7 +180,7 @@ resource "aws_security_group" "db" {
 
 resource "aws_security_group" "cache" {
   name        = "cromo-${var.env}-cache"
-  description = "ElastiCache Redis — accepts traffic from app SG only"
+  description = "ElastiCache Redis - accepts traffic from app SG only"
   vpc_id      = aws_vpc.main.id
 
   ingress {

@@ -96,7 +96,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/backend/Dockerfile.prod
+          file: apps/backend/Dockerfile.cloud
           push: false
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
@@ -105,7 +105,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/frontend/Dockerfile.prod
+          file: apps/frontend/Dockerfile.cloud
           push: false
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max

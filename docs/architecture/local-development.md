@@ -142,7 +142,7 @@ services:
   api:
     build:
       context: ../../apps/backend
-      dockerfile: Dockerfile.dev          # uses ts-node for live reload
+      dockerfile: Dockerfile.local         # uses ts-node for live reload
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -168,7 +168,7 @@ services:
   frontend:
     build:
       context: ../../apps/frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.local
     restart: unless-stopped
     ports:
       - "3000:3000"

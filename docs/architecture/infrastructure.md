@@ -33,7 +33,7 @@ The transition is straightforward because Docker containers run identically ever
 
 **Step 2:** AWS infrastructure provisioned (VPC, RDS, ElastiCache, S3, SES, ALB, ACM, Route 53, Secrets Manager, EC2).
 
-**Step 3:** Production Docker images built (`Dockerfile.prod` for frontend and API), pushed to ECR.
+**Step 3:** Cloud Docker images built (`Dockerfile.cloud` for frontend and API), pushed to ECR.
 
 **Step 4:** EC2 instance launched with `docker-compose.prod.yml`. Environment variables point to managed AWS services (RDS instead of local PostgreSQL, ElastiCache instead of local Redis, S3 instead of local filesystem, SES instead of Mailpit).
 
