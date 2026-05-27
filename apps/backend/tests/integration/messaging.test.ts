@@ -166,8 +166,8 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
 
       expect(response.statusCode).toBe(200);
 
-      const body = response.json<{ items: { sent_at: string }[] }>();
-      const timestamps = body.items.map((m) => new Date(m.sent_at).getTime());
+      const body = response.json<{ items: { sentAt: string }[] }>();
+      const timestamps = body.items.map((m) => new Date(m.sentAt).getTime());
 
       for (let i = 1; i < timestamps.length; i++) {
         expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1]!);

@@ -963,53 +963,6 @@ export async function completeTrade(
       [tradeId]
     );
 
-    // Build per-item "from / to" tuples once. Loops below operate on arrays so
-    // every Postgres round-trip is O(1) regardless of item count.
-    const fromAlbumIds: string[] = [];
-    const toAlbumIds:   string[] = [];
-    const variantIds:   string[] = [];
-    const quantities:   number[] = [];
-    for (const item of items) {
-      const [from, to] = item.direction === 'offer'
-        ? [requesterAlbumId, recipientAlbumId]
-        : [recipientAlbumId, requesterAlbumId];
-      fromAlbumIds.push(from);
-      toAlbumIds.push(to);
-      variantIds.push(item.sticker_variant_id);
-      quantities.push(item.quantity);
-    }
-
-    // Lock the source rows and validate stock in a single round-trip. FOR
-    // UPDATE OF us locks only existing user_stickers rows; a missing row reads
-    // as available=0 via COALESCE, which fails the check below.
-    const { rows: stockCheck } = await client.query<{ shortfall: boolean }>(
-      `SELECT bool_or(COALESCE(us.quantity, 0) < t.needed) AS shortfall
-       FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, needed)
-       LEFT JOIN user_stickers us
-         ON us.album_id = t.album_id AND us.sticker_variant_id = t.sticker_variant_id
-       FOR UPDATE OF us`,
-      [fromAlbumIds, variantIds, quantities]
-    );
-
-    if (stockCheck[0]?.shortfall) {
-      await client.query(
-        `UPDATE trade_requests
-         SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-         WHERE id = $1`,
-        [tradeId]
-      );
-      await client.query('COMMIT');
-      await Promise.all([
-        invalidateUserCaches(redis, requesterId),
-        invalidateUserCaches(redis, recipientId),
-      ]);
-      await sendSystemMessage(db, redis, tradeId, 'Trade cancelled — one or more stickers are no longer available.');
-      await publishTradeEvent(redis, tradeId, 'status_changed', {
-        trade_id: tradeId, status: 'cancelled',
-      });
-      throw statusError('One or more stickers in this trade are no longer available', 409);
-    }
-
     await client.query(
       `UPDATE trade_requests
        SET status = 'completed', completed_at = NOW(), updated_at = NOW()
@@ -1017,32 +970,91 @@ export async function completeTrade(
       [tradeId]
     );
 
-    // Bulk decrement source inventory.
-    await client.query(
-      `UPDATE user_stickers us
-       SET quantity = us.quantity - t.qty, updated_at = NOW()
-       FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, qty)
-       WHERE us.album_id = t.album_id AND us.sticker_variant_id = t.sticker_variant_id`,
-      [fromAlbumIds, variantIds, quantities]
-    );
+    if (items.length > 0) {
+      // Build per-item "from / to" tuples once.
+      const fromAlbumIds: string[] = [];
+      const toAlbumIds:   string[] = [];
+      const variantIds:   string[] = [];
+      const quantities:   number[] = [];
+      for (const item of items) {
+        const [from, to] = item.direction === 'offer'
+          ? [requesterAlbumId, recipientAlbumId]
+          : [recipientAlbumId, requesterAlbumId];
+        fromAlbumIds.push(from);
+        toAlbumIds.push(to);
+        variantIds.push(item.sticker_variant_id);
+        quantities.push(item.quantity);
+      }
 
-    // Bulk upsert destination inventory. Aggregating by (album_id, variant_id)
-    // first avoids the ON CONFLICT cardinality-violation case where the same
-    // destination row would be inserted twice in one statement.
-    await client.query(
-      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
-       SELECT album_id, sticker_variant_id, SUM(qty)::int
-       FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, qty)
-       GROUP BY album_id, sticker_variant_id
-       ON CONFLICT (album_id, sticker_variant_id)
-       DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
-      [toAlbumIds, variantIds, quantities]
-    );
+      // Lock source rows and validate stock. Locking via a separate SELECT
+      // FOR UPDATE on existing rows avoids the FOR UPDATE / LEFT JOIN
+      // nullable-side restriction in PostgreSQL.
+      const { rows: sourceRows } = await client.query<{
+        album_id: string; sticker_variant_id: string; quantity: number;
+      }>(
+        `SELECT us.album_id, us.sticker_variant_id, us.quantity
+         FROM user_stickers us
+         WHERE (us.album_id, us.sticker_variant_id) IN (
+           SELECT t.album_id, t.sticker_variant_id
+           FROM unnest($1::uuid[], $2::uuid[]) AS t(album_id, sticker_variant_id)
+         )
+         FOR UPDATE`,
+        [fromAlbumIds, variantIds]
+      );
 
-    await client.query(
-      `DELETE FROM user_stickers WHERE album_id IN ($1, $2) AND quantity <= 0`,
-      [requesterAlbumId, recipientAlbumId]
-    );
+      const stockMap = new Map(
+        sourceRows.map((r) => [`${r.album_id}:${r.sticker_variant_id}`, r.quantity])
+      );
+      const shortfall = fromAlbumIds.some(
+        (albumId, i) => (stockMap.get(`${albumId}:${variantIds[i]}`) ?? 0) < quantities[i]!
+      );
+
+      if (shortfall) {
+        await client.query(
+          `UPDATE trade_requests
+           SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+           WHERE id = $1`,
+          [tradeId]
+        );
+        await client.query('COMMIT');
+        await Promise.all([
+          invalidateUserCaches(redis, requesterId),
+          invalidateUserCaches(redis, recipientId),
+        ]);
+        await sendSystemMessage(db, redis, tradeId, 'Trade cancelled — one or more stickers are no longer available.');
+        await publishTradeEvent(redis, tradeId, 'status_changed', {
+          trade_id: tradeId, status: 'cancelled',
+        });
+        throw statusError('One or more stickers in this trade are no longer available', 409);
+      }
+
+      // Bulk decrement source inventory.
+      await client.query(
+        `UPDATE user_stickers us
+         SET quantity = us.quantity - t.qty, updated_at = NOW()
+         FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, qty)
+         WHERE us.album_id = t.album_id AND us.sticker_variant_id = t.sticker_variant_id`,
+        [fromAlbumIds, variantIds, quantities]
+      );
+
+      // Bulk upsert destination inventory. Aggregating by (album_id, variant_id)
+      // first avoids the ON CONFLICT cardinality-violation case where the same
+      // destination row would be inserted twice in one statement.
+      await client.query(
+        `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+         SELECT album_id, sticker_variant_id, SUM(qty)::int
+         FROM unnest($1::uuid[], $2::uuid[], $3::int[]) AS t(album_id, sticker_variant_id, qty)
+         GROUP BY album_id, sticker_variant_id
+         ON CONFLICT (album_id, sticker_variant_id)
+         DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity, updated_at = NOW()`,
+        [toAlbumIds, variantIds, quantities]
+      );
+
+      await client.query(
+        `DELETE FROM user_stickers WHERE album_id IN ($1, $2) AND quantity <= 0`,
+        [requesterAlbumId, recipientAlbumId]
+      );
+    }
 
     // Counts maintained by trg_user_stickers_sync_counts as user_stickers
     // mutate inside this transaction.
