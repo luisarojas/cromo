@@ -46,6 +46,35 @@ resource "aws_cognito_user_pool" "main" {
   deletion_protection = var.deletion_protection ? "ACTIVE" : "INACTIVE"
 }
 
+# ─── Admin group & users ──────────────────────────────────────────────────────
+
+resource "aws_cognito_user_group" "admin" {
+  user_pool_id = aws_cognito_user_pool.main.id
+  name         = "admin"
+  description  = "Application administrators — maps to role=admin in the backend."
+}
+
+resource "aws_cognito_user" "admin" {
+  for_each     = toset(var.admin_emails)
+  user_pool_id = aws_cognito_user_pool.main.id
+  username     = each.value
+
+  temporary_password = var.admin_temp_password
+  message_action     = "SUPPRESS"
+
+  attributes = {
+    email          = each.value
+    email_verified = "true"
+  }
+}
+
+resource "aws_cognito_user_in_group" "admin" {
+  for_each     = toset(var.admin_emails)
+  user_pool_id = aws_cognito_user_pool.main.id
+  group_name   = aws_cognito_user_group.admin.name
+  username     = aws_cognito_user.admin[each.key].username
+}
+
 resource "aws_cognito_user_pool_client" "frontend" {
   name         = "cromo-${var.env}-frontend"
   user_pool_id = aws_cognito_user_pool.main.id

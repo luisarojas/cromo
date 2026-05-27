@@ -89,10 +89,12 @@ module "cdn" {
 # so we don't need a cross-state data source.
 
 module "auth" {
-  source           = "../../modules/auth"
-  env              = local.env
-  from_email       = "no-reply@${var.apex_domain}"
-  ses_identity_arn = "arn:aws:ses:${var.region}:${var.account_id}:identity/${var.apex_domain}"
+  source              = "../../modules/auth"
+  env                 = local.env
+  from_email          = "no-reply@${var.apex_domain}"
+  ses_identity_arn    = "arn:aws:ses:${var.region}:${var.account_id}:identity/${var.apex_domain}"
+  admin_emails        = var.admin_emails
+  admin_temp_password = var.admin_temp_password
 }
 
 # ─── Secrets ──────────────────────────────────────────────────────────────────

@@ -46,3 +46,16 @@ variable "alb_ingress_cidrs" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
+
+variable "admin_emails" {
+  description = "Email addresses to provision as admin users in Cognito."
+  type        = list(string)
+  default     = []
+}
+
+variable "admin_temp_password" {
+  description = "Temporary password for bootstrapped admin users (must be changed on first login)."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
