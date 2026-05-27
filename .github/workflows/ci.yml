@@ -1,5 +1,13 @@
-# Pull-request CI: lint, typecheck, unit + integration tests against an
-# ephemeral Postgres + Redis stack started inside the runner.
+# CI + deploy pipeline.
+#
+# On pull requests:  lint → typecheck → test → build images (no push, smoke-test only)
+# On push to main:   lint → typecheck → test → build & push to ECR → deploy to dev
+#
+# Required GitHub secrets (dev environment):
+#   AWS_DEPLOY_ROLE_ARN — IAM role assumed via OIDC
+#   ECR_REGISTRY        — e.g. 123456789012.dkr.ecr.ca-central-1.amazonaws.com
+#   DEV_ASG_NAME        — ASG name from terraform output (cromo-dev-app)
+#   DEV_S3_BUCKET       — uploads bucket; docker-compose is uploaded under _deploy/
 
 name: CI
 
@@ -8,9 +16,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -63,7 +72,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Backend eslint + frontend next-lint, run via turbo across workspaces.
       - name: Lint
         run: pnpm lint
 
@@ -73,8 +81,6 @@ jobs:
       - name: Apply Drizzle migrations
         run: pnpm --filter @cromo/backend db:migrate
 
-      # --remote forces the seed script to talk directly to $DATABASE_URL
-      # via psql, instead of trying to docker-compose-exec a db container.
       - name: Seed catalog
         run: ./scripts/seed-database.sh --remote
 
@@ -82,7 +88,7 @@ jobs:
         run: pnpm test
 
   build:
-    name: Build production images
+    name: Build images (PR smoke-test, no push)
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
@@ -92,7 +98,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image (no push)
+      - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -101,7 +107,7 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
 
-      - name: Build frontend image (no push)
+      - name: Build frontend image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -112,3 +118,89 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://dev.cromotrade.ca
             NEXT_PUBLIC_ENV=ci
+
+  deploy-dev:
+    name: Build, push, deploy to dev
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    environment: dev
+
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: ca-central-1
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile.cloud
+          push: true
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/cromo-backend:${{ env.IMAGE_TAG }}
+            ${{ secrets.ECR_REGISTRY }}/cromo-backend:dev-latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/frontend/Dockerfile.cloud
+          push: true
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/cromo-frontend:${{ env.IMAGE_TAG }}
+            ${{ secrets.ECR_REGISTRY }}/cromo-frontend:dev-latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://dev.cromotrade.ca
+            NEXT_PUBLIC_ENV=dev
+
+      - name: Upload docker-compose.prod.yml to S3
+        run: |
+          aws s3 cp infrastructure/docker/docker-compose.prod.yml \
+            "s3://${{ secrets.DEV_S3_BUCKET }}/_deploy/docker-compose.prod.yml"
+
+      - name: Trigger rolling redeploy via SSM
+        run: |
+          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names "${{ secrets.DEV_ASG_NAME }}" \
+            --query "AutoScalingGroups[0].Instances[].InstanceId" \
+            --output text)
+          if [ -z "$INSTANCE_IDS" ]; then
+            echo "No instances in ASG ${{ secrets.DEV_ASG_NAME }}" >&2
+            exit 1
+          fi
+          aws ssm send-command \
+            --instance-ids $INSTANCE_IDS \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${{ env.IMAGE_TAG }}" \
+            --parameters "commands=[
+              \"set -euxo pipefail\",
+              \"export ECR_REGISTRY=${{ secrets.ECR_REGISTRY }}\",
+              \"export IMAGE_TAG=${{ env.IMAGE_TAG }}\",
+              \"export CROMO_ENV=dev\",
+              \"cd /opt/cromo\",
+              \"aws s3 cp s3://${{ secrets.DEV_S3_BUCKET }}/_deploy/docker-compose.prod.yml docker-compose.yml\",
+              \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}\",
+              \"docker compose pull\",
+              \"docker compose up -d\",
+              \"docker image prune -af\"
+            ]"
