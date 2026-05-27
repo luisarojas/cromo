@@ -626,8 +626,8 @@ function ScanMode() {
         <DropZone onFiles={handleFiles} multiple />
       ) : (
         <>
-          {/* Single-file preview */}
-          {!isBatch && previewUrl && (
+          {/* Single-file preview — hidden once result cards are shown */}
+          {!isBatch && previewUrl && resultCards.length === 0 && (
             <img
               src={previewUrl}
               alt="Scanned sticker"
