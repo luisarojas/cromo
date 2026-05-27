@@ -38,7 +38,24 @@ Cromo runs **dev + prod only** (decided 2026-05-25). Staging is intentionally de
 
 ## State backend
 
-Remote state is stored in an S3 bucket with a DynamoDB lock table. Both are provisioned by `bootstrap/` and referenced by every other configuration via `backend.tf`.
+Remote state is stored in S3 with DynamoDB locking. Both resources are provisioned by `bootstrap/` and referenced by every workspace via `backend.tf`.
+
+| Setting | Value |
+|---|---|
+| Bucket | `cromo-tfstate-584133415742` |
+| Region | `ca-central-1` |
+| Lock table | `cromo-tfstate-lock` (DynamoDB) |
+| Encryption | SSE enabled |
+
+Each workspace has its own key within the same bucket:
+
+| Workspace | Key |
+|---|---|
+| `env/shared` | `env/shared/terraform.tfstate` |
+| `env/dev` | `env/dev/terraform.tfstate` |
+| `env/prod` | `env/prod/terraform.tfstate` |
+
+`bootstrap/` itself uses **local state** — it is the one workspace that cannot store its own state remotely, because it creates the bucket. Keep `bootstrap/terraform.tfstate` safe; losing it requires importing the bucket and table back by hand.
 
 ## First-time setup
 
