@@ -25,8 +25,9 @@ locals {
 # ─── Networking ───────────────────────────────────────────────────────────────
 
 module "networking" {
-  source = "../../modules/networking"
-  env    = local.env
+  source            = "../../modules/networking"
+  env               = local.env
+  alb_ingress_cidrs = var.alb_ingress_cidrs
 }
 
 # ─── DNS (looks up the hosted zone owned by env/shared) ───────────────────────

@@ -14,3 +14,9 @@ variable "single_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "alb_ingress_cidrs" {
+  description = "CIDR blocks allowed to reach the ALB on ports 80 and 443. Default is open to the internet; restrict to specific IPs for non-prod environments."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

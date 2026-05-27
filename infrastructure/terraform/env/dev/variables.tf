@@ -40,3 +40,9 @@ variable "github_repo" {
   description = "GitHub repo slug (`owner/name`) that's allowed to assume the deploy role via OIDC."
   type        = string
 }
+
+variable "alb_ingress_cidrs" {
+  description = "CIDR allowlist for the ALB. Restrict in dev to keep the environment off the public internet."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
