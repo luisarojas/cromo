@@ -261,13 +261,12 @@ function SortableHeader({
   col,
   label,
   sortCol,
-  sortDir,
   onClick,
 }: {
   col: SortCol;
   label: string;
   sortCol: SortCol;
-  sortDir: SortDir;
+  sortDir?: SortDir;
   onClick: (col: SortCol) => void;
 }) {
   const active = sortCol === col;

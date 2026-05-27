@@ -36,7 +36,7 @@ import { useToast } from '@/components/ToastProvider';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
-import FilterBar, { type FilterState } from '../components/FilterBar';
+import FilterBar from '../components/FilterBar';
 import { ALL_VARIANT_TYPES } from '../components/variantMeta';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
@@ -426,7 +426,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     if (!tok || !usr || selectedCodes.size === 0) return;
     setMassWorking(true);
     try {
-      const { ops, emptyMessage, successMessage, failMessage } = buildOps();
+      const { ops, emptyMessage, successMessage } = buildOps();
       if (ops.length === 0) {
         if (emptyMessage) addToast(emptyMessage);
         return;

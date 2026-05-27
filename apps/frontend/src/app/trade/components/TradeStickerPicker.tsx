@@ -71,7 +71,6 @@ export default function TradeStickerPicker({
   suggestedWantCodes,
   suggestedWantVariantIds = [],
   token,
-  partnerName,
   favouriteCodes = new Set(),
   onChange,
   onHideSticker,
@@ -342,7 +341,7 @@ export default function TradeStickerPicker({
         {/* ── Offer Panel ─────────────────────────────────────────────────── */}
         <div className="rounded-xl border border-blue-100 bg-[var(--cromo-accent-soft)] p-4 flex flex-col gap-2.5 min-h-0">
           <div className="flex items-center justify-between shrink-0">
-            <h3 className="text-sm font-semibold text-[var(--cromo-accent)]">You're Offering</h3>
+            <h3 className="text-sm font-semibold text-[var(--cromo-accent)]">You&apos;re Offering</h3>
           </div>
 
           <div className="flex flex-col gap-2 shrink-0">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function Error({
   error,
@@ -38,12 +39,12 @@ export default function Error({
         >
           Try again
         </button>
-        <a
+        <Link
           href="/"
           className="rounded-full border border-[var(--cromo-border)] px-5 py-2.5 text-sm font-medium text-[var(--cromo-fg)] transition hover:bg-[var(--cromo-surface-2)]"
         >
           Back to album
-        </a>
+        </Link>
       </div>
     </div>
   );
