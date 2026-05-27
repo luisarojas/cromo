@@ -62,7 +62,7 @@ export interface PublicProfileAlbum {
   format_name: string;
   alias: string | null;
   is_default: boolean;
-  offered_count: number;
+  offered: PublicInventoryItem[];
   wanted_count: number;
 }
 
@@ -453,9 +453,7 @@ export async function getPublicProfile(
     };
   }
 
-  // Single batched query: public albums + wanted-count + offered-count. The
-  // full offered / wanted item lists are fetched lazily via dedicated
-  // paginated endpoints, so neither needs to be eagerly materialized here.
+  // Two batched queries: public albums + wanted-count, then offered items.
   const { rows: albumRows } = await db.query<{
     album_id: string;
     album_type_key: string;
@@ -466,7 +464,6 @@ export async function getPublicProfile(
     alias: string | null;
     is_default: boolean;
     wanted_count: string;
-    offered_count: string;
   }>(
     `WITH public_albums AS (
        SELECT ua.id              AS album_id,
@@ -509,13 +506,6 @@ export async function getPublicProfile(
            AND us.quantity > 0
        )
        GROUP BY fs.album_id
-     ),
-     offered_counts AS (
-       SELECT us.album_id, COUNT(*)::text AS offered_count
-       FROM user_stickers us
-       JOIN public_albums pa ON pa.album_id = us.album_id
-       WHERE (us.quantity > 1 OR us.trade_forced) AND NOT us.trade_hidden
-       GROUP BY us.album_id
      )
      SELECT pa.album_id,
             pa.album_type_key,
@@ -525,14 +515,42 @@ export async function getPublicProfile(
             pa.format_name,
             pa.alias,
             pa.is_default,
-            COALESCE(wc.wanted_count,  '0') AS wanted_count,
-            COALESCE(oc.offered_count, '0') AS offered_count
+            COALESCE(wc.wanted_count, '0') AS wanted_count
      FROM public_albums pa
-     LEFT JOIN wanted_counts  wc ON wc.album_id = pa.album_id
-     LEFT JOIN offered_counts oc ON oc.album_id = pa.album_id
+     LEFT JOIN wanted_counts wc ON wc.album_id = pa.album_id
      ORDER BY pa.is_default DESC, pa.created_at ASC`,
     [user.id]
   );
+
+  // Fetch all offered items for all public albums in a single query.
+  const albumIds = albumRows.map((a) => a.album_id);
+  const offeredByAlbum = new Map<string, PublicInventoryItem[]>();
+  if (albumIds.length > 0) {
+    const { rows: offeredRows } = await db.query<PublicInventoryItem & { album_id: string }>(
+      `SELECT us.album_id,
+              us.sticker_variant_id,
+              s.number,
+              s.album_code,
+              s.player_name,
+              s.sticker_type,
+              t.name AS team_name,
+              sv.variant_type,
+              us.quantity
+       FROM user_stickers us
+       JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN stickers s          ON s.id = sv.sticker_id
+       LEFT JOIN teams t        ON t.id = s.team_id
+       WHERE us.album_id = ANY($1::uuid[])
+         AND (us.quantity > 1 OR us.trade_forced)
+         AND NOT us.trade_hidden
+       ORDER BY us.album_id, s.number, sv.variant_type`,
+      [albumIds],
+    );
+    for (const { album_id, ...item } of offeredRows) {
+      if (!offeredByAlbum.has(album_id)) offeredByAlbum.set(album_id, []);
+      offeredByAlbum.get(album_id)!.push(item);
+    }
+  }
 
   const trading_inventory: PublicProfileAlbum[] = albumRows.map((a) => ({
     album_id: a.album_id,
@@ -543,7 +561,7 @@ export async function getPublicProfile(
     format_name: a.format_name,
     alias: a.alias,
     is_default: a.is_default,
-    offered_count: parseInt(a.offered_count, 10),
+    offered: offeredByAlbum.get(a.album_id) ?? [],
     wanted_count: parseInt(a.wanted_count, 10),
   }));
 

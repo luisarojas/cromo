@@ -98,7 +98,7 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
       });
 
       // TRADE_A is pending, not completed → outside rating window
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(422);
       expect(res.json().message).toMatch(/completed/i);
     });
 
@@ -162,7 +162,7 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
         payload: { isPositive: true },
       });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(422);
       expect(res.json().message).toMatch(/14.day|window|expired/i);
 
       await app.db.query(

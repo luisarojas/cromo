@@ -99,8 +99,11 @@ describe.skipIf(!shouldRun)('Trade routes (integration)', () => {
   });
 
   afterAll(async () => {
-    // Remove any trades created during this suite (items cascade-delete)
     if (createdTradeIds.length > 0) {
+      await app.db.query(
+        `DELETE FROM trade_items WHERE trade_id = ANY($1::uuid[])`,
+        [createdTradeIds],
+      );
       await app.db.query(
         `DELETE FROM trade_requests WHERE id = ANY($1::uuid[])`,
         [createdTradeIds],
@@ -559,14 +562,15 @@ describe.skipIf(!shouldRun)('Trade routes (integration)', () => {
     let tradeIdToComplete: string;
 
     beforeAll(async () => {
-      // Create and accept a new trade so we have a clean accepted trade
+      // Create and accept a new trade so we have a clean accepted trade.
+      // Use Alice → Bob (neither is soft-banned).
       const createRes = await app.inject({
         method: 'POST',
         url: TRADES_URL,
-        headers: { Authorization: `Bearer ${charlieToken}` },
+        headers: { Authorization: `Bearer ${aliceToken}` },
         payload: {
-          recipientId: DIANA_ID,
-          requesterAlbumId: CHARLIE_ALBUM_ID,
+          recipientId: BOB_ID,
+          requesterAlbumId: ALICE_NA_ALBUM_ID,
           items: [],
           offerCash: 1,
           wantCash: 1,
@@ -575,11 +579,11 @@ describe.skipIf(!shouldRun)('Trade routes (integration)', () => {
       tradeIdToComplete = createRes.json<{ id: string }>().id;
       createdTradeIds.push(tradeIdToComplete);
 
-      // Diana accepts
+      // Bob accepts
       await app.inject({
         method: 'POST',
         url: ACTION_URL(tradeIdToComplete, 'accept'),
-        headers: { Authorization: `Bearer ${dianaToken}` },
+        headers: { Authorization: `Bearer ${bobToken}` },
       });
     });
 
@@ -587,7 +591,7 @@ describe.skipIf(!shouldRun)('Trade routes (integration)', () => {
       const res = await app.inject({
         method: 'POST',
         url: ACTION_URL(tradeIdToComplete, 'complete'),
-        headers: { Authorization: `Bearer ${aliceToken}` },
+        headers: { Authorization: `Bearer ${charlieToken}` },
       });
       expect(res.statusCode).toBe(403);
     });
@@ -596,16 +600,16 @@ describe.skipIf(!shouldRun)('Trade routes (integration)', () => {
       const res = await app.inject({
         method: 'POST',
         url: ACTION_URL(tradeIdToComplete, 'complete'),
-        headers: { Authorization: `Bearer ${charlieToken}` },
+        headers: { Authorization: `Bearer ${aliceToken}` },
       });
       expect(res.statusCode).toBe(204);
 
       const detail = await app.inject({
         method: 'GET',
         url: TRADE_URL(tradeIdToComplete),
-        headers: { Authorization: `Bearer ${charlieToken}` },
+        headers: { Authorization: `Bearer ${aliceToken}` },
       });
-      // After first confirm, status is still accepted (waiting for Diana)
+      // After first confirm, status is still accepted (waiting for Bob)
       expect(detail.json<{ status: string }>().status).toBe('accepted');
     });
 
@@ -613,14 +617,14 @@ describe.skipIf(!shouldRun)('Trade routes (integration)', () => {
       const res = await app.inject({
         method: 'POST',
         url: ACTION_URL(tradeIdToComplete, 'complete'),
-        headers: { Authorization: `Bearer ${dianaToken}` },
+        headers: { Authorization: `Bearer ${bobToken}` },
       });
       expect(res.statusCode).toBe(204);
 
       const detail = await app.inject({
         method: 'GET',
         url: TRADE_URL(tradeIdToComplete),
-        headers: { Authorization: `Bearer ${charlieToken}` },
+        headers: { Authorization: `Bearer ${aliceToken}` },
       });
       expect(detail.json<{ status: string }>().status).toBe('completed');
     });

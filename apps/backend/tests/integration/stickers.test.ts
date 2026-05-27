@@ -48,21 +48,21 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers (integration)', () => {
     expect('nextCursor' in body).toBe(true);
   });
 
-  it('returns sticker objects with number, album_code, sticker_type', async () => {
+  it('returns sticker objects with number, albumCode, stickerType', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/stickers',
     });
 
     const body = response.json<{
-      items: { number: number; album_code: string; sticker_type: string }[];
+      items: { number: number; albumCode: string; stickerType: string }[];
     }>();
 
     expect(body.items.length).toBeGreaterThan(0);
     const first = body.items[0];
     expect(typeof first.number).toBe('number');
-    expect(typeof first.album_code).toBe('string');
-    expect(typeof first.sticker_type).toBe('string');
+    expect(typeof first.albumCode).toBe('string');
+    expect(typeof first.stickerType).toBe('string');
   });
 
   it('respects the limit query parameter', async () => {
@@ -77,7 +77,7 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers (integration)', () => {
     expect(body.items.length).toBeLessThanOrEqual(5);
   });
 
-  it('filters by team (fifa_code)', async () => {
+  it('filters by team (fifaCode)', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/stickers?team=MEX',
@@ -85,10 +85,10 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers (integration)', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const body = response.json<{ items: { fifa_code: string | null }[] }>();
+    const body = response.json<{ items: { fifaCode: string | null }[] }>();
     expect(body.items.length).toBeGreaterThan(0);
     for (const item of body.items) {
-      expect(item.fifa_code).toBe('MEX');
+      expect(item.fifaCode).toBe('MEX');
     }
   });
 
@@ -100,10 +100,10 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers (integration)', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const body = response.json<{ items: { group_name: string | null }[] }>();
+    const body = response.json<{ items: { groupName: string | null }[] }>();
     expect(body.items.length).toBeGreaterThan(0);
     for (const item of body.items) {
-      expect(item.group_name).toBe('A');
+      expect(item.groupName).toBe('A');
     }
   });
 });
@@ -129,8 +129,8 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers/:albumCode (integration)', () 
 
     expect(response.statusCode).toBe(200);
 
-    const body = response.json<{ album_code: string; number: number }>();
-    expect(body.album_code).toBe('MEX1');
+    const body = response.json<{ albumCode: string; number: number }>();
+    expect(body.albumCode).toBe('MEX1');
     expect(typeof body.number).toBe('number');
   });
 
@@ -161,7 +161,7 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers/:albumCode/variants (integrati
     await app?.close();
   });
 
-  it('returns an array of variant objects with variant_type', async () => {
+  it('returns an array of variant objects with variantType', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/api/v1/stickers/MEX1/variants',
@@ -169,10 +169,10 @@ describe.skipIf(!shouldRun)('GET /api/v1/stickers/:albumCode/variants (integrati
 
     expect(response.statusCode).toBe(200);
 
-    const body = response.json<{ items: { variant_type: string; id: string }[] }>();
+    const body = response.json<{ items: { variantType: string; id: string }[] }>();
     expect(Array.isArray(body.items)).toBe(true);
     expect(body.items.length).toBeGreaterThan(0);
-    expect(typeof body.items[0].variant_type).toBe('string');
+    expect(typeof body.items[0].variantType).toBe('string');
     expect(typeof body.items[0].id).toBe('string');
   });
 

@@ -441,7 +441,7 @@ export default function PublicProfilePage() {
   const activeTotal =
     activeState?.total ??
     (activeAlbum
-      ? activeTab === 'offered' ? activeAlbum.offeredCount : activeAlbum.wantedCount
+      ? activeTab === 'offered' ? activeAlbum.offered.length : activeAlbum.wantedCount
       : 0);
   const activeLoader = activeTab === 'offered' ? loadOffered : loadWanted;
 
@@ -552,7 +552,7 @@ export default function PublicProfilePage() {
               {
                 key: 'offered',
                 label: 'Offered',
-                count: activeAlbum.offeredCount,
+                count: activeAlbum.offered.length,
                 accent: 'amber',
               },
               {

@@ -126,7 +126,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(Array.isArray(body.items)).toBe(true);
     });
 
-    it('collection items include trade_hidden and trade_forced boolean fields', async () => {
+    it('collection items include tradeHidden and tradeForced boolean fields', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/collection`,
@@ -137,17 +137,17 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { trade_hidden: unknown; trade_forced: unknown }[];
+        items: { tradeHidden: unknown; tradeForced: unknown }[];
       }>();
 
       expect(body.items.length).toBeGreaterThan(0);
       for (const item of body.items) {
-        expect(typeof item.trade_hidden).toBe('boolean');
-        expect(typeof item.trade_forced).toBe('boolean');
+        expect(typeof item.tradeHidden).toBe('boolean');
+        expect(typeof item.tradeForced).toBe('boolean');
       }
     });
 
-    it('seeded trade_hidden stickers (#7, #14) are visible in collection but flagged', async () => {
+    it('seeded tradeHidden stickers (#7, #14) are visible in collection but flagged', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/collection`,
@@ -158,19 +158,19 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { number: number; trade_hidden: boolean; trade_forced: boolean }[];
+        items: { number: number; tradeHidden: boolean; tradeForced: boolean }[];
       }>();
 
-      const hiddenItems = body.items.filter((i) => i.trade_hidden);
+      const hiddenItems = body.items.filter((i) => i.tradeHidden);
       const hiddenNumbers = hiddenItems.map((i) => i.number);
 
       // Stickers #7 and #14 were seeded with trade_hidden = true
       expect(hiddenNumbers).toContain(7);
       expect(hiddenNumbers).toContain(14);
 
-      // trade_hidden items must not also be trade_forced
+      // tradeHidden items must not also be tradeForced
       for (const item of hiddenItems) {
-        expect(item.trade_forced).toBe(false);
+        expect(item.tradeForced).toBe(false);
       }
     });
   });
@@ -325,7 +325,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { id: string; album_code: string; base_variant_id: string | null }[];
+        items: { id: string; albumCode: string; baseVariantId: string | null }[];
         total: number;
       }>();
 
@@ -374,7 +374,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { quantity: number; sticker_variant_id: string; trade_hidden: boolean; trade_forced: boolean }[];
+        items: { quantity: number; stickerVariantId: string; tradeHidden: boolean; tradeForced: boolean }[];
         total: number;
       }>();
 
@@ -385,7 +385,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       }
     });
 
-    it('duplicate items include trade_hidden and trade_forced fields', async () => {
+    it('duplicate items include tradeHidden and tradeForced fields', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/duplicates`,
@@ -396,17 +396,17 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { trade_hidden: unknown; trade_forced: unknown }[];
+        items: { tradeHidden: unknown; tradeForced: unknown }[];
       }>();
 
       expect(body.items.length).toBeGreaterThan(0);
       for (const item of body.items) {
-        expect(typeof item.trade_hidden).toBe('boolean');
-        expect(typeof item.trade_forced).toBe('boolean');
+        expect(typeof item.tradeHidden).toBe('boolean');
+        expect(typeof item.tradeForced).toBe('boolean');
       }
     });
 
-    it('some of Alice\'s duplicates are marked trade_hidden', async () => {
+    it('some of Alice\'s duplicates are marked tradeHidden', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/users/${ALICE_ID}/duplicates`,
@@ -417,11 +417,11 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { number: number; trade_hidden: boolean }[];
+        items: { number: number; tradeHidden: boolean }[];
       }>();
 
       const hiddenNumbers = body.items
-        .filter((i) => i.trade_hidden)
+        .filter((i) => i.tradeHidden)
         .map((i) => i.number);
 
       expect(hiddenNumbers).toContain(7);
@@ -431,8 +431,8 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
 
   // ── Trade flags: trade_forced ─────────────────────────────────────────────────
 
-  describe('Trade flags — trade_forced (Bob)', () => {
-    it('Bob\'s collection contains trade_forced stickers (#151, #156)', async () => {
+  describe('Trade flags — tradeForced (Bob)', () => {
+    it('Bob\'s collection contains tradeForced stickers (#151, #156)', async () => {
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/users/${BOB_ID}/collection`,
@@ -443,16 +443,16 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(response.statusCode).toBe(200);
 
       const body = response.json<{
-        items: { number: number; trade_forced: boolean; quantity: number }[];
+        items: { number: number; tradeForced: boolean; quantity: number }[];
       }>();
 
-      const forcedItems = body.items.filter((i) => i.trade_forced);
+      const forcedItems = body.items.filter((i) => i.tradeForced);
       const forcedNumbers = forcedItems.map((i) => i.number);
 
       expect(forcedNumbers).toContain(151);
       expect(forcedNumbers).toContain(156);
 
-      // trade_forced stickers are singles (not duplicates), not trade_hidden
+      // tradeForced stickers are singles (not duplicates), not tradeHidden
       for (const item of forcedItems) {
         expect(item.quantity).toBe(1);
       }

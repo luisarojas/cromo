@@ -76,11 +76,11 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
       const body = response.json<{
         items: {
           id: string;
-          trade_id: string;
-          sender_id: string;
-          sender_username: string;
+          tradeId: string;
+          senderId: string;
+          senderUsername: string;
           body: string;
-          sent_at: string;
+          sentAt: string;
         }[];
         nextCursor: string | null;
       }>();
@@ -92,8 +92,8 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
       for (const msg of body.items) {
         expect(typeof msg.id).toBe('string');
         expect(typeof msg.body).toBe('string');
-        expect(typeof msg.sender_username).toBe('string');
-        expect(msg.trade_id).toBe(TRADE_A);
+        expect(typeof msg.senderUsername).toBe('string');
+        expect(msg.tradeId).toBe(TRADE_A);
       }
     });
 
@@ -193,13 +193,13 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
 
       const msg = response.json<{
         id: string;
-        trade_id: string;
-        sender_id: string;
+        tradeId: string;
+        senderId: string;
         body: string;
       }>();
 
-      expect(msg.trade_id).toBe(TRADE_A);
-      expect(msg.sender_id).toBe(ALICE_ID);
+      expect(msg.tradeId).toBe(TRADE_A);
+      expect(msg.senderId).toBe(ALICE_ID);
       expect(msg.body).toBe('Testing messaging from integration test.');
     });
 
@@ -297,12 +297,12 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
       expect(firstMsg.id).toBe(secondMsg.id);
     });
 
-    it('Charlie can still message on Trade B (accepted status allows messaging)', async () => {
+    it('Diana can message on Trade B (accepted status allows messaging)', async () => {
       const response = await app.inject({
         method: 'POST',
         url: MSG_URL(TRADE_B),
         headers: {
-          Authorization: `Bearer ${charlieToken}`,
+          Authorization: `Bearer ${dianaToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ body: 'Still negotiating details.' }),

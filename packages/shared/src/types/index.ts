@@ -365,7 +365,7 @@ export interface PublicProfileAlbum {
   formatName: string
   alias: string | null
   isDefault: boolean
-  offeredCount: number
+  offered: PublicInventoryItem[]
   wantedCount: number
 }
 

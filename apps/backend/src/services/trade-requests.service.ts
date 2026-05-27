@@ -456,11 +456,16 @@ export async function getTrade(
          LIMIT 50
        ) m
      ) msgs ON true
-     WHERE tr.id = $1 AND (tr.requester_id = $2 OR tr.recipient_id = $2)`,
-    [tradeId, userId],
+     WHERE tr.id = $1`,
+    [tradeId],
   );
 
-  return rows[0] ?? null;
+  const trade = rows[0];
+  if (!trade) return null;
+  if (trade.requester_id !== userId && trade.recipient_id !== userId) {
+    throw statusError('You are not a party to this trade.', 403);
+  }
+  return trade;
 }
 
 /**
