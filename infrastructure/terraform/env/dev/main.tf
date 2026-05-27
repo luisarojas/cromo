@@ -184,6 +184,7 @@ module "cicd" {
   env    = local.env
   github_sub_patterns = [
     "repo:${var.github_repo}:ref:refs/heads/main",
+    "repo:${var.github_repo}:environment:dev",
   ]
   uploads_bucket_arn = module.storage.uploads_bucket_arn
 }
