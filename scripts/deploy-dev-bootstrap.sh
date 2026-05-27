@@ -9,7 +9,7 @@
 # Requires:
 #   - AWS CLI configured (export AWS_PROFILE=cromo before running)
 #   - Docker with buildx (Apple Silicon is fine — we cross-build to linux/amd64)
-#   - jq, psql
+#   - jq
 #   - infrastructure/terraform/bootstrap and env/dev already applied
 #
 # Run from the repo root: ./scripts/deploy-dev-bootstrap.sh
@@ -25,7 +25,7 @@ BOOTSTRAP_DIR="infrastructure/terraform/bootstrap"
 
 # ─── Preflight ────────────────────────────────────────────────────────────────
 
-for cmd in aws docker jq psql terraform; do
+for cmd in aws docker jq terraform; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✗ missing required command: $cmd" >&2
     exit 1
@@ -70,11 +70,39 @@ docker buildx build --platform linux/amd64 \
   -t "$ECR_REGISTRY/cromo-frontend:latest" \
   --push .
 
-# ─── Upload compose file ──────────────────────────────────────────────────────
+# ─── Upload compose file + seed assets ───────────────────────────────────────
 
 echo "▶ Uploading docker-compose.prod.yml to s3://$S3_BUCKET/_deploy/"
 aws s3 cp infrastructure/docker/docker-compose.prod.yml \
   "s3://$S3_BUCKET/_deploy/docker-compose.prod.yml"
+
+echo "▶ Uploading seed SQL files to s3://$S3_BUCKET/_deploy/seeds/"
+aws s3 sync scripts/seeds/ "s3://$S3_BUCKET/_deploy/seeds/" --exclude "*.md"
+
+# Generate a seed runner that executes on the EC2 instance (inside the VPC).
+# psql is provided by a temporary postgres Docker container — no need to install
+# it on the host. sslmode=require is appended because RDS rejects plain connections.
+SEED_RUNNER=$(mktemp)
+cat > "$SEED_RUNNER" << SCRIPT
+#!/bin/bash
+set -euo pipefail
+mkdir -p /opt/cromo/seeds
+aws s3 sync "s3://$S3_BUCKET/_deploy/seeds/" /opt/cromo/seeds/
+RAW_URL=\$(aws secretsmanager get-secret-value \\
+  --secret-id cromo/dev/app --region $AWS_REGION \\
+  --query SecretString --output text | jq -r .DATABASE_URL)
+DB_URL="\${RAW_URL}?sslmode=require"
+for f in 00_album_catalog 01_teams 02_intro_stickers 03_team_stickers \\
+         05_variants 06_feature_flags 08_coca_cola_stickers \\
+         10_extra_stickers 13_team_album_pages 14_sticker_album_pages; do
+  echo "  seeding \${f}.sql"
+  docker run --rm -v /opt/cromo/seeds:/seeds postgres:16-alpine \\
+    psql "\$DB_URL" -f "/seeds/\${f}.sql"
+done
+echo "Seeding complete."
+SCRIPT
+aws s3 cp "$SEED_RUNNER" "s3://$S3_BUCKET/_deploy/seed-catalog.sh"
+rm "$SEED_RUNNER"
 
 # ─── SSM run-command on the ASG instance ──────────────────────────────────────
 
@@ -124,21 +152,36 @@ if [ "$STATUS" != "Success" ]; then
 fi
 echo "✓ Containers started"
 
-# ─── Seed catalog ─────────────────────────────────────────────────────────────
+# ─── Seed catalog via SSM ─────────────────────────────────────────────────────
+# RDS is on a private subnet — psql must run from the EC2 instance inside the VPC.
 
-echo "▶ Pulling DATABASE_URL from Secrets Manager"
-DATABASE_URL=$(aws secretsmanager get-secret-value \
-  --secret-id cromo/dev/app \
-  --query SecretString --output text \
-  | jq -r '.DATABASE_URL')
+echo "▶ Seeding catalog (running on EC2 via SSM)"
+SEED_COMMAND_ID=$(aws ssm send-command \
+  --instance-ids "$INSTANCE_ID" \
+  --document-name "AWS-RunShellScript" \
+  --comment "seed-catalog $IMAGE_TAG" \
+  --parameters "commands=[
+    \"aws s3 cp s3://$S3_BUCKET/_deploy/seed-catalog.sh /opt/cromo/seed-catalog.sh\",
+    \"chmod +x /opt/cromo/seed-catalog.sh\",
+    \"/opt/cromo/seed-catalog.sh\"
+  ]" \
+  --query "Command.CommandId" \
+  --output text)
 
-if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "null" ]; then
-  echo "✗ couldn't read DATABASE_URL from cromo/dev/app" >&2
+echo "  SEED_COMMAND_ID = $SEED_COMMAND_ID"
+echo "▶ Waiting for seed command to finish (may take a few minutes)"
+aws ssm wait command-executed --command-id "$SEED_COMMAND_ID" --instance-id "$INSTANCE_ID"
+SEED_STATUS=$(aws ssm get-command-invocation \
+  --command-id "$SEED_COMMAND_ID" --instance-id "$INSTANCE_ID" \
+  --query "Status" --output text)
+if [ "$SEED_STATUS" != "Success" ]; then
+  echo "✗ seed command status: $SEED_STATUS" >&2
+  aws ssm get-command-invocation \
+    --command-id "$SEED_COMMAND_ID" --instance-id "$INSTANCE_ID" \
+    --query "StandardErrorContent" --output text >&2
   exit 1
 fi
-
-echo "▶ Seeding catalog"
-DATABASE_URL="$DATABASE_URL" "$REPO_ROOT/scripts/seed-database.sh" --remote
+echo "✓ Catalog seeded"
 
 # ─── Smoke test ───────────────────────────────────────────────────────────────
 

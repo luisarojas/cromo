@@ -103,7 +103,7 @@ The first deploy is a chicken-and-egg dance: EC2's user-data tries to pull from 
 ./scripts/deploy-dev-bootstrap.sh
 ```
 
-What it requires: `aws`, `docker` (with buildx), `jq`, `psql`, `terraform`. Run from the repo root with `AWS_PROFILE` already exported.
+What it requires: `aws`, `docker` (with buildx), `jq`, `terraform`. Run from the repo root with `AWS_PROFILE` already exported.
 
 What it does NOT do: trigger the GitHub Actions workflow. That's step 6 — once secrets are wired, every subsequent push to `main` redeploys automatically and you never need to run this script again.
 
