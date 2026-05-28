@@ -99,14 +99,14 @@ describe.skipIf(!shouldRun)('POST /api/v1/auth/register + /login (integration)',
     expect(response.statusCode).toBe(409);
   });
 
-  it('POST /api/v1/auth/login returns 200 with accessToken in local mode', async () => {
+  it('POST /api/v1/auth/login returns 200 with accessToken', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: testEmail,
-        password: 'literally-any-password-works-in-local-mode',
+        password: testPassword,
       }),
     });
 
@@ -163,7 +163,7 @@ describe.skipIf(!shouldRun)('POST /api/v1/auth/register + /login (integration)',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: testEmail,
-        password: 'any-password',
+        password: testPassword,
       }),
     });
 
