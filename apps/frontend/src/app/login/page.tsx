@@ -88,7 +88,18 @@ export default function LoginPage() {
               />
             </Field>
 
-            <Field label="Password" htmlFor="password">
+            <Field
+              label="Password"
+              htmlFor="password"
+              labelRight={
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-[var(--cromo-accent)] hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              }
+            >
               <Input
                 id="password"
                 type="password"

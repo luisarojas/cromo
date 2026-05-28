@@ -135,6 +135,30 @@ export async function resendVerificationApi(email: string): Promise<void> {
   });
 }
 
+export async function forgotPasswordApi(email: string): Promise<void> {
+  await retryFetch(`${BASE_URL}/api/v1/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPasswordApi(token: string, password: string): Promise<void> {
+  const res = await retryFetch(`${BASE_URL}/api/v1/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    const err = new Error(data.message ?? 'Password reset failed') as Error & {
+      statusCode?: number;
+    };
+    err.statusCode = res.status;
+    throw err;
+  }
+}
+
 export async function updateUsernameApi(
   username: string,
   token: string,

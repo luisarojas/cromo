@@ -179,13 +179,17 @@ interface FieldProps {
   htmlFor?: string;
   hint?: ReactNode;
   error?: ReactNode;
+  labelRight?: ReactNode;
   children: ReactNode;
 }
 
-export function Field({ label, htmlFor, hint, error, children }: FieldProps) {
+export function Field({ label, htmlFor, hint, error, labelRight, children }: FieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <div className="flex items-center justify-between">
+        <Label htmlFor={htmlFor}>{label}</Label>
+        {labelRight}
+      </div>
       {children}
       {error ? (
         <p className="text-xs text-[var(--cromo-danger-text)]">{error}</p>
