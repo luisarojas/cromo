@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "consent_records" (
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "email_verification_tokens" (
-	"token" text PRIMARY KEY NOT NULL,
+	"token_hash" text PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"expires_at" timestamp with time zone DEFAULT now() + INTERVAL '24 hours' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS "feature_flags" (
 );
 --> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
-	"token" text PRIMARY KEY NOT NULL,
+	"token_hash" text PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"expires_at" timestamp with time zone DEFAULT now() + INTERVAL '1 hour' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS "teams" (
 	"fifa_code" text NOT NULL,
 	"name" text NOT NULL,
 	"group_name" text NOT NULL,
+	"pages" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "teams_fifa_code_unique" UNIQUE("fifa_code")
 );
@@ -298,6 +299,7 @@ CREATE TABLE IF NOT EXISTS "users" (
 	"locale" text DEFAULT 'en' NOT NULL,
 	"email_verified_at" timestamp with time zone,
 	"hashed_email" text,
+	"password_hash" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"deleted_at" timestamp with time zone,
@@ -627,4 +629,180 @@ CREATE INDEX IF NOT EXISTS "idx_user_sticker_favourites_album_id" ON "user_stick
 CREATE UNIQUE INDEX IF NOT EXISTS "user_stickers_album_id_sticker_variant_id_unique" ON "user_stickers" USING btree ("album_id","sticker_variant_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_stickers_sticker_variant_id" ON "user_stickers" USING btree ("sticker_variant_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_stickers_duplicates" ON "user_stickers" USING btree ("album_id") WHERE quantity > 1;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "idx_user_wanted_variants_user_album" ON "user_wanted_variants" USING btree ("user_id","album_id");
+CREATE INDEX IF NOT EXISTS "idx_user_wanted_variants_user_album" ON "user_wanted_variants" USING btree ("user_id","album_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "user_albums_one_default_per_user" ON "user_albums" USING btree ("user_id") WHERE is_default;--> statement-breakpoint
+
+-- ─── Functions, triggers, and views ──────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION _sync_user_album_counts(p_album_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_album_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  WITH album_info AS (
+    SELECT ua.album_type_id,
+           (ua.settings->>'includeExtras')::boolean   AS inc_extras,
+           (ua.settings->>'includeCocaCola')::boolean AS inc_coca
+    FROM user_albums ua
+    WHERE ua.id = p_album_id
+  ),
+  filtered_stickers AS (
+    SELECT s.id AS sticker_id
+    FROM album_info ai
+    JOIN stickers s ON s.album_type_id = ai.album_type_id
+    WHERE
+      CASE
+        WHEN s.sticker_type = 'coca_cola_special' THEN ai.inc_coca
+        WHEN s.sticker_type = 'extra'             THEN ai.inc_extras
+        ELSE true
+      END
+  ),
+  stats AS (
+    SELECT
+      COUNT(DISTINCT fs.sticker_id)::int                                    AS total,
+      COUNT(DISTINCT CASE WHEN us.quantity > 0 THEN fs.sticker_id END)::int AS owned,
+      COUNT(DISTINCT CASE WHEN us.quantity > 1 THEN fs.sticker_id END)::int AS duplicates
+    FROM filtered_stickers fs
+    LEFT JOIN sticker_variants sv ON sv.sticker_id = fs.sticker_id
+    LEFT JOIN user_stickers us
+      ON us.sticker_variant_id = sv.id AND us.album_id = p_album_id
+  )
+  UPDATE user_albums ua
+  SET total_count     = COALESCE(s.total, 0),
+      owned_count     = COALESCE(s.owned, 0),
+      duplicate_count = COALESCE(s.duplicates, 0)
+  FROM stats s
+  WHERE ua.id = p_album_id;
+END;
+$$;
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION _trg_user_stickers_sync_counts()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM _sync_user_album_counts(OLD.album_id);
+    RETURN OLD;
+  END IF;
+
+  PERFORM _sync_user_album_counts(NEW.album_id);
+  IF TG_OP = 'UPDATE' AND OLD.album_id IS DISTINCT FROM NEW.album_id THEN
+    PERFORM _sync_user_album_counts(OLD.album_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION _trg_user_albums_sync_counts()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM _sync_user_album_counts(NEW.id);
+    RETURN NEW;
+  END IF;
+
+  IF NEW.settings IS DISTINCT FROM OLD.settings
+     OR NEW.album_type_id IS DISTINCT FROM OLD.album_type_id THEN
+    PERFORM _sync_user_album_counts(NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION team_pages_json(p_team_id uuid)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT jsonb_object_agg(
+           tap.edition,
+           jsonb_build_array(tap.page_start, tap.page_end)
+         )
+  FROM team_album_pages tap
+  WHERE tap.team_id = p_team_id;
+$$;
+--> statement-breakpoint
+
+DROP TRIGGER IF EXISTS trg_user_stickers_sync_counts ON user_stickers;
+--> statement-breakpoint
+CREATE TRIGGER trg_user_stickers_sync_counts
+  AFTER INSERT OR UPDATE OR DELETE ON user_stickers
+  FOR EACH ROW EXECUTE FUNCTION _trg_user_stickers_sync_counts();
+--> statement-breakpoint
+
+DROP TRIGGER IF EXISTS trg_user_albums_sync_counts ON user_albums;
+--> statement-breakpoint
+CREATE TRIGGER trg_user_albums_sync_counts
+  AFTER INSERT OR UPDATE ON user_albums
+  FOR EACH ROW EXECUTE FUNCTION _trg_user_albums_sync_counts();
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION _refresh_team_pages(p_team_id uuid)
+RETURNS void
+LANGUAGE sql
+AS $$
+  UPDATE teams t
+     SET pages = COALESCE((
+       SELECT jsonb_object_agg(
+                tap.edition,
+                jsonb_build_array(tap.page_start, tap.page_end)
+              )
+         FROM team_album_pages tap
+        WHERE tap.team_id = t.id
+     ), '{}'::jsonb)
+   WHERE t.id = p_team_id;
+$$;
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION _trg_team_album_pages_sync()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM _refresh_team_pages(OLD.team_id);
+    RETURN OLD;
+  END IF;
+  PERFORM _refresh_team_pages(NEW.team_id);
+  IF TG_OP = 'UPDATE' AND OLD.team_id IS DISTINCT FROM NEW.team_id THEN
+    PERFORM _refresh_team_pages(OLD.team_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--> statement-breakpoint
+
+DROP TRIGGER IF EXISTS trg_team_album_pages_sync ON team_album_pages;
+--> statement-breakpoint
+CREATE TRIGGER trg_team_album_pages_sync
+  AFTER INSERT OR UPDATE OR DELETE ON team_album_pages
+  FOR EACH ROW EXECUTE FUNCTION _trg_team_album_pages_sync();
+--> statement-breakpoint
+
+CREATE OR REPLACE VIEW sticker_full AS
+  SELECT s.id              AS sticker_id,
+         s.album_type_id,
+         s.number,
+         s.album_code,
+         s.player_name,
+         s.position,
+         s.sticker_type,
+         s.is_foil,
+         s.notes,
+         s.team_id,
+         t.name            AS team_name,
+         t.fifa_code,
+         t.group_name,
+         t.pages           AS team_pages
+  FROM stickers s
+  LEFT JOIN teams t ON t.id = s.team_id;

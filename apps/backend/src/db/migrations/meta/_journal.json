@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1779764995164,
-      "tag": "0000_baseline",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1779764995165,
-      "tag": "0001_functions_triggers_views",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1779764995166,
-      "tag": "0002_security_and_perf",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
       "when": 1748390400000,
-      "tag": "0003_password_hash",
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]

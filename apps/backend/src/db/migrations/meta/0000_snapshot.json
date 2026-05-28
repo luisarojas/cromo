@@ -1,5 +1,5 @@
 {
-  "id": "09e34698-d6f0-4064-a026-2f534b3db435",
+  "id": "46b88155-ca16-432b-9641-29da344b829d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -3003,6 +3003,12 @@
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
