@@ -95,9 +95,18 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
-    sid       = "AsgDescribe"
-    actions   = ["autoscaling:DescribeAutoScalingGroups"]
+    sid     = "AsgDescribe"
+    actions = ["autoscaling:DescribeAutoScalingGroups"]
+    # DescribeAutoScalingGroups is not resource-scopeable (AWS limitation).
     resources = ["*"]
+  }
+
+  statement {
+    sid     = "AsgScaleUp"
+    actions = ["autoscaling:SetDesiredCapacity"]
+    resources = [
+      "arn:${local.partition}:autoscaling:${local.region}:${local.account}:autoScalingGroup:*:autoScalingGroupName/cromo-${var.env}-*",
+    ]
   }
 
   # SSM SendCommand needs two resource statements: one for the document, one
