@@ -180,14 +180,38 @@ jobs:
 
       - name: Trigger rolling redeploy via SSM
         run: |
-          INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+          # If the business-hours schedule scaled the ASG to 0, bring it up
+          # for the deploy. The schedule will scale it back down at the next
+          # stop time automatically.
+          CURRENT=$(aws autoscaling describe-auto-scaling-groups \
             --auto-scaling-group-names "${{ secrets.DEV_ASG_NAME }}" \
-            --query "AutoScalingGroups[0].Instances[].InstanceId" \
+            --query "AutoScalingGroups[0].DesiredCapacity" \
             --output text)
+          if [ "$CURRENT" = "0" ]; then
+            echo "ASG is at 0 — scaling up to 1 for deploy..."
+            aws autoscaling set-desired-capacity \
+              --auto-scaling-group-name "${{ secrets.DEV_ASG_NAME }}" \
+              --desired-capacity 1
+          fi
+
+          # Wait up to 5 min for an InService instance.
+          echo "Waiting for an InService instance..."
+          INSTANCE_IDS=""
+          for i in $(seq 1 30); do
+            INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+              --auto-scaling-group-names "${{ secrets.DEV_ASG_NAME }}" \
+              --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" \
+              --output text)
+            [ -n "$INSTANCE_IDS" ] && break
+            echo "  attempt $i/30 — no InService instance yet, retrying in 10s..."
+            sleep 10
+          done
+
           if [ -z "$INSTANCE_IDS" ]; then
-            echo "No instances in ASG ${{ secrets.DEV_ASG_NAME }}" >&2
+            echo "Timed out waiting for InService instance in ${{ secrets.DEV_ASG_NAME }}" >&2
             exit 1
           fi
+
           aws ssm send-command \
             --instance-ids $INSTANCE_IDS \
             --document-name "AWS-RunShellScript" \
