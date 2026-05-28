@@ -177,8 +177,9 @@ module "scheduling" {
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
 
-  start_hour = 9
-  stop_hour  = 17
+  days       = "MON-SUN"
+  start_hour = 7
+  stop_hour  = 23
 }
 
 # ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────

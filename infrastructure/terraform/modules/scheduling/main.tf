@@ -16,8 +16,8 @@ terraform {
 locals {
   active     = var.enable
   time_zone  = var.time_zone
-  start_cron = "cron(${var.start_minute} ${var.start_hour} ? * MON-FRI *)"
-  stop_cron  = "cron(${var.stop_minute} ${var.stop_hour} ? * MON-FRI *)"
+  start_cron = "cron(${var.start_minute} ${var.start_hour} ? * ${var.days} *)"
+  stop_cron  = "cron(${var.stop_minute} ${var.stop_hour} ? * ${var.days} *)"
 }
 
 # ─── ASG: scheduled scale up / scale down ─────────────────────────────────────
@@ -30,7 +30,7 @@ resource "aws_autoscaling_schedule" "scale_up" {
   max_size               = 1
   desired_capacity       = 1
   # aws_autoscaling_schedule recurrence is 5-field cron in the given time_zone.
-  recurrence = "${var.start_minute} ${var.start_hour} * * MON-FRI"
+  recurrence = "${var.start_minute} ${var.start_hour} * * ${var.days}"
   time_zone  = local.time_zone
 }
 
@@ -41,7 +41,7 @@ resource "aws_autoscaling_schedule" "scale_down" {
   min_size               = 0
   max_size               = 0
   desired_capacity       = 0
-  recurrence             = "${var.stop_minute} ${var.stop_hour} * * MON-FRI"
+  recurrence             = "${var.stop_minute} ${var.stop_hour} * * ${var.days}"
   time_zone              = local.time_zone
 }
 

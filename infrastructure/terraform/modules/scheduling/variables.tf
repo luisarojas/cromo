@@ -49,3 +49,9 @@ variable "stop_minute" {
   type    = number
   default = 0
 }
+
+variable "days" {
+  description = "Cron day-of-week range for the schedule (e.g. MON-FRI, MON-SUN)."
+  type        = string
+  default     = "MON-FRI"
+}
