@@ -84,9 +84,25 @@ export async function getTradeMatches(
        SELECT album_type_id FROM user_albums WHERE id = $2
      ),
      my_missing AS (
+       -- Explicitly wanted variants
        SELECT uwv.sticker_variant_id AS variant_id
        FROM user_wanted_variants uwv
        WHERE uwv.album_id = $2
+       UNION
+       -- For stickers with no explicit wants and no owned variants, accept any variant
+       SELECT sv.id AS variant_id
+       FROM sticker_variants sv
+       JOIN stickers s ON s.id = sv.sticker_id
+       WHERE NOT EXISTS (
+         SELECT 1 FROM user_wanted_variants uwv2
+         JOIN sticker_variants sv2 ON sv2.id = uwv2.sticker_variant_id
+         WHERE uwv2.album_id = $2 AND sv2.sticker_id = s.id
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM user_stickers us2
+         JOIN sticker_variants sv3 ON sv3.id = us2.sticker_variant_id
+         WHERE us2.album_id = $2 AND sv3.sticker_id = s.id AND us2.quantity > 0
+       )
      ),
      my_duplicates AS (
        SELECT us.sticker_variant_id AS variant_id
@@ -128,11 +144,28 @@ export async function getTradeMatches(
        CROSS JOIN my_duplicates md
        JOIN sticker_variants sv ON sv.id = md.variant_id
        JOIN stickers s ON s.id = sv.sticker_id
-       WHERE NOT EXISTS (
-         SELECT 1 FROM user_stickers uss2
-         WHERE uss2.album_id = ca.album_id
-           AND uss2.sticker_variant_id = md.variant_id
-           AND uss2.quantity > 0
+       WHERE (
+         -- They explicitly want this exact variant
+         EXISTS (
+           SELECT 1 FROM user_wanted_variants uwv
+           WHERE uwv.album_id = ca.album_id
+             AND uwv.sticker_variant_id = md.variant_id
+         )
+         OR (
+           -- No explicit wants for this sticker AND they don't own any variant of it
+           NOT EXISTS (
+             SELECT 1 FROM user_wanted_variants uwv2
+             JOIN sticker_variants sv2 ON sv2.id = uwv2.sticker_variant_id
+             WHERE uwv2.album_id = ca.album_id AND sv2.sticker_id = s.id
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM user_stickers uss2
+             JOIN sticker_variants sv3 ON sv3.id = uss2.sticker_variant_id
+             WHERE uss2.album_id = ca.album_id
+               AND sv3.sticker_id = s.id
+               AND uss2.quantity > 0
+           )
+         )
        )
      ),
      mutual_users AS (
