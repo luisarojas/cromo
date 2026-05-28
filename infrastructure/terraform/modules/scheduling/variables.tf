@@ -32,7 +32,7 @@ variable "time_zone" {
 
 variable "start_hour" {
   type    = number
-  default = 8
+  default = 9
 }
 
 variable "start_minute" {
@@ -42,7 +42,7 @@ variable "start_minute" {
 
 variable "stop_hour" {
   type    = number
-  default = 19
+  default = 17
 }
 
 variable "stop_minute" {
