@@ -14,6 +14,7 @@ runbooks are stubbed and will be completed during Phase B once AWS infra exists.
 | [`scheduled-jobs.md`](./scheduled-jobs.md) | A | ✅ written |
 | [`cloud-bootstrap.md`](./cloud-bootstrap.md) | B1 | ✅ written |
 | [`cloud-recreate.md`](./cloud-recreate.md) | B1 | ✅ written |
+| [`dev-schedule.md`](./dev-schedule.md) | B1 | ✅ written |
 | `deploy-hotfix.md` | B | TODO (extension of cloud-bootstrap §7) |
 | `rollback-deployment.md` | B | TODO |
 | `restore-database.md` | B | TODO (Aurora PITR) |
