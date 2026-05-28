@@ -28,7 +28,7 @@ VALUES
   ('JOB_PURGE_PUSH_SUBSCRIPTIONS',  true, 100, 'Daily: deletes push_subscriptions not seen for 90 days'),
   ('JOB_CACHE_WARM_STICKERS',       true, 100, 'Every 50 min: repopulates stickers:all before the 1h TTL'),
   ('JOB_DMARC_REPORT_AGG',          false, 0,  'Cloud-only weekly: aggregates DMARC reports from SES inbox'),
-  ('JOB_SYNTHETIC_CANARY',          false, 0,  'Cloud-only every 4 min: keeps Aurora connection pool warm')
+  ('JOB_SYNTHETIC_CANARY',          false, 0,  'Cloud-only every 4 min: pings DB + Redis to verify connectivity')
 ON CONFLICT (key) DO UPDATE SET
   enabled     = EXCLUDED.enabled,
   rollout_pct = EXCLUDED.rollout_pct;

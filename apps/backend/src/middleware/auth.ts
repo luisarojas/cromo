@@ -25,7 +25,7 @@ function extractBearerToken(request: FastifyRequest): string | null {
  * verifyToken — pre-handler hook that validates the JWT access token.
  *
  * In AUTH_MODE=local:   any validly signed JWT (signed with JWT_SECRET) is accepted.
- * In AUTH_MODE=cognito: currently returns 501 (Phase B stub).
+ * In AUTH_MODE=cognito: validates against the Cognito JWKS endpoint.
  *
  * Attach to individual routes or route prefixes that require authentication.
  */

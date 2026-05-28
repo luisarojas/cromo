@@ -197,14 +197,16 @@ export async function cacheWarmStickers({ db, redis, log }: JobDeps): Promise<Jo
   return { affected: rows.length };
 }
 
-// ─── Cloud-only stubs (registered only in Phase B) ───────────────────────────
+// ─── Cloud-only jobs (registered only when NODE_ENV=production) ──────────────
 
 export async function dmarcReportAggregation({ log }: JobDeps): Promise<JobResult> {
-  log.warn('dmarc-report-aggregation skipped: cloud-only (requires SES inbox + S3)');
+  log.warn('dmarc-report-aggregation skipped: requires SES inbox receipt rules + S3 (not yet provisioned)');
   return { affected: 0 };
 }
 
-export async function syntheticCanaryWarmAurora({ log }: JobDeps): Promise<JobResult> {
-  log.warn('synthetic-canary-warm-aurora skipped: cloud-only (Aurora pool keep-warm)');
-  return { affected: 0 };
+export async function syntheticCanaryWarmAurora({ db, redis, log }: JobDeps): Promise<JobResult> {
+  await db.query('SELECT 1');
+  await redis.ping();
+  log.info('synthetic-canary ok: db + redis reachable');
+  return { affected: 1 };
 }
