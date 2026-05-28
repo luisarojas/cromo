@@ -176,6 +176,9 @@ module "scheduling" {
   asg_name      = module.compute.asg_name
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
+
+  start_hour = 9
+  stop_hour  = 17
 }
 
 # ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────
