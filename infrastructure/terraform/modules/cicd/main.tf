@@ -135,6 +135,7 @@ data "aws_iam_policy_document" "deploy" {
   statement {
     sid = "SsmReadCommand"
     actions = [
+      "ssm:DescribeInstanceInformation",
       "ssm:GetCommandInvocation",
       "ssm:ListCommandInvocations",
     ]
