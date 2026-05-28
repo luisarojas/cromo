@@ -31,7 +31,8 @@ const envSchema = z.object({
   COGNITO_TOKEN_USE: z.enum(['access', 'id']).default('access'),
 
   // Email / Nodemailer
-  SMTP_HOST: z.string().default('localhost'),
+  // When SMTP_HOST is unset (production), the SES transport is used instead.
+  SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().default(1025),
   EMAIL_FROM: z.string().email().default('noreply@cromo.local'),
 

@@ -1,18 +1,26 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import { env } from '../env.js';
 
 let _transporter: Transporter | null = null;
 
 function getTransporter(): Transporter {
   if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: false,      // Mailpit does not use TLS
-      ignoreTLS: true,
-      auth: undefined,    // No auth for local Mailpit
-    });
+    if (env.SMTP_HOST) {
+      _transporter = nodemailer.createTransport({
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        secure: false,
+        ignoreTLS: true,
+        auth: undefined,
+      });
+    } else {
+      const ses = new SESClient({ region: env.UPLOADS_REGION });
+      _transporter = nodemailer.createTransport({
+        SES: { ses, aws: { SendRawEmailCommand } },
+      });
+    }
   }
   return _transporter;
 }
@@ -61,7 +69,7 @@ export async function sendRatingReminderEmail(
   username: string,
   tradeId: string,
 ): Promise<void> {
-  const tradeUrl = `${process.env['FRONTEND_URL'] ?? 'http://localhost:3000'}/trade/${tradeId}`;
+  const tradeUrl = `${env.FRONTEND_URL}/trade/${tradeId}`;
 
   await getTransporter().sendMail({
     from: env.EMAIL_FROM,
@@ -90,7 +98,7 @@ export async function sendPasswordResetEmail(
   username: string,
   token: string
 ): Promise<void> {
-  const resetUrl = `${process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'}/reset-password?token=${token}`;
+  const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${token}`;
 
   await getTransporter().sendMail({
     from: env.EMAIL_FROM,
