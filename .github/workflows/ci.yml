@@ -212,6 +212,20 @@ jobs:
             exit 1
           fi
 
+          # Wait up to 3 min for the SSM agent to register on the instance.
+          # EC2 health checks pass before the SSM agent connects, so there is
+          # a gap between InService and SendCommand being accepted.
+          echo "Waiting for SSM agent to register on $INSTANCE_IDS..."
+          for i in $(seq 1 18); do
+            ONLINE=$(aws ssm describe-instance-information \
+              --filters "Key=InstanceIds,Values=$INSTANCE_IDS" \
+              --query "length(InstanceInformationList)" \
+              --output text 2>/dev/null || echo "0")
+            [ "$ONLINE" != "0" ] && break
+            echo "  attempt $i/18 — SSM not registered yet, retrying in 10s..."
+            sleep 10
+          done
+
           aws ssm send-command \
             --instance-ids $INSTANCE_IDS \
             --document-name "AWS-RunShellScript" \
