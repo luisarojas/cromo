@@ -20,7 +20,7 @@ function VerifyEmailContent() {
 
   useEffect(() => {
     if (!token) {
-      setStatus('error');
+      setStatus('expired');
       return;
     }
 
@@ -75,12 +75,14 @@ function VerifyEmailContent() {
       <Shell>
         <Card>
           <div className="text-center mb-4">
-            <div className="text-3xl mb-3">⏰</div>
+            <div className="text-3xl mb-3">✉️</div>
             <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
-              Link expired
+              {token ? 'Link expired' : 'Resend verification email'}
             </h1>
             <p className="text-sm text-[var(--cromo-fg-muted)]">
-              This verification link has expired. Enter your email to get a new one.
+              {token
+                ? 'This verification link has expired. Enter your email to get a new one.'
+                : 'Enter your email address and we\'ll send you a new verification link.'}
             </p>
           </div>
 
@@ -129,7 +131,7 @@ function VerifyEmailContent() {
           Verification failed
         </h1>
         <p className="text-sm text-[var(--cromo-fg-muted)] mb-6">
-          {token ? 'This verification link is invalid.' : 'No verification token provided.'}
+          This verification link is invalid.
         </p>
         <Link href="/login" className="text-sm text-[var(--cromo-accent)] hover:underline">
           Back to sign in

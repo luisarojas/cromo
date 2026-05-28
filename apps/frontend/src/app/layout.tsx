@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ToastProvider';
 import BanStatusBanner from '@/components/BanStatusBanner';
+import UnverifiedEmailBanner from '@/components/UnverifiedEmailBanner';
 import { ThemeProvider, themeBootstrapScript } from '@/components/ThemeProvider';
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 
@@ -64,6 +65,7 @@ export default async function RootLayout({
             <AuthProvider>
               <NavBar />
               <BanStatusBanner />
+              <UnverifiedEmailBanner />
               <ToastProvider>
                 <ErrorBoundary>
                   <main className="flex-1">{children}</main>
