@@ -189,9 +189,9 @@ jobs:
             --output text)
           if [ "$CURRENT" = "0" ]; then
             echo "ASG is at 0 — scaling up to 1 for deploy..."
-            aws autoscaling set-desired-capacity \
+            aws autoscaling update-auto-scaling-group \
               --auto-scaling-group-name "${{ secrets.DEV_ASG_NAME }}" \
-              --desired-capacity 1
+              --min-size 1 --max-size 1 --desired-capacity 1
           fi
 
           # Wait up to 5 min for an InService instance.

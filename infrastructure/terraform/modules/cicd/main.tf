@@ -102,8 +102,11 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
-    sid     = "AsgScaleUp"
-    actions = ["autoscaling:SetDesiredCapacity"]
+    sid = "AsgScaleUp"
+    actions = [
+      "autoscaling:SetDesiredCapacity",
+      "autoscaling:UpdateAutoScalingGroup",
+    ]
     resources = [
       "arn:${local.partition}:autoscaling:${local.region}:${local.account}:autoScalingGroup:*:autoScalingGroupName/cromo-${var.env}-*",
     ]
