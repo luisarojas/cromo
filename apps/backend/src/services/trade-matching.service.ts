@@ -84,15 +84,9 @@ export async function getTradeMatches(
        SELECT album_type_id FROM user_albums WHERE id = $2
      ),
      my_missing AS (
-       SELECT sv.id AS variant_id
-       FROM sticker_variants sv
-       WHERE sv.variant_type IN ('base_border', 'base_borderless')
-         AND NOT EXISTS (
-           SELECT 1 FROM user_stickers us
-           WHERE us.album_id = $2
-             AND us.sticker_variant_id = sv.id
-             AND us.quantity > 0
-         )
+       SELECT uwv.sticker_variant_id AS variant_id
+       FROM user_wanted_variants uwv
+       WHERE uwv.album_id = $2
      ),
      my_duplicates AS (
        SELECT us.sticker_variant_id AS variant_id
