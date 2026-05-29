@@ -178,7 +178,7 @@ export const userAlbums = pgTable('user_albums', {
 // ─── user_settings ────────────────────────────────────────────────────────────
 
 export const userSettings = pgTable('user_settings', {
-  userId: uuid('user_id').primaryKey().references(() => users.id),
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   profileVisibility: text('profile_visibility').notNull().default('public'),
   tradeMatchingEnabled: boolean('trade_matching_enabled').notNull().default(true),
   emailTradeRequests: boolean('email_trade_requests').notNull().default(true),
@@ -199,7 +199,7 @@ export const userSettings = pgTable('user_settings', {
 
 export const consentRecords = pgTable('consent_records', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   consentType: text('consent_type').notNull(),
   granted: boolean('granted').notNull(),
   policyVersion: text('policy_version').notNull(),
@@ -355,8 +355,8 @@ export const userWantedVariants = pgTable('user_wanted_variants', {
 
 export const tradeRequests = pgTable('trade_requests', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  requesterId: uuid('requester_id').notNull().references(() => users.id),
-  recipientId: uuid('recipient_id').notNull().references(() => users.id),
+  requesterId: uuid('requester_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  recipientId: uuid('recipient_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   requesterAlbumId: uuid('requester_album_id').notNull().references(() => userAlbums.id),
   recipientAlbumId: uuid('recipient_album_id').notNull().references(() => userAlbums.id),
   status: text('status').notNull().default('pending'),
@@ -398,7 +398,7 @@ export const tradeRequests = pgTable('trade_requests', {
 
 export const tradeItems = pgTable('trade_items', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tradeId: uuid('trade_id').notNull().references(() => tradeRequests.id),
+  tradeId: uuid('trade_id').notNull().references(() => tradeRequests.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
   direction: text('direction').notNull(),
   quantity: integer('quantity').notNull().default(1),
@@ -413,8 +413,7 @@ export const tradeItems = pgTable('trade_items', {
 export const tradeMessages = pgTable('trade_messages', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tradeId: uuid('trade_id').notNull().references(() => tradeRequests.id, { onDelete: 'cascade' }),
-  // Nullable so a deleted user's messages survive with a tombstone sender.
-  senderId: uuid('sender_id').references(() => users.id),
+  senderId: uuid('sender_id').references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   body: text('body').notNull(),
   isSystem: boolean('is_system').notNull().default(false),
   sentAt: timestamp('sent_at', { withTimezone: true }).notNull().default(sql`now()`),
@@ -445,7 +444,7 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
 
 export const publicLists = pgTable('public_lists', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   listType: text('list_type').notNull(),
   shareToken: text('share_token').unique().notNull().$defaultFn(
     () => crypto.randomBytes(16).toString('hex')
@@ -484,7 +483,7 @@ export const featureFlags = pgTable('feature_flags', {
 
 export const auditLog = pgTable('audit_log', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  userId: uuid('user_id').references(() => users.id),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   action: text('action').notNull(),
   ipAddress: inet('ip_address'),
   userAgent: text('user_agent'),
@@ -498,9 +497,9 @@ export const auditLog = pgTable('audit_log', {
 
 export const tradeRatings = pgTable('trade_ratings', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  tradeId: uuid('trade_id').notNull().references(() => tradeRequests.id),
-  raterId: uuid('rater_id').notNull().references(() => users.id),
-  ratedUserId: uuid('rated_user_id').notNull().references(() => users.id),
+  tradeId: uuid('trade_id').notNull().references(() => tradeRequests.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  raterId: uuid('rater_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  ratedUserId: uuid('rated_user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   isPositive: boolean('is_positive').notNull(),
   comment: text('comment'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
@@ -518,13 +517,13 @@ export const tradeRatings = pgTable('trade_ratings', {
 
 export const userReports = pgTable('user_reports', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  reporterId: uuid('reporter_id').notNull().references(() => users.id),
-  reportedUserId: uuid('reported_user_id').notNull().references(() => users.id),
-  tradeId: uuid('trade_id').references(() => tradeRequests.id),
+  reporterId: uuid('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  reportedUserId: uuid('reported_user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  tradeId: uuid('trade_id').references(() => tradeRequests.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   category: text('category').notNull(),
   description: text('description').notNull(),
   status: text('status').notNull().default('open'),
-  resolvedBy: uuid('resolved_by').references(() => users.id),
+  resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   resolutionNote: text('resolution_note'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
@@ -557,14 +556,14 @@ export const userReports = pgTable('user_reports', {
 
 export const userBans = pgTable('user_bans', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   banType: text('ban_type').notNull(),
   reason: text('reason').notNull(),
-  reportId: uuid('report_id').references(() => userReports.id),
-  bannedBy: uuid('banned_by').notNull().references(() => users.id),
+  reportId: uuid('report_id').references(() => userReports.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  bannedBy: uuid('banned_by').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   liftedAt: timestamp('lifted_at', { withTimezone: true }),
-  liftedBy: uuid('lifted_by').references(() => users.id),
+  liftedBy: uuid('lifted_by').references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   liftReason: text('lift_reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({

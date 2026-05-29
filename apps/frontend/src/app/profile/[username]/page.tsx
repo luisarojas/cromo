@@ -430,7 +430,9 @@ export default function PublicProfilePage() {
   const inventory = profile.tradingInventory;
   const hasAlbums = inventory.length > 0;
   const isOwnProfile = viewer?.id === profile.userId;
-  const canStartTrade = !!viewer && !isOwnProfile;
+  const canInteract = !!viewer && !isOwnProfile;
+  // Owner opted out of trading → no trade button (they can still be reported).
+  const canStartTrade = canInteract && profile.tradingEnabled;
 
   const activeState = activeAlbum
     ? (activeTab === 'offered'
@@ -482,7 +484,7 @@ export default function PublicProfilePage() {
                 Start a trade
               </Link>
             )}
-            {canStartTrade && viewerToken && (
+            {canInteract && viewerToken && (
               <button
                 onClick={() => setShowReportModal(true)}
                 className="inline-flex items-center rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"

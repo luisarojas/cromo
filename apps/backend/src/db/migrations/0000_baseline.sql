@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS "teams" (
 	"fifa_code" text NOT NULL,
 	"name" text NOT NULL,
 	"group_name" text NOT NULL,
-	"pages" jsonb,
+	"pages" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "teams_fifa_code_unique" UNIQUE("fifa_code")
 );
@@ -260,6 +260,7 @@ CREATE TABLE IF NOT EXISTS "user_settings" (
 	"marketing_consent_version" text,
 	"show_trust_score_public" boolean DEFAULT true NOT NULL,
 	"duplicates_count_all_variants" boolean DEFAULT false NOT NULL,
+	"default_base_variant" text DEFAULT 'base_border' NOT NULL,
 	"cities" jsonb DEFAULT '[]'::jsonb NOT NULL
 );
 --> statement-breakpoint
@@ -338,13 +339,13 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "consent_records" ADD CONSTRAINT "consent_records_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "consent_records" ADD CONSTRAINT "consent_records_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -362,7 +363,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "public_lists" ADD CONSTRAINT "public_lists_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "public_lists" ADD CONSTRAINT "public_lists_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -404,7 +405,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_items" ADD CONSTRAINT "trade_items_trade_id_trade_requests_id_fk" FOREIGN KEY ("trade_id") REFERENCES "public"."trade_requests"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_items" ADD CONSTRAINT "trade_items_trade_id_trade_requests_id_fk" FOREIGN KEY ("trade_id") REFERENCES "public"."trade_requests"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -422,37 +423,37 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_messages" ADD CONSTRAINT "trade_messages_sender_id_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_messages" ADD CONSTRAINT "trade_messages_sender_id_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_ratings" ADD CONSTRAINT "trade_ratings_trade_id_trade_requests_id_fk" FOREIGN KEY ("trade_id") REFERENCES "public"."trade_requests"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_ratings" ADD CONSTRAINT "trade_ratings_trade_id_trade_requests_id_fk" FOREIGN KEY ("trade_id") REFERENCES "public"."trade_requests"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_ratings" ADD CONSTRAINT "trade_ratings_rater_id_users_id_fk" FOREIGN KEY ("rater_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_ratings" ADD CONSTRAINT "trade_ratings_rater_id_users_id_fk" FOREIGN KEY ("rater_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_ratings" ADD CONSTRAINT "trade_ratings_rated_user_id_users_id_fk" FOREIGN KEY ("rated_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_ratings" ADD CONSTRAINT "trade_ratings_rated_user_id_users_id_fk" FOREIGN KEY ("rated_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_requests" ADD CONSTRAINT "trade_requests_requester_id_users_id_fk" FOREIGN KEY ("requester_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_requests" ADD CONSTRAINT "trade_requests_requester_id_users_id_fk" FOREIGN KEY ("requester_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "trade_requests" ADD CONSTRAINT "trade_requests_recipient_id_users_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "trade_requests" ADD CONSTRAINT "trade_requests_recipient_id_users_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -500,55 +501,55 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_report_id_user_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."user_reports"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_report_id_user_reports_id_fk" FOREIGN KEY ("report_id") REFERENCES "public"."user_reports"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_banned_by_users_id_fk" FOREIGN KEY ("banned_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_banned_by_users_id_fk" FOREIGN KEY ("banned_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_lifted_by_users_id_fk" FOREIGN KEY ("lifted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_bans" ADD CONSTRAINT "user_bans_lifted_by_users_id_fk" FOREIGN KEY ("lifted_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_reporter_id_users_id_fk" FOREIGN KEY ("reporter_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_reporter_id_users_id_fk" FOREIGN KEY ("reporter_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_reported_user_id_users_id_fk" FOREIGN KEY ("reported_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_reported_user_id_users_id_fk" FOREIGN KEY ("reported_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_trade_id_trade_requests_id_fk" FOREIGN KEY ("trade_id") REFERENCES "public"."trade_requests"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_trade_id_trade_requests_id_fk" FOREIGN KEY ("trade_id") REFERENCES "public"."trade_requests"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_reports" ADD CONSTRAINT "user_reports_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -619,6 +620,7 @@ CREATE INDEX IF NOT EXISTS "idx_trade_ratings_rated_user_id" ON "trade_ratings" 
 CREATE INDEX IF NOT EXISTS "idx_trade_requests_requester_status_updated" ON "trade_requests" USING btree ("requester_id","status","updated_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_trade_requests_recipient_status_updated" ON "trade_requests" USING btree ("recipient_id","status","updated_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_albums_user_id" ON "user_albums" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "user_albums_one_default_per_user" ON "user_albums" USING btree ("user_id") WHERE is_default;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_albums_album_type_id" ON "user_albums" USING btree ("album_type_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_albums_album_edition_id" ON "user_albums" USING btree ("album_edition_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_albums_album_format_id" ON "user_albums" USING btree ("album_format_id");--> statement-breakpoint
@@ -629,9 +631,8 @@ CREATE INDEX IF NOT EXISTS "idx_user_sticker_favourites_album_id" ON "user_stick
 CREATE UNIQUE INDEX IF NOT EXISTS "user_stickers_album_id_sticker_variant_id_unique" ON "user_stickers" USING btree ("album_id","sticker_variant_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_stickers_sticker_variant_id" ON "user_stickers" USING btree ("sticker_variant_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_user_stickers_duplicates" ON "user_stickers" USING btree ("album_id") WHERE quantity > 1;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "idx_user_wanted_variants_user_album" ON "user_wanted_variants" USING btree ("user_id","album_id");--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "user_albums_one_default_per_user" ON "user_albums" USING btree ("user_id") WHERE is_default;--> statement-breakpoint
-
+CREATE INDEX IF NOT EXISTS "idx_user_wanted_variants_user_album" ON "user_wanted_variants" USING btree ("user_id","album_id");
+--> statement-breakpoint
 -- ─── Functions, triggers, and views ──────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION _sync_user_album_counts(p_album_id uuid)

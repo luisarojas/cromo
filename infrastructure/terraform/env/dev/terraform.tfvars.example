@@ -8,8 +8,9 @@ alert_email  = "alerts@example.com"
 # Generate with: openssl rand -base64 32
 jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
 
-# 'mock' keeps the dev environment off real Groq API calls.
-groq_api_key = "mock"
+# Real Groq key so dev exercises live AI scanning (counts against the budget).
+# Use 'mock' only if you want to skip real Groq calls.
+groq_api_key = "REPLACE_WITH_REAL_GROQ_KEY"
 
 # GitHub repo slug allowed to assume the deploy role (OIDC). Dev trusts
 # pushes to main.

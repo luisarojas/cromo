@@ -50,6 +50,16 @@ export async function getTradeMatches(
   albumId: string,
   opts: { cursor?: string; limit?: number } = {},
 ): Promise<TradeMatchesPage> {
+  // If the requester has opted out of trade matching, they get no matches —
+  // mirrors how they're excluded as a candidate for everyone else.
+  const { rows: settingRows } = await db.query<{ trade_matching_enabled: boolean }>(
+    `SELECT trade_matching_enabled FROM user_settings WHERE user_id = $1`,
+    [userId],
+  );
+  if (settingRows.length > 0 && settingRows[0]!.trade_matching_enabled === false) {
+    return { items: [], nextCursor: null, total: 0 };
+  }
+
   const limit = Math.min(opts.limit ?? TRADE_MATCHES_DEFAULT_LIMIT, TRADE_MATCHES_MAX_LIMIT);
   // Cursor is the opaque `${overlap}:${userId}` from the previous page.
   let cursorOverlap: number | null = null;

@@ -177,3 +177,30 @@ Once dev is healthy and you're ready for Phase B3, prod uses the same modules wi
 ## 9. Tear-down and recreate
 
 See **`docs/runbooks/cloud-recreate.md`** for the safe nuke + recreate flow. The short version: `terraform destroy` in `env/dev` (or `env/prod`) leaves the shared hosted zone, SES identity, ECR images, and state bucket intact — so the next `apply` doesn't require re-delegating DNS or re-verifying SES.
+
+## 10. Applying a secret / env change to a running env
+
+Changing a value the app reads from Secrets Manager (e.g. `AUTH_MODE`, `JWT_SECRET`, `GROQ_API_KEY`) takes **two** independent things to go live, and getting only one of them is the usual cause of a post-change outage:
+
+1. **A fresh `cromo.env`.** The env file at `/etc/cromo/cromo.env` is written **only** by the instance's boot user-data (`compute/main.tf`, `aws secretsmanager get-secret-value > /etc/cromo/cromo.env`). `terraform apply` updates the *secret*, but a running instance never re-reads it — you need a **new instance** for the change to reach the box.
+2. **The app (re)started with a valid `IMAGE_TAG`.** The compose file resolves `${ECR_REGISTRY}/cromo-backend:${IMAGE_TAG}`, and those vars are injected by the **deploy path** (the CI workflow or `deploy-dev-bootstrap.sh`) via SSM — *not* by user-data. A cold-booted instance therefore has the right `cromo.env` but **no running containers** until a deploy lands on it.
+
+> **Why an instance refresh alone breaks things.** `start-instance-refresh` gives you (1) — a new instance with the updated `cromo.env` — but terminates the old, working instance and leaves the new one with no app running, because nothing has supplied `IMAGE_TAG` yet. Result: ALB returns `502` (no healthy target). Symptom check: `docker ps -a` shows no `…api…` container and `docker compose logs` warns `IMAGE_TAG`/`ECR_REGISTRY` "variable is not set".
+
+**Correct sequence for a secret/env change:**
+
+```bash
+# 1. Land the secret value
+cd infrastructure/terraform/env/dev && terraform apply
+
+# 2. Roll instances so they pick up the new cromo.env
+aws autoscaling start-instance-refresh --auto-scaling-group-name cromo-dev-app
+
+# 3. Deploy the app onto the (now cold) instance — this starts the containers
+#    with the correct IMAGE_TAG. Either re-run CI, or:
+./scripts/deploy-dev-bootstrap.sh
+```
+
+If you only changed code (no secret), skip steps 1–2 — a normal push-to-`main` CI deploy is enough, since `cromo.env` is unchanged.
+
+**Recovering a 502 after a refresh** (cold instance, app never started): don't refresh again. Confirm the latest image is in ECR (the `deploy-dev` run for your commit is green), then run `./scripts/deploy-dev-bootstrap.sh` (or re-run the workflow) to deploy onto the current instance. Verify with `curl https://dev.cromotrade.ca/api/v1/health`.

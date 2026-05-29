@@ -248,10 +248,14 @@ export interface City {
 
 export type BaseVariantPreference = 'base_border' | 'base_borderless'
 
+export type ProfileVisibility = 'public' | 'private'
+
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean
   defaultBaseVariant: BaseVariantPreference
   cities: City[]
+  profileVisibility: ProfileVisibility
+  tradeMatchingEnabled: boolean
 }
 
 // ─── Trade wire types ──────────────────────────────────────────────────────
@@ -379,6 +383,7 @@ export interface PublicProfile {
   avatarUrl: string | null
   memberSince: string
   tradingInventory: PublicProfileAlbum[]
+  tradingEnabled: boolean
 }
 
 export interface PublicInventoryFilterOptions {

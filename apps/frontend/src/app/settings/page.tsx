@@ -432,6 +432,95 @@ function DeleteAccountSection() {
   );
 }
 
+// ─── Privacy & Trading tab ────────────────────────────────────────────────────
+
+function PrivacySettingsTab() {
+  const token = useAuthStore((s) => s.token);
+  const profileVisibility = usePreferencesStore((s) => s.profileVisibility);
+  const setProfileVisibility = usePreferencesStore((s) => s.setProfileVisibility);
+  const tradeMatchingEnabled = usePreferencesStore((s) => s.tradeMatchingEnabled);
+  const setTradeMatchingEnabled = usePreferencesStore((s) => s.setTradeMatchingEnabled);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function handlePrivateChange(isPrivate: boolean) {
+    if (!token) return;
+    setSaveError(null);
+    const previous = profileVisibility;
+    const next = isPrivate ? 'private' : 'public';
+    setProfileVisibility(next);
+    try {
+      await patchUserPreferences({ profileVisibility: next }, token);
+    } catch {
+      setProfileVisibility(previous);
+      setSaveError('Failed to save preference. Please try again.');
+    }
+  }
+
+  async function handleTradingOptOut(optedOut: boolean) {
+    if (!token) return;
+    setSaveError(null);
+    const previous = tradeMatchingEnabled;
+    const next = !optedOut;
+    setTradeMatchingEnabled(next);
+    try {
+      await patchUserPreferences({ tradeMatchingEnabled: next }, token);
+    } catch {
+      setTradeMatchingEnabled(previous);
+      setSaveError('Failed to save preference. Please try again.');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {saveError && <StatusMessage type="error" message={saveError} />}
+
+      <SectionCard
+        title="Profile visibility"
+        description="Control whether other collectors can view your public profile."
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={profileVisibility === 'private'}
+            onChange={(e) => handlePrivateChange(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-[var(--cromo-fg)]">Make my profile private</span>
+            <span className="text-xs text-[var(--cromo-fg-muted)]">
+              When enabled, your profile page can&apos;t be viewed by anyone — visitors see a
+              &ldquo;profile not found&rdquo; message. Your collection and account remain fully
+              accessible to you.
+            </span>
+          </div>
+        </label>
+      </SectionCard>
+
+      <SectionCard
+        title="Trading"
+        description="Opt out of the trading feature entirely."
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!tradeMatchingEnabled}
+            onChange={(e) => handleTradingOptOut(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-[var(--cromo-fg)]">Disable trading</span>
+            <span className="text-xs text-[var(--cromo-fg-muted)]">
+              When enabled, you won&apos;t appear as a trade match to anyone, can&apos;t receive new
+              trade requests, and the Trade section is hidden from your menu. Existing trades are not
+              affected.
+            </span>
+          </div>
+        </label>
+      </SectionCard>
+    </div>
+  );
+}
+
 // ─── Album tab ────────────────────────────────────────────────────────────────
 
 const BASE_VARIANT_OPTIONS: { value: BaseVariantPreference; label: string; hint: string }[] = [
@@ -557,10 +646,11 @@ function AccountSettingsTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'album' | 'appearance';
+type SettingsTab = 'account' | 'privacy' | 'album' | 'appearance';
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'account', label: 'Account' },
+  { id: 'privacy', label: 'Privacy & Trading' },
   { id: 'album', label: 'Album Defaults' },
   { id: 'appearance', label: 'Appearance' },
 ];
@@ -598,6 +688,7 @@ export default function SettingsPage() {
         </div>
 
         {activeTab === 'account' && <AccountSettingsTab />}
+        {activeTab === 'privacy' && <PrivacySettingsTab />}
         {activeTab === 'album' && <AlbumSettingsTab />}
         {activeTab === 'appearance' && <AppearanceSettingsTab />}
       </div>

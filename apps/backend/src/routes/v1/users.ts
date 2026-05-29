@@ -13,6 +13,8 @@ const PatchPreferencesBody = z.object({
   duplicatesCountAllVariants: z.boolean().optional(),
   defaultBaseVariant: z.enum(['base_border', 'base_borderless']).optional(),
   cities: z.array(CitySchema).max(10).optional(),
+  profileVisibility: z.enum(['public', 'private']).optional(),
+  tradeMatchingEnabled: z.boolean().optional(),
 });
 
 const UpdateUsernameBody = z.object({
@@ -85,6 +87,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             duplicatesCountAllVariants: { type: 'boolean' },
             defaultBaseVariant: { type: 'string', enum: ['base_border', 'base_borderless'] },
             cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
+            profileVisibility: { type: 'string', enum: ['public', 'private'] },
+            tradeMatchingEnabled: { type: 'boolean' },
           },
         },
         response: {

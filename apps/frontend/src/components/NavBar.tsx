@@ -15,6 +15,7 @@ export default function NavBar() {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const resetPreferences = usePreferencesStore((s) => s.reset);
+  const tradeMatchingEnabled = usePreferencesStore((s) => s.tradeMatchingEnabled);
 
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -61,7 +62,7 @@ export default function NavBar() {
             <>
               <NavLink href="/dashboard">Dashboard</NavLink>
               <NavLink href="/album">Collection</NavLink>
-              <NavLink href="/trade">Trade</NavLink>
+              {tradeMatchingEnabled && <NavLink href="/trade">Trade</NavLink>}
               <NavLink href="/scan">Scan</NavLink>
               {user.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
             </>
@@ -151,7 +152,7 @@ export default function NavBar() {
                 <>
                   <DrawerLink href="/dashboard">Dashboard</DrawerLink>
                   <DrawerLink href="/album">Collection</DrawerLink>
-                  <DrawerLink href="/trade">Trade</DrawerLink>
+                  {tradeMatchingEnabled && <DrawerLink href="/trade">Trade</DrawerLink>}
                   <DrawerLink href="/scan">Scan</DrawerLink>
                   {user.role === 'admin' && <DrawerLink href="/admin">Admin</DrawerLink>}
                 </>

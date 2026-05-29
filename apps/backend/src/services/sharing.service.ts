@@ -73,6 +73,7 @@ export interface PublicProfile {
   avatar_url: string | null;
   member_since: string;
   trading_inventory: PublicProfileAlbum[];
+  trading_enabled: boolean;
 }
 
 export interface PublicInventoryFilterOptions {
@@ -426,9 +427,10 @@ export async function getPublicProfile(
     avatar_url: string | null;
     created_at: string;
     profile_visibility: string | null;
+    trade_matching_enabled: boolean | null;
   }>(
     `SELECT u.id, u.username, u.display_name, u.avatar_url, u.created_at,
-            us.profile_visibility
+            us.profile_visibility, us.trade_matching_enabled
      FROM users u
      LEFT JOIN user_settings us ON us.user_id = u.id
      WHERE u.username = $1 AND u.deleted_at IS NULL`,
@@ -438,6 +440,7 @@ export async function getPublicProfile(
   if (userRows.length === 0) return null;
   const user = userRows[0]!;
   if (user.profile_visibility === 'private') return null;
+  const tradingEnabled = user.trade_matching_enabled ?? true;
 
   const cacheKey = await userCacheKey(redis, user.id, 'public_profile');
   const cached = await redis.get(cacheKey);
@@ -450,6 +453,7 @@ export async function getPublicProfile(
       avatar_url: user.avatar_url,
       member_since: user.created_at,
       trading_inventory: inventory,
+      trading_enabled: tradingEnabled,
     };
   }
 
@@ -574,6 +578,7 @@ export async function getPublicProfile(
     avatar_url: user.avatar_url,
     member_since: user.created_at,
     trading_inventory,
+    trading_enabled: tradingEnabled,
   };
 }
 

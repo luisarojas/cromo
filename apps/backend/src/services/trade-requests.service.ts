@@ -240,11 +240,17 @@ export async function createTrade(
   }
 
   const tradeId = await withTx(db, async (client) => {
-    const { rows: recipientRows } = await client.query<{ id: string }>(
-      `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+    const { rows: recipientRows } = await client.query<{ id: string; trade_matching_enabled: boolean | null }>(
+      `SELECT u.id, us.trade_matching_enabled
+         FROM users u
+         LEFT JOIN user_settings us ON us.user_id = u.id
+        WHERE u.id = $1 AND u.deleted_at IS NULL`,
       [recipientId],
     );
     if (recipientRows.length === 0) throw statusError('Recipient not found.', 404);
+    if (recipientRows[0]!.trade_matching_enabled === false) {
+      throw statusError('This user is not accepting trades.', 409);
+    }
 
     // Resolve requester's album. If not specified, use their default.
     let resolvedRequesterAlbumId: string;

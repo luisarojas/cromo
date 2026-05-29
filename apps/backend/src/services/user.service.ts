@@ -137,11 +137,14 @@ export interface City {
 }
 
 export type BaseVariantPreference = 'base_border' | 'base_borderless';
+export type ProfileVisibility = 'public' | 'private';
 
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean;
   defaultBaseVariant: BaseVariantPreference;
   cities: City[];
+  profileVisibility: ProfileVisibility;
+  tradeMatchingEnabled: boolean;
 }
 
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
@@ -149,13 +152,23 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
     duplicates_count_all_variants: boolean;
     default_base_variant: BaseVariantPreference;
     cities: City[];
+    profile_visibility: ProfileVisibility;
+    trade_matching_enabled: boolean;
   }>(
-    `SELECT duplicates_count_all_variants, default_base_variant, cities FROM user_settings WHERE user_id = $1`,
+    `SELECT duplicates_count_all_variants, default_base_variant, cities,
+            profile_visibility, trade_matching_enabled
+     FROM user_settings WHERE user_id = $1`,
     [userId]
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    return { duplicatesCountAllVariants: false, defaultBaseVariant: 'base_border', cities: [] };
+    return {
+      duplicatesCountAllVariants: false,
+      defaultBaseVariant: 'base_border',
+      cities: [],
+      profileVisibility: 'public',
+      tradeMatchingEnabled: true,
+    };
   }
 
   const row = result.rows[0]!;
@@ -163,6 +176,8 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
     duplicatesCountAllVariants: row.duplicates_count_all_variants,
     defaultBaseVariant: row.default_base_variant,
     cities: row.cities ?? [],
+    profileVisibility: row.profile_visibility,
+    tradeMatchingEnabled: row.trade_matching_enabled,
   };
 }
 
@@ -186,6 +201,14 @@ export async function updatePreferences(
   if (patch.cities !== undefined) {
     setClauses.push(`cities = $${idx++}::jsonb`);
     values.push(JSON.stringify(patch.cities));
+  }
+  if (patch.profileVisibility !== undefined) {
+    setClauses.push(`profile_visibility = $${idx++}`);
+    values.push(patch.profileVisibility);
+  }
+  if (patch.tradeMatchingEnabled !== undefined) {
+    setClauses.push(`trade_matching_enabled = $${idx++}`);
+    values.push(patch.tradeMatchingEnabled);
   }
 
   if (setClauses.length === 0) return getPreferences(db, userId);

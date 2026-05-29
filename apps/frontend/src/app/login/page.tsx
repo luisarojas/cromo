@@ -42,7 +42,7 @@ export default function LoginPage() {
         const prefs = await fetchUserPreferences(accessToken);
         setFromServer(prefs);
       } catch {
-        setFromServer({ duplicatesCountAllVariants: false, defaultBaseVariant: 'base_border', cities: [] });
+        setFromServer({ duplicatesCountAllVariants: false, defaultBaseVariant: 'base_border', cities: [], profileVisibility: 'public', tradeMatchingEnabled: true });
       }
       router.push('/dashboard');
     } catch (err) {

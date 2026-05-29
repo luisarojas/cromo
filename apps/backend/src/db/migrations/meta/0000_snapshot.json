@@ -1,5 +1,5 @@
 {
-  "id": "46b88155-ca16-432b-9641-29da344b829d",
+  "id": "38ac344f-60a8-4b53-8b0c-333229281ea4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -453,8 +453,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -549,8 +549,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -560,8 +560,8 @@
       "name": "email_verification_tokens",
       "schema": "",
       "columns": {
-        "token": {
-          "name": "token",
+        "token_hash": {
+          "name": "token_hash",
           "type": "text",
           "primaryKey": true,
           "notNull": true
@@ -669,8 +669,8 @@
       "name": "password_reset_tokens",
       "schema": "",
       "columns": {
-        "token": {
-          "name": "token",
+        "token_hash": {
+          "name": "token_hash",
           "type": "text",
           "primaryKey": true,
           "notNull": true
@@ -786,8 +786,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1349,6 +1349,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "pages": {
+          "name": "pages",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1450,8 +1457,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "trade_items_sticker_variant_id_sticker_variants_id_fk": {
           "name": "trade_items_sticker_variant_id_sticker_variants_id_fk",
@@ -1561,8 +1568,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1666,8 +1673,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "trade_ratings_rater_id_users_id_fk": {
           "name": "trade_ratings_rater_id_users_id_fk",
@@ -1679,8 +1686,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "trade_ratings_rated_user_id_users_id_fk": {
           "name": "trade_ratings_rated_user_id_users_id_fk",
@@ -1692,8 +1699,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1880,8 +1887,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "trade_requests_recipient_id_users_id_fk": {
           "name": "trade_requests_recipient_id_users_id_fk",
@@ -1893,8 +1900,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "trade_requests_requester_album_id_user_albums_id_fk": {
           "name": "trade_requests_requester_album_id_user_albums_id_fk",
@@ -2042,6 +2049,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "user_albums_one_default_per_user": {
+          "name": "user_albums_one_default_per_user",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "is_default",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2269,8 +2292,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "user_bans_report_id_user_reports_id_fk": {
           "name": "user_bans_report_id_user_reports_id_fk",
@@ -2282,8 +2305,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "user_bans_banned_by_users_id_fk": {
           "name": "user_bans_banned_by_users_id_fk",
@@ -2295,8 +2318,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "user_bans_lifted_by_users_id_fk": {
           "name": "user_bans_lifted_by_users_id_fk",
@@ -2308,8 +2331,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2430,8 +2453,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "user_reports_reported_user_id_users_id_fk": {
           "name": "user_reports_reported_user_id_users_id_fk",
@@ -2443,8 +2466,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "user_reports_trade_id_trade_requests_id_fk": {
           "name": "user_reports_trade_id_trade_requests_id_fk",
@@ -2456,8 +2479,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         },
         "user_reports_resolved_by_users_id_fk": {
           "name": "user_reports_resolved_by_users_id_fk",
@@ -2469,8 +2492,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2547,6 +2570,13 @@
           "notNull": true,
           "default": false
         },
+        "default_base_variant": {
+          "name": "default_base_variant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'base_border'"
+        },
         "cities": {
           "name": "cities",
           "type": "jsonb",
@@ -2567,8 +2597,8 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -2986,6 +3016,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3003,12 +3039,6 @@
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
