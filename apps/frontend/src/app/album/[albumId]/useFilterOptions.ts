@@ -1,8 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { Sticker, UserAlbum } from '@/lib/api';
-import { toEditionKey } from '@/lib/api';
+import type { Sticker } from '@/lib/api';
 import type { FilterState } from '../components/FilterBar';
 import { variantLabel } from '../components/variantMeta';
 
@@ -21,7 +20,6 @@ interface Args {
   tabBase: Sticker[];
   filters: FilterState;
   ownedMap: Map<string, Map<string, unknown>>;
-  activeAlbum: UserAlbum | undefined;
   favouriteSet: Set<string>;
   wantedAlbumCodeSet: Set<string>;
 }
@@ -35,30 +33,8 @@ interface Args {
  * filter*, so toggling a single team value doesn't immediately drop the
  * other team options from the dropdown.
  */
-export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favouriteSet, wantedAlbumCodeSet }: Args) {
+export function useFilterOptions({ tabBase, filters, ownedMap, favouriteSet, wantedAlbumCodeSet }: Args) {
   return useMemo(() => {
-    const edition = activeAlbum?.edition;
-
-    const stickerPageRange = (s: Sticker): [number, number] | null => {
-      if (!edition) return null;
-      const ek = toEditionKey(edition);
-      const sp = s.stickerPages?.[ek];
-      if (sp?.pageStart != null && sp?.pageEnd != null) return [sp.pageStart, sp.pageEnd];
-      const tp = s.teamPages?.[ek];
-      return tp ? [tp[0], tp[1]] : null;
-    };
-
-    const matchesPageRange = (s: Sticker): boolean => {
-      const { pageFrom, pageTo } = filters;
-      if (pageFrom == null && pageTo == null) return true;
-      const range = stickerPageRange(s);
-      if (!range) return false;
-      const [start, end] = range;
-      if (pageFrom != null && end < pageFrom) return false;
-      if (pageTo != null && start > pageTo) return false;
-      return true;
-    };
-
     const filterExcept = (exclude: keyof FilterState): Sticker[] =>
       tabBase.filter((s) => {
         if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
@@ -76,7 +52,6 @@ export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favo
               && !s.albumCode.toLowerCase().includes(q)
               && !s.teamName?.toLowerCase().includes(q)) return false;
         }
-        if (exclude !== 'pageFrom' && exclude !== 'pageTo' && !matchesPageRange(s)) return false;
         return true;
       });
 
@@ -108,5 +83,5 @@ export function useFilterOptions({ tabBase, filters, ownedMap, activeAlbum, favo
     const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
 
     return { groupOptions, teamOptions, typeOptions, variantOptions };
-  }, [tabBase, filters, ownedMap, activeAlbum, favouriteSet, wantedAlbumCodeSet]);
+  }, [tabBase, filters, ownedMap, favouriteSet, wantedAlbumCodeSet]);
 }

@@ -13,12 +13,6 @@ function parseList(value: string | null): string[] | undefined {
   return arr.length > 0 ? arr : undefined;
 }
 
-function parseInt10(value: string | null): number | undefined {
-  if (!value) return undefined;
-  const n = parseInt(value, 10);
-  return Number.isFinite(n) ? n : undefined;
-}
-
 /**
  * useAlbumUrlState — single source of truth for the album page's tab + filter
  * state, encoded into URL search params instead of localStorage. Shareable
@@ -40,8 +34,6 @@ export function useAlbumUrlState() {
     type: parseList(searchParams.get('type')),
     variant: parseList(searchParams.get('variant')),
     search: searchParams.get('q') ?? undefined,
-    pageFrom: parseInt10(searchParams.get('pageFrom')),
-    pageTo: parseInt10(searchParams.get('pageTo')),
     favouritesOnly: searchParams.get('fav') === '1' ? true : undefined,
     wantedOnly: searchParams.get('wanted') === '1' ? true : undefined,
   }), [searchParams]);
@@ -70,8 +62,6 @@ export function useAlbumUrlState() {
         setList('type', f.type);
         setList('variant', f.variant);
         setScalar('q', f.search);
-        setScalar('pageFrom', f.pageFrom);
-        setScalar('pageTo', f.pageTo);
         if (f.favouritesOnly) params.set('fav', '1');
         else params.delete('fav');
         if (f.wantedOnly) params.set('wanted', '1');

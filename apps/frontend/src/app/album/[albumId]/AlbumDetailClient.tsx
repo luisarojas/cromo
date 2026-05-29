@@ -21,7 +21,6 @@ import {
   deleteUserAlbum,
   setDefaultUserAlbum,
   albumDisplayName,
-  toEditionKey,
   DEFAULT_ALBUM_TYPE_KEY,
   type AlbumEditionOption,
   type AlbumFormatOption,
@@ -296,7 +295,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     tabBase,
     filters,
     ownedMap: ownedMap as unknown as Map<string, Map<string, unknown>>,
-    activeAlbum,
     favouriteSet,
     wantedAlbumCodeSet,
   });
@@ -362,8 +360,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       });
     }
 
-    const edition = activeAlbum?.edition;
-
     return base.filter((s) => {
       if (filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
       if (filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
@@ -375,25 +371,9 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         if (!p || !filters.variant.some((v) => p.has(v))) return false;
       }
       if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
-      if (filters.pageFrom != null || filters.pageTo != null) {
-        if (!edition) return false;
-        const ek = toEditionKey(edition);
-        const sp = s.stickerPages?.[ek];
-        let sStart: number | null = null;
-        let sEnd: number | null = null;
-        if (sp?.pageStart != null && sp?.pageEnd != null) {
-          sStart = sp.pageStart; sEnd = sp.pageEnd;
-        } else {
-          const tp = s.teamPages?.[ek];
-          if (tp) { sStart = tp[0]; sEnd = tp[1]; }
-        }
-        if (sStart == null || sEnd == null) return false;
-        if (filters.pageFrom != null && sEnd < filters.pageFrom) return false;
-        if (filters.pageTo != null && sStart > filters.pageTo) return false;
-      }
       return true;
     });
-  }, [settingsFilteredStickers, tab, filters, ownedMap, duplicatesCountAllVariants, activeAlbum, favouriteSet, wantedAlbumCodeSet]);
+  }, [settingsFilteredStickers, tab, filters, ownedMap, duplicatesCountAllVariants, favouriteSet, wantedAlbumCodeSet]);
 
   // ---------------------------------------------------------------------------
   // Selection helpers

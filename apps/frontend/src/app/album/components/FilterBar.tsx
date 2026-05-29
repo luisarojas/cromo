@@ -10,8 +10,6 @@ export interface FilterState {
   type?: string[];
   variant?: string[];
   search?: string;
-  pageFrom?: number;
-  pageTo?: number;
   favouritesOnly?: boolean;
   wantedOnly?: boolean;
 }
@@ -54,7 +52,6 @@ export default function FilterBar({
     (filters.team?.length ?? 0) +
     (filters.type?.length ?? 0) +
     (filters.variant?.length ?? 0) +
-    (filters.pageFrom != null || filters.pageTo != null ? 1 : 0) +
     (filters.favouritesOnly ? 1 : 0) +
     (filters.wantedOnly ? 1 : 0);
 
@@ -108,21 +105,6 @@ export default function FilterBar({
       onRemove: () => updateMulti('variant', (filters.variant ?? []).filter((x) => x !== v)),
     });
   });
-  if (filters.pageFrom != null || filters.pageTo != null) {
-    const { pageFrom: from, pageTo: to } = filters;
-    let label: string;
-    if (from != null && to != null) {
-      label = from === to ? `p. ${from}` : `pp. ${from}–${to}`;
-    } else if (from != null) {
-      label = `From p. ${from}`;
-    } else {
-      label = `To p. ${to}`;
-    }
-    activeChips.push({
-      label,
-      onRemove: () => onChange({ ...filters, pageFrom: undefined, pageTo: undefined }),
-    });
-  }
 
   return (
     <div className="flex flex-col gap-2 bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-xl p-4">
@@ -243,34 +225,6 @@ export default function FilterBar({
               <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
               Wanted
             </button>
-          </div>
-
-          {/* Page range */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Page</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min={1}
-                placeholder="From"
-                value={filters.pageFrom ?? ''}
-                onChange={(e) =>
-                  onChange({ ...filters, pageFrom: e.target.value ? Number(e.target.value) : undefined })
-                }
-                className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
-              />
-              <span className="text-xs text-[var(--cromo-fg-subtle)]">–</span>
-              <input
-                type="number"
-                min={1}
-                placeholder="To"
-                value={filters.pageTo ?? ''}
-                onChange={(e) =>
-                  onChange({ ...filters, pageTo: e.target.value ? Number(e.target.value) : undefined })
-                }
-                className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
-              />
-            </div>
           </div>
         </div>
       )}
