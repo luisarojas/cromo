@@ -7,7 +7,7 @@ import {
   type Sticker,
   type StickerVariant,
 } from '@/lib/api';
-import { VARIANT_META, variantLabel, variantRarity, variantSwatch } from './variantMeta';
+import { VARIANT_META, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
 
@@ -56,7 +56,9 @@ export default function VariantPopover({
   const ref = useRef<HTMLDivElement>(null);
   const [allVariants, setAllVariants] = useState<StickerVariant[] | null>(null);
   const [loadingVariants, setLoadingVariants] = useState(false);
-  const [showAddPicker, setShowAddPicker] = useState(false);
+  // Default the "other variant" list open when the sticker isn't in the
+  // collection yet — adding the first copy is the whole reason the popover opened.
+  const [showAddPicker, setShowAddPicker] = useState(ownedVariants.size === 0);
   const [showWantedPicker, setShowWantedPicker] = useState(false);
   const [showMovePicker, setShowMovePicker] = useState(false);
   const [moveVariantId, setMoveVariantId] = useState<string | null>(null);
@@ -192,6 +194,8 @@ export default function VariantPopover({
   const unownedVariants = (allVariants ?? []).filter(
     (v) => !ownedVariants.has(v.variantType),
   );
+  const baseUnowned = unownedVariants.find((v) => isBaseVariant(v.variantType));
+  const otherUnowned = unownedVariants.filter((v) => !isBaseVariant(v.variantType));
 
   const node = (
     <div
@@ -474,7 +478,17 @@ export default function VariantPopover({
         </div>
       ) : unownedVariants.length > 0 ? (
         <>
-          {!showAddPicker && (
+          {/* One-click add for the Base variant — the overwhelmingly common case */}
+          {baseUnowned && (
+            <button
+              onClick={() => handleAddNew(baseUnowned.id, baseUnowned.variantType)}
+              disabled={busy}
+              className="flex items-center justify-center gap-1.5 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs font-semibold py-2 hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
+            >
+              + Add {variantLabel(baseUnowned.variantType)}
+            </button>
+          )}
+          {otherUnowned.length > 0 && !showAddPicker && (
             <button
               onClick={openAddPicker}
               className="text-xs font-medium text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] self-start"
@@ -482,9 +496,9 @@ export default function VariantPopover({
               + Add other variant
             </button>
           )}
-          {showAddPicker && (
+          {otherUnowned.length > 0 && showAddPicker && (
             <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
-              {unownedVariants.map((v) => (
+              {otherUnowned.map((v) => (
                 <button
                   key={v.id}
                   onClick={() => handleAddNew(v.id, v.variantType)}
