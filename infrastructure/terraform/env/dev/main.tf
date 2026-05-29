@@ -6,7 +6,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.region
+  region  = var.region
+  profile = "cromo"
 
   default_tags {
     tags = {
