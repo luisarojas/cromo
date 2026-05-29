@@ -51,6 +51,9 @@ services:
     environment:
       # These override .env.local with docker-internal values where hostnames differ
       NODE_ENV: development
+      # Derived from `git describe` by scripts/dev-up.sh; falls back to a static
+      # label when devs run docker compose directly.
+      APP_VERSION: ${APP_VERSION:-0.0.0-local}
       DATABASE_URL: postgres://cromo:localpassword@db:5432/cromo_dev
       REDIS_URL: redis://cache:6379
       SMTP_HOST: mailpit
@@ -105,6 +108,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001
       NEXT_PUBLIC_ENV: development
+      NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-0.0.0-local}
     volumes:
       - ../../apps/frontend/src:/app/apps/frontend/src
       - ../../apps/frontend/messages:/app/apps/frontend/messages

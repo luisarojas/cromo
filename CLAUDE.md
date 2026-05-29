@@ -43,6 +43,69 @@ To change the schema:
 
 Catalog seed data (album types, editions, formats, scan prompts) lives in `scripts/seeds/00_album_catalog.sql` and is loaded by `pnpm db:seed`, not by the migration system.
 
+### Application Versioning — Hybrid SemVer + `git describe`
+
+Cromo has two version surfaces, and they exist for different reasons:
+
+1. **Runtime `APP_VERSION`** — what the running app reports to itself and to observability. Surfaces include `/api/v1/health`, Sentry `release` tags (client + server), and any future log line / activity entry that quotes a build identifier. The value is **computed at build time** by `scripts/app-version.sh` (which is `git describe --tags --always --dirty`) and baked into the container image via:
+    - Backend: `ARG APP_VERSION` → `ENV APP_VERSION` in `apps/backend/Dockerfile.cloud`, read at runtime by `apps/backend/src/env.ts`.
+    - Frontend: `ARG NEXT_PUBLIC_APP_VERSION` in `apps/frontend/Dockerfile.cloud`, baked into the Next.js client bundle (`NEXT_PUBLIC_*` is build-time) and re-exported in the runtime stage so server-side Sentry init sees it too.
+
+   CI sets both build-args from `./scripts/app-version.sh` in `.github/workflows/ci.yml`. Locally, `./scripts/dev-up.sh` exports `APP_VERSION` before `docker compose`; plain `docker compose -f infrastructure/docker/docker-compose.yml ...` still works and falls back to the static `0.0.0-local` label baked into the compose file.
+
+2. **`package.json` `version`** — the **base SemVer** the runtime version extends. It lives in four files that must stay in lockstep: `package.json`, `apps/backend/package.json`, `apps/frontend/package.json`, `packages/shared/package.json`. It has **no runtime consumer** — runtime code must never read `package.json.version`; it must use `process.env.APP_VERSION`. The base SemVer exists purely to (a) answer "what release line are we on?" without git introspection, and (b) keep tooling that introspects `package.json` happy.
+
+The two surfaces converge at tagged commits and diverge in between:
+
+| State                         | `package.json.version` | Runtime `APP_VERSION`        |
+| ----------------------------- | ---------------------- | ---------------------------- |
+| At tag `v0.2.0`               | `0.2.0`                | `v0.2.0`                     |
+| 3 commits past `v0.2.0`       | `0.2.0`                | `v0.2.0-3-gabcd123`          |
+| Dirty working tree            | `0.2.0`                | `v0.2.0-3-gabcd123-dirty`    |
+| Before any tag exists         | `0.1.0`                | `<short-sha>` or `<…>-dirty` |
+
+**To cut a release:** `./scripts/release.sh 0.2.0`. The script validates SemVer, refuses on a dirty tree or a re-used tag, rewrites all four `version` fields, commits the bump as `Release v0.2.0`, and creates an annotated `v0.2.0` git tag. Then `git push origin main --tags` triggers the deploy pipeline; CI's `git describe` naturally reports `v0.2.0` for that commit and `v0.2.0-N-g<sha>` for each subsequent commit until the next tag.
+
+**Release workflow — step by step:**
+
+```bash
+# from a clean main, with whatever you want to release already merged
+git checkout main && git pull
+./scripts/release.sh 0.2.0
+git push origin main --tags
+```
+
+That sequence does everything the runtime versioning model needs:
+1. `release.sh` rewrites the four `package.json` `version` fields to `0.2.0`, commits as `Release v0.2.0`, and creates an **annotated** git tag `v0.2.0` on that commit (annotated, not lightweight — `git describe` only honours annotated tags by default, which is the whole point of the model).
+2. `git push origin main --tags` lets the bump commit and the new tag leave your machine. CI runs on the new commit; `scripts/app-version.sh` returns `v0.2.0`; the built images bake that string; `/api/v1/health` and Sentry start reporting it.
+
+Patch and pre-release follow the same shape: `./scripts/release.sh 0.2.1`, `./scripts/release.sh 0.3.0-rc.1`, etc.
+
+**GitHub Releases — optional polish on top of the tag.** A GitHub Release is just metadata GitHub attaches to an existing tag; it does **not** change anything the running app sees. Create one only if you want a human-readable changelog UI:
+
+```bash
+gh release create v0.2.0 --generate-notes                    # auto-notes from PRs
+gh release create v0.2.0 --title "v0.2.0 — …" --notes "…"   # hand-written notes
+```
+
+Skipping this is fine — the git tag is the contract, the GitHub Release is decoration.
+
+**Rolling back a botched release.** If `release.sh` succeeded but you have **not yet pushed**:
+
+```bash
+git tag -d v0.2.0          # remove the tag locally
+git reset --hard HEAD~1    # drop the bump commit (DESTRUCTIVE — unpushed only)
+```
+
+If the tag has already been pushed, **roll forward with a new patch release** (`0.2.1`) instead of deleting the published tag. Deleting a published tag rewrites history for everyone who fetched it and breaks anyone still running an image built from it. The "No Backward Compatibility Required" project rule applies to schema and API shape — it does **not** apply to released version tags, which are immutable by convention.
+
+**Rules to follow:**
+- **Never edit a workspace `package.json` `version` field by hand.** Always go through `scripts/release.sh`, which guarantees the four files stay in sync and that the matching git tag exists.
+- **Never read `package.json.version` from runtime code.** The runtime contract is `process.env.APP_VERSION` — if you reach for `package.json`, you'll silently report the *release line* instead of the *commit*, and that will mislead whoever is debugging an incident.
+- **If you add a new workspace package** (a new `apps/*` or `packages/*`), update the `FILES=` array in `scripts/release.sh` and the table above in lockstep. A package whose `version` is not bumped by the release script will drift indefinitely.
+- **Build metadata (`+sha…`) is disallowed in release tags** — `release.sh` rejects it because `+` isn't valid in a git tag name. Use a pre-release suffix (`0.2.0-rc.1`) if you need to disambiguate.
+- **First-time setup is already done** — root, backend, and shared were bumped from `0.0.0-local` → `0.1.0` to match the frontend's existing base. The first run of `release.sh` should be `./scripts/release.sh 0.2.0` (or `0.1.1` for a patch) when cutting the first real release.
+
 ### Sticker Types & Rarities — Source of Truth
 
 This section is the **canonical model** of every sticker variant Cromo recognises. Every change to the codebase — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's actual product) and this section ever diverge, update this section first and propagate; do not let the codebase silently drift.
