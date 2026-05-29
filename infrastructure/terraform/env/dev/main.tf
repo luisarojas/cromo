@@ -177,9 +177,9 @@ module "scheduling" {
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
 
-  days       = "MON-SUN"
-  start_hour = 7
-  stop_hour  = 23
+  weekday_start_hour = 17 # Mon-Fri 5pm
+  weekend_start_hour = 7  # Sat-Sun 7am
+  stop_hour          = 23 # 11pm every day
 }
 
 # ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────

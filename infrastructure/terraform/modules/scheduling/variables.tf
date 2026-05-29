@@ -30,9 +30,16 @@ variable "time_zone" {
   default     = "America/Toronto"
 }
 
-variable "start_hour" {
-  type    = number
-  default = 9
+variable "weekday_start_hour" {
+  description = "Hour (0-23) the environment scales up Mon-Fri."
+  type        = number
+  default     = 9
+}
+
+variable "weekend_start_hour" {
+  description = "Hour (0-23) the environment scales up Sat-Sun."
+  type        = number
+  default     = 9
 }
 
 variable "start_minute" {
@@ -41,17 +48,12 @@ variable "start_minute" {
 }
 
 variable "stop_hour" {
-  type    = number
-  default = 17
+  description = "Hour (0-23) the environment scales down, applied every day."
+  type        = number
+  default     = 17
 }
 
 variable "stop_minute" {
   type    = number
   default = 0
-}
-
-variable "days" {
-  description = "Cron day-of-week range for the schedule (e.g. MON-FRI, MON-SUN)."
-  type        = string
-  default     = "MON-FRI"
 }
