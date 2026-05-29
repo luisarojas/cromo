@@ -38,7 +38,7 @@ interface InventoryState {
 
 const STICKER_TYPE_COLORS: Record<string, string> = {
   player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
-  badge: 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)] border-purple-200',
+  badge: 'bg-[var(--cromo-tier-very-rare-soft)] text-[var(--cromo-tier-very-rare)] border-purple-200',
   team_photo: 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-[var(--cromo-warning)]/30',
   intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
   coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] border-[var(--cromo-danger)]/30',

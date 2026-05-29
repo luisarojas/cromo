@@ -299,7 +299,7 @@ function StatusBadge({ user }: { user: AdminUser }) {
 function RoleBadge({ role }: { role: string }) {
   if (role === 'admin') {
     return (
-      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)]">admin</span>
+      <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-[var(--cromo-tier-very-rare-soft)] text-[var(--cromo-tier-very-rare)]">admin</span>
     );
   }
   return (

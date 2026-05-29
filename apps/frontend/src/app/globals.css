@@ -41,6 +41,7 @@
   --cromo-tier-rare: #F87171;
   --cromo-tier-very-rare: #A78BFA;
   --cromo-tier-ultra-rare: #34D399;
+  --cromo-tier-very-rare-soft: rgba(167, 139, 250, 0.12);
 
   /* Status — on dark, the bright values pass AAA on bg so the same
      value serves both as the vivid fill color AND as readable text. */

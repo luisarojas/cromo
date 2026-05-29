@@ -730,7 +730,7 @@ export default function TradeStickerPicker({
                     <span className={`w-2 h-2 rounded-full border shrink-0 ${variantSwatch(w.variantType)}`} />
                     <span className="text-xs font-semibold text-[var(--cromo-fg)]">{w.albumCode}</span>
                     {!ownedAlbumCodes.has(w.albumCode) && (
-                      <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-tier-very-rare)] bg-[var(--cromo-tier-very-rare)]/10 border border-[var(--cromo-tier-very-rare)]/30 px-1 py-px rounded leading-none">
+                      <span className="shrink-0 text-[9px] font-medium text-[var(--cromo-tier-very-rare)] bg-[var(--cromo-tier-very-rare-soft)] border border-[var(--cromo-tier-very-rare)]/30 px-1 py-px rounded leading-none">
                         I need
                       </span>
                     )}
