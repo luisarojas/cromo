@@ -10,6 +10,7 @@ import {
   fetchTrades,
   fetchCollection,
   fetchFavourites,
+  fetchPublicProfile,
   createTrade,
   setTradeFlags,
   patchUserPreferences,
@@ -83,11 +84,14 @@ function TradePageContent() {
   const [tab, setTab] = useState<Tab>(rawTab === 'my' ? 'my' : 'find');
   const [nearbyOnly, setNearbyOnly] = useState(false);
 
-  // Deep link: /trade?recipient=<userId> auto-runs Find Matches and opens the
-  // propose modal for that user. Cleared once handled so a manual refresh
-  // doesn't re-trigger.
+  // Deep link: /trade?recipient=<username> opens the propose modal for that
+  // user. If the viewer has an album selected we also run Find Matches in
+  // parallel so the modal can pre-suggest mutually-needed stickers; otherwise
+  // the modal opens with empty suggestions (trade without a match).
   const recipientHint = searchParams.get('recipient');
   const recipientHandledRef = useRef(false);
+  const recipientProfileFetchedRef = useRef(false);
+  const [recipientProfile, setRecipientProfile] = useState<TradeMatch | null>(null);
   // Per-album cache of the propose-modal's offer-picker collection so opening
   // multiple matches in the same album doesn't refetch up to 1000 items.
   // Cleared whenever the active album changes or trade flags are mutated.
@@ -212,8 +216,31 @@ function TradePageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, selectedAlbumId]);
 
-  // Deep-link from a public profile: auto-run Find Matches once the album is
-  // selected, then auto-open the propose modal for that recipient.
+  // Deep-link from a public profile: fetch the recipient's public profile so
+  // we can open the propose modal even when there's no mutual-overlap match.
+  useEffect(() => {
+    if (recipientProfileFetchedRef.current || !recipientHint || !token) return;
+    recipientProfileFetchedRef.current = true;
+    fetchPublicProfile(recipientHint)
+      .then((p) => {
+        setRecipientProfile({
+          userId: p.userId,
+          username: p.username,
+          displayName: p.displayName,
+          avatarUrl: p.avatarUrl,
+          mutualOverlap: 0,
+          theyHave: [],
+          theyHaveVariantIds: [],
+          youHave: [],
+          cities: [],
+        });
+      })
+      .catch(() => setRecipientNotFound(true));
+  }, [recipientHint, token]);
+
+  // Deep-link from a public profile: if the viewer has an album selected,
+  // also run Find Matches in parallel so the propose modal can pre-suggest
+  // mutually-needed stickers when there is overlap.
   useEffect(() => {
     if (recipientHandledRef.current || !recipientHint || !token || !selectedAlbumId) return;
     if (matchesLoading || matchesSearched) return;
@@ -221,17 +248,17 @@ function TradePageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipientHint, token, selectedAlbumId]);
 
+  // Open the propose modal once we have the recipient's profile. If we also
+  // searched matches and found the recipient there, prefer the richer match
+  // payload (includes youHave / theyHave suggestions).
   useEffect(() => {
-    if (recipientHandledRef.current || !recipientHint || !matchesSearched) return;
-    const target = matches.find((m) => m.userId === recipientHint);
+    if (recipientHandledRef.current || !recipientHint || !recipientProfile) return;
+    if (selectedAlbumId && !matchesSearched) return;
     recipientHandledRef.current = true;
-    if (target) {
-      openProposeModal(target);
-    } else {
-      setRecipientNotFound(true);
-    }
+    const enriched = matches.find((m) => m.username === recipientProfile.username);
+    openProposeModal(enriched ?? recipientProfile);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matches, matchesSearched, recipientHint]);
+  }, [matches, matchesSearched, recipientHint, recipientProfile, selectedAlbumId]);
 
   async function handleFindMatches() {
     if (!token || !selectedAlbumId) return;
@@ -285,7 +312,7 @@ function TradePageContent() {
       submitting: false,
       error: null,
       offerItems: cached ?? [],
-      offerItemsLoading: cached === undefined,
+      offerItemsLoading: !!selectedAlbumId && cached === undefined,
       draftOfferVariants: draft?.offerVariants,
       draftWantVariantIds: draft?.wantVariantIds,
       draftOfferCash: draft?.offerCashCents,
@@ -473,8 +500,7 @@ function TradePageContent() {
 
           {recipientNotFound && (
             <div className="rounded-lg bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 p-3 text-sm text-amber-800 mb-4">
-              No mutual overlap found with that user in this album yet. Try a different album, or
-              check their public profile for what they offer and want.
+              Couldn&apos;t find that user.
             </div>
           )}
 

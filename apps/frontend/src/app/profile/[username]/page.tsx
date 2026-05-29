@@ -476,9 +476,9 @@ export default function PublicProfilePage() {
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <ShareProfileButton username={profile.username} getListText={hasAlbums ? buildListText : undefined} />
-            {canStartTrade && hasAlbums && (
+            {canStartTrade && (
               <Link
-                href={`/trade?tab=find&recipient=${encodeURIComponent(profile.userId)}`}
+                href={`/trade?tab=find&recipient=${encodeURIComponent(profile.username)}`}
                 className="inline-flex items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
               >
                 Start a trade
