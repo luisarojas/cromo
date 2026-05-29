@@ -23,6 +23,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Detect non-doc changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '!**/*.md'
+              - '!docs/**'
+
   test:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest
@@ -89,9 +104,9 @@ jobs:
 
   build:
     name: Build images (PR smoke-test, no push)
-    needs: test
+    needs: [test, changes]
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
 
     steps:
       # fetch-depth: 0 + fetch-tags so `git describe` sees the full tag history.
@@ -132,9 +147,11 @@ jobs:
 
   deploy-dev:
     name: Build, push, deploy to dev
-    needs: test
+    needs: [test, changes]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && needs.changes.outputs.code == 'true')
     environment: dev
 
     permissions:
