@@ -5,7 +5,26 @@ terraform {
   }
 }
 
+# Default provider used by every resource. default_tags carries the
+# `awsApplication` tag emitted by the AppRegistry application below, so every
+# resource auto-joins the cromo-prod myApplications dashboard.
 provider "aws" {
+  region = var.region
+
+  default_tags {
+    tags = merge({
+      Project   = "cromo"
+      Env       = "prod"
+      ManagedBy = "terraform"
+    }, module.appregistry.application_tag)
+  }
+}
+
+# Dedicated provider for the AppRegistry application itself. Its default_tags
+# omit application_tag to break the otherwise-circular dependency (an
+# application can't tag itself with a value it hasn't produced yet).
+provider "aws" {
+  alias  = "appregistry"
   region = var.region
 
   default_tags {
@@ -20,6 +39,14 @@ provider "aws" {
 locals {
   env      = "prod"
   hostname = var.apex_domain # production lives at the apex (cromotrade.ca)
+}
+
+# ─── myApplications (AWS console cost / metrics dashboard) ────────────────────
+
+module "appregistry" {
+  source    = "../../modules/appregistry"
+  providers = { aws = aws.appregistry }
+  name      = "cromo-prod"
 }
 
 # ─── Networking ───────────────────────────────────────────────────────────────

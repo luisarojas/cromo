@@ -10,3 +10,7 @@ output "github_actions_deploy_role_arn" {
   description = "Paste into the GitHub repo secret AWS_DEPLOY_ROLE_ARN (prod workflow only)."
   value       = module.cicd.deploy_role_arn
 }
+output "application_arn" {
+  description = "cromo-prod myApplications (AppRegistry) application ARN."
+  value       = module.appregistry.arn
+}
