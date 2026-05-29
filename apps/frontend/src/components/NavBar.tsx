@@ -56,7 +56,7 @@ export default function NavBar() {
         </Link>
 
         {/* Desktop nav links */}
-        <div className="hidden md:flex gap-4 text-sm font-medium">
+        <div className="hidden md:flex items-center gap-4 text-sm font-medium">
           <NavLink href="/guide">Guide</NavLink>
           {user && (
             <>
