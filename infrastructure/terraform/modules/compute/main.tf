@@ -265,7 +265,11 @@ locals {
     if [ -f /opt/cromo/docker-compose.yml ]; then
       cd /opt/cromo
       export ECR_REGISTRY=${var.ecr_registry}
-      export IMAGE_TAG=$${IMAGE_TAG:-latest}
+      # The deploy pipeline publishes a moving "<env>-latest" tag (plus the git
+      # SHA). A cold-booted instance (e.g. business-hours scale-up) has no
+      # IMAGE_TAG, so fall back to that moving tag — NOT "latest", which the
+      # pipeline never pushes and would leave the app unstarted.
+      export IMAGE_TAG=$${IMAGE_TAG:-${var.env}-latest}
       export CROMO_ENV=${var.env}
       docker compose pull || true
       docker compose up -d || true

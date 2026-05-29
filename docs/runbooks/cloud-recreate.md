@@ -19,6 +19,19 @@ Cromo splits state across four Terraform compositions, each with its own S3 stat
 
 Total clock time: ~30 minutes. About 2 minutes of typing; the rest is `terraform apply` waiting on RDS/EC2/ALB.
 
+### 0. Prerequisites — dev `terraform.tfvars`
+
+`env/dev` runs `AUTH_MODE=cognito`, so a clean apply must bootstrap the admin and (if you want live scanning) a real Groq key. Set these in the gitignored `infrastructure/terraform/env/dev/terraform.tfvars` **before** the re-apply (step 4):
+
+```hcl
+admin_emails        = ["r.luisaf@gmail.com"]   # created in the pool, added to the 'admin' group
+admin_temp_password = "<12+ chars, upper/lower/number>"   # required when admin_emails is non-empty
+groq_api_key        = "<real Groq key>"        # 'mock' skips live AI scanning
+# plus the existing account_id, ecr_registry, alert_email, jwt_secret, github_repo
+```
+
+If `admin_emails` is empty there's no admin after recreate — the seed-based `admin@test.local` only exists in local mode, never in cloud.
+
 ### 1. Make sure you actually mean it
 
 `terraform destroy` on `env/dev` deletes:
@@ -78,13 +91,32 @@ cd ../../..
 
 Builds and pushes fresh images (or reuses cached layers), uploads the compose file, SSMs the new instance into starting containers, re-seeds the catalog from `scripts/seeds/`, smoke-tests health.
 
-### 6. Confirm
+> **If the ASG is at 0** (business-hours schedule keeps dev down outside Mon–Fri 5pm–11pm ET), the script fails at "look up ASG instance." Bring it up first: `aws autoscaling set-desired-capacity --auto-scaling-group-name cromo-dev-app --desired-capacity 1` (or the dev-env up toggle script).
+
+> **Do NOT run an instance refresh as part of a recreate.** `terraform apply` already gives a fresh instance whose boot user-data writes `/etc/cromo/cromo.env` from the secret; this bootstrap script starts the app on it. A refresh would replace that instance with a cold one that has no containers running (cold instances can't self-start — they need `IMAGE_TAG` from the deploy path), leaving the ALB returning 502. See `cloud-bootstrap.md` §10.
+
+### 6. Bootstrap the admin password & log in
+
+The Cognito pool is fresh, so the admin from `admin_emails` starts in `FORCE_CHANGE_PASSWORD`. dev is in the SES sandbox, so the forgot-password email only reaches SES-verified addresses — set a permanent password directly instead:
+
+```bash
+POOL=$(cd infrastructure/terraform/env/dev && terraform output -raw cognito_user_pool_id)
+aws cognito-idp admin-set-user-password --user-pool-id "$POOL" \
+  --username r.luisaf@gmail.com --password '<a real password>' --permanent
+
+curl -s -X POST https://dev.cromotrade.ca/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"r.luisaf@gmail.com","password":"<the password>"}'
+# → accessToken + role:admin. On a clean DB this JIT-creates the admin's users row (id = Cognito sub), no collision.
+```
+
+### 7. Confirm
 
 ```bash
 curl -sf https://dev.cromotrade.ca/api/v1/health/ready
 ```
 
-Done. The recreated env has a fresh DB (with seeded catalog only), zero Cognito users, zero S3 uploads.
+Done. The recreated env has a fresh DB (single `0000_baseline` migration + seeded catalog), the bootstrapped Cognito admin, and zero S3 uploads.
 
 ## What does NOT need redoing
 
