@@ -9,10 +9,10 @@
     "test:watch": "turbo test:watch",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "db:migrate": "pnpm --filter @cromo/backend db:migrate",
-    "db:generate": "pnpm --filter @cromo/backend db:generate",
+    "db:migrate": "docker compose -f infrastructure/docker/docker-compose.yml exec -T api pnpm run db:migrate",
+    "db:generate": "docker compose -f infrastructure/docker/docker-compose.yml exec api pnpm run db:generate",
     "db:seed": "bash scripts/seed-database.sh",
-    "db:reset": "pnpm --filter @cromo/backend db:reset && bash scripts/seed-database.sh",
+    "db:reset": "docker compose -f infrastructure/docker/docker-compose.yml exec -T api pnpm run db:reset && bash scripts/seed-database.sh",
     "db:studio": "pnpm --filter @cromo/backend db:studio",
     "load-test": "docker run --rm -i --network host -v $PWD/infrastructure/loadtest:/loadtest grafana/k6 run /loadtest/k6-smoke.js"
   },

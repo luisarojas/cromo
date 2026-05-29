@@ -39,6 +39,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
     max: 1,
+    connectionTimeoutMillis: 10_000,
   });
 
   (async () => {

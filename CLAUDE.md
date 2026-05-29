@@ -37,7 +37,7 @@ The database schema is managed by Drizzle ORM. The Drizzle table definitions liv
 
 To change the schema:
 1. Edit `apps/backend/src/db/schema.ts`.
-2. Generate a migration: `docker compose -f infrastructure/docker/docker-compose.yml exec api sh -c "cd /app/apps/backend && npx drizzle-kit generate --config=drizzle.config.ts"`.
+2. Generate a migration: `pnpm db:generate` (routes through `docker compose exec api` automatically).
 3. Review the generated SQL in `src/db/migrations/`. For things Drizzle can't infer (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` file and add a matching entry to `meta/_journal.json` plus a placeholder `meta/NNNN_snapshot.json` (copy the previous snapshot, refresh `id`/`prevId`).
 4. Apply: `pnpm db:migrate` (via docker compose exec). On the next API startup the migration is also applied automatically.
 
