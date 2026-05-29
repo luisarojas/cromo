@@ -82,25 +82,50 @@ app_host() {
   fi
 }
 
+# mm:ss elapsed since the epoch timestamp passed as $1.
+elapsed_since() {
+  local secs=$(( $(date +%s) - $1 ))
+  printf '%dm%02ds' $(( secs / 60 )) $(( secs % 60 ))
+}
+
+# Live-updating "still waiting" status line (overwrites itself via \r).
+waiting_line() {
+  printf '\r  …waiting (%s elapsed, timeout %dm)' \
+    "$(elapsed_since "$1")" $(( UP_TIMEOUT_SECS / 60 ))
+}
+
 wait_for_up() {
-  local deadline host
-  deadline=$(( $(date +%s) + UP_TIMEOUT_SECS ))
+  local started deadline host
+  started=$(date +%s)
+  deadline=$(( started + UP_TIMEOUT_SECS ))
 
   echo "▶ Waiting for RDS $DB_ID to become available"
-  run aws rds wait db-instance-available \
-    --db-instance-identifier "$DB_ID" --region "$AWS_REGION"
-  echo "  ✓ RDS available"
+  echo "+ polling: aws rds describe-db-instances --db-instance-identifier $DB_ID (DBInstanceStatus)"
+  until [ "$(db_status)" = "available" ]; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      printf '\n'
+      echo "✗ timed out waiting for RDS to become available ($(elapsed_since "$started"))" >&2
+      exit 1
+    fi
+    waiting_line "$started"
+    sleep 10
+  done
+  printf '\r\033[K'
+  echo "  ✓ RDS available ($(elapsed_since "$started"))"
 
   echo "▶ Waiting for an in-service instance in $ASG_NAME"
   echo "+ polling: aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG_NAME (InService count)"
   until [ "$(asg_inservice_count)" != "0" ]; do
     if [ "$(date +%s)" -ge "$deadline" ]; then
-      echo "✗ timed out waiting for an in-service ASG instance" >&2
+      printf '\n'
+      echo "✗ timed out waiting for an in-service ASG instance ($(elapsed_since "$started"))" >&2
       exit 1
     fi
+    waiting_line "$started"
     sleep 10
   done
-  echo "  ✓ instance in service"
+  printf '\r\033[K'
+  echo "  ✓ instance in service ($(elapsed_since "$started"))"
 
   host="$(app_host)"
   if [ -z "$host" ]; then
@@ -114,13 +139,16 @@ wait_for_up() {
   echo "+ polling: curl -sf https://$host/api/v1/health/ready"
   until curl -sf "https://$host/api/v1/health/ready" >/dev/null 2>&1; do
     if [ "$(date +%s)" -ge "$deadline" ]; then
-      echo "✗ timed out waiting for the app to become ready at https://$host" >&2
+      printf '\n'
+      echo "✗ timed out waiting for the app to become ready at https://$host ($(elapsed_since "$started"))" >&2
       echo "  check CloudWatch /cromo/dev/api" >&2
       exit 1
     fi
+    waiting_line "$started"
     sleep 10
   done
-  echo "  ✓ app ready"
+  printf '\r\033[K'
+  echo "  ✓ app ready ($(elapsed_since "$started"))"
 }
 
 cmd_up() {
