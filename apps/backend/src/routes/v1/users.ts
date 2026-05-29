@@ -11,6 +11,7 @@ const CitySchema = z.object({
 
 const PatchPreferencesBody = z.object({
   duplicatesCountAllVariants: z.boolean().optional(),
+  defaultBaseVariant: z.enum(['base_border', 'base_borderless']).optional(),
   cities: z.array(CitySchema).max(10).optional(),
 });
 
@@ -54,6 +55,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               duplicatesCountAllVariants: { type: 'boolean' },
+              defaultBaseVariant: { type: 'string', enum: ['base_border', 'base_borderless'] },
               cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
             },
           },
@@ -81,6 +83,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             duplicatesCountAllVariants: { type: 'boolean' },
+            defaultBaseVariant: { type: 'string', enum: ['base_border', 'base_borderless'] },
             cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
           },
         },
@@ -89,6 +92,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               duplicatesCountAllVariants: { type: 'boolean' },
+              defaultBaseVariant: { type: 'string', enum: ['base_border', 'base_borderless'] },
               cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
             },
           },

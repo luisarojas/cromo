@@ -19,7 +19,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             const prefs = await fetchUserPreferences(data.accessToken);
             setFromServer(prefs);
           } catch {
-            setFromServer({ duplicatesCountAllVariants: false, cities: [] });
+            setFromServer({ duplicatesCountAllVariants: false, defaultBaseVariant: 'base_border', cities: [] });
           }
         }
       })

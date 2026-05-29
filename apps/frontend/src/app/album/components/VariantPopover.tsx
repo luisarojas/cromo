@@ -9,6 +9,7 @@ import {
 } from '@/lib/api';
 import { VARIANT_META, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
+import { usePreferencesStore } from '@/store/preferences';
 import { albumDisplayName } from '@/lib/api';
 
 export interface OwnedVariantEntry {
@@ -72,6 +73,7 @@ export default function VariantPopover({
 
   const albums = useAlbumsStore((s) => s.albums);
   const otherAlbums = albums.filter((a) => a.id !== albumId);
+  const defaultBaseVariant = usePreferencesStore((s) => s.defaultBaseVariant);
 
   // Fetch the variant catalog on mount. Wanted state is owned by the page so
   // toggles here stay in sync with the filter bar.
@@ -194,8 +196,14 @@ export default function VariantPopover({
   const unownedVariants = (allVariants ?? []).filter(
     (v) => !ownedVariants.has(v.variantType),
   );
-  const baseUnowned = unownedVariants.find((v) => isBaseVariant(v.variantType));
-  const otherUnowned = unownedVariants.filter((v) => !isBaseVariant(v.variantType));
+  // The user's preferred base layout gets the single prominent "Add" button.
+  // If this sticker's catalog doesn't carry that layout, fall back to whatever
+  // base it does have. The non-preferred base drops into the variant list.
+  const catalogHasPreferredBase = (allVariants ?? []).some((v) => v.variantType === defaultBaseVariant);
+  const preferredBaseUnowned = unownedVariants.find(
+    (v) => v.variantType === defaultBaseVariant || (!catalogHasPreferredBase && isBaseVariant(v.variantType)),
+  );
+  const otherUnowned = unownedVariants.filter((v) => v.id !== preferredBaseUnowned?.id);
 
   const node = (
     <div
@@ -478,14 +486,14 @@ export default function VariantPopover({
         </div>
       ) : unownedVariants.length > 0 ? (
         <>
-          {/* One-click add for the Base variant — the overwhelmingly common case */}
-          {baseUnowned && (
+          {/* One-click add for the preferred base variant — the common case */}
+          {preferredBaseUnowned && (
             <button
-              onClick={() => handleAddNew(baseUnowned.id, baseUnowned.variantType)}
+              onClick={() => handleAddNew(preferredBaseUnowned.id, preferredBaseUnowned.variantType)}
               disabled={busy}
               className="flex items-center justify-center gap-1.5 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs font-semibold py-2 hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
             >
-              + Add {variantLabel(baseUnowned.variantType)}
+              + Add {variantLabel(preferredBaseUnowned.variantType)}
             </button>
           )}
           {otherUnowned.length > 0 && !showAddPicker && (

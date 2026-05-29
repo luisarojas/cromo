@@ -33,6 +33,7 @@ import type {
   DuplicateItem as SharedDuplicateItem,
   City as SharedCity,
   UserPreferences as SharedUserPreferences,
+  BaseVariantPreference as SharedBaseVariantPreference,
   TradeMatch as SharedTradeMatch,
   TradeItemDetail as SharedTradeItemDetail,
   TradeMessage as SharedTradeMessage,
@@ -833,6 +834,7 @@ export async function setTradeFlags(
 
 export type City = SharedCity;
 export type UserPreferences = SharedUserPreferences;
+export type BaseVariantPreference = SharedBaseVariantPreference;
 
 export async function fetchUserPreferences(token: string): Promise<UserPreferences> {
   return apiFetch<UserPreferences>('/api/v1/users/me/preferences', {}, token);

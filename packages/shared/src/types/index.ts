@@ -246,8 +246,11 @@ export interface City {
   placeId: number
 }
 
+export type BaseVariantPreference = 'base_border' | 'base_borderless'
+
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean
+  defaultBaseVariant: BaseVariantPreference
   cities: City[]
 }
 

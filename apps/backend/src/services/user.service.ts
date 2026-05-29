@@ -136,27 +136,32 @@ export interface City {
   placeId: number;
 }
 
+export type BaseVariantPreference = 'base_border' | 'base_borderless';
+
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean;
+  defaultBaseVariant: BaseVariantPreference;
   cities: City[];
 }
 
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
   const result = await db.query<{
     duplicates_count_all_variants: boolean;
+    default_base_variant: BaseVariantPreference;
     cities: City[];
   }>(
-    `SELECT duplicates_count_all_variants, cities FROM user_settings WHERE user_id = $1`,
+    `SELECT duplicates_count_all_variants, default_base_variant, cities FROM user_settings WHERE user_id = $1`,
     [userId]
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    return { duplicatesCountAllVariants: false, cities: [] };
+    return { duplicatesCountAllVariants: false, defaultBaseVariant: 'base_border', cities: [] };
   }
 
   const row = result.rows[0]!;
   return {
     duplicatesCountAllVariants: row.duplicates_count_all_variants,
+    defaultBaseVariant: row.default_base_variant,
     cities: row.cities ?? [],
   };
 }
@@ -173,6 +178,10 @@ export async function updatePreferences(
   if (patch.duplicatesCountAllVariants !== undefined) {
     setClauses.push(`duplicates_count_all_variants = $${idx++}`);
     values.push(patch.duplicatesCountAllVariants);
+  }
+  if (patch.defaultBaseVariant !== undefined) {
+    setClauses.push(`default_base_variant = $${idx++}`);
+    values.push(patch.defaultBaseVariant);
   }
   if (patch.cities !== undefined) {
     setClauses.push(`cities = $${idx++}::jsonb`);
