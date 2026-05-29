@@ -13,13 +13,13 @@ import type { Redis } from 'ioredis';
 import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
 import { statusError } from '../utils/errors.js';
-import { provisionUserProfile, hashEmail } from './user-provisioning.js';
+import { provisionUserProfile, hashEmail, deriveUniqueUsernameFromEmail } from './user-provisioning.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface RegisterInput {
   email: string;
-  username: string;
+  username?: string;
   password: string;
   displayName?: string;
 }
@@ -85,14 +85,20 @@ export async function register(
   input: RegisterInput,
 ): Promise<{ userId: string; email: string; username: string }> {
   const normalizedEmail = input.email.toLowerCase().trim();
-  const normalizedUsername = input.username.toLowerCase().trim();
   const hashedEmail = hashEmail(normalizedEmail);
 
   const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1);
   if (existingEmail) throw statusError('Email is already registered.', 409);
 
-  const [existingUsername] = await db.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
-  if (existingUsername) throw statusError('Username is already taken.', 409);
+  const providedUsername = input.username?.trim();
+  let normalizedUsername: string;
+  if (providedUsername) {
+    normalizedUsername = providedUsername.toLowerCase();
+    const [existingUsername] = await db.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
+    if (existingUsername) throw statusError('Username is already taken.', 409);
+  } else {
+    normalizedUsername = await deriveUniqueUsernameFromEmail(db, normalizedEmail);
+  }
 
   const verificationCode = generateCode();
   const passwordHash = await hashPassword(input.password);

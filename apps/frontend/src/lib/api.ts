@@ -97,7 +97,7 @@ export async function logoutApi(): Promise<void> {
 
 export async function registerApi(body: {
   email: string;
-  username: string;
+  username?: string;
   password: string;
   displayName?: string;
 }): Promise<{ message: string; userId: string }> {

@@ -15,7 +15,7 @@ import type { Drizzle } from '../db/index.js';
 import { users } from '../db/schema.js';
 import type { Redis } from 'ioredis';
 import { statusError } from '../utils/errors.js';
-import { ensureUser, createUser } from './user-provisioning.js';
+import { ensureUser, createUser, deriveUniqueUsernameFromEmail } from './user-provisioning.js';
 import { deleteUser } from './cognito-admin.js';
 import type { AuthTokens, RegisterInput, LoginInput } from './auth.service.js';
 
@@ -103,12 +103,18 @@ export async function register(
   input: RegisterInput,
 ): Promise<{ userId: string; email: string; username: string }> {
   const email = input.email.toLowerCase().trim();
-  const username = input.username.toLowerCase().trim();
 
-  // Pre-check DB username uniqueness so we fail before creating the Cognito
-  // user (Cognito only enforces email uniqueness, not our app username).
-  const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1);
-  if (taken) throw statusError('Username is already taken.', 409);
+  const providedUsername = input.username?.trim();
+  let username: string;
+  if (providedUsername) {
+    username = providedUsername.toLowerCase();
+    // Pre-check DB username uniqueness so we fail before creating the Cognito
+    // user (Cognito only enforces email uniqueness, not our app username).
+    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1);
+    if (taken) throw statusError('Username is already taken.', 409);
+  } else {
+    username = await deriveUniqueUsernameFromEmail(db, email);
+  }
 
   let userSub: string;
   try {

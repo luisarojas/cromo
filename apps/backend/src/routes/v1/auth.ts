@@ -18,7 +18,8 @@ const RegisterBody = z.object({
     .string()
     .min(3)
     .max(30)
-    .regex(/^[a-z0-9_-]+$/i, 'Username may only contain letters, numbers, underscores, hyphens.'),
+    .regex(/^[a-z0-9_-]+$/i, 'Username may only contain letters, numbers, underscores, hyphens.')
+    .optional(),
   password: z.string().min(8).max(128),
   displayName: z.string().min(1).max(100).optional(),
 });
@@ -81,7 +82,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         summary: 'Register a new user',
         body: {
           type: 'object',
-          required: ['email', 'username', 'password'],
+          required: ['email', 'password'],
           properties: {
             email: { type: 'string', format: 'email' },
             username: { type: 'string', minLength: 3, maxLength: 30 },

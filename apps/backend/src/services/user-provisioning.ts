@@ -23,6 +23,34 @@ export function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
 }
 
+/**
+ * Derives a username from the email local-part, then appends a numeric suffix
+ * (`2`, `3`, …) until the result is free. Used when the register form omits
+ * the username field. The user can rename later in settings.
+ */
+export async function deriveUniqueUsernameFromEmail(
+  db: Drizzle,
+  email: string,
+): Promise<string> {
+  const local = email.split('@')[0] ?? '';
+  const cleaned = local.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  const base = (cleaned.length >= 3 ? cleaned : cleaned.padEnd(3, '0')).slice(0, 30);
+
+  for (let i = 1; i <= 999; i++) {
+    const suffix = i === 1 ? '' : String(i);
+    const candidate = `${base.slice(0, 30 - suffix.length)}${suffix}`;
+    const [taken] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, candidate))
+      .limit(1);
+    if (!taken) return candidate;
+  }
+
+  const random = crypto.randomBytes(3).toString('hex');
+  return `${base.slice(0, 30 - random.length)}${random}`;
+}
+
 export interface UserDto {
   id: string;
   email: string;

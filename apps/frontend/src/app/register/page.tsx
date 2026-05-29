@@ -8,7 +8,6 @@ import { CromoMark } from '@/components/CromoLogo';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,7 +26,6 @@ export default function RegisterPage() {
     try {
       await registerApi({
         email,
-        username,
         password,
       });
       setSuccess(true);
@@ -107,25 +105,6 @@ export default function RegisterPage() {
               required
               autoComplete="email"
               placeholder="you@example.com"
-            />
-          </Field>
-
-          <Field
-            label="Username"
-            htmlFor="username"
-            hint="3–30 chars, letters, numbers, dashes, underscores"
-          >
-            <Input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              minLength={3}
-              maxLength={30}
-              pattern="[a-zA-Z0-9_\-]+"
-              autoComplete="username"
-              placeholder="collector42"
             />
           </Field>
 
