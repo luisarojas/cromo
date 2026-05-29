@@ -9,8 +9,8 @@ import { CromoMark } from '@/components/CromoLogo';
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -19,12 +19,16 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
     try {
       await registerApi({
         email,
         username,
         password,
-        displayName: displayName.trim() || undefined,
       });
       setSuccess(true);
     } catch (err) {
@@ -122,18 +126,6 @@ export default function RegisterPage() {
             />
           </Field>
 
-          <Field label="Display name (optional)" htmlFor="displayName">
-            <Input
-              id="displayName"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={100}
-              autoComplete="name"
-              placeholder="Your Name"
-            />
-          </Field>
-
           <Field label="Password" htmlFor="password">
             <Input
               id="password"
@@ -145,6 +137,20 @@ export default function RegisterPage() {
               maxLength={128}
               autoComplete="new-password"
               placeholder="At least 8 characters"
+            />
+          </Field>
+
+          <Field label="Confirm password" htmlFor="confirmPassword">
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+              maxLength={128}
+              autoComplete="new-password"
+              placeholder="Re-enter your password"
             />
           </Field>
 
