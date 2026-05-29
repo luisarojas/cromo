@@ -21,6 +21,7 @@ const ACCOUNT_LINKS = [
 
 export default function Footer() {
   const year = new Date().getFullYear();
+  const version = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0-local';
 
   return (
     <footer className="border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)] mt-16">
@@ -47,7 +48,7 @@ export default function Footer() {
             © {year} Cromo · <span className="italic">cromo</span>, Spanish for trading sticker.
           </p>
           <p className="text-[11px] text-[var(--cromo-fg-subtle)] font-mono">
-            Not affiliated with Panini S.p.A. or FIFA. Built by collectors.
+            Not affiliated with Panini S.p.A. or FIFA. Built by collectors. · <span title="App version (git describe)">{version}</span>
           </p>
         </div>
       </div>
