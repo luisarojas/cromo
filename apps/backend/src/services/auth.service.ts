@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { eq, sql } from 'drizzle-orm';
+import { env } from '../env.js';
 import type { Drizzle } from '../db/index.js';
 import {
   users,
@@ -174,7 +175,8 @@ export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens>
   if (!user) throw statusError('Invalid email or password.', 401);
   if (user.deletedAt) throw statusError('This account has been deactivated.', 403);
 
-  if (!user.passwordHash || !(await verifyPassword(input.password, user.passwordHash))) {
+  const isLocalNoPassword = env.AUTH_MODE === 'local' && !user.passwordHash;
+  if (!isLocalNoPassword && !(user.passwordHash && await verifyPassword(input.password, user.passwordHash))) {
     throw statusError('Invalid email or password.', 401);
   }
 
