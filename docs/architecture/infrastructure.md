@@ -70,6 +70,147 @@ This section covers the AWS infrastructure provisioned in Phase B. Nothing here 
 
 > **Architecture decision:** Phase B launches on EC2 + Docker Compose rather than ECS Fargate. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the full rationale and migration path to Fargate when traffic warrants it.
 
+### 19.0 Big-Picture Diagram
+
+Production topology end-to-end. Every box is a real AWS resource provisioned by a Terraform module under `infrastructure/terraform/modules/` — the module name is in parentheses next to each box. Dev looks the same with smaller instance types, a single NAT, and the §19.2.2 business-hours schedule layered on top.
+
+```
+                       ┌──────────────────────┐
+                       │  User's browser /    │
+                       │  installed PWA       │
+                       └──────────┬───────────┘
+                                  │ https://cromotrade.ca
+                                  ▼
+                       ┌──────────────────────┐
+                       │  Route 53            │   Authoritative DNS for
+                       │  hosted zone (dns)   │   cromotrade.ca. Resolves the
+                       └──────────┬───────────┘   apex to the ALB below.
+                                  │
+                                  ▼
+                       ┌──────────────────────┐
+                       │  ACM certificate     │   Free TLS cert auto-renewed
+                       │  (compute)           │   by AWS, attached to the ALB.
+                       └──────────┬───────────┘
+                                  │ HTTPS 443
+                                  ▼
+   ╔══════════════════════════════════════════════════════════════════════╗
+   ║  VPC 10.30.0.0/16  ·  ca-central-1  (networking module)              ║
+   ║                                                                      ║
+   ║   ┌──── Public subnets (AZ-a, AZ-b) ────────────────────────────┐    ║
+   ║   │                                                             │    ║
+   ║   │   ┌──────────────────────┐    ┌──────────────────────┐      │    ║
+   ║   │   │  Application Load    │    │  NAT Gateway × 2     │      │    ║
+   ║   │   │  Balancer (compute)  │    │  (networking)        │      │    ║
+   ║   │   │  · :443 → frontend   │    │  Outbound internet   │      │    ║
+   ║   │   │  · /api/* → api      │    │  for private subnets │      │    ║
+   ║   │   └──────────┬───────────┘    └──────────▲───────────┘      │    ║
+   ║   └──────────────│───────────────────────────│──────────────────┘    ║
+   ║                  │ (in-VPC, port 80)         │ (egress only)         ║
+   ║   ┌──── Private │ subnets (AZ-a, AZ-b) ──────│──────────────────┐    ║
+   ║   │              ▼                           │                  │    ║
+   ║   │   ┌──────────────────────────────────────│──────────┐       │    ║
+   ║   │   │  EC2 Auto Scaling Group (compute)    │          │       │    ║
+   ║   │   │  t3.medium · Amazon Linux 2023       │          │       │    ║
+   ║   │   │  ┌─────────────────────────────────┐ │          │       │    ║
+   ║   │   │  │  docker-compose.prod.yml        │ │          │       │    ║
+   ║   │   │  │  ┌──────────┐   ┌──────────┐    │ │          │       │    ║
+   ║   │   │  │  │ frontend │   │   api    │    │ │          │       │    ║
+   ║   │   │  │  │ Next.js  │   │ Fastify  │    │ │          │       │    ║
+   ║   │   │  │  └──────────┘   └────┬─────┘    │ │          │       │    ║
+   ║   │   │  └────────────────────┬─┼──────────┘ │          │       │    ║
+   ║   │   └───────┬────────┬──────┼─┼────────────┘          │       │    ║
+   ║   │           │        │      │ │                       │       │    ║
+   ║   │           ▼        ▼      │ │                       │       │    ║
+   ║   │   ┌──────────┐ ┌─────────┐│ │                       │       │    ║
+   ║   │   │   RDS    │ │ Elasti- ││ │                       │       │    ║
+   ║   │   │ Postgres │ │ Cache   ││ │                       │       │    ║
+   ║   │   │ Multi-AZ │ │ Redis   ││ │                       │       │    ║
+   ║   │   │(database)│ │ (cache) ││ │                       │       │    ║
+   ║   │   └──────────┘ └─────────┘│ │                       │       │    ║
+   ║   └───────────────────────────│─│───────────────────────────────┘    ║
+   ╚═══════════════════════════════│═│════════════════════════════════════╝
+                                   │ │  (via NAT, AWS service endpoints)
+              ┌────────────────────┘ └───────────────────────┐
+              │                                              │
+   ┌──────────▼─────────┐  ┌──────────────────┐  ┌──────────▼──────────┐
+   │  S3 uploads bucket │  │  Cognito user    │  │  SES domain         │
+   │  (storage)         │  │  pool (auth)     │  │  identity (ses)     │
+   │  Sticker photos    │  │  Email/password  │  │  Verification +     │
+   │  + binaries        │  │  + JWT issuance  │  │  password reset     │
+   └──────────┬─────────┘  └──────────────────┘  └─────────────────────┘
+              │  (origin)
+              ▼
+   ┌────────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+   │  CloudFront        │    │  Secrets Manager │    │  ECR Docker     │
+   │  distribution      │    │  cromo-prod      │    │  registry       │
+   │  (cdn)             │    │  (secrets)       │    │  (bootstrap)    │
+   │  Public read URL   │    │  DB URL, JWT,    │    │  Pulled by EC2  │
+   │  for uploaded imgs │    │  Groq key, …     │    │  on deploy      │
+   └────────────────────┘    └──────────────────┘    └─────────────────┘
+
+   ┌──────────────── Observability + Ops ──────────────────────────────┐
+   │                                                                   │
+   │   CloudWatch Logs       CloudWatch Alarms       SNS → alert email │
+   │   (monitoring)          (monitoring)            (monitoring)      │
+   │   API + frontend logs   RDS CPU, ALB 5xx,       Pages you when an │
+   │   365-day retention     unhealthy hosts         alarm trips       │
+   │                                                                   │
+   │   IAM instance profile  Systems Manager         AppRegistry app   │
+   │   (compute)             Session Manager         (appregistry)     │
+   │   Lets EC2 read S3 +    SSH-less shell to EC2   Groups every res. │
+   │   Secrets + write logs  via the AWS console     in a console view │
+   └───────────────────────────────────────────────────────────────────┘
+
+   ┌──────────────── Deploy pipeline ──────────────────────────────────┐
+   │                                                                   │
+   │   GitHub Actions   ──OIDC──▶   IAM role (cicd)   ──▶   ECR push   │
+   │   on tag v*                    no long-lived keys      + ASG roll │
+   └───────────────────────────────────────────────────────────────────┘
+```
+
+#### What each AWS service actually does (plain English)
+
+If you've never used AWS before, here is what every box above is and why Cromo needs it.
+
+| Service | What it is | Why Cromo uses it |
+|---|---|---|
+| **Route 53** | AWS's DNS — translates `cromotrade.ca` into an IP address. | Owns the records for the apex domain and `dev.cromotrade.ca`. The domain is registered at Namecheap (cheaper), but the *nameservers* point at Route 53 so every record lives in Terraform. |
+| **ACM (Certificate Manager)** | Issues and auto-renews free TLS certificates. | Gives the ALB the cert behind `https://cromotrade.ca` so the browser shows the padlock. No manual renewals, no Let's Encrypt cron job. |
+| **VPC (Virtual Private Cloud)** | A private network inside AWS that you fully control. | The fence around every Cromo resource. Nothing in here is reachable from the public internet unless we explicitly open a door (the ALB). |
+| **Public subnet** | A slice of the VPC whose traffic *can* reach the internet directly. | Holds only the ALB and NAT Gateways — the things that genuinely need a public IP. Nothing with user data lives here. |
+| **Private subnet** | A slice of the VPC with no inbound internet route. | Where the app, database, and cache live. Even if a bug exposed Postgres on `0.0.0.0`, the network would still refuse outside connections. |
+| **Internet Gateway** | The single doorway between the VPC and the public internet. | Lets the ALB receive user requests. Attached to public subnets only. |
+| **NAT Gateway** | One-way outbound internet for private subnets. | Lets EC2 reach Groq's vision API, SES, and ECR without giving it a public IP. Prod runs one per AZ so an AZ outage doesn't kill outbound traffic. |
+| **Application Load Balancer (ALB)** | A managed HTTPS reverse proxy. | The only public entry point. Terminates TLS, routes `/api/*` to the API container and everything else to the frontend container, and health-checks both. |
+| **EC2** | A virtual machine you rent by the hour. | Runs the same `docker compose` setup you use locally, with `docker-compose.prod.yml`. One instance (t3.medium in prod, t3.small in dev) wrapped in an Auto Scaling Group so it self-heals if it crashes. |
+| **Auto Scaling Group (ASG)** | A controller that keeps N copies of an EC2 instance alive. | Today N=1. Its real job is self-healing (a crashed instance is replaced automatically) and being the hook the §19.2.2 dev schedule uses to scale to zero overnight. |
+| **RDS (PostgreSQL)** | A managed database. AWS handles backups, patching, failover. | Cromo's primary store: users, stickers, trades, etc. `db.t3.small` in prod with Multi-AZ (a hot standby in a second datacentre) and 30-day point-in-time recovery. |
+| **ElastiCache (Redis)** | A managed Redis cluster. | Caches API responses (sticker catalog, version probe), holds BullMQ background-job queues, and stores SSE pub/sub fan-out. `cache.t3.micro` × 2 nodes in prod for failover. |
+| **S3 (Simple Storage Service)** | Cheap, durable object storage — files on a URL. | Replaces the `local_uploads` Docker volume. User-uploaded sticker photos land here. The bucket is private; only the EC2 IAM role and CloudFront can read it. |
+| **CloudFront** | AWS's CDN. Caches S3 objects at edge locations worldwide. | Serves uploaded images fast from anywhere, and is the *only* thing allowed to read the uploads bucket directly. The frontend builds image URLs against the CloudFront domain, never S3. |
+| **Cognito** | A managed identity service: signup, login, password reset, JWTs. | Issues the access tokens the API validates on every request. Replaces the mock auth used locally. |
+| **SES (Simple Email Service)** | AWS's transactional email sender. | Sends verification, password-reset, and trade-notification emails from `no-reply@cromotrade.ca`. SPF/DKIM/DMARC records are provisioned automatically. |
+| **Secrets Manager** | Encrypted key/value store for runtime config. | Holds `DATABASE_URL`, `JWT_SECRET`, `GROQ_API_KEY`, Cognito IDs, etc. EC2 reads this at boot — secrets never sit in the AMI, the Compose file, or git. |
+| **ECR (Elastic Container Registry)** | A private Docker registry. | Stores the `frontend` and `api` images produced by CI. EC2 pulls them on deploy. Provisioned once by the `bootstrap` workspace because it outlives any env. |
+| **CloudWatch Logs** | Managed log aggregation. | Both containers stream stdout/stderr here via the Docker awslogs driver. 365-day retention in prod, 7-day in dev. |
+| **CloudWatch Alarms + SNS** | Alarms watch metrics; SNS delivers the page. | Three alarms today: RDS CPU > 80%, ALB 5xx surge, zero healthy hosts. Each one publishes to an SNS topic that emails the on-call address. |
+| **IAM (Identity and Access Management)** | AWS's permission system. | Two roles matter here: the **instance profile** EC2 wears (read S3, read Secrets Manager, write CloudWatch, pull from ECR) and the **deploy role** GitHub Actions assumes via OIDC (push to ECR, refresh the ASG). No long-lived AWS keys exist anywhere. |
+| **Systems Manager Session Manager** | Browser-based shell into EC2 without SSH. | The only way to get a terminal on the box. Port 22 is closed to the world; you connect through the AWS console and IAM authorises the session. |
+| **AppRegistry (myApplications)** | A console-side grouping of resources tagged with the same application ID. | Powers the `cromo-prod` "myApplications" dashboard — one place in the console that shows the running cost and health of every resource in this stack, no tag-filter spelunking. |
+| **GitHub OIDC + IAM role** | A trust between GitHub Actions and AWS — no stored keys. | CI tag pushes (`v*`) assume the prod deploy role for ~1 hour, push images to ECR, and trigger an instance refresh. Pushes to `main` get the dev role only. |
+
+#### How a single request flows through this
+
+1. Browser asks Route 53 for `cromotrade.ca` → gets the ALB's IP.
+2. Browser opens TLS to the ALB; ACM provides the cert.
+3. ALB inspects the path. `/api/*` → API container on EC2:3001. Anything else → frontend container on EC2:3000.
+4. The API container reads its config from environment variables that EC2 hydrated from **Secrets Manager** at boot.
+5. The API talks to **RDS** for persistent data and **ElastiCache** for cached/queued data — both over the private subnet, never the internet.
+6. If the request involves an uploaded image, the API writes the file to **S3** and stores its key in Postgres. The frontend later builds a **CloudFront** URL for that key so the browser fetches the image from the CDN.
+7. If the request triggers an email (verify, reset, trade alert), the API hands the message to **SES**, which sends it from `no-reply@cromotrade.ca`.
+8. If the request requires auth, the API validates the JWT against **Cognito**'s public keys.
+9. Every container log line is shipped to **CloudWatch Logs**. If something goes badly wrong (5xx storm, RDS CPU spike, zero healthy hosts), a CloudWatch Alarm fires → SNS → email.
+
 ### 19.1 Cloud Provider: AWS ca-central-1 (Montréal)
 
 All personal data stored in Canada. PIPEDA-compliant by default. Secondary region for DR: `ca-west-1` (Calgary).
