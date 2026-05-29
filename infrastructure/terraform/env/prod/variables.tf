@@ -36,6 +36,19 @@ variable "groq_api_key" {
   sensitive   = true
 }
 
+variable "admin_emails" {
+  description = "Email addresses to provision as admin users in Cognito (added to the 'admin' group)."
+  type        = list(string)
+  default     = []
+}
+
+variable "admin_temp_password" {
+  description = "Temporary password for bootstrapped admin users. Required when admin_emails is non-empty; must satisfy the pool policy (12+ chars, upper, lower, number). Admins reset it via forgot-password on first login."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "github_repo" {
   description = "GitHub repo slug (`owner/name`) that's allowed to assume the deploy role via OIDC."
   type        = string

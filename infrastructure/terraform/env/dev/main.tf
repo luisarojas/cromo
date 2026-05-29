@@ -111,11 +111,12 @@ module "secrets" {
     DATABASE_URL = module.database.connection_url
     REDIS_URL    = module.cache.redis_url
 
-    AUTH_MODE            = "local"
+    AUTH_MODE            = "cognito"
     JWT_SECRET           = var.jwt_secret
     COGNITO_USER_POOL_ID = module.auth.user_pool_id
     COGNITO_CLIENT_ID    = module.auth.client_id
     COGNITO_REGION       = var.region
+    COGNITO_TOKEN_USE    = "access"
 
     EMAIL_FROM = "no-reply@${var.apex_domain}"
     # SES uses the IAM role rather than SMTP creds — leave SMTP_* unset so
@@ -150,6 +151,7 @@ module "compute" {
   secret_arn         = module.secrets.secret_arn
   uploads_bucket     = module.storage.uploads_bucket
   uploads_bucket_arn = module.storage.uploads_bucket_arn
+  user_pool_arn      = module.auth.user_pool_arn
   ecr_registry       = var.ecr_registry
   instance_type      = "t3.small"
 }

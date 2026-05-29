@@ -112,11 +112,11 @@ export async function registerApi(body: {
   return res.json() as Promise<{ message: string; userId: string }>;
 }
 
-export async function verifyEmailApi(token: string): Promise<void> {
+export async function verifyEmailApi(email: string, code: string): Promise<void> {
   const res = await retryFetch(`${BASE_URL}/api/v1/auth/verify-email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ email, code }),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { message?: string };
@@ -144,11 +144,11 @@ export async function forgotPasswordApi(email: string): Promise<void> {
   });
 }
 
-export async function resetPasswordApi(token: string, password: string): Promise<void> {
+export async function resetPasswordApi(email: string, code: string, password: string): Promise<void> {
   const res = await retryFetch(`${BASE_URL}/api/v1/auth/reset-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, password }),
+    body: JSON.stringify({ email, code, password }),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { message?: string };

@@ -41,17 +41,20 @@ export default function ForgotPasswordPage() {
             Reset your password
           </h1>
           <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">
-            Enter your email and we&apos;ll send you a reset link.
+            Enter your email and we&apos;ll send you a reset code.
           </p>
         </div>
 
         <Card>
           {done ? (
-            <div className="text-center py-2">
+            <div className="text-center py-2 flex flex-col gap-4">
               <p className="text-sm text-[var(--cromo-fg)]">
-                If an account with that email exists, you&apos;ll receive a reset link shortly.
+                If an account with that email exists, you&apos;ll receive a reset code shortly.
               </p>
-              <p className="mt-4 text-sm text-[var(--cromo-fg-muted)]">
+              <Link href={`/reset-password?email=${encodeURIComponent(email)}`}>
+                <Button size="lg" className="w-full">Enter reset code</Button>
+              </Link>
+              <p className="text-sm text-[var(--cromo-fg-muted)]">
                 Didn&apos;t get it? Check your spam folder or{' '}
                 <button
                   onClick={() => { setDone(false); setEmail(''); }}

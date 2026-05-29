@@ -10,8 +10,8 @@ function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
 }
 
-function generateToken(): string {
-  return crypto.randomBytes(32).toString('hex');
+function generateCode(): string {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
 }
 
 function hashToken(token: string): string {
@@ -66,7 +66,7 @@ export async function updateEmail(
     throw statusError('Email is already registered.', 409);
   }
 
-  const { username, token } = await withTx(db, async (client) => {
+  const { username, code } = await withTx(db, async (client) => {
     const userResult = await client.query<{ username: string }>(
       `UPDATE users
        SET email = $1, hashed_email = $2, email_verified_at = NULL, updated_at = now()
@@ -82,22 +82,22 @@ export async function updateEmail(
     const { username: u } = userResult.rows[0]!;
 
     await client.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [userId]);
-    const t = generateToken();
+    const c = generateCode();
     await client.query(
       'INSERT INTO email_verification_tokens (token_hash, user_id) VALUES ($1, $2)',
-      [hashToken(t), userId]
+      [hashToken(c), userId]
     );
 
     await recordAudit(client, userId, 'email_changed', { to: normalizedEmail });
 
-    return { username: u, token: t };
+    return { username: u, code: c };
   });
 
   await enqueue(redis, {
     type: 'email:verify',
     email: normalizedEmail,
     username,
-    token,
+    code,
   });
 
   return { email: normalizedEmail };

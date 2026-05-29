@@ -1,57 +1,50 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { verifyEmailApi, resendVerificationApi } from '@/lib/api';
-import { Button, Card, Input, Spinner } from '@/components/ui';
+import { Alert, Button, Card, Field, Input, Spinner } from '@/components/ui';
 import { CromoMark } from '@/components/CromoLogo';
-
-type Status = 'verifying' | 'success' | 'expired' | 'error';
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
 
-  const [status, setStatus] = useState<Status>('verifying');
-  const [resendEmail, setResendEmail] = useState('');
+  const [email, setEmail] = useState(searchParams.get('email') ?? '');
+  const [code, setCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
   const [resendLoading, setResendLoading] = useState(false);
   const [resendDone, setResendDone] = useState(false);
 
-  useEffect(() => {
-    if (!token) {
-      setStatus('expired');
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await verifyEmailApi(email, code.trim());
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Verification failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleResend() {
+    if (!email) {
+      setError('Enter your email address first.');
       return;
     }
-
-    verifyEmailApi(token)
-      .then(() => setStatus('success'))
-      .catch((err: Error & { statusCode?: number }) => {
-        if (err.statusCode === 410) setStatus('expired');
-        else setStatus('error');
-      });
-  }, [token]);
-
-  async function handleResend(e: React.FormEvent) {
-    e.preventDefault();
     setResendLoading(true);
-    await resendVerificationApi(resendEmail);
+    await resendVerificationApi(email);
     setResendDone(true);
     setResendLoading(false);
   }
 
-  if (status === 'verifying') {
-    return (
-      <Shell>
-        <Card className="flex flex-col items-center gap-3 text-center">
-          <Spinner size={24} />
-          <p className="text-sm text-[var(--cromo-fg-muted)]">Verifying your email…</p>
-        </Card>
-      </Shell>
-    );
-  }
-
-  if (status === 'success') {
+  if (success) {
     return (
       <Shell>
         <Card className="text-center">
@@ -70,72 +63,75 @@ function VerifyEmailContent() {
     );
   }
 
-  if (status === 'expired') {
-    return (
-      <Shell>
-        <Card>
-          <div className="text-center mb-4">
-            <div className="text-3xl mb-3">✉️</div>
-            <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
-              {token ? 'Link expired' : 'Resend verification email'}
-            </h1>
-            <p className="text-sm text-[var(--cromo-fg-muted)]">
-              {token
-                ? 'This verification link has expired. Enter your email to get a new one.'
-                : 'Enter your email address and we\'ll send you a new verification link.'}
-            </p>
-          </div>
+  return (
+    <Shell>
+      <Card>
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-3">✉️</div>
+          <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
+            Verify your email
+          </h1>
+          <p className="text-sm text-[var(--cromo-fg-muted)]">
+            Enter the 6-digit code we sent to your email address.
+          </p>
+        </div>
 
+        {error && (
+          <div className="mb-3">
+            <Alert tone="danger">{error}</Alert>
+          </div>
+        )}
+
+        <form onSubmit={handleVerify} className="flex flex-col gap-3">
+          <Field label="Email">
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="your@email.com"
+            />
+          </Field>
+          <Field label="Verification code">
+            <Input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              placeholder="123456"
+            />
+          </Field>
+          <Button type="submit" size="lg" loading={submitting}>
+            {submitting ? 'Verifying…' : 'Verify email'}
+          </Button>
+        </form>
+
+        <div className="mt-4 text-center text-sm">
           {resendDone ? (
-            <p className="text-sm text-[var(--cromo-success-text)] text-center">
-              New verification link sent — check your inbox
+            <span className="text-[var(--cromo-success-text)]">
+              New code sent — check your inbox
               {process.env.NODE_ENV === 'development' && (
                 <>
                   {' '}(or{' '}
-                  <a
-                    href="http://localhost:8025"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline"
-                  >
+                  <a href="http://localhost:8025" target="_blank" rel="noreferrer" className="underline">
                     Mailpit
                   </a>
                   )
                 </>
               )}.
-            </p>
+            </span>
           ) : (
-            <form onSubmit={handleResend} className="flex flex-col gap-3">
-              <Input
-                type="email"
-                value={resendEmail}
-                onChange={(e) => setResendEmail(e.target.value)}
-                required
-                placeholder="your@email.com"
-              />
-              <Button type="submit" loading={resendLoading}>
-                {resendLoading ? 'Sending…' : 'Resend verification email'}
-              </Button>
-            </form>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resendLoading}
+              className="text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
+            >
+              {resendLoading ? 'Sending…' : 'Resend code'}
+            </button>
           )}
-        </Card>
-      </Shell>
-    );
-  }
-
-  return (
-    <Shell>
-      <Card className="text-center">
-        <div className="text-3xl mb-4">❌</div>
-        <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
-          Verification failed
-        </h1>
-        <p className="text-sm text-[var(--cromo-fg-muted)] mb-6">
-          This verification link is invalid.
-        </p>
-        <Link href="/login" className="text-sm text-[var(--cromo-accent)] hover:underline">
-          Back to sign in
-        </Link>
+        </div>
       </Card>
     </Shell>
   );

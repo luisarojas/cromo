@@ -65,6 +65,9 @@ resource "aws_cognito_user" "admin" {
   attributes = {
     email          = each.value
     email_verified = "true"
+    # App-level username the backend reads (custom:username) when JIT-creating
+    # the DB row on first login. Derived from the email local part.
+    "custom:username" = split("@", each.value)[0]
   }
 }
 

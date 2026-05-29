@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken, requireRole } from '../../middleware/auth.js';
 import { recordAudit } from '../../utils/audit.js';
 import { getTrustScore } from '../../services/trust-safety.service.js';
+import { env } from '../../env.js';
+import * as cognitoAdmin from '../../services/cognito-admin.js';
 
 const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
 
@@ -97,6 +99,12 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       if (rows.length === 0) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+      }
+
+      // In cognito mode the group membership is the authority for the role
+      // claim; the DB column above is for display. Keep them in lockstep.
+      if (env.AUTH_MODE === 'cognito') {
+        await cognitoAdmin.setAdminGroup(id, role === 'admin');
       }
 
       await recordAudit(fastify.db, request.userId!, 'user_role_changed', {
@@ -213,6 +221,12 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       if (rows.length === 0) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+      }
+
+      // Block authentication immediately during the soft-delete grace window;
+      // the account is hard-deleted from Cognito by the cleanup job later.
+      if (env.AUTH_MODE === 'cognito') {
+        await cognitoAdmin.disableUser(id);
       }
 
       await recordAudit(fastify.db, request.userId!, 'user_deleted', {

@@ -104,6 +104,8 @@ module "auth" {
   env                 = local.env
   from_email          = "no-reply@${var.apex_domain}"
   ses_identity_arn    = "arn:aws:ses:${var.region}:${var.account_id}:identity/${var.apex_domain}"
+  admin_emails        = var.admin_emails
+  admin_temp_password = var.admin_temp_password
   deletion_protection = true
 }
 
@@ -118,11 +120,12 @@ module "secrets" {
     DATABASE_URL = module.database.connection_url
     REDIS_URL    = module.cache.redis_url
 
-    AUTH_MODE            = "local"
+    AUTH_MODE            = "cognito"
     JWT_SECRET           = var.jwt_secret
     COGNITO_USER_POOL_ID = module.auth.user_pool_id
     COGNITO_CLIENT_ID    = module.auth.client_id
     COGNITO_REGION       = var.region
+    COGNITO_TOKEN_USE    = "access"
 
     EMAIL_FROM   = "no-reply@${var.apex_domain}"
     FRONTEND_URL = "https://${local.hostname}"
@@ -155,6 +158,7 @@ module "compute" {
   secret_arn          = module.secrets.secret_arn
   uploads_bucket      = module.storage.uploads_bucket
   uploads_bucket_arn  = module.storage.uploads_bucket_arn
+  user_pool_arn       = module.auth.user_pool_arn
   ecr_registry        = var.ecr_registry
   instance_type       = "t3.medium" # one tier up from dev's t3.small
   deletion_protection = true

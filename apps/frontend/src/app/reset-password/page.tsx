@@ -10,32 +10,14 @@ import { CromoMark } from '@/components/CromoLogo';
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
 
+  const [email, setEmail] = useState(searchParams.get('email') ?? '');
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-
-  if (!token) {
-    return (
-      <Shell>
-        <Card className="text-center">
-          <div className="text-3xl mb-4">❌</div>
-          <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
-            Invalid link
-          </h1>
-          <p className="text-sm text-[var(--cromo-fg-muted)] mb-6">
-            This reset link is missing a token.
-          </p>
-          <Link href="/forgot-password" className="text-sm text-[var(--cromo-accent)] hover:underline">
-            Request a new link
-          </Link>
-        </Card>
-      </Shell>
-    );
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,12 +28,12 @@ function ResetPasswordContent() {
     setLoading(true);
     setError(null);
     try {
-      await resetPasswordApi(token!, password);
+      await resetPasswordApi(email, code.trim(), password);
       setDone(true);
     } catch (err) {
       const e = err as Error & { statusCode?: number };
       if (e.statusCode === 410) {
-        setError('This reset link has expired. Please request a new one.');
+        setError('This reset code has expired. Please request a new one.');
       } else {
         setError(e.message ?? 'Something went wrong. Please try again.');
       }
@@ -83,6 +65,30 @@ function ResetPasswordContent() {
     <Shell>
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <Field label="Email" htmlFor="email">
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          </Field>
+
+          <Field label="Reset code" htmlFor="code">
+            <Input
+              id="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              placeholder="123456"
+            />
+          </Field>
+
           <Field label="New password" htmlFor="password">
             <Input
               id="password"

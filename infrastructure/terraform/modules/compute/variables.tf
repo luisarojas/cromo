@@ -22,6 +22,11 @@ variable "secret_arn" {
 }
 variable "uploads_bucket" { type = string }
 variable "uploads_bucket_arn" { type = string }
+variable "user_pool_arn" {
+  description = "Cognito user pool ARN, used to scope privileged Admin* IAM permissions. Empty disables the Cognito IAM statement."
+  type        = string
+  default     = ""
+}
 variable "ecr_registry" {
   description = "Account-scoped ECR registry URL (e.g. 123456789.dkr.ecr.ca-central-1.amazonaws.com)."
   type        = string

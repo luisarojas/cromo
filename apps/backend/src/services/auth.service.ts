@@ -1,24 +1,19 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { env } from '../env.js';
 import type { Drizzle } from '../db/index.js';
 import {
   users,
-  userSettings,
-  userAlbums,
-  albumTypes,
-  albumEditions,
-  albumFormats,
   emailVerificationTokens,
   passwordResetTokens,
   auditLog,
 } from '../db/schema.js';
-import { DEFAULT_ALBUM_TYPE_KEY, DEFAULT_ALBUM_EDITION_KEY, DEFAULT_ALBUM_FORMAT_KEY } from '../constants.js';
 import type { Redis } from 'ioredis';
 import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
 import { statusError } from '../utils/errors.js';
+import { provisionUserProfile, hashEmail } from './user-provisioning.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,12 +44,11 @@ export interface AuthTokens {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function hashEmail(email: string): string {
-  return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
-}
-
-function generateToken(): string {
-  return crypto.randomBytes(32).toString('hex');
+// 6-digit numeric code, used for email verification and password reset. The
+// cloud environments delegate these flows to Cognito; this local-mode code
+// keeps the same {email, code} contract the frontend expects.
+function generateCode(): string {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
 }
 
 // Tokens are stored as sha256(cleartext) at rest so a DB read can't yield a
@@ -100,7 +94,7 @@ export async function register(
   const [existingUsername] = await db.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
   if (existingUsername) throw statusError('Username is already taken.', 409);
 
-  const verificationToken = generateToken();
+  const verificationCode = generateCode();
   const passwordHash = await hashPassword(input.password);
 
   const userId = await db.transaction(async (tx) => {
@@ -117,37 +111,10 @@ export async function register(
 
     const id = newUser!.id;
 
-    await tx.insert(userSettings).values({ userId: id });
-
-    // Look up album_type_id, album_edition_id, and album_format_id for the default album
-    const [albumIds] = await tx
-      .select({
-        typeId: albumTypes.id,
-        editionId: albumEditions.id,
-        formatId: albumFormats.id,
-      })
-      .from(albumEditions)
-      .innerJoin(albumTypes, eq(albumTypes.id, albumEditions.albumTypeId))
-      .innerJoin(albumFormats, eq(albumFormats.albumTypeId, albumTypes.id))
-      .where(sql`${albumTypes.key} = ${DEFAULT_ALBUM_TYPE_KEY}
-              AND ${albumEditions.key} = ${DEFAULT_ALBUM_EDITION_KEY}
-              AND ${albumFormats.key}  = ${DEFAULT_ALBUM_FORMAT_KEY}`)
-      .limit(1);
-
-    if (!albumIds) {
-      throw new Error('Default album type/edition/format not found — did migrations + seeds run?');
-    }
-
-    await tx.insert(userAlbums).values({
-      userId: id,
-      albumTypeId: albumIds.typeId,
-      albumEditionId: albumIds.editionId,
-      albumFormatId: albumIds.formatId,
-      isDefault: true,
-    });
+    await provisionUserProfile(tx, id);
 
     await tx.insert(emailVerificationTokens).values({
-      tokenHash: hashToken(verificationToken),
+      tokenHash: hashToken(verificationCode),
       userId: id,
     });
 
@@ -158,7 +125,7 @@ export async function register(
     type: 'email:verify',
     email: normalizedEmail,
     username: normalizedUsername,
-    token: verificationToken,
+    code: verificationCode,
   });
 
   return { userId, email: normalizedEmail, username: normalizedUsername };
@@ -232,20 +199,23 @@ export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTo
 /**
  * verifyEmail — marks email_verified_at when given a valid token.
  */
-export async function verifyEmail(db: Drizzle, token: string): Promise<void> {
-  const tokenHash = hashToken(token);
+export async function verifyEmail(db: Drizzle, email: string, code: string): Promise<void> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const codeHash = hashToken(code);
+
   const [row] = await db
     .select({ userId: emailVerificationTokens.userId, expiresAt: emailVerificationTokens.expiresAt })
     .from(emailVerificationTokens)
-    .where(eq(emailVerificationTokens.tokenHash, tokenHash))
+    .innerJoin(users, eq(users.id, emailVerificationTokens.userId))
+    .where(and(eq(users.email, normalizedEmail), eq(emailVerificationTokens.tokenHash, codeHash)))
     .limit(1);
 
-  if (!row) throw statusError('Verification token not found.', 404);
-  if (new Date() > row.expiresAt) throw statusError('Verification token has expired.', 410);
+  if (!row) throw statusError('Invalid verification code.', 400);
+  if (new Date() > row.expiresAt) throw statusError('Verification code has expired.', 410);
 
   await db.transaction(async (tx) => {
     await tx.update(users).set({ emailVerifiedAt: sql`now()`, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
-    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.tokenHash, tokenHash));
+    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, row.userId));
   });
 }
 
@@ -265,17 +235,17 @@ export async function resendVerification(db: Drizzle, redis: Redis, email: strin
   if (!user || user.deletedAt) return;
   if (user.emailVerifiedAt) return;
 
-  const token = generateToken();
+  const code = generateCode();
   await db.transaction(async (tx) => {
     await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, user.id));
-    await tx.insert(emailVerificationTokens).values({ tokenHash: hashToken(token), userId: user.id });
+    await tx.insert(emailVerificationTokens).values({ tokenHash: hashToken(code), userId: user.id });
   });
 
   await enqueue(redis, {
     type: 'email:verify',
     email: normalizedEmail,
     username: user.username,
-    token,
+    code,
   });
 }
 
@@ -294,11 +264,11 @@ export async function forgotPassword(db: Drizzle, redis: Redis, email: string): 
 
   if (!user || user.deletedAt) return;
 
-  const token = generateToken();
+  const code = generateCode();
   try {
     await db.transaction(async (tx) => {
       await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
-      await tx.insert(passwordResetTokens).values({ tokenHash: hashToken(token), userId: user.id });
+      await tx.insert(passwordResetTokens).values({ tokenHash: hashToken(code), userId: user.id });
     });
   } catch (err) {
     console.error('[auth] forgotPassword error:', err);
@@ -309,7 +279,7 @@ export async function forgotPassword(db: Drizzle, redis: Redis, email: string): 
     type: 'email:reset',
     email: normalizedEmail,
     username: user.username,
-    token,
+    code,
   });
 }
 
@@ -318,25 +288,29 @@ export async function forgotPassword(db: Drizzle, redis: Redis, email: string): 
  */
 export async function resetPassword(
   db: Drizzle,
-  token: string,
+  email: string,
+  code: string,
   newPassword: string
 ): Promise<void> {
-  const tokenHash = hashToken(token);
+  const normalizedEmail = email.toLowerCase().trim();
+  const codeHash = hashToken(code);
+
   const [row] = await db
     .select({ userId: passwordResetTokens.userId, expiresAt: passwordResetTokens.expiresAt })
     .from(passwordResetTokens)
-    .where(eq(passwordResetTokens.tokenHash, tokenHash))
+    .innerJoin(users, eq(users.id, passwordResetTokens.userId))
+    .where(and(eq(users.email, normalizedEmail), eq(passwordResetTokens.tokenHash, codeHash)))
     .limit(1);
 
   if (!row || new Date() > row.expiresAt) {
-    throw statusError('Reset token is invalid or has expired.', 400);
+    throw statusError('Reset code is invalid or has expired.', 400);
   }
 
   const passwordHash = await hashPassword(newPassword);
 
   await db.transaction(async (tx) => {
     await tx.update(users).set({ passwordHash, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
-    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.tokenHash, tokenHash));
+    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, row.userId));
     await tx.insert(auditLog).values({ userId: row.userId, action: 'password_reset_completed' });
   });
 }

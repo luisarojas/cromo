@@ -64,6 +64,24 @@ data "aws_iam_policy_document" "app_inline" {
     ]
     resources = ["arn:aws:logs:*:*:*"]
   }
+
+  # Privileged Cognito ops used by the moderation surface (role changes,
+  # account disable/delete). The unauthenticated auth flows the broker uses
+  # (SignUp/InitiateAuth/etc.) need no IAM. Omitted when no pool is wired.
+  dynamic "statement" {
+    for_each = var.user_pool_arn != "" ? [1] : []
+    content {
+      sid = "CognitoAdmin"
+      actions = [
+        "cognito-idp:AdminAddUserToGroup",
+        "cognito-idp:AdminRemoveUserFromGroup",
+        "cognito-idp:AdminDisableUser",
+        "cognito-idp:AdminDeleteUser",
+        "cognito-idp:AdminGetUser",
+      ]
+      resources = [var.user_pool_arn]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "app" {

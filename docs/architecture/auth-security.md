@@ -4,23 +4,26 @@
 
 ## 9.1 Email Verification Flow
 
-After a user registers, their account exists but `email_verified_at` is NULL. They receive a verification email (via Mailpit locally, SES in cloud) with a secure one-time link.
+After a user registers, their account exists but `email_verified_at` is NULL. They receive a verification email containing a **6-digit code**. The frontend `/verify-email` page collects the user's email + code and posts both.
 
 ```
-User registers → API creates account (email_verified_at = NULL)
-             → Verification email sent with token link
-             → User clicks link → POST /auth/verify-email
-             → API sets email_verified_at = now()
-             → User is redirected to /dashboard
+User registers → account created (email_verified_at = NULL)
+             → Verification email sent with a 6-digit code
+             → User enters email + code → POST /auth/verify-email { email, code }
+             → email_verified_at = now()
+             → User signs in
 ```
+
+Both auth modes share this `{ email, code }` API contract so the single frontend build works everywhere — only the backend differs:
+
+- **`AUTH_MODE=local`:** the API generates a 6-digit code, stores its SHA-256 hash in `email_verification_tokens` (24-hour expiry), and emails it via Mailpit. `POST /auth/verify-email` looks up the row by email + code hash, sets `email_verified_at`, and deletes the user's tokens.
+- **`AUTH_MODE=cognito`:** Cognito generates and emails the code (via the pool's SES sender) on `SignUp`; the API simply calls `ConfirmSignUp`. The `email_verification_tokens` table is unused in this mode.
 
 **Before verification:** Users can log in but see a banner prompting them to verify. They cannot initiate trade requests until verified (reduces spam). They can freely add stickers to their collection.
 
-**Token:** A cryptographically random token stored in the `email_verification_tokens` table (see §7.2 schema) with a 24-hour expiry. After clicking the link, the token is consumed (deleted).
+**Re-send flow:** `POST /auth/resend-verification { email }` issues a fresh code (local: regenerates + re-emails; cognito: `ResendConfirmationCode`). Rate-limited to 3 requests per hour per user to prevent email-bombing.
 
-**Re-send flow:** `POST /auth/resend-verification` deletes any existing tokens for the user, generates a new one, and emails the new link. Rate-limited to 3 requests per hour per user to prevent email-bombing. If the previous token has not expired, the user can still use either link until first use; the new token simply provides another chance.
-
-**Expired tokens:** If a user clicks an expired link, the API returns `410 Gone` with a "Verification link expired" page that includes a one-click re-send button.
+**Expired/invalid codes:** the API returns `410 Gone` for an expired code and `400` for a mismatched one; the page shows the error inline with a "Resend code" button.
 
 ## 9.2 Local Authentication Mode
 
@@ -39,11 +42,30 @@ POST http://localhost:3001/api/v1/auth/login
 { "email": "admin@test.local", "password": "anything" }
 ```
 
-## 9.3 Cloud Authentication: AWS Cognito
+## 9.3 Cloud Authentication: AWS Cognito (backend token-broker)
 
-In staging and production, Cognito handles registration, login, MFA, JWT tokens, and password resets. The API reads `AUTH_MODE=cognito` and validates JWTs against the Cognito user pool.
+In dev and prod (`AUTH_MODE=cognito`) Cognito is the identity provider, but the **frontend never talks to Cognito directly**. It keeps calling the same `/api/v1/auth/*` endpoints; the backend acts as a token-broker (backend-for-frontend) in front of the Cognito user pool. This keeps the httpOnly refresh-cookie model (§9.6) — no tokens in browser-accessible storage — and reuses the existing auth pages.
 
-The transition from local mock to Cognito is a single environment variable change — no code changes required.
+**Request flow:**
+
+```
+Frontend → POST /auth/login → API → Cognito InitiateAuth (USER_PASSWORD_AUTH)
+                                  ← Cognito access + id + refresh tokens
+        API: JIT-provision DB user, set httpOnly refresh cookie, return access token
+Protected routes: middleware verifies the Cognito access token via JWKS
+                  (apps/backend/src/middleware/cognito.ts)
+```
+
+**Service surface** (`apps/backend/src/services/cognito-auth.service.ts`, dispatched from `routes/v1/auth.ts` by `AUTH_MODE`): `register`→`SignUp`, `login`/`refresh`→`InitiateAuth`, `verifyEmail`→`ConfirmSignUp`, `resendVerification`→`ResendConfirmationCode`, `forgotPassword`→`ForgotPassword`, `resetPassword`→`ConfirmForgotPassword`. These are public client APIs (the app client has no secret), so they need no IAM.
+
+**Identity & roles:**
+
+- The DB `users.id` **is** the Cognito `sub`. Self-registered users get their DB row at register time: after `SignUp` returns the `sub`, `createUser` inserts the row + default profile (settings + album) with `email_verified_at = NULL`. This is a plain insert, so the **username is reserved atomically by the unique constraint** — a duplicate that slips past the pre-check trips `23505`, and the broker rolls back the just-created Cognito user (`AdminDeleteUser`) and returns `409`. On the first post-confirmation login, `ensureUser` (`apps/backend/src/services/user-provisioning.ts`) flips `email_verified_at` from the id token's `email_verified` claim. The Terraform-bootstrapped admin never registers, so `ensureUser` also upserts a row on its first login. Cognito access tokens carry `sub` and `cognito:groups` but **not** `email`, so routes read profile fields (email/username) from the DB by id, never from the token.
+- **Role is authoritative from the `admin` Cognito group**, mapped to `role: 'admin'` by the JWKS middleware. The DB `role` column is kept in sync for display. Changing a role from the admin UI calls `AdminAddUserToGroup`/`AdminRemoveUserFromGroup`; admin-initiated account removal calls `AdminDisableUser` (soft-delete) then `AdminDeleteUser` (hard-delete cleanup job). These privileged `Admin*` ops require `cognito-idp:Admin*` on the EC2 instance role (granted in `modules/compute`, scoped to the pool ARN).
+
+**Bootstrapped admin:** admin accounts are created by Terraform from `admin_emails` (added to the `admin` group, with a `custom:username` attribute for JIT). On first use the admin runs the **forgot-password** flow to set a password — this clears the `FORCE_CHANGE_PASSWORD` state without needing a NEW_PASSWORD_REQUIRED challenge UI. See `docs/runbooks/cloud-bootstrap.md` §3.
+
+**Local Docker dev stays `AUTH_MODE=local`** (§9.2) so contributors never need AWS. The two modes are not a drop-in swap — the broker, JIT provisioning, and `Admin*` IAM only exist for the cloud path.
 
 ## 9.4 Security Controls
 
@@ -96,7 +118,7 @@ When `AUTH_MODE=cognito`:
 | Breached-password check | Cognito advanced security: blocks passwords found in haveibeenpwned breach corpus |
 | MFA | Optional at launch (TOTP); required for admin role |
 | Lockout | 5 failed login attempts on the same account → 15-minute lock (separate from per-IP rate limit in §6.4) |
-| Password reset | Email-only flow; tokens 1-hour TTL, single-use |
+| Password reset | Cognito-managed: emailed 6-digit code → `POST /auth/reset-password { email, code, password }` → `ConfirmForgotPassword`. (Local mode mirrors the same `{ email, code }` contract with a 1-hour, single-use code.) |
 
 Account lockout is keyed on `user_id`, not IP, to prevent password-spray attacks across many IPs. Implemented via Redis (`lockout:{user_id}`, TTL 900s).
 

@@ -15,8 +15,8 @@ const DEAD_KEY = 'jobs:dead';
 const MAX_ATTEMPTS = 3;
 
 export type Job =
-  | { type: 'email:verify'; email: string; username: string; token: string }
-  | { type: 'email:reset'; email: string; username: string; token: string }
+  | { type: 'email:verify'; email: string; username: string; code: string }
+  | { type: 'email:reset'; email: string; username: string; code: string }
   | { type: 'email:rating-reminder'; email: string; username: string; tradeId: string };
 
 interface QueueEntry {
@@ -39,10 +39,10 @@ export async function enqueue(redis: Redis, job: Job): Promise<void> {
 async function runJob(job: Job): Promise<void> {
   switch (job.type) {
     case 'email:verify':
-      await sendVerificationEmail(job.email, job.username, job.token);
+      await sendVerificationEmail(job.email, job.username, job.code);
       return;
     case 'email:reset':
-      await sendPasswordResetEmail(job.email, job.username, job.token);
+      await sendPasswordResetEmail(job.email, job.username, job.code);
       return;
     case 'email:rating-reminder':
       await sendRatingReminderEmail(job.email, job.username, job.tradeId);

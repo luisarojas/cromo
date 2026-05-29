@@ -47,9 +47,9 @@ export default function RegisterPage() {
             Check your email
           </h1>
           <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">
-            We sent a verification link to{' '}
-            <strong className="text-[var(--cromo-fg)]">{email}</strong>. Click the link to activate
-            your account.
+            We sent a 6-digit verification code to{' '}
+            <strong className="text-[var(--cromo-fg)]">{email}</strong>. Enter it to activate your
+            account.
           </p>
           {process.env.NODE_ENV === 'development' && (
             <p className="text-xs text-[var(--cromo-fg-subtle)]">
@@ -65,7 +65,10 @@ export default function RegisterPage() {
               to view your email.
             </p>
           )}
-          <div className="mt-6">
+          <div className="mt-6 flex flex-col gap-3">
+            <Link href={`/verify-email?email=${encodeURIComponent(email)}`}>
+              <Button size="lg">Enter verification code</Button>
+            </Link>
             <Link
               href="/login"
               className="text-sm text-[var(--cromo-accent)] hover:underline"
