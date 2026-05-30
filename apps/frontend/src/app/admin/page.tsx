@@ -15,6 +15,7 @@ import {
   createAdminBan,
   liftAdminBan,
   fetchAdminUserBans,
+  fetchAdminFeatureFlags,
   type Sticker,
   type AdminUser,
   type AdminReport,
@@ -1156,11 +1157,26 @@ function AdminPageInner() {
   const [activeTab, setActiveTab] = useState<Tab>(
     tabParam === 'users' ? 'users' : tabParam === 'trust-safety' ? 'trust-safety' : 'stickers'
   );
+  const [trustSafetyEnabled, setTrustSafetyEnabled] = useState<boolean | null>(null);
 
   const switchTab = (tab: Tab) => {
     setActiveTab(tab);
     router.replace(`/admin?tab=${tab}`, { scroll: false });
   };
+
+  useEffect(() => {
+    if (!token) return;
+    fetchAdminFeatureFlags(token)
+      .then(({ flags }) => setTrustSafetyEnabled(flags.FEATURE_TRUST_SAFETY === true))
+      .catch(() => setTrustSafetyEnabled(false));
+  }, [token]);
+
+  useEffect(() => {
+    if (trustSafetyEnabled === false && activeTab === 'trust-safety') {
+      switchTab('stickers');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trustSafetyEnabled]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -1209,21 +1225,23 @@ function AdminPageInner() {
           >
             Users
           </button>
-          <button
-            onClick={() => switchTab('trust-safety')}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === 'trust-safety'
-                ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
-                : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
-            }`}
-          >
-            Trust & Safety
-          </button>
+          {trustSafetyEnabled && (
+            <button
+              onClick={() => switchTab('trust-safety')}
+              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === 'trust-safety'
+                  ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                  : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
+              }`}
+            >
+              Trust & Safety
+            </button>
+          )}
         </div>
 
         {activeTab === 'stickers' && <StickersSection token={token} />}
         {activeTab === 'users' && <UsersSection token={token} currentUserId={user.id} />}
-        {activeTab === 'trust-safety' && <TrustSafetySection token={token} />}
+        {activeTab === 'trust-safety' && trustSafetyEnabled && <TrustSafetySection token={token} />}
       </div>
     </div>
   );

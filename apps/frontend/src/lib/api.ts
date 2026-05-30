@@ -857,6 +857,12 @@ export async function patchUserPreferences(
 // Admin endpoints
 // ---------------------------------------------------------------------------
 
+export async function fetchAdminFeatureFlags(
+  token: string,
+): Promise<{ flags: Record<string, boolean> }> {
+  return apiFetch<{ flags: Record<string, boolean> }>('/api/v1/admin/feature-flags', {}, token);
+}
+
 export interface AdminUser {
   id: string;
   username: string;
