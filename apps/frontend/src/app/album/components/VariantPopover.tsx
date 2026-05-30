@@ -285,7 +285,7 @@ export default function VariantPopover({
                       ...((!entry.tradeHidden) && { tradeForced: false }),
                     })}
                     disabled={busy || (entry.tradeForced && !entry.tradeHidden)}
-                    title={entry.tradeForced && !entry.tradeHidden ? 'Cannot hide while forced for trade' : entry.tradeHidden ? 'Click to make visible to traders' : 'Click to hide from trade'}
+                    title={entry.tradeForced && !entry.tradeHidden ? 'Remove "Force offer" first to unlist' : entry.tradeHidden ? 'Click to list for trade' : 'Click to unlist from trade'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeHidden
                         ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200'
@@ -299,26 +299,27 @@ export default function VariantPopover({
                         <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                       )}
                     </svg>
-                    {entry.tradeHidden ? 'Hidden from trade' : 'Visible for trade'}
+                    {entry.tradeHidden ? 'Unlisted' : 'Listed'}
                   </button>
-                  <button
-                    onClick={() => onSetTradeFlag(entry.variantId, {
-                      tradeForced: !entry.tradeForced,
-                      ...((!entry.tradeForced) && { tradeHidden: false }),
-                    })}
-                    disabled={busy || (entry.tradeHidden && !entry.tradeForced)}
-                    title={entry.tradeHidden && !entry.tradeForced ? 'Cannot force trade while hidden' : entry.tradeForced ? 'Click to stop offering as tradeable' : 'Click to offer for trade even as last copy'}
-                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
-                      entry.tradeForced
-                        ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] hover:bg-green-200'
-                        : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
-                    }`}
-                  >
-                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
-                    </svg>
-                    {entry.tradeForced ? 'Always offered' : 'Not forced'}
-                  </button>
+                  {!entry.tradeHidden && (
+                    <button
+                      onClick={() => onSetTradeFlag(entry.variantId, {
+                        tradeForced: !entry.tradeForced,
+                      })}
+                      disabled={busy}
+                      title={entry.tradeForced ? 'Only offer extra copies' : 'Offer even as last copy'}
+                      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                        entry.tradeForced
+                          ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] hover:bg-green-200'
+                          : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
+                      }`}
+                    >
+                      <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                      </svg>
+                      {entry.tradeForced ? 'Force offer' : 'Extras only'}
+                    </button>
+                  )}
                 </div>
               )}
             </li>

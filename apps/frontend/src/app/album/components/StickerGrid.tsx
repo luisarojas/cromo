@@ -7,6 +7,7 @@ import { addSticker, patchSticker, moveSticker, setTradeFlags } from '@/lib/api'
 import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
 import VariantPopover, { type OwnedVariantEntry } from './VariantPopover';
+import { usePreferencesStore } from '@/store/preferences';
 export type OwnedVariantMap = Map<string, OwnedVariantEntry>; // variantType -> entry
 
 interface Props {
@@ -69,6 +70,7 @@ export default function StickerGrid({
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
   const lastClickedIndexRef = useRef<number | null>(null);
   const { addToast } = useToast();
+  const tradeMatchingEnabled = usePreferencesStore((s) => s.tradeMatchingEnabled);
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
   const rows = Math.ceil(stickers.length / COLS);
@@ -286,7 +288,7 @@ export default function StickerGrid({
           }
           onMove={handleMove}
           onMoveFrom={handleMoveFrom}
-          onSetTradeFlag={handleSetTradeFlag}
+          onSetTradeFlag={tradeMatchingEnabled ? handleSetTradeFlag : undefined}
           albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.albumCode)}
           wantedVariantIds={wantedVariantIds}
           onToggleWanted={onToggleWanted}
