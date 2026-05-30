@@ -474,20 +474,22 @@ export default function PublicProfilePage() {
               <TrustBadge userId={profile.userId} size="small" />
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            <ShareProfileButton username={profile.username} getListText={hasAlbums ? buildListText : undefined} />
-            {canStartTrade && (
-              <Link
-                href={`/trade?tab=find&recipient=${encodeURIComponent(profile.username)}`}
-                className="inline-flex items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
-              >
-                Start a trade
-              </Link>
-            )}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {canStartTrade && (
+                <Link
+                  href={`/trade?tab=find&recipient=${encodeURIComponent(profile.username)}`}
+                  className="inline-flex items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
+                >
+                  Start a trade
+                </Link>
+              )}
+              <ShareProfileButton username={profile.username} getListText={hasAlbums ? buildListText : undefined} />
+            </div>
             {canInteract && viewerToken && (
               <button
                 onClick={() => setShowReportModal(true)}
-                className="inline-flex items-center rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] transition-colors"
               >
                 Report user
               </button>
