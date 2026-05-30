@@ -95,5 +95,5 @@ The application tracks sticker metadata (numbers, names) — it does not reprodu
 
 ### 25.2 Privacy Controls
 
-Users control: profile visibility, collection visibility, trade matching opt-in, leaderboard inclusion.
+Users control: profile visibility, collection visibility, trade matching opt-in.
 
