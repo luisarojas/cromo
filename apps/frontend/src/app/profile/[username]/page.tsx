@@ -73,7 +73,7 @@ function groupItems(
     let key: string;
     if (groupBy === 'team') key = item.teamName ?? 'Other';
     else if (groupBy === 'type') key = prettify(item.stickerType);
-    else key = variantLabel(item.variantType);
+    else key = item.variantType ? variantLabel(item.variantType) : 'Any variant';
     const bucket = grouped.get(key) ?? [];
     bucket.push(item);
     grouped.set(key, bucket);
@@ -679,11 +679,7 @@ export default function PublicProfilePage() {
                                   >
                                     {prettify(item.stickerType)}
                                   </span>
-                                  {activeTab === 'wanted' ? (
-                                    <span className="inline-flex items-center rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg-muted)] italic">
-                                      Any variant
-                                    </span>
-                                  ) : (
+                                  {item.variantType && (
                                     <span
                                       className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
                                       title={variantLabel(item.variantType)}

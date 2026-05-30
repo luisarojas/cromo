@@ -49,7 +49,7 @@ export interface PublicInventoryItem {
   player_name: string | null;
   sticker_type: string;
   team_name: string | null;
-  variant_type: string;
+  variant_type: string | null;
   quantity: number | null;
 }
 
@@ -690,10 +690,10 @@ export async function getPublicAlbumWanted(
   const cached = await redis.get(cacheKey);
   if (cached) return JSON.parse(cached) as PublicWantedPage;
 
-  // Page query: $1=albumId, $2=cursor, then filter params, then $N=limit
-  const pageParams: unknown[] = [albumId, cursor];
+  // Page query: $1=albumId, $2=userId, $3=cursor, then filter params, then $N=limit
+  const pageParams: unknown[] = [albumId, userId, cursor];
   const { stickerTypeClause, searchClause, variantTypeClause, teamClause, nextIdx: pageLimitIdx } =
-    buildFilterClauses(pageParams, filters, 3);
+    buildFilterClauses(pageParams, filters, 4);
   pageParams.push(pageSize + 1);
 
   // Count query: $1=albumId, then the same filter params (no cursor)
@@ -737,10 +737,16 @@ export async function getPublicAlbumWanted(
      ),
      canonical_variant AS (
        SELECT DISTINCT ON (sv.sticker_id)
-         sv.sticker_id, sv.id AS variant_id, sv.variant_type
+         sv.sticker_id, sv.id AS variant_id
        FROM sticker_variants sv
        WHERE sv.sticker_id IN (SELECT sticker_id FROM missing_stickers)
        ORDER BY sv.sticker_id, sv.rarity_rank ASC
+     ),
+     wanted_specific AS (
+       SELECT sv.sticker_id, sv.variant_type AS wanted_variant_type
+       FROM user_wanted_variants uwv
+       JOIN sticker_variants sv ON sv.id = uwv.sticker_variant_id
+       WHERE uwv.user_id = $2 AND uwv.album_id = $1
      )
      SELECT cv.variant_id AS sticker_variant_id,
             ms.number,
@@ -748,12 +754,13 @@ export async function getPublicAlbumWanted(
             ms.player_name,
             ms.sticker_type,
             t.name        AS team_name,
-            cv.variant_type,
+            ws.wanted_variant_type AS variant_type,
             NULL::int     AS quantity
      FROM missing_stickers ms
      JOIN canonical_variant cv ON cv.sticker_id = ms.sticker_id
+     LEFT JOIN wanted_specific ws ON ws.sticker_id = ms.sticker_id
      LEFT JOIN teams t         ON t.id = ms.team_id
-     WHERE ($2::int IS NULL OR ms.number > $2)
+     WHERE ($3::int IS NULL OR ms.number > $3)
      ${variantTypeClause}
      ${teamClause}
      ORDER BY ms.number

@@ -360,7 +360,7 @@ export interface PublicInventoryItem {
   playerName: string | null
   stickerType: string
   teamName: string | null
-  variantType: string
+  variantType: string | null
   quantity: number | null
 }
 

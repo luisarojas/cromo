@@ -21,7 +21,7 @@ const inventoryItemShape = {
     player_name:        { type: 'string', nullable: true },
     sticker_type:       { type: 'string' },
     team_name:          { type: 'string', nullable: true },
-    variant_type:       { type: 'string' },
+    variant_type:       { type: 'string', nullable: true },
     quantity:           { type: 'integer', nullable: true },
   },
 } as const;
