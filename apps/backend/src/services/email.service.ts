@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { env } from '../env.js';
 
 let _transporter: Transporter | null = null;
@@ -16,9 +16,9 @@ function getTransporter(): Transporter {
         auth: undefined,
       });
     } else {
-      const ses = new SESClient({ region: env.UPLOADS_REGION });
+      const sesClient = new SESv2Client({ region: env.UPLOADS_REGION });
       _transporter = nodemailer.createTransport({
-        SES: { ses, aws: { SendRawEmailCommand } },
+        SES: { sesClient, SendEmailCommand },
       });
     }
   }

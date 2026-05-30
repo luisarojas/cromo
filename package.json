@@ -17,7 +17,7 @@
     "load-test": "docker run --rm -i --network host -v $PWD/infrastructure/loadtest:/loadtest grafana/k6 run /loadtest/k6-smoke.js"
   },
   "devDependencies": {
-    "turbo": "^2.3.0",
+    "turbo": "^2.9.16",
     "typescript": "^5.5.0"
   },
   "engines": {
@@ -26,6 +26,17 @@
   },
   "packageManager": "pnpm@10.33.3",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp"]
+    "onlyBuiltDependencies": ["esbuild", "sharp"],
+    "overrides": {
+      "brace-expansion@>=1.0.0 <1.1.13": "1.1.13",
+      "brace-expansion@>=2.0.0 <2.0.3": "2.0.3",
+      "brace-expansion@>=5.0.0 <5.0.6": "5.0.6",
+      "esbuild@<0.25.0": "^0.25.0",
+      "postcss@<8.5.10": "^8.5.10",
+      "qs@<6.15.2": "^6.15.2",
+      "rollup@>=3.0.0 <3.30.0": "^3.30.0",
+      "uuid@<11.1.1": "^11.1.1",
+      "vite@<6.4.2": "^6.4.2"
+    }
   }
 }
