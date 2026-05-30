@@ -10,7 +10,7 @@ VALUES
   ('FEATURE_PUBLIC_LEADERBOARD', false, 0,   'Public leaderboard of top collectors'),
   ('FEATURE_COCA_COLA_STICKERS', true,  100, 'Coca-Cola bottle sticker section in album'),
   ('FEATURE_EXTRA_STICKERS',     true,  100, 'Panini Extra Sticker inserts — 20-player foil set (4 rarities)'),
-  ('FEATURE_TRUST_SAFETY',       false, 0,   'Post-trade ratings, user reporting, and moderation system'),
+  ('FEATURE_TRUST_SAFETY',       true,  100, 'Post-trade ratings, user reporting, and moderation system'),
   ('FEATURE_WEB_PUSH',           false, 0,   'Web push notifications for installed PWA'),
   ('MAINTENANCE_MODE',           false, 0,   'Redirect all users to maintenance page'),
   -- Scheduled-job kill switches. Each row gates a §34 cron job; flip to false

@@ -11,6 +11,26 @@ const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
+  // ─── Feature flags ──────────────────────────────────────────────────────────
+
+  /**
+   * GET /api/v1/admin/feature-flags
+   * Admin only — returns { key: enabled } for every feature flag, so the admin
+   * UI can hide tabs/controls whose backend routes are gated off.
+   */
+  fastify.get(
+    '/api/v1/admin/feature-flags',
+    adminOnly,
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const { rows } = await fastify.db.query<{ key: string; enabled: boolean }>(
+        `SELECT key, enabled FROM feature_flags`,
+      );
+      const flags: Record<string, boolean> = {};
+      for (const row of rows) flags[row.key] = row.enabled;
+      return reply.status(200).send({ flags });
+    },
+  );
+
   // ─── User management ────────────────────────────────────────────────────────
 
   /**
