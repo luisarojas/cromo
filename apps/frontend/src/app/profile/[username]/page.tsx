@@ -587,7 +587,7 @@ export default function PublicProfilePage() {
               groupOptions={[]}
               teamOptions={availableTeams.map((t) => ({ value: t, label: t }))}
               typeOptions={availableTypes.map((t) => ({ value: t, label: prettify(t) }))}
-              variantOptions={activeTab === 'wanted' ? [] : availableVariants.map((v) => ({ value: v, label: variantLabel(v) }))}
+              variantOptions={availableVariants.map((v) => ({ value: v, label: variantLabel(v), swatch: variantSwatch(v) }))}
               showFavourites={false}
               showWanted={false}
             />

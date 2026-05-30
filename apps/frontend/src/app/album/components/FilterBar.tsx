@@ -20,7 +20,7 @@ interface Props {
   groupOptions: { value: string; label: string }[];
   teamOptions: { value: string; label: string }[];
   typeOptions: { value: string; label: string }[];
-  variantOptions: { value: string; label: string }[];
+  variantOptions: { value: string; label: string; swatch?: string }[];
   showFavourites?: boolean;
   showWanted?: boolean;
 }
@@ -196,7 +196,7 @@ export default function FilterBar({
           {variantOptions.length > 0 && (
             <MultiSelect
               id="filter-variant"
-              label="Variant owned"
+              label="Variant"
               options={variantOptions}
               value={filters.variant ?? []}
               onChange={(v) => updateMulti('variant', v)}

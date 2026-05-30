@@ -142,20 +142,15 @@ async function publicFilterOptions(
            JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id
            WHERE sv2.sticker_id = s.id AND us.album_id = $1 AND us.quantity > 0
          )
-       ),
-       canonical_variant AS (
-         SELECT DISTINCT ON (sv.sticker_id) sv.sticker_id, sv.variant_type
-         FROM sticker_variants sv
-         WHERE sv.sticker_id IN (SELECT sticker_id FROM missing_stickers)
-         ORDER BY sv.sticker_id, sv.rarity_rank ASC
        )
        SELECT
          (SELECT array_agg(DISTINCT sticker_type ORDER BY sticker_type)
           FROM missing_stickers) AS sticker_types,
          (SELECT array_agg(DISTINCT COALESCE(t.name, 'Other') ORDER BY COALESCE(t.name, 'Other'))
           FROM missing_stickers ms LEFT JOIN teams t ON t.id = ms.team_id) AS teams,
-         (SELECT array_agg(DISTINCT cv.variant_type ORDER BY cv.variant_type)
-          FROM canonical_variant cv) AS variant_types`
+         (SELECT array_agg(DISTINCT sv.variant_type ORDER BY sv.variant_type)
+          FROM sticker_variants sv
+          WHERE sv.sticker_id IN (SELECT sticker_id FROM missing_stickers)) AS variant_types`
     : `SELECT
          array_agg(DISTINCT s.sticker_type ORDER BY s.sticker_type)                              AS sticker_types,
          array_agg(DISTINCT COALESCE(t.name, 'Other') ORDER BY COALESCE(t.name, 'Other'))        AS teams,
@@ -691,16 +686,40 @@ export async function getPublicAlbumWanted(
   if (cached) return JSON.parse(cached) as PublicWantedPage;
 
   // Page query: $1=albumId, $2=userId, $3=cursor, then filter params, then $N=limit
+  // Variant filtering uses an EXISTS subquery ("sticker has this variant available")
+  // rather than matching the canonical variant, since wanted items represent missing
+  // stickers wanted in any variant.
   const pageParams: unknown[] = [albumId, userId, cursor];
-  const { stickerTypeClause, searchClause, variantTypeClause, teamClause, nextIdx: pageLimitIdx } =
-    buildFilterClauses(pageParams, filters, 4);
+  const filtersWithoutVariant: WantedFilters = { ...filters, variantTypes: [] };
+  const { stickerTypeClause, searchClause, teamClause, nextIdx: afterPageFilters } =
+    buildFilterClauses(pageParams, filtersWithoutVariant, 4);
+  let variantTypeClause = '';
+  let pageLimitIdx = afterPageFilters;
+  if (filters.variantTypes?.length) {
+    pageParams.push(filters.variantTypes);
+    variantTypeClause = `AND EXISTS (
+      SELECT 1 FROM sticker_variants sv_vf
+      WHERE sv_vf.sticker_id = ms.sticker_id
+        AND sv_vf.variant_type = ANY($${pageLimitIdx}::text[])
+    )`;
+    pageLimitIdx++;
+  }
   pageParams.push(pageSize + 1);
 
   // Count query: $1=albumId, then the same filter params (no cursor)
   const countParams: unknown[] = [albumId];
   const { stickerTypeClause: cStickerType, searchClause: cSearch,
-          variantTypeClause: cVariant, teamClause: cTeam } =
-    buildFilterClauses(countParams, filters, 2);
+          teamClause: cTeam, nextIdx: afterCountFilters } =
+    buildFilterClauses(countParams, filtersWithoutVariant, 2);
+  let cVariant = '';
+  if (filters.variantTypes?.length) {
+    countParams.push(filters.variantTypes);
+    cVariant = `AND EXISTS (
+      SELECT 1 FROM sticker_variants sv_vf
+      WHERE sv_vf.sticker_id = ms.sticker_id
+        AND sv_vf.variant_type = ANY($${afterCountFilters}::text[])
+    )`;
+  }
 
   const { rows: items } = await db.query<PublicInventoryItem & { number: number }>(
     `WITH album_info AS (

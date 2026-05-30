@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 interface Option {
   value: string;
   label: string;
+  swatch?: string;
 }
 
 interface Props {
@@ -67,11 +68,13 @@ export default function MultiSelect({
     return aChecked ? -1 : 1;
   });
 
+  const selectedOption = value.length === 1 ? options.find((o) => o.value === value[0]) : null;
+
   const buttonLabel =
     value.length === 0
       ? placeholder
       : value.length === 1
-        ? (options.find((o) => o.value === value[0])?.label ?? value[0])
+        ? (selectedOption?.label ?? value[0])
         : `${value.length} selected`;
 
   const hasSelection = value.length > 0;
@@ -92,7 +95,15 @@ export default function MultiSelect({
               : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg)]'
           }`}
         >
-          <span className="truncate">{buttonLabel}</span>
+          <span className="truncate flex items-center gap-1.5">
+            {selectedOption?.swatch && (
+              <span
+                className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 border border-[var(--cromo-border-strong)] ${selectedOption.swatch}`}
+                aria-hidden
+              />
+            )}
+            {buttonLabel}
+          </span>
           <svg
             className={`w-3 h-3 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
             viewBox="0 0 12 12"
@@ -139,6 +150,12 @@ export default function MultiSelect({
                       onChange={() => toggle(opt.value)}
                       className="rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
                     />
+                    {opt.swatch && (
+                      <span
+                        className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 border border-[var(--cromo-border-strong)] ${opt.swatch}`}
+                        aria-hidden
+                      />
+                    )}
                     {opt.label}
                   </label>
                 ))

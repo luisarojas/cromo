@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import type { Sticker } from '@/lib/api';
 import type { FilterState } from '../components/FilterBar';
-import { variantLabel } from '../components/variantMeta';
+import { variantLabel, variantSwatch } from '../components/variantMeta';
 
 const TYPE_LABELS: Record<string, string> = {
   player: 'Player',
@@ -80,7 +80,7 @@ export function useFilterOptions({ tabBase, filters, ownedMap, favouriteSet, wan
       const p = ownedMap.get(s.albumCode);
       if (p) for (const vt of p.keys()) variantSet.add(vt);
     }
-    const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v) }));
+    const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v), swatch: variantSwatch(v) }));
 
     return { groupOptions, teamOptions, typeOptions, variantOptions };
   }, [tabBase, filters, ownedMap, favouriteSet, wantedAlbumCodeSet]);
