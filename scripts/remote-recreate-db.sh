@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs on the EC2 host (via SSM). Drops and recreates cromo_dev, applies
 # migrations by restarting the API, then seeds from S3.
-# Upload seeds first: aws s3 sync scripts/seeds/ s3://<UPLOADS_BUCKET>/_seeds/
+# Upload seeds first: aws s3 sync scripts/seeds/ s3://<UPLOADS_BUCKET>/_deploy/seeds/
 set -euo pipefail
 
 source /etc/cromo/cromo.env
@@ -35,7 +35,7 @@ done
 
 echo "→ Downloading seeds from S3..."
 mkdir -p /tmp/cromo-seeds
-aws s3 sync "s3://${UPLOADS_BUCKET}/_seeds/" /tmp/cromo-seeds/ --region "$REGION"
+aws s3 sync "s3://${UPLOADS_BUCKET}/_deploy/seeds/" /tmp/cromo-seeds/ --region "$REGION"
 
 PSQL="docker run --rm --network host -v /tmp/cromo-seeds:/seeds postgres:16-alpine psql $DATABASE_URL"
 
