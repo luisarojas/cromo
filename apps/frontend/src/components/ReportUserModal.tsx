@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { submitReport } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { submitReport, fetchTradeMessages, type TradeMessage } from '@/lib/api';
 
 const CATEGORIES = [
   { value: 'harassment',           label: 'Harassment' },
@@ -14,6 +14,10 @@ const CATEGORIES = [
   { value: 'other',                label: 'Other' },
 ];
 
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 interface Props {
   userId: string;
   username: string;
@@ -22,12 +26,85 @@ interface Props {
   onClose: () => void;
 }
 
+interface AttachmentDraft {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
 export default function ReportUserModal({ userId, username, tradeId, token, onClose }: Props) {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
+  const [messages, setMessages] = useState<TradeMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
+  const [attachments, setAttachments] = useState<AttachmentDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!tradeId) return;
+    let cancelled = false;
+    setMessagesLoading(true);
+    fetchTradeMessages(tradeId, { limit: 200 }, token)
+      .then((res) => { if (!cancelled) setMessages(res.items); })
+      .catch(() => { /* picker just stays empty; not fatal */ })
+      .finally(() => { if (!cancelled) setMessagesLoading(false); });
+    return () => { cancelled = true; };
+  }, [tradeId, token]);
+
+  // Object URLs for image previews — revoke on unmount or when the draft is removed.
+  useEffect(() => {
+    return () => {
+      for (const a of attachments) URL.revokeObjectURL(a.previewUrl);
+    };
+  }, [attachments]);
+
+  function toggleMessage(id: string) {
+    setSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleFiles(list: FileList | null) {
+    if (!list) return;
+    setError(null);
+    const incoming = Array.from(list);
+    const accepted: AttachmentDraft[] = [];
+    for (const file of incoming) {
+      if (attachments.length + accepted.length >= MAX_ATTACHMENTS) {
+        setError(`Up to ${MAX_ATTACHMENTS} attachments allowed.`);
+        break;
+      }
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        setError('Only JPEG, PNG, and WebP images are accepted.');
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setError(`Each attachment must be ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB or smaller.`);
+        continue;
+      }
+      accepted.push({
+        id: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    }
+    if (accepted.length > 0) setAttachments((prev) => [...prev, ...accepted]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +121,17 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
 
     setSubmitting(true);
     try {
-      await submitReport(userId, { category, description, tradeId }, token);
+      await submitReport(
+        userId,
+        {
+          category,
+          description,
+          tradeId,
+          messageIds: selectedMessageIds.size > 0 ? Array.from(selectedMessageIds) : undefined,
+          attachments: attachments.map((a) => a.file),
+        },
+        token,
+      );
       setSuccess(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to submit report';
@@ -60,7 +147,7 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg">
         <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-5 py-4">
           <h2 className="text-base font-semibold text-[var(--cromo-fg)]">Report @{username}</h2>
           <button
@@ -118,6 +205,94 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
                 placeholder="Describe the issue in detail…"
                 className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] resize-none"
               />
+            </div>
+
+            {tradeId && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">
+                  Cite chat messages
+                  <span className="ml-1 font-normal text-[var(--cromo-fg-subtle)]">
+                    ({selectedMessageIds.size} selected)
+                  </span>
+                </label>
+                {messagesLoading ? (
+                  <div className="rounded-md border border-[var(--cromo-border-strong)] p-3 text-xs text-[var(--cromo-fg-subtle)]">Loading messages…</div>
+                ) : messages.length === 0 ? (
+                  <div className="rounded-md border border-[var(--cromo-border-strong)] p-3 text-xs text-[var(--cromo-fg-subtle)]">No messages on this trade yet.</div>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-[var(--cromo-border-strong)] divide-y divide-[var(--cromo-border)]">
+                    {messages.map((m) => {
+                      const selected = selectedMessageIds.has(m.id);
+                      return (
+                        <button
+                          type="button"
+                          key={m.id}
+                          onClick={() => toggleMessage(m.id)}
+                          className={`flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs transition-colors ${selected ? 'bg-[var(--cromo-accent-soft)]' : 'hover:bg-[var(--cromo-surface-2)]'}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            readOnly
+                            className="mt-0.5"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[var(--cromo-fg-muted)]">
+                              <span className="font-medium text-[var(--cromo-fg)]">
+                                {m.isSystem ? 'System' : (m.senderUsername ? `@${m.senderUsername}` : 'Unknown')}
+                              </span>
+                              <span className="ml-2 text-[var(--cromo-fg-subtle)]">
+                                {new Date(m.sentAt).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="truncate text-[var(--cromo-fg)]">{m.body}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">
+                Attach images
+                <span className="ml-1 font-normal text-[var(--cromo-fg-subtle)]">
+                  ({attachments.length}/{MAX_ATTACHMENTS}, max 5 MB each)
+                </span>
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                multiple
+                onChange={(e) => handleFiles(e.target.files)}
+                disabled={attachments.length >= MAX_ATTACHMENTS}
+                className="block w-full text-xs text-[var(--cromo-fg-muted)] file:mr-3 file:rounded-md file:border-0 file:bg-[var(--cromo-surface-2)] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-[var(--cromo-fg)] hover:file:bg-[var(--cromo-surface-2)] disabled:opacity-50"
+              />
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {attachments.map((a) => (
+                    <div key={a.id} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={a.previewUrl}
+                        alt={a.file.name}
+                        className="h-16 w-16 rounded-md border border-[var(--cromo-border)] object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(a.id)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] text-xs shadow"
+                        aria-label="Remove attachment"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && (

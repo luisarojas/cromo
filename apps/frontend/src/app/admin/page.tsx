@@ -11,6 +11,8 @@ import {
   unbanAdminUser,
   deleteAdminUser,
   fetchAdminReports,
+  fetchAdminReport,
+  fetchAdminReportAttachmentBlob,
   patchAdminReport,
   createAdminBan,
   liftAdminBan,
@@ -19,6 +21,8 @@ import {
   type Sticker,
   type AdminUser,
   type AdminReport,
+  type AdminReportDetail,
+  type AdminReportAttachment,
   type AdminBan,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -767,6 +771,201 @@ function BanModal({
   );
 }
 
+function AttachmentThumb({ attachment, token }: { attachment: AdminReportAttachment; token: string }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let urlToRevoke: string | null = null;
+    fetchAdminReportAttachmentBlob(attachment.url, token)
+      .then((blob) => {
+        if (cancelled) return;
+        urlToRevoke = URL.createObjectURL(blob);
+        setObjectUrl(urlToRevoke);
+      })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => {
+      cancelled = true;
+      if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
+    };
+  }, [attachment.url, token]);
+
+  if (error) {
+    return <div className="flex h-24 w-24 items-center justify-center rounded-md border border-[var(--cromo-border-strong)] text-xs text-[var(--cromo-fg-subtle)]">Unavailable</div>;
+  }
+  if (!objectUrl) {
+    return <div className="h-24 w-24 animate-pulse rounded-md bg-[var(--cromo-surface-2)]" />;
+  }
+  return (
+    <a href={objectUrl} target="_blank" rel="noreferrer" className="block">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={objectUrl}
+        alt="Report attachment"
+        className="h-24 w-24 rounded-md border border-[var(--cromo-border)] object-cover hover:opacity-90"
+      />
+    </a>
+  );
+}
+
+function ReportDetailPanel({ reportId, token }: { reportId: string; token: string }) {
+  const [detail, setDetail] = useState<AdminReportDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDetail(null);
+    setError(null);
+    fetchAdminReport(reportId, token)
+      .then((d) => { if (!cancelled) setDetail(d); })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load report details');
+      });
+    return () => { cancelled = true; };
+  }, [reportId, token]);
+
+  if (error) {
+    return <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-xs text-[var(--cromo-danger-text)]">{error}</div>;
+  }
+  if (!detail) {
+    return <div className="text-xs text-[var(--cromo-fg-subtle)]">Loading details…</div>;
+  }
+
+  const trust = detail.reportedUserTrustScore;
+
+  return (
+    <div className="space-y-4">
+      {/* Trust score + linked trade */}
+      <div className="grid gap-2 md:grid-cols-2">
+        <div className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">Reported user trust</div>
+          <div className="mt-1 text-sm text-[var(--cromo-fg)]">
+            <span className="font-medium">{trust.tier.replace('_', ' ')}</span>
+            <span className="ml-2 text-[var(--cromo-fg-muted)]">
+              {trust.totalRatings} rating{trust.totalRatings === 1 ? '' : 's'}
+              {trust.totalRatings > 0 ? ` · ${trust.positivePercent}% positive` : ''}
+            </span>
+          </div>
+        </div>
+        {detail.linkedTrade && (
+          <div className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">Linked trade</div>
+            <div className="mt-1 text-sm text-[var(--cromo-fg)]">
+              @{detail.linkedTrade.requesterUsername} ↔ @{detail.linkedTrade.recipientUsername}
+              <span className="ml-2 rounded-full bg-[var(--cromo-surface-2)] px-2 py-0.5 text-xs text-[var(--cromo-fg-muted)]">
+                {detail.linkedTrade.status}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Description */}
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">Reporter description</div>
+        <p className="mt-1 text-sm text-[var(--cromo-fg)] whitespace-pre-wrap">{detail.description}</p>
+      </div>
+
+      {/* Cited messages */}
+      {detail.messageRefs.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
+            Cited messages ({detail.messageRefs.length})
+          </div>
+          <div className="mt-1 space-y-1.5 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-3">
+            {detail.messageRefs.map((m) => (
+              <div key={m.id} className="text-xs">
+                <div className="text-[var(--cromo-fg-muted)]">
+                  <span className="font-medium text-[var(--cromo-fg)]">
+                    {m.isSystem ? 'System' : (m.senderUsername ? `@${m.senderUsername}` : 'Unknown')}
+                  </span>
+                  <span className="ml-2 text-[var(--cromo-fg-subtle)]">
+                    {new Date(m.sentAt).toLocaleString()}
+                  </span>
+                </div>
+                <div className="mt-0.5 whitespace-pre-wrap text-[var(--cromo-fg)]">{m.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Attachments */}
+      {detail.attachments.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
+            Attachments ({detail.attachments.length})
+          </div>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {detail.attachments.map((a) => (
+              <AttachmentThumb key={a.id} attachment={a} token={token} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Prior reports */}
+      {detail.priorReports.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
+            Prior reports against this user ({detail.priorReports.length})
+          </div>
+          <div className="mt-1 overflow-hidden rounded-md border border-[var(--cromo-border)]">
+            <table className="min-w-full text-xs">
+              <thead className="bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">
+                <tr>
+                  <th className="px-2 py-1 text-left font-medium">Category</th>
+                  <th className="px-2 py-1 text-left font-medium">Reporter</th>
+                  <th className="px-2 py-1 text-left font-medium">Status</th>
+                  <th className="px-2 py-1 text-left font-medium">When</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--cromo-border)] bg-[var(--cromo-surface)]">
+                {detail.priorReports.map((p) => (
+                  <tr key={p.id}>
+                    <td className="px-2 py-1 text-[var(--cromo-fg)]">{REPORT_CATEGORY_LABELS[p.category] ?? p.category}</td>
+                    <td className="px-2 py-1 text-[var(--cromo-fg)]">@{p.reporterUsername}</td>
+                    <td className="px-2 py-1 text-[var(--cromo-fg-muted)]">{REPORT_STATUS_LABELS[p.status] ?? p.status}</td>
+                    <td className="px-2 py-1 text-[var(--cromo-fg-subtle)]">{new Date(p.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Ban history */}
+      {detail.reportedUserBanHistory.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
+            Ban history ({detail.reportedUserBanHistory.length})
+          </div>
+          <ul className="mt-1 space-y-1 text-xs">
+            {detail.reportedUserBanHistory.map((b) => {
+              const active = b.liftedAt === null && (b.expiresAt === null || new Date(b.expiresAt) > new Date());
+              return (
+                <li key={b.id} className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1.5">
+                  <span className={`mr-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${b.banType === 'hard' ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]' : 'bg-[var(--cromo-warning-soft)] text-yellow-800'}`}>
+                    {b.banType}
+                  </span>
+                  <span className="text-[var(--cromo-fg)]">{b.reason}</span>
+                  <span className="ml-2 text-[var(--cromo-fg-subtle)]">
+                    {new Date(b.createdAt).toLocaleDateString()}
+                    {active ? ' · active' : (b.liftedAt ? ' · lifted' : ' · expired')}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportsQueue({ token }: { token: string }) {
   const [statusFilter, setStatusFilter] = useState('open');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -888,8 +1087,8 @@ function ReportsQueue({ token }: { token: string }) {
                   {expandedId === report.id && (
                     <tr className="bg-transparent">
                       <td colSpan={6} className="px-4 py-4">
-                        <div className="space-y-3">
-                          <p className="text-sm text-[var(--cromo-fg)] whitespace-pre-wrap">{report.description}</p>
+                        <div className="space-y-4">
+                          <ReportDetailPanel reportId={report.id} token={token} />
                           <div className="flex flex-wrap gap-2">
                             {report.status !== 'under_review' && (
                               <button

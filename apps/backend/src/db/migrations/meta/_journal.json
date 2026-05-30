@@ -15,6 +15,13 @@
       "when": 1780108418430,
       "tag": "0001_normal_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780109377642,
+      "tag": "0002_quick_hiroim",
+      "breakpoints": true
     }
   ]
 }

@@ -1315,6 +1315,65 @@ export interface AdminReportsPage {
   nextCursor: string | null;
 }
 
+export interface AdminReportPriorReport {
+  id: string;
+  category: string;
+  status: string;
+  reporterUsername: string;
+  createdAt: string;
+}
+
+export interface AdminReportMessageRef {
+  id: string;
+  messageId: string;
+  body: string;
+  isSystem: boolean;
+  sentAt: string;
+  senderId: string | null;
+  senderUsername: string | null;
+}
+
+export interface AdminReportAttachment {
+  id: string;
+  mimeType: string;
+  byteSize: number;
+  width: number;
+  height: number;
+  uploadedAt: string;
+  url: string;
+}
+
+export interface AdminReportBanHistoryEntry {
+  id: string;
+  banType: string;
+  reason: string;
+  expiresAt: string | null;
+  liftedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminReportLinkedTrade {
+  id: string;
+  status: string;
+  requesterUsername: string;
+  recipientUsername: string;
+  createdAt: string;
+}
+
+export interface AdminReportDetail extends AdminReport {
+  resolutionNote: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  reporterDisplayName: string | null;
+  reportedDisplayName: string | null;
+  reportedUserTrustScore: TrustScore;
+  reportedUserBanHistory: AdminReportBanHistoryEntry[];
+  priorReports: AdminReportPriorReport[];
+  linkedTrade: AdminReportLinkedTrade | null;
+  messageRefs: AdminReportMessageRef[];
+  attachments: AdminReportAttachment[];
+}
+
 export interface AdminBan {
   id: string;
   banType: string;
@@ -1371,14 +1430,37 @@ export async function fetchUserRatings(
 
 export async function submitReport(
   userId: string,
-  body: { category: string; description: string; tradeId?: string },
+  body: {
+    category: string;
+    description: string;
+    tradeId?: string;
+    messageIds?: string[];
+    attachments?: File[];
+  },
   token: string,
 ): Promise<{ id: string }> {
-  return apiFetch<{ id: string }>(
-    `/api/v1/users/${userId}/reports`,
-    { method: 'POST', body: JSON.stringify(body) },
-    token,
-  );
+  const form = new FormData();
+  form.append('category', body.category);
+  form.append('description', body.description);
+  if (body.tradeId) form.append('tradeId', body.tradeId);
+  if (body.messageIds && body.messageIds.length > 0) {
+    form.append('messageIds', JSON.stringify(body.messageIds));
+  }
+  for (const f of body.attachments ?? []) form.append('attachments', f);
+
+  // Bypass apiFetch because FormData must NOT carry an explicit Content-Type
+  // (the browser injects the multipart boundary). Direct fetch keeps the
+  // boundary intact.
+  const res = await fetch(`${BASE_URL}/api/v1/users/${userId}/reports`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json();
 }
 
 export async function fetchAdminReports(
@@ -1387,6 +1469,24 @@ export async function fetchAdminReports(
 ): Promise<AdminReportsPage> {
   const qs = toQueryString(params as Record<string, string | number | undefined>);
   return apiFetch<AdminReportsPage>(`/api/v1/admin/reports${qs}`, {}, token);
+}
+
+export async function fetchAdminReport(
+  reportId: string,
+  token: string,
+): Promise<AdminReportDetail> {
+  return apiFetch<AdminReportDetail>(`/api/v1/admin/reports/${reportId}`, {}, token);
+}
+
+export async function fetchAdminReportAttachmentBlob(
+  url: string,
+  token: string,
+): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}${url}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Attachment fetch failed: ${res.status}`);
+  return res.blob();
 }
 
 export async function patchAdminReport(

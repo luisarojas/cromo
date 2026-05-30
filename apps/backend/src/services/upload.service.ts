@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -7,6 +8,8 @@ import { statusError } from '../utils/errors.js';
 import { env } from '../env.js';
 
 const LOCAL_AVATARS_DIR = '/app/uploads/avatars';
+const LOCAL_REPORTS_DIR = '/app/uploads/reports';
+const REPORT_ATTACHMENT_MAX_PIXELS = 2048;
 
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -84,4 +87,83 @@ export async function saveAvatar(buffer: Buffer, userId: string): Promise<string
   const outputPath = path.join(LOCAL_AVATARS_DIR, `${userId}.jpg`);
   await fs.writeFile(outputPath, normalized);
   return `/avatars/${userId}.jpg`;
+}
+
+export interface SavedReportAttachment {
+  storageKey: string;
+  mimeType: string;
+  byteSize: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * saveReportAttachment — normalises an evidence image (auto-rotate, strip EXIF,
+ * fit within 2048×2048, JPEG q85) and writes it under `reports/<reportId>/<uuid>.jpg`.
+ * Returns the storage key and metadata for the report_attachments row. URLs are
+ * resolved on read via the admin streaming endpoint so attachments stay
+ * gated by admin auth instead of being served from a guessable URL.
+ */
+export async function saveReportAttachment(
+  buffer: Buffer,
+  reportId: string,
+): Promise<SavedReportAttachment> {
+  const pipeline = sharp(buffer, { limitInputPixels: 50_000_000 })
+    .rotate()
+    .resize(REPORT_ATTACHMENT_MAX_PIXELS, REPORT_ATTACHMENT_MAX_PIXELS, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .withMetadata({});
+
+  const { data: normalized, info } = await pipeline.toBuffer({ resolveWithObject: true });
+
+  const fileId = crypto.randomUUID();
+  const key = `reports/${reportId}/${fileId}.jpg`;
+  const byteSize = normalized.byteLength;
+  const mimeType = 'image/jpeg';
+
+  if (env.UPLOADS_DRIVER === 's3') {
+    if (!env.UPLOADS_BUCKET) {
+      throw new Error('UPLOADS_DRIVER=s3 but UPLOADS_BUCKET is not set');
+    }
+    await getS3Client().send(new PutObjectCommand({
+      Bucket: env.UPLOADS_BUCKET,
+      Key: key,
+      Body: normalized,
+      ContentType: mimeType,
+      CacheControl: 'private, max-age=60',
+    }));
+  } else {
+    const dir = path.join(LOCAL_REPORTS_DIR, reportId);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, `${fileId}.jpg`), normalized);
+  }
+
+  return { storageKey: key, mimeType, byteSize, width: info.width, height: info.height };
+}
+
+/**
+ * readReportAttachment — reads the raw bytes of a stored attachment so an
+ * admin-gated route can stream them back to the client. Pulls from S3 in cloud
+ * mode and from the bind-mounted volume in local dev.
+ */
+export async function readReportAttachment(storageKey: string): Promise<Buffer> {
+  if (env.UPLOADS_DRIVER === 's3') {
+    if (!env.UPLOADS_BUCKET) {
+      throw new Error('UPLOADS_DRIVER=s3 but UPLOADS_BUCKET is not set');
+    }
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const result = await getS3Client().send(new GetObjectCommand({
+      Bucket: env.UPLOADS_BUCKET,
+      Key: storageKey,
+    }));
+    const body = result.Body;
+    if (!body || typeof (body as { transformToByteArray?: unknown }).transformToByteArray !== 'function') {
+      throw statusError('Attachment unavailable.', 404);
+    }
+    const bytes = await (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+    return Buffer.from(bytes);
+  }
+  // Local driver: storage_key is `reports/<reportId>/<uuid>.jpg` rooted at /app/uploads.
+  const fullPath = path.join('/app/uploads', storageKey);
+  return fs.readFile(fullPath);
 }

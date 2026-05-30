@@ -38,6 +38,8 @@ export type AuditMetadataMap = {
     reportId: string;
     reportedUserId: string;
     category: string;
+    attachmentCount: number;
+    messageRefCount: number;
   };
   report_status_changed: {
     reportId: string;

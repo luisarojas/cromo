@@ -553,6 +553,35 @@ export const userReports = pgTable('user_reports', {
   reportedStatusIdx: index('idx_user_reports_reported_user_id_status').on(table.reportedUserId, table.status),
 }));
 
+// ─── report_message_refs ─────────────────────────────────────────────────────
+// Chat messages from the linked trade that the reporter cited as evidence.
+
+export const reportMessageRefs = pgTable('report_message_refs', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  reportId: uuid('report_id').notNull().references(() => userReports.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  messageId: uuid('message_id').notNull().references(() => tradeMessages.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  reportMessageUnique: unique('report_message_refs_report_id_message_id_key').on(table.reportId, table.messageId),
+  reportIdx: index('idx_report_message_refs_report_id').on(table.reportId),
+}));
+
+// ─── report_attachments ───────────────────────────────────────────────────────
+// Image evidence uploaded with a report. Admin-only visibility.
+
+export const reportAttachments = pgTable('report_attachments', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  reportId: uuid('report_id').notNull().references(() => userReports.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  storageKey: text('storage_key').notNull(),
+  mimeType: text('mime_type').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  reportIdx: index('idx_report_attachments_report_id').on(table.reportId),
+}));
+
 // ─── user_bans ────────────────────────────────────────────────────────────────
 
 export const userBans = pgTable('user_bans', {
@@ -604,6 +633,8 @@ export type NewUserWantedVariant = typeof userWantedVariants.$inferInsert;
 export type TradeRequest = typeof tradeRequests.$inferSelect;
 export type TradeItem = typeof tradeItems.$inferSelect;
 export type TradeMessage = typeof tradeMessages.$inferSelect;
+export type ReportMessageRef = typeof reportMessageRefs.$inferSelect;
+export type ReportAttachment = typeof reportAttachments.$inferSelect;
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 export type AuditLogEntry = typeof auditLog.$inferSelect;

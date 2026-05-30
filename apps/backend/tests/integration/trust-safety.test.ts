@@ -54,6 +54,26 @@ const TRADE_A = '00000000-0000-0000-0002-000000000001'; // Alice → Bob, pendin
 const RATING_URL = (tradeId: string) => `/api/v1/trade/requests/${tradeId}/ratings`;
 const REPORT_URL = (userId: string) => `/api/v1/users/${userId}/reports`;
 
+/**
+ * Builds a minimal multipart/form-data body for the report-submission endpoint
+ * — Fastify's app.inject doesn't serialize multipart for us, so we hand-roll
+ * the wire format for the simple text-field-only case the tests need.
+ */
+function multipartReport(fields: Record<string, string>): { payload: string; headers: Record<string, string> } {
+  const boundary = `----testboundary${Math.random().toString(36).slice(2)}`;
+  const parts: string[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    parts.push(`--${boundary}\r\n`);
+    parts.push(`Content-Disposition: form-data; name="${name}"\r\n\r\n`);
+    parts.push(`${value}\r\n`);
+  }
+  parts.push(`--${boundary}--\r\n`);
+  return {
+    payload: parts.join(''),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  };
+}
+
 describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
   let app: FastifyInstance;
   let aliceToken: string;
@@ -176,14 +196,15 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
   describe('POST report — duplicate prevention', () => {
     it('rejects a duplicate open report (same reporter, same reported user, same category)', async () => {
       // Diana already has an open spam report against Charlie (seeded)
+      const mp = multipartReport({
+        category: 'spam',
+        description: 'This is another spam report, duplicate of the seeded one.',
+      });
       const res = await app.inject({
         method: 'POST',
         url: REPORT_URL(CHARLIE_ID),
-        headers: { Authorization: `Bearer ${dianaToken}` },
-        payload: {
-          category: 'spam',
-          description: 'This is another spam report, duplicate of the seeded one.',
-        },
+        headers: { Authorization: `Bearer ${dianaToken}`, ...mp.headers },
+        payload: mp.payload,
       });
 
       expect(res.statusCode).toBe(409);
@@ -191,14 +212,15 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
     });
 
     it('allows a new report with a different category', async () => {
+      const mp = multipartReport({
+        category: 'harassment',
+        description: 'Sent hostile messages in the trade request thread.',
+      });
       const res = await app.inject({
         method: 'POST',
         url: REPORT_URL(CHARLIE_ID),
-        headers: { Authorization: `Bearer ${dianaToken}` },
-        payload: {
-          category: 'harassment',
-          description: 'Sent hostile messages in the trade request thread.',
-        },
+        headers: { Authorization: `Bearer ${dianaToken}`, ...mp.headers },
+        payload: mp.payload,
       });
 
       // Should be 201 (a different category is not a duplicate)
@@ -213,14 +235,15 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
     });
 
     it('rejects self-reporting', async () => {
+      const mp = multipartReport({
+        category: 'spam',
+        description: 'I am reporting myself — should not be allowed.',
+      });
       const res = await app.inject({
         method: 'POST',
         url: REPORT_URL(ALICE_ID),
-        headers: { Authorization: `Bearer ${aliceToken}` },
-        payload: {
-          category: 'spam',
-          description: 'I am reporting myself — should not be allowed.',
-        },
+        headers: { Authorization: `Bearer ${aliceToken}`, ...mp.headers },
+        payload: mp.payload,
       });
 
       expect(res.statusCode).toBe(400);
@@ -255,11 +278,15 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
         [ALICE_ID, 'no_show'],
         [BOB_ID, 'cancelled_after_accept'],
       ] as [string, string][]) {
+        const mp = multipartReport({ category, description: 'Auto-flag threshold test report.' });
         await app.inject({
           method: 'POST',
           url: REPORT_URL(EVAN_ID),
-          headers: { Authorization: `Bearer ${reporterId === ALICE_ID ? aliceToken : bobToken}` },
-          payload: { category, description: 'Auto-flag threshold test report.' },
+          headers: {
+            Authorization: `Bearer ${reporterId === ALICE_ID ? aliceToken : bobToken}`,
+            ...mp.headers,
+          },
+          payload: mp.payload,
         });
       }
 
@@ -271,11 +298,12 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
     });
 
     it('issues a 48h soft ban when a 3rd report is filed', async () => {
+      const mp = multipartReport({ category: 'spam', description: 'Third report — should trigger auto-flag.' });
       await app.inject({
         method: 'POST',
         url: REPORT_URL(EVAN_ID),
-        headers: { Authorization: `Bearer ${charlieToken}` },
-        payload: { category: 'spam', description: 'Third report — should trigger auto-flag.' },
+        headers: { Authorization: `Bearer ${charlieToken}`, ...mp.headers },
+        payload: mp.payload,
       });
 
       const { rows } = await app.db.query<{

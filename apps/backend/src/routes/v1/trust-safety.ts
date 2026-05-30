@@ -8,6 +8,22 @@ import {
 } from '../../services/trust-safety.service.js';
 import { recordAudit } from '../../utils/audit.js';
 import { safeCacheGet, safeCacheSet } from '../../services/cache.js';
+import {
+  validateImageBuffer,
+  saveReportAttachment,
+  readReportAttachment,
+} from '../../services/upload.service.js';
+
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+async function requireAdmin(req: FastifyRequest, rep: FastifyReply): Promise<boolean> {
+  if (req.userRole !== 'admin') {
+    rep.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Admin only.' });
+    return false;
+  }
+  return true;
+}
 
 const FEATURE_KEY = 'FEATURE_TRUST_SAFETY';
 
@@ -228,36 +244,117 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
       if (!await guardFeature(fastify, reply)) return;
 
       const { id: reportedUserId } = request.params as { id: string };
-      const { category, description, tradeId } = request.body as {
-        category: string;
-        description: string;
-        tradeId?: string;
-      };
-
       const reporterId = request.userId!;
 
-      const validCategories = ['harassment','cancelled_after_accept','no_show','fake_stickers','damaged_stickers','spam','underage','other'];
-      if (!validCategories.includes(category)) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Invalid category.' });
+      if (reporterId === reportedUserId) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'You cannot report yourself.' });
       }
 
+      // Multipart parsing — collect text fields and up to MAX_ATTACHMENTS image
+      // buffers. Anything beyond the limit is rejected before any DB writes.
+      let category: string | undefined;
+      let description: string | undefined;
+      let tradeId: string | undefined;
+      let messageIdsRaw: string | undefined;
+      const fileBuffers: Buffer[] = [];
+
+      if (!request.isMultipart()) {
+        return reply.status(415).send({ statusCode: 415, error: 'Unsupported Media Type', message: 'Submit reports as multipart/form-data.' });
+      }
+
+      try {
+        for await (const part of request.parts()) {
+          if (part.type === 'field') {
+            const value = typeof part.value === 'string' ? part.value : '';
+            switch (part.fieldname) {
+              case 'category':    category = value; break;
+              case 'description': description = value; break;
+              case 'tradeId':     tradeId = value || undefined; break;
+              case 'messageIds':  messageIdsRaw = value || undefined; break;
+            }
+          } else {
+            if (fileBuffers.length >= MAX_ATTACHMENTS) {
+              // Drain the rest of the stream so the connection closes cleanly
+              // before we reject — otherwise the client may see ECONNRESET.
+              part.file.resume();
+              return reply.status(400).send({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: `Up to ${MAX_ATTACHMENTS} attachments allowed.`,
+              });
+            }
+            const chunks: Buffer[] = [];
+            let total = 0;
+            let oversize = false;
+            for await (const chunk of part.file) {
+              total += chunk.length;
+              if (total > MAX_ATTACHMENT_BYTES) {
+                oversize = true;
+                break;
+              }
+              chunks.push(chunk);
+            }
+            if (oversize) {
+              return reply.status(400).send({
+                statusCode: 400,
+                error: 'Bad Request',
+                message: `Each attachment must be ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB or smaller.`,
+              });
+            }
+            fileBuffers.push(Buffer.concat(chunks));
+          }
+        }
+      } catch (err) {
+        request.log.error({ err }, 'report submission: multipart parse failed');
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Failed to parse upload.' });
+      }
+
+      const validCategories = ['harassment','cancelled_after_accept','no_show','fake_stickers','damaged_stickers','spam','underage','other'];
+      if (!category || !validCategories.includes(category)) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Invalid category.' });
+      }
       if (!description || description.length < 10 || description.length > 2000) {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Description must be between 10 and 2000 characters.' });
       }
 
-      if (reporterId === reportedUserId) {
-        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'You cannot report yourself.' });
+      let messageIds: string[] = [];
+      if (messageIdsRaw) {
+        try {
+          const parsed = JSON.parse(messageIdsRaw);
+          if (!Array.isArray(parsed) || !parsed.every((m) => typeof m === 'string')) {
+            throw new Error('messageIds must be a JSON array of strings');
+          }
+          messageIds = Array.from(new Set(parsed));
+        } catch {
+          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'messageIds must be a JSON array of strings.' });
+        }
+      }
+
+      if (messageIds.length > 0 && !tradeId) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'messageIds require a tradeId.' });
+      }
+
+      // Validate every attachment buffer's magic bytes before touching the DB.
+      for (const buf of fileBuffers) {
+        try {
+          await validateImageBuffer(buf);
+        } catch (err) {
+          const e = err as { statusCode?: number; message?: string };
+          return reply.status(e.statusCode ?? 400).send({
+            statusCode: e.statusCode ?? 400,
+            error: e.statusCode === 415 ? 'Unsupported Media Type' : 'Bad Request',
+            message: e.message ?? 'Unsupported attachment.',
+          });
+        }
       }
 
       const { rows: userRows } = await fastify.db.query<{ email_verified_at: string | null }>(
         `SELECT email_verified_at FROM users WHERE id = $1 AND deleted_at IS NULL`,
         [reporterId],
       );
-
       if (userRows.length === 0) {
         return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: 'User not found.' });
       }
-
       if (!userRows[0]!.email_verified_at) {
         return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Email verification required to submit reports.' });
       }
@@ -266,9 +363,41 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
         `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
         [reportedUserId],
       );
-
       if (targetRows.length === 0) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+      }
+
+      // When a tradeId is provided, confirm the reporter was a party to that
+      // trade — otherwise message references are out of context.
+      if (tradeId) {
+        const { rows: tradeRows } = await fastify.db.query<{
+          requester_id: string;
+          recipient_id: string;
+        }>(
+          `SELECT requester_id, recipient_id FROM trade_requests WHERE id = $1`,
+          [tradeId],
+        );
+        if (tradeRows.length === 0) {
+          return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Trade not found.' });
+        }
+        const t = tradeRows[0]!;
+        if (t.requester_id !== reporterId && t.recipient_id !== reporterId) {
+          return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You were not a party to that trade.' });
+        }
+      }
+
+      // Every cited message must belong to the linked trade. We don't require
+      // it to have been sent by the reported user — a reporter may want to cite
+      // their own messages too (e.g. "I asked them to stop"). The trade scope
+      // is the only access check.
+      if (messageIds.length > 0) {
+        const { rows: msgRows } = await fastify.db.query<{ id: string }>(
+          `SELECT id FROM trade_messages WHERE id = ANY($1::uuid[]) AND trade_id = $2`,
+          [messageIds, tradeId],
+        );
+        if (msgRows.length !== messageIds.length) {
+          return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'One or more messageIds do not belong to the linked trade.' });
+        }
       }
 
       const { rows: dupRows } = await fastify.db.query<{ id: string }>(
@@ -279,7 +408,6 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
            AND status IN ('open', 'under_review')`,
         [reporterId, reportedUserId, category],
       );
-
       if (dupRows.length > 0) {
         return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'You already have an open report for this user with the same category.' });
       }
@@ -293,15 +421,39 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
         [reporterId, reportedUserId, tradeId ?? null, category, description, initialStatus],
       );
 
+      const reportId = rows[0]!.id;
+
+      if (messageIds.length > 0) {
+        await fastify.db.query(
+          `INSERT INTO report_message_refs (report_id, message_id)
+           SELECT $1, unnest($2::uuid[])`,
+          [reportId, messageIds],
+        );
+      }
+
+      // Process attachments after the report row exists so storage keys can be
+      // namespaced by reportId. S3 PUTs aren't transactional — orphaned objects
+      // on a later failure are cheap and can be swept later if needed.
+      for (const buf of fileBuffers) {
+        const saved = await saveReportAttachment(buf, reportId);
+        await fastify.db.query(
+          `INSERT INTO report_attachments (report_id, storage_key, mime_type, byte_size, width, height)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [reportId, saved.storageKey, saved.mimeType, saved.byteSize, saved.width, saved.height],
+        );
+      }
+
       await recordAudit(fastify.db, reporterId, 'user_report_submitted', {
-        reportId: rows[0]!.id,
+        reportId,
         reportedUserId,
         category,
+        attachmentCount: fileBuffers.length,
+        messageRefCount: messageIds.length,
       });
 
       await checkAutoFlag(fastify.db, reportedUserId, fastify.redis);
 
-      return reply.status(201).send({ id: rows[0]!.id });
+      return reply.status(201).send({ id: reportId });
     },
   );
 
@@ -529,13 +681,95 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
         if (tradeRows.length > 0) linkedTrade = tradeRows[0];
       }
 
+      const { rows: messageRefs } = await fastify.db.query<{
+        id: string;
+        message_id: string;
+        body: string;
+        is_system: boolean;
+        sent_at: string;
+        sender_id: string | null;
+        sender_username: string | null;
+      }>(
+        `SELECT
+           rmr.id, rmr.message_id,
+           tm.body, tm.is_system, tm.sent_at,
+           tm.sender_id,
+           u.username AS sender_username
+         FROM report_message_refs rmr
+         JOIN trade_messages tm ON tm.id = rmr.message_id
+         LEFT JOIN users u ON u.id = tm.sender_id
+         WHERE rmr.report_id = $1
+         ORDER BY tm.sent_at ASC`,
+        [reportId],
+      );
+
+      const { rows: attachmentRows } = await fastify.db.query<{
+        id: string;
+        mime_type: string;
+        byte_size: number;
+        width: number;
+        height: number;
+        uploaded_at: string;
+      }>(
+        `SELECT id, mime_type, byte_size, width, height, uploaded_at
+         FROM report_attachments
+         WHERE report_id = $1
+         ORDER BY uploaded_at ASC`,
+        [reportId],
+      );
+
+      const attachments = attachmentRows.map((a) => ({
+        ...a,
+        url: `/api/v1/admin/reports/${reportId}/attachments/${a.id}`,
+      }));
+
       return reply.status(200).send({
         ...report,
         reportedUserTrustScore: trustScore,
         reportedUserBanHistory: banHistory,
         priorReports,
         linkedTrade,
+        messageRefs,
+        attachments,
       });
+    },
+  );
+
+  // ─── GET /api/v1/admin/reports/:reportId/attachments/:attachmentId ───────────
+  // Streams the attachment bytes back to the admin client. Gated by admin role.
+
+  fastify.get(
+    '/api/v1/admin/reports/:reportId/attachments/:attachmentId',
+    { preHandler: [verifyToken, async (req, rep) => { await requireAdmin(req, rep); }] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!await guardFeature(fastify, reply)) return;
+
+      const { reportId, attachmentId } = request.params as { reportId: string; attachmentId: string };
+
+      const { rows } = await fastify.db.query<{
+        storage_key: string;
+        mime_type: string;
+      }>(
+        `SELECT storage_key, mime_type
+         FROM report_attachments
+         WHERE id = $1 AND report_id = $2`,
+        [attachmentId, reportId],
+      );
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Attachment not found.' });
+      }
+
+      try {
+        const bytes = await readReportAttachment(rows[0]!.storage_key);
+        reply
+          .header('content-type', rows[0]!.mime_type)
+          .header('cache-control', 'private, max-age=60');
+        return reply.send(bytes);
+      } catch (err) {
+        request.log.error({ err, attachmentId }, 'failed to read report attachment');
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Attachment unavailable.' });
+      }
     },
   );
 
