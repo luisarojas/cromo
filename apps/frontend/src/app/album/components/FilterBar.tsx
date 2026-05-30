@@ -21,6 +21,8 @@ interface Props {
   teamOptions: { value: string; label: string }[];
   typeOptions: { value: string; label: string }[];
   variantOptions: { value: string; label: string }[];
+  showFavourites?: boolean;
+  showWanted?: boolean;
 }
 
 export default function FilterBar({
@@ -30,6 +32,8 @@ export default function FilterBar({
   teamOptions,
   typeOptions,
   variantOptions,
+  showFavourites = true,
+  showWanted = true,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -156,76 +160,88 @@ export default function FilterBar({
       {/* Expanded filter panel */}
       {expanded && (
         <div className="flex flex-wrap gap-3 items-end pt-3 border-t border-[var(--cromo-border)]">
-          <MultiSelect
-            id="filter-group"
-            label="Group"
-            options={groupOptions}
-            value={filters.group ?? []}
-            onChange={(v) => updateMulti('group', v)}
-            placeholder="All groups"
-          />
+          {groupOptions.length > 0 && (
+            <MultiSelect
+              id="filter-group"
+              label="Group"
+              options={groupOptions}
+              value={filters.group ?? []}
+              onChange={(v) => updateMulti('group', v)}
+              placeholder="All groups"
+            />
+          )}
 
-          <MultiSelect
-            id="filter-team"
-            label="Team"
-            options={teamOptions}
-            value={filters.team ?? []}
-            onChange={(v) => updateMulti('team', v)}
-            placeholder="All teams"
-          />
+          {teamOptions.length > 0 && (
+            <MultiSelect
+              id="filter-team"
+              label="Team"
+              options={teamOptions}
+              value={filters.team ?? []}
+              onChange={(v) => updateMulti('team', v)}
+              placeholder="All teams"
+            />
+          )}
 
-          <MultiSelect
-            id="filter-type"
-            label="Type"
-            options={typeOptions}
-            value={filters.type ?? []}
-            onChange={(v) => updateMulti('type', v)}
-            placeholder="All types"
-          />
+          {typeOptions.length > 0 && (
+            <MultiSelect
+              id="filter-type"
+              label="Type"
+              options={typeOptions}
+              value={filters.type ?? []}
+              onChange={(v) => updateMulti('type', v)}
+              placeholder="All types"
+            />
+          )}
 
-          <MultiSelect
-            id="filter-variant"
-            label="Variant owned"
-            options={variantOptions}
-            value={filters.variant ?? []}
-            onChange={(v) => updateMulti('variant', v)}
-            placeholder="Any variant"
-          />
+          {variantOptions.length > 0 && (
+            <MultiSelect
+              id="filter-variant"
+              label="Variant owned"
+              options={variantOptions}
+              value={filters.variant ?? []}
+              onChange={(v) => updateMulti('variant', v)}
+              placeholder="Any variant"
+            />
+          )}
 
           {/* Favourites toggle */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Favourites</span>
-            <button
-              type="button"
-              onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
-              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                filters.favouritesOnly
-                  ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]'
-                  : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
-              }`}
-            >
-              <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
-              Only
-            </button>
-          </div>
+          {showFavourites && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Favourites</span>
+              <button
+                type="button"
+                onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
+                className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                  filters.favouritesOnly
+                    ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]'
+                    : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
+                }`}
+              >
+                <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
+                Only
+              </button>
+            </div>
+          )}
 
           {/* Wishlist toggle */}
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Wishlist</span>
-            <button
-              type="button"
-              onClick={() => onChange({ ...filters, wantedOnly: filters.wantedOnly ? undefined : true })}
-              className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                filters.wantedOnly
-                  ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
-                  : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
-              }`}
-              aria-pressed={filters.wantedOnly ?? false}
-            >
-              <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
-              Wanted
-            </button>
-          </div>
+          {showWanted && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Wishlist</span>
+              <button
+                type="button"
+                onClick={() => onChange({ ...filters, wantedOnly: filters.wantedOnly ? undefined : true })}
+                className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                  filters.wantedOnly
+                    ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
+                    : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
+                }`}
+                aria-pressed={filters.wantedOnly ?? false}
+              >
+                <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
+                Wanted
+              </button>
+            </div>
+          )}
         </div>
       )}
 

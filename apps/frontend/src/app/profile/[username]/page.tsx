@@ -14,6 +14,7 @@ import {
 import { useAuthStore } from '@/store/auth';
 import ShareProfileButton from '@/components/ShareProfileButton';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import FilterBar, { type FilterState } from '@/app/album/components/FilterBar';
 import TrustBadge from '@/components/TrustBadge';
 import ReportUserModal from '@/components/ReportUserModal';
 
@@ -109,12 +110,14 @@ export default function PublicProfilePage() {
   const [wantedByAlbum, setWantedByAlbum] = useState<Record<string, InventoryState>>({});
   const [offeredByAlbum, setOfferedByAlbum] = useState<Record<string, InventoryState>>({});
 
-  const [search, setSearch] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
-  const [selectedVariants, setSelectedVariants] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<FilterState>({});
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('team');
-  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search?.trim() ?? ''), 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
 
   useEffect(() => {
     if (!username) return;
@@ -177,12 +180,12 @@ export default function PublicProfilePage() {
   // Filters serialised for both tabs (server-side filtering on both now).
   const apiFilters = useMemo(
     () => ({
-      stickerTypes: selectedTypes.size > 0 ? [...selectedTypes] : undefined,
-      teams: selectedTeams.size > 0 ? [...selectedTeams] : undefined,
-      variantTypes: selectedVariants.size > 0 ? [...selectedVariants] : undefined,
-      search: search.trim() || undefined,
+      stickerTypes: filters.type && filters.type.length > 0 ? filters.type : undefined,
+      teams: filters.team && filters.team.length > 0 ? filters.team : undefined,
+      variantTypes: filters.variant && filters.variant.length > 0 ? filters.variant : undefined,
+      search: debouncedSearch || undefined,
     }),
-    [selectedTypes, selectedTeams, selectedVariants, search],
+    [filters.type, filters.team, filters.variant, debouncedSearch],
   );
 
   // ── Generic lazy inventory loader (offered + wanted share this shape) ─────
@@ -289,12 +292,10 @@ export default function PublicProfilePage() {
     }
   }, [activeAlbumId, activeTab, wantedByAlbum, offeredByAlbum, loadWanted, loadOffered, apiFilters]);
 
-  // Reset search and filters when context changes.
+  // Reset filters when album or tab changes.
   useEffect(() => {
-    setSearch('');
-    setSelectedTypes(new Set());
-    setSelectedTeams(new Set());
-    setSelectedVariants(new Set());
+    setFilters({});
+    setDebouncedSearch('');
   }, [activeAlbumId, activeTab]);
 
   // ── Derived item list for the active tab ───────────────────────────────────
@@ -336,8 +337,11 @@ export default function PublicProfilePage() {
     [groupedItems],
   );
 
-  const activeFilterCount =
-    selectedTypes.size + selectedTeams.size + selectedVariants.size;
+  const hasActiveFilter =
+    !!(filters.search) ||
+    !!(filters.team?.length) ||
+    !!(filters.type?.length) ||
+    !!(filters.variant?.length);
 
   function buildListText(): string {
     if (!activeAlbum) return '';
@@ -371,21 +375,6 @@ export default function PublicProfilePage() {
 
     parts.push(profileUrl);
     return parts.join('\n\n');
-  }
-
-  function toggleInSet(setter: typeof setSelectedTypes, value: string) {
-    setter((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
-  }
-
-  function clearAllFilters() {
-    setSelectedTypes(new Set());
-    setSelectedTeams(new Set());
-    setSelectedVariants(new Set());
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -590,37 +579,20 @@ export default function PublicProfilePage() {
             )}
           </div>
 
-          {/* Toolbar: search + filter toggle + group-by */}
+          {/* Toolbar: FilterBar + group-by */}
           <div className="px-4 pt-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by album code or player name..."
-                className="flex-1 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
-              />
-              <button
-                type="button"
-                onClick={() => setFiltersOpen((v) => !v)}
-                aria-expanded={filtersOpen}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                  activeFilterCount > 0
-                    ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-soft)]'
-                    : 'border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]'
-                }`}
-              >
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path d="M3 5a1 1 0 011-1h12a1 1 0 01.8 1.6L12 11.4V16a1 1 0 01-1.45.9l-2-1A1 1 0 018 15v-3.6L3.2 5.6A1 1 0 013 5z" />
-                </svg>
-                Filters
-                {activeFilterCount > 0 && (
-                  <span className="rounded-full bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-[10px] font-bold w-5 h-5 inline-flex items-center justify-center">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-              <label className="inline-flex items-center gap-2 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm">
+            <FilterBar
+              filters={filters}
+              onChange={setFilters}
+              groupOptions={[]}
+              teamOptions={availableTeams.map((t) => ({ value: t, label: t }))}
+              typeOptions={availableTypes.map((t) => ({ value: t, label: prettify(t) }))}
+              variantOptions={activeTab === 'wanted' ? [] : availableVariants.map((v) => ({ value: v, label: variantLabel(v) }))}
+              showFavourites={false}
+              showWanted={false}
+            />
+            <div className="flex items-center justify-between gap-4">
+              <label className="inline-flex items-center gap-2 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-sm">
                 <span className="text-[var(--cromo-fg-muted)]">Group by</span>
                 <select
                   value={effectiveGroupBy}
@@ -633,115 +605,12 @@ export default function PublicProfilePage() {
                   <option value="none">None</option>
                 </select>
               </label>
+              {hasActiveFilter && (
+                <p className="text-xs text-[var(--cromo-fg-muted)]">
+                  Showing {activeItems.length} of {activeTotal}
+                </p>
+              )}
             </div>
-
-            {/* Filter panel */}
-            {filtersOpen && (
-              <div className="rounded-lg border border-[var(--cromo-border)] bg-transparent p-3 space-y-3">
-                {availableTypes.length > 0 && (
-                  <div>
-                    <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
-                      Sticker type
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableTypes.map((type) => {
-                        const active = selectedTypes.has(type);
-                        return (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => toggleInSet(setSelectedTypes, type)}
-                            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                              active
-                                ? stickerTypeColor(type)
-                                : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
-                            }`}
-                          >
-                            {prettify(type)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {availableVariants.length > 0 && activeTab !== 'wanted' && (
-                  <div>
-                    <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
-                      Variant
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableVariants.map((variant) => {
-                        const active = selectedVariants.has(variant);
-                        return (
-                          <button
-                            key={variant}
-                            type="button"
-                            onClick={() => toggleInSet(setSelectedVariants, variant)}
-                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                              active
-                                ? 'bg-[var(--cromo-accent-soft)] border-[var(--cromo-accent)]/40 text-[var(--cromo-accent)]'
-                                : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block w-2.5 h-2.5 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(variant)}`}
-                              aria-hidden
-                            />
-                            {variantLabel(variant)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {availableTeams.length > 0 && (
-                  <div>
-                    <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
-                      Team
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-                      {availableTeams.map((team) => {
-                        const active = selectedTeams.has(team);
-                        return (
-                          <button
-                            key={team}
-                            type="button"
-                            onClick={() => toggleInSet(setSelectedTeams, team)}
-                            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                              active
-                                ? 'bg-[var(--cromo-accent-soft)] border-indigo-300 text-[var(--cromo-accent)]'
-                                : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
-                            }`}
-                          >
-                            {team}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {activeFilterCount > 0 && (
-                  <div className="flex justify-end pt-1">
-                    <button
-                      type="button"
-                      onClick={clearAllFilters}
-                      className="text-xs font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] underline"
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {(search || activeFilterCount > 0) && (
-              <p className="text-xs text-[var(--cromo-fg-muted)]">
-                Showing {activeItems.length} of {activeTotal}
-              </p>
-            )}
           </div>
 
           {/* Items */}
@@ -759,7 +628,7 @@ export default function PublicProfilePage() {
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-sm text-[var(--cromo-fg-muted)]">
-                  {search || activeFilterCount > 0
+                  {hasActiveFilter
                     ? 'No stickers match your filters.'
                     : activeTab === 'offered'
                       ? 'No stickers offered for trade.'
