@@ -172,6 +172,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         [id, resolvedBanType, reason, request.userId],
       );
 
+      if (resolvedBanType === 'hard') {
+        await fastify.db.query(
+          `INSERT INTO banned_emails (hashed_email, created_by)
+           SELECT hashed_email, $2 FROM users WHERE id = $1
+           ON CONFLICT DO NOTHING`,
+          [id, request.userId],
+        );
+      }
+
       await recordAudit(fastify.db, request.userId!, 'user_banned', {
         targetUserId: id,
         banId: rows[0].id,
@@ -210,6 +219,18 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'No active ban found for this user.' });
       }
 
+      const { rows: remainingHardBans } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM user_bans WHERE user_id = $1 AND ban_type = 'hard'
+           AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1`,
+        [id],
+      );
+      if (remainingHardBans.length === 0) {
+        await fastify.db.query(
+          `DELETE FROM banned_emails WHERE hashed_email = (SELECT hashed_email FROM users WHERE id = $1)`,
+          [id],
+        );
+      }
+
       await recordAudit(fastify.db, request.userId!, 'user_unbanned', {
         targetUserId: id,
       });
@@ -220,7 +241,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
   /**
    * DELETE /api/v1/admin/users/:id
-   * Admin only — soft-delete a user account.
+   * Admin only — permanently delete a user account.
    */
   fastify.delete(
     '/api/v1/admin/users/:id',
@@ -232,26 +253,25 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Cannot delete your own account.' });
       }
 
-      const { rows } = await fastify.db.query<{ id: string }>(
-        `UPDATE users SET deleted_at = NOW(), updated_at = NOW()
-         WHERE id = $1 AND deleted_at IS NULL
-         RETURNING id`,
+      const { rows: userRows } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM users WHERE id = $1`,
         [id],
       );
-
-      if (rows.length === 0) {
+      if (userRows.length === 0) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
       }
 
-      // Block authentication immediately during the soft-delete grace window;
-      // the account is hard-deleted from Cognito by the cleanup job later.
       if (env.AUTH_MODE === 'cognito') {
-        await cognitoAdmin.disableUser(id);
+        await cognitoAdmin.deleteUser(id).catch((err) => {
+          fastify.log.warn({ userId: id, err }, 'admin delete: cognito removal failed');
+        });
       }
 
       await recordAudit(fastify.db, request.userId!, 'user_deleted', {
         targetUserId: id,
       });
+
+      await fastify.db.query(`DELETE FROM users WHERE id = $1`, [id]);
 
       return reply.status(204).send();
     },
@@ -301,6 +321,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
          RETURNING id`,
         [id, banType, reason, reportId ?? null, request.userId, expiresAt ?? null],
       );
+
+      if (banType === 'hard') {
+        await fastify.db.query(
+          `INSERT INTO banned_emails (hashed_email, created_by)
+           SELECT hashed_email, $2 FROM users WHERE id = $1
+           ON CONFLICT DO NOTHING`,
+          [id, request.userId],
+        );
+      }
 
       await fastify.redis.del(`user:${id}:ban_status`).catch(() => undefined);
 
@@ -376,6 +405,18 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       if (!rowCount || rowCount === 0) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Active ban not found.' });
+      }
+
+      const { rows: remainingHardBans } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM user_bans WHERE user_id = $1 AND ban_type = 'hard'
+           AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1`,
+        [id],
+      );
+      if (remainingHardBans.length === 0) {
+        await fastify.db.query(
+          `DELETE FROM banned_emails WHERE hashed_email = (SELECT hashed_email FROM users WHERE id = $1)`,
+          [id],
+        );
       }
 
       await fastify.redis.del(`user:${id}:ban_status`).catch(() => undefined);

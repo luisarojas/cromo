@@ -48,12 +48,6 @@ export const JOB_CATALOG: JobDefinition[] = [
     handler: handlers.truncateAuditLogIps,
   },
   {
-    name: 'hard-delete-soft-deleted-users',
-    cron: '30 4 * * *',                 // daily 04:30 UTC
-    flagKey: 'JOB_HARD_DELETE_USERS',
-    handler: handlers.hardDeleteSoftDeletedUsers,
-  },
-  {
     name: 'purge-email-verification-tokens',
     cron: '0 5 * * *',                  // daily 05:00 UTC
     flagKey: 'JOB_PURGE_VERIFICATION_TOKENS',

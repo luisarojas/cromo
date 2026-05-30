@@ -223,15 +223,14 @@ export async function updatePreferences(
 }
 
 export async function deleteAccount(db: Pool, userId: string): Promise<void> {
+  await recordAudit(db, userId, 'account_deleted', null);
+
   const result = await db.query(
-    `UPDATE users SET deleted_at = now(), updated_at = now()
-     WHERE id = $1 AND deleted_at IS NULL`,
+    `DELETE FROM users WHERE id = $1`,
     [userId]
   );
 
   if ((result.rowCount ?? 0) === 0) {
-    throw statusError('User not found or already deleted.', 404);
+    throw statusError('User not found.', 404);
   }
-
-  await recordAudit(db, userId, 'account_deleted', null);
 }

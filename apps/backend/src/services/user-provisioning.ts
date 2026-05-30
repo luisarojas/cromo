@@ -8,6 +8,7 @@ import {
   albumTypes,
   albumEditions,
   albumFormats,
+  bannedEmails,
 } from '../db/schema.js';
 import {
   DEFAULT_ALBUM_TYPE_KEY,
@@ -123,6 +124,15 @@ export async function ensureUser(
 ): Promise<UserDto> {
   const email = params.email.toLowerCase().trim();
   const username = params.username.toLowerCase().trim();
+
+  // Safety net: block new Cognito identities whose email was hard-banned.
+  // Returning users (row already exists) are handled by the existing ban-check
+  // middleware; this only gates first-ever provisioning.
+  const [existingRow] = await db.select({ id: users.id }).from(users).where(eq(users.id, params.id)).limit(1);
+  if (!existingRow) {
+    const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmail(email))).limit(1);
+    if (blocked) throw statusError('This email address is not eligible for registration.', 403);
+  }
 
   const row = await db.transaction(async (tx) => {
     // Insert for users who reach the broker without a row yet (e.g. the

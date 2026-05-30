@@ -3,8 +3,6 @@
 // directly from tests or the one-off CLI runner without node-cron involved.
 
 import type { JobDeps, JobResult } from './types.js';
-import { env } from '../env.js';
-import * as cognitoAdmin from '../services/cognito-admin.js';
 
 // ─── Trade lifecycle ─────────────────────────────────────────────────────────
 
@@ -139,34 +137,6 @@ export async function truncateAuditLogIps({ db, log }: JobDeps): Promise<JobResu
   return { affected: rowCount ?? 0 };
 }
 
-export async function hardDeleteSoftDeletedUsers({ db, log }: JobDeps): Promise<JobResult> {
-  // 14-day grace window from §23.5 of compliance.md.
-  const { rows } = await db.query<{ id: string }>(
-    `SELECT id FROM users
-      WHERE deleted_at IS NOT NULL
-        AND deleted_at < now() - INTERVAL '14 days'`,
-  );
-
-  // Remove the Cognito identities first so a failed DB delete doesn't orphan a
-  // live login. Best-effort per user: a missing Cognito user is fine.
-  if (env.AUTH_MODE === 'cognito') {
-    for (const { id } of rows) {
-      try {
-        await cognitoAdmin.deleteUser(id);
-      } catch (err) {
-        log.warn('hard-delete: cognito user removal failed', { userId: id, err });
-      }
-    }
-  }
-
-  const { rowCount } = await db.query(
-    `DELETE FROM users
-      WHERE deleted_at IS NOT NULL
-        AND deleted_at < now() - INTERVAL '14 days'`,
-  );
-  log.info('hard-delete-soft-deleted-users complete', { affected: rowCount ?? 0 });
-  return { affected: rowCount ?? 0 };
-}
 
 export async function purgeEmailVerificationTokens({ db, log }: JobDeps): Promise<JobResult> {
   const { rowCount } = await db.query(

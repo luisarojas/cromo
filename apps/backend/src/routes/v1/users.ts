@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import * as userService from '../../services/user.service.js';
 import { getBanStatus } from '../../services/trust-safety.service.js';
+import { env } from '../../env.js';
+import * as cognitoAdmin from '../../services/cognito-admin.js';
 
 const CitySchema = z.object({
   label: z.string().min(1).max(200),
@@ -292,7 +294,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       preHandler: [verifyToken],
       schema: {
         tags: ['Users'],
-        summary: 'Delete (deactivate) account',
+        summary: 'Delete account',
         security: [{ bearerAuth: [] }],
         response: {
           204: { type: 'null', description: 'Account deleted' },
@@ -300,6 +302,15 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
+      const banStatus = await getBanStatus(fastify.db, fastify.redis, request.userId!);
+      if (banStatus.banned) {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Banned accounts cannot be self-deleted.' });
+      }
+
+      if (env.AUTH_MODE === 'cognito') {
+        await cognitoAdmin.deleteUser(request.userId!).catch(() => {});
+      }
+
       await userService.deleteAccount(fastify.db, request.userId!);
       return reply.status(204).send();
     }

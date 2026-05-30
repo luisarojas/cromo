@@ -602,6 +602,16 @@ export const userBans = pgTable('user_bans', {
   liftReasonCheck: check('user_bans_lift_reason_check', sql`char_length(${table.liftReason}) <= 500`),
 }));
 
+// ─── banned_emails ────────────────────────────────────────────────────────────
+// Persists blocked email hashes across user-row deletion. No FK to users so
+// entries survive the 14-day hard-delete purge.
+
+export const bannedEmails = pgTable('banned_emails', {
+  hashedEmail: text('hashed_email').primaryKey(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  createdBy: uuid('created_by'),
+});
+
 // ─── Type exports ─────────────────────────────────────────────────────────────
 
 export type User = typeof users.$inferSelect;

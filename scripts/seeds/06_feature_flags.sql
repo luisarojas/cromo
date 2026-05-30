@@ -21,7 +21,6 @@ VALUES
   ('JOB_AUTO_FLAG_SWEEP',           true, 100, 'Hourly: re-evaluates 3-reports-in-30-days auto soft-ban threshold'),
   ('JOB_RATING_REMINDER_EMAIL',     true, 100, 'Daily: queues a reminder 24h after a completed unrated trade'),
   ('JOB_TRUNCATE_AUDIT_LOG_IPS',    true, 100, 'Daily: truncates audit_log IPs older than 90 days (/24 v4, /48 v6)'),
-  ('JOB_HARD_DELETE_USERS',         true, 100, 'Daily: hard-deletes users 14 days after deleted_at'),
   ('JOB_PURGE_VERIFICATION_TOKENS', true, 100, 'Daily: deletes email_verification_tokens 7 days past expiry'),
   ('JOB_PURGE_SHARE_TOKENS',        true, 100, 'Daily: deletes expired public_lists rows'),
   ('JOB_PURGE_PUSH_SUBSCRIPTIONS',  true, 100, 'Daily: deletes push_subscriptions not seen for 90 days'),
