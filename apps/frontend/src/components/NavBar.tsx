@@ -57,16 +57,16 @@ export default function NavBar() {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-4 text-sm font-medium">
-          <NavLink href="/guide">Guide</NavLink>
           {user && (
             <>
               <NavLink href="/dashboard">Dashboard</NavLink>
               <NavLink href="/album">Collection</NavLink>
               {tradeMatchingEnabled && <NavLink href="/trade">Trade</NavLink>}
               <NavLink href="/scan">Scan</NavLink>
-              {user.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
             </>
           )}
+          <NavLink href="/guide">Guide</NavLink>
+          {user?.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
         </div>
 
         {/* Desktop right cluster */}
@@ -147,16 +147,16 @@ export default function NavBar() {
             className="md:hidden absolute left-0 right-0 top-full z-40 bg-[var(--cromo-surface)] border-b border-[var(--cromo-border)] shadow-cromo-lg"
           >
             <div className="px-4 py-4 flex flex-col gap-1">
-              <DrawerLink href="/guide">Guide</DrawerLink>
               {user && (
                 <>
                   <DrawerLink href="/dashboard">Dashboard</DrawerLink>
                   <DrawerLink href="/album">Collection</DrawerLink>
                   {tradeMatchingEnabled && <DrawerLink href="/trade">Trade</DrawerLink>}
                   <DrawerLink href="/scan">Scan</DrawerLink>
-                  {user.role === 'admin' && <DrawerLink href="/admin">Admin</DrawerLink>}
                 </>
               )}
+              <DrawerLink href="/guide">Guide</DrawerLink>
+              {user?.role === 'admin' && <DrawerLink href="/admin">Admin</DrawerLink>}
 
               <div className="my-2 h-px bg-[var(--cromo-border)]" />
 
