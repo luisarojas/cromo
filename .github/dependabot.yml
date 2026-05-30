@@ -1,11 +1,19 @@
 version: 2
 
-# Security updates are intentionally NOT grouped — each advisory opens its
-# own PR so we can merge low-risk bumps (patch/minor) independently from
-# major bumps that need code review.
+# Two flows are in play here, and they behave differently:
 #
-# Non-security version updates are grouped per ecosystem to keep weekly
-# PR volume manageable.
+#   • Security updates  → opened whenever a CVE affects an in-use version.
+#                         Bypass `ignore` and `open-pull-requests-limit`.
+#                         Each advisory gets its own PR (no grouping below
+#                         applies — they all use `applies-to: version-updates`).
+#
+#   • Version updates   → opened on the weekly schedule whenever a newer
+#                         version exists. Major bumps are ignored below to
+#                         keep PR volume sane; minor/patch are batched into
+#                         one prod and one dev PR per ecosystem.
+#
+# Net effect: ~2 routine PRs/week, plus any security PRs (including major
+# bumps that are the only safe fix — those still come through).
 
 updates:
   - package-ecosystem: "npm"
@@ -17,6 +25,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         applies-to: version-updates
@@ -35,3 +46,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
