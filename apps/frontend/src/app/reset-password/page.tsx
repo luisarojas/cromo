@@ -15,12 +15,25 @@ function ResetPasswordContent() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  function validatePassword(value: string) {
+    if (value.length > 0 && value.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+    } else {
+      setPasswordError(null);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+      return;
+    }
     if (password !== confirm) {
       setError('Passwords do not match.');
       return;
@@ -89,12 +102,13 @@ function ResetPasswordContent() {
             />
           </Field>
 
-          <Field label="New password" htmlFor="password">
+          <Field label="New password" htmlFor="password" error={passwordError ?? undefined}>
             <Input
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setPasswordError(null); }}
+              onBlur={(e) => validatePassword(e.target.value)}
               required
               minLength={8}
               autoComplete="new-password"

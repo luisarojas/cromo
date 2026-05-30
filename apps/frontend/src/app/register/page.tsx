@@ -10,14 +10,28 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  function validatePassword(value: string) {
+    if (value.length > 0 && value.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+    } else {
+      setPasswordError(null);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters.');
+      setLoading(false);
+      return;
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
@@ -108,12 +122,13 @@ export default function RegisterPage() {
             />
           </Field>
 
-          <Field label="Password" htmlFor="password">
+          <Field label="Password" htmlFor="password" error={passwordError ?? undefined}>
             <Input
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setPasswordError(null); }}
+              onBlur={(e) => validatePassword(e.target.value)}
               required
               minLength={8}
               maxLength={128}

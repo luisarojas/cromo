@@ -235,12 +235,25 @@ function ChangePasswordSection() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  function validateNewPassword(value: string) {
+    if (value.length > 0 && value.length < 8) {
+      setNewPasswordError('Password must be at least 8 characters.');
+    } else {
+      setNewPasswordError(null);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!token) return;
+    if (newPassword.length < 8) {
+      setNewPasswordError('Password must be at least 8 characters.');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setStatus({ type: 'error', message: 'New passwords do not match.' });
       return;
@@ -286,7 +299,8 @@ function ChangePasswordSection() {
             id="newPassword"
             type="password"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={(e) => { setNewPassword(e.target.value); setNewPasswordError(null); }}
+            onBlur={(e) => validateNewPassword(e.target.value)}
             required
             minLength={8}
             maxLength={128}
@@ -294,7 +308,11 @@ function ChangePasswordSection() {
             className="rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] max-w-xs"
             placeholder="••••••••"
           />
-          <p className="text-xs text-[var(--cromo-fg-subtle)]">Minimum 8 characters.</p>
+          {newPasswordError ? (
+            <p className="text-xs text-[var(--cromo-danger-text)]">{newPasswordError}</p>
+          ) : (
+            <p className="text-xs text-[var(--cromo-fg-subtle)]">Minimum 8 characters.</p>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-[var(--cromo-fg)]" htmlFor="confirmPassword">
