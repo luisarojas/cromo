@@ -465,7 +465,7 @@ export default function PublicProfilePage() {
             )}
             <div className="text-xs text-[var(--cromo-fg-subtle)] mt-1">Member since {memberSince}</div>
             <div className="mt-2">
-              <TrustBadge userId={profile.userId} size="small" />
+              <TrustBadge userId={profile.userId} />
             </div>
           </div>
           <div className="flex flex-col items-end gap-2 shrink-0">
