@@ -503,10 +503,6 @@ export default function PublicProfilePage() {
         </div>
       </div>
 
-      <div className="mb-5">
-        <TrustBadge userId={profile.userId} size="large" />
-      </div>
-
       {!hasAlbums && (
         <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-8 text-center">
           <h2 className="text-base font-semibold text-[var(--cromo-fg)] mb-1">
