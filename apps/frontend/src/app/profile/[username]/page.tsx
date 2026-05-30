@@ -322,9 +322,14 @@ export default function PublicProfilePage() {
   // Server applies all filters for both tabs now — pass-through.
   const filteredItems = activeItems;
 
+  // In the wanted tab, grouping by variant is meaningless (every missing sticker
+  // is wanted in any variant), so fall back to team grouping.
+  const effectiveGroupBy: GroupBy =
+    activeTab === 'wanted' && groupBy === 'variant' ? 'team' : groupBy;
+
   const groupedItems = useMemo(
-    () => groupItems(filteredItems, groupBy),
-    [filteredItems, groupBy],
+    () => groupItems(filteredItems, effectiveGroupBy),
+    [filteredItems, effectiveGroupBy],
   );
   const sortedGroupKeys = useMemo(
     () => sortGroupKeys([...groupedItems.keys()]),
@@ -622,13 +627,13 @@ export default function PublicProfilePage() {
               <label className="inline-flex items-center gap-2 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm">
                 <span className="text-[var(--cromo-fg-muted)]">Group by</span>
                 <select
-                  value={groupBy}
+                  value={effectiveGroupBy}
                   onChange={(e) => setGroupBy(e.target.value as GroupBy)}
                   className="bg-transparent text-[var(--cromo-fg)] font-medium focus:outline-none"
                 >
                   <option value="team">Team</option>
                   <option value="type">Sticker type</option>
-                  <option value="variant">Variant</option>
+                  {activeTab !== 'wanted' && <option value="variant">Variant</option>}
                   <option value="none">None</option>
                 </select>
               </label>
@@ -664,7 +669,7 @@ export default function PublicProfilePage() {
                   </div>
                 )}
 
-                {availableVariants.length > 0 && (
+                {availableVariants.length > 0 && activeTab !== 'wanted' && (
                   <div>
                     <div className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-1.5">
                       Variant
@@ -772,7 +777,7 @@ export default function PublicProfilePage() {
                     const groupItemsList = groupedItems.get(key) ?? [];
                     return (
                       <section key={key}>
-                        {groupBy !== 'none' && (
+                        {effectiveGroupBy !== 'none' && (
                           <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide mb-2 px-1">
                             {key}{' '}
                             <span className="font-normal text-[var(--cromo-fg-subtle)]">
@@ -809,16 +814,22 @@ export default function PublicProfilePage() {
                                   >
                                     {prettify(item.stickerType)}
                                   </span>
-                                  <span
-                                    className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
-                                    title={variantLabel(item.variantType)}
-                                  >
+                                  {activeTab === 'wanted' ? (
+                                    <span className="inline-flex items-center rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg-muted)] italic">
+                                      Any variant
+                                    </span>
+                                  ) : (
                                     <span
-                                      className={`inline-block w-2 h-2 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(item.variantType)}`}
-                                      aria-hidden
-                                    />
-                                    {variantLabel(item.variantType)}
-                                  </span>
+                                      className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
+                                      title={variantLabel(item.variantType)}
+                                    >
+                                      <span
+                                        className={`inline-block w-2 h-2 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(item.variantType)}`}
+                                        aria-hidden
+                                      />
+                                      {variantLabel(item.variantType)}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             );

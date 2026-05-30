@@ -94,25 +94,26 @@ export async function getTradeMatches(
        SELECT album_type_id FROM user_albums WHERE id = $2
      ),
      my_missing AS (
-       -- Explicitly wanted variants
+       -- Explicitly wanted variants: respect the user's specific variant preference
        SELECT uwv.sticker_variant_id AS variant_id
        FROM user_wanted_variants uwv
        WHERE uwv.album_id = $2
        UNION
-       -- For stickers with no explicit wants and no owned variants, accept any variant
+       -- Stickers with no explicit want and no owned variants: accept any variant
        SELECT sv.id AS variant_id
        FROM sticker_variants sv
        JOIN stickers s ON s.id = sv.sticker_id
-       WHERE NOT EXISTS (
-         SELECT 1 FROM user_wanted_variants uwv2
-         JOIN sticker_variants sv2 ON sv2.id = uwv2.sticker_variant_id
-         WHERE uwv2.album_id = $2 AND sv2.sticker_id = s.id
-       )
-       AND NOT EXISTS (
-         SELECT 1 FROM user_stickers us2
-         JOIN sticker_variants sv3 ON sv3.id = us2.sticker_variant_id
-         WHERE us2.album_id = $2 AND sv3.sticker_id = s.id AND us2.quantity > 0
-       )
+       WHERE s.album_type_id = (SELECT album_type_id FROM requester_album)
+         AND NOT EXISTS (
+           SELECT 1 FROM user_wanted_variants uwv2
+           JOIN sticker_variants sv2 ON sv2.id = uwv2.sticker_variant_id
+           WHERE uwv2.album_id = $2 AND sv2.sticker_id = s.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM user_stickers us2
+           JOIN sticker_variants sv3 ON sv3.id = us2.sticker_variant_id
+           WHERE us2.album_id = $2 AND sv3.sticker_id = s.id AND us2.quantity > 0
+         )
      ),
      my_duplicates AS (
        SELECT us.sticker_variant_id AS variant_id
@@ -162,7 +163,7 @@ export async function getTradeMatches(
              AND uwv.sticker_variant_id = md.variant_id
          )
          OR (
-           -- No explicit wants for this sticker AND they don't own any variant of it
+           -- No explicit want for this sticker AND they don't own any variant of it
            NOT EXISTS (
              SELECT 1 FROM user_wanted_variants uwv2
              JOIN sticker_variants sv2 ON sv2.id = uwv2.sticker_variant_id
