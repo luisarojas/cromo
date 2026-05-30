@@ -6,7 +6,7 @@
 -- ─────────────────────────────────────────────────────────
 -- Sample completed and cancelled trades
 -- ─────────────────────────────────────────────────────────
-INSERT INTO trade_requests (id, requester_id, recipient_id, requester_album_id, recipient_album_id, status, accepted_at, completed_at)
+INSERT INTO trade_requests (id, requester_id, recipient_id, requester_album_id, recipient_album_id, status, accepted_at, rating_eligible_at, completed_at)
 VALUES
   (
     'a0000000-0000-0000-0000-000000000001'::UUID,
@@ -15,6 +15,7 @@ VALUES
     '00000000-0000-0000-0001-000000000002'::UUID,  -- Alice's album
     '00000000-0000-0000-0001-000000000003'::UUID,  -- Bob's album
     'completed',
+    now() - INTERVAL '10 days',
     now() - INTERVAL '10 days',
     now() - INTERVAL '8 days'
   ),
@@ -26,6 +27,7 @@ VALUES
     '00000000-0000-0000-0001-000000000004'::UUID,  -- Charlie's album
     'completed',
     now() - INTERVAL '5 days',
+    now() - INTERVAL '5 days',
     now() - INTERVAL '3 days'
   ),
   (
@@ -36,9 +38,14 @@ VALUES
     '00000000-0000-0000-0001-000000000004'::UUID,  -- Charlie's album
     'cancelled',
     now() - INTERVAL '7 days',
+    NULL,
     NULL
   )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  accepted_at        = EXCLUDED.accepted_at,
+  rating_eligible_at = EXCLUDED.rating_eligible_at,
+  completed_at       = EXCLUDED.completed_at,
+  status             = EXCLUDED.status;
 
 -- ─────────────────────────────────────────────────────────
 -- Trade ratings for completed trades

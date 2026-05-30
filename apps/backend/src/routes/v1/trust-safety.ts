@@ -76,6 +76,14 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
 
       const trade = tradeRows[0]!;
 
+      const userId = request.userId!;
+      const isRequester = trade.requester_id === userId;
+      const isRecipient = trade.recipient_id === userId;
+
+      if (!isRequester && !isRecipient) {
+        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You are not a party to this trade.' });
+      }
+
       if (trade.rating_eligible_at === null) {
         return reply.status(422).send({
           statusCode: 422,
@@ -85,12 +93,13 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
         });
       }
 
-      const userId = request.userId!;
-      const isRequester = trade.requester_id === userId;
-      const isRecipient = trade.recipient_id === userId;
+      const { rows: existingRows } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM trade_ratings WHERE trade_id = $1 AND rater_id = $2`,
+        [tradeId, userId],
+      );
 
-      if (!isRequester && !isRecipient) {
-        return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You are not a party to this trade.' });
+      if (existingRows.length > 0) {
+        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'You have already rated this trade.' });
       }
 
       const eligibleAt = new Date(trade.rating_eligible_at);
@@ -102,15 +111,6 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
           message: 'Rating window has closed.',
           details: 'Ratings must be submitted within 7 days of the trade becoming eligible to rate.',
         });
-      }
-
-      const { rows: existingRows } = await fastify.db.query<{ id: string }>(
-        `SELECT id FROM trade_ratings WHERE trade_id = $1 AND rater_id = $2`,
-        [tradeId, userId],
-      );
-
-      if (existingRows.length > 0) {
-        return reply.status(409).send({ statusCode: 409, error: 'Conflict', message: 'You have already rated this trade.' });
       }
 
       const ratedUserId = isRequester ? trade.recipient_id : trade.requester_id;

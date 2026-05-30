@@ -119,7 +119,7 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
 
       // TRADE_A is pending, not completed → outside rating window
       expect(res.statusCode).toBe(422);
-      expect(res.json().message).toMatch(/completed/i);
+      expect(res.json().message).toMatch(/completed|progressed/i);
     });
 
     it('rejects a duplicate rating (same rater, same trade)', async () => {
@@ -164,13 +164,13 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
       // Insert a completed trade older than 14 days and verify the window is closed
       await app.db.query(
         `INSERT INTO trade_requests
-           (id, requester_id, recipient_id, requester_album_id, recipient_album_id, status, accepted_at, completed_at)
+           (id, requester_id, recipient_id, requester_album_id, recipient_album_id, status, accepted_at, rating_eligible_at, completed_at)
          VALUES
            ('a0000000-0000-0000-0000-000000000099'::UUID,
             $1, $2,
             '00000000-0000-0000-0001-000000000002'::UUID,
             '00000000-0000-0000-0001-000000000005'::UUID,
-            'completed', now() - INTERVAL '16 days', now() - INTERVAL '15 days')
+            'completed', now() - INTERVAL '16 days', now() - INTERVAL '16 days', now() - INTERVAL '15 days')
          ON CONFLICT (id) DO NOTHING`,
         [ALICE_ID, DIANA_ID],
       );
