@@ -608,7 +608,7 @@ function buildFilterClauses(
   let variantTypeClause = '';
   if (filters.variantTypes?.length) {
     params.push(filters.variantTypes);
-    variantTypeClause = `AND cv.variant_type = ANY($${idx++}::text[])`;
+    variantTypeClause = `AND sv.variant_type = ANY($${idx++}::text[])`;
   }
 
   const namedTeams = (filters.teams ?? []).filter((t) => t !== 'Other');
