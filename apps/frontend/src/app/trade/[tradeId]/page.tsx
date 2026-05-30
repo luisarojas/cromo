@@ -149,9 +149,10 @@ export default function TradeDetailPage() {
           setMessages(data.messages);
         }
         const ratingEligible =
-          data.status === 'completed' ||
-          data.acceptedAt !== null ||
-          data.counterCount >= 2;
+          data.ratingEligibleAt !== null &&
+          Date.now() <
+            new Date(data.ratingEligibleAt).getTime() +
+              7 * 24 * 60 * 60 * 1000;
         if (!cancelled && ratingEligible) {
           try {
             const { items } = await fetchTradeRatings(tradeId, token);
@@ -465,20 +466,13 @@ export default function TradeDetailPage() {
   const partnerUserId = isRequester ? trade.recipientId : trade.requesterId;
   const partnerUsername = isRequester ? trade.recipientUsername : trade.requesterUsername;
 
-  const ratingEligible =
-    trade.status === 'completed' ||
-    trade.acceptedAt !== null ||
-    trade.counterCount >= 2;
   const canRate =
-    ratingEligible &&
+    trade.ratingEligibleAt !== null &&
+    Date.now() <
+      new Date(trade.ratingEligibleAt).getTime() + 7 * 24 * 60 * 60 * 1000 &&
     !hasRated &&
     !ratingSubmitted &&
-    (isRequester || isRecipient) &&
-    (() => {
-      if (!trade.completedAt) return true;
-      const cutoff = new Date(trade.completedAt).getTime() + 14 * 24 * 60 * 60 * 1000;
-      return Date.now() < cutoff;
-    })();
+    (isRequester || isRecipient);
 
   const offeredItems = trade.items.filter((i) => i.direction === 'offer');
   const wantedItems = trade.items.filter((i) => i.direction === 'want');

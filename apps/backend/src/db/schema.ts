@@ -364,6 +364,7 @@ export const tradeRequests = pgTable('trade_requests', {
   offerCash: integer('offer_cash').notNull().default(0),
   wantCash: integer('want_cash').notNull().default(0),
   acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  ratingEligibleAt: timestamp('rating_eligible_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   requesterCompletedAt: timestamp('requester_completed_at', { withTimezone: true }),
   recipientCompletedAt: timestamp('recipient_completed_at', { withTimezone: true }),

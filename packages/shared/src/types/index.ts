@@ -315,6 +315,7 @@ export interface TradeDetail extends TradeSummary {
   items: TradeItemDetail[]
   messages: TradeMessage[]
   acceptedAt: string | null
+  ratingEligibleAt: string | null
   completedAt: string | null
   requesterCompletedAt: string | null
   recipientCompletedAt: string | null

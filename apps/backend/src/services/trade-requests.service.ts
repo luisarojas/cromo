@@ -366,7 +366,7 @@ export async function listTrades(
        tr.recipient_id, re.username AS recipient_username,
        re.display_name AS recipient_display_name, re.avatar_url AS recipient_avatar_url,
        tr.status, tr.counter_count, tr.offer_cash, tr.want_cash,
-       tr.accepted_at, tr.completed_at,
+       tr.accepted_at, tr.rating_eligible_at, tr.completed_at,
        tr.requester_completed_at, tr.recipient_completed_at,
        tr.cancelled_at, tr.expires_at,
        tr.created_at, tr.updated_at,
@@ -418,7 +418,7 @@ export async function getTrade(
        tr.recipient_id, re.username AS recipient_username,
        re.display_name AS recipient_display_name, re.avatar_url AS recipient_avatar_url,
        tr.status, tr.counter_count, tr.offer_cash, tr.want_cash,
-       tr.accepted_at, tr.completed_at,
+       tr.accepted_at, tr.rating_eligible_at, tr.completed_at,
        tr.requester_completed_at, tr.recipient_completed_at,
        tr.cancelled_at, tr.expires_at,
        tr.created_at, tr.updated_at,
@@ -490,6 +490,7 @@ export async function acceptTrade(
   await db.query(
     `UPDATE trade_requests
      SET status = 'accepted', accepted_at = NOW(),
+         rating_eligible_at = COALESCE(rating_eligible_at, NOW()),
          expires_at = NOW() + INTERVAL '30 days', updated_at = NOW()
      WHERE id = $1`,
     [tradeId]
@@ -637,6 +638,10 @@ export async function counterTrade(
            recipient_album_id = requester_album_id,
            counter_count = counter_count + 1,
            offer_cash = $4, want_cash = $5,
+           rating_eligible_at = CASE
+             WHEN rating_eligible_at IS NULL AND counter_count + 1 >= 2 THEN NOW()
+             ELSE rating_eligible_at
+           END,
            updated_at = NOW()
        WHERE id = $1`,
       [tradeId, newRequesterId, newRecipientId, offerCash, wantCash],

@@ -46,12 +46,9 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
       const { rows: tradeRows } = await fastify.db.query<{
         requester_id: string;
         recipient_id: string;
-        status: string;
-        accepted_at: string | null;
-        completed_at: string | null;
-        counter_count: number;
+        rating_eligible_at: string | null;
       }>(
-        `SELECT requester_id, recipient_id, status, accepted_at, completed_at, counter_count
+        `SELECT requester_id, recipient_id, rating_eligible_at
          FROM trade_requests
          WHERE id = $1`,
         [tradeId],
@@ -63,16 +60,12 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
 
       const trade = tradeRows[0]!;
 
-      const ratingEligible =
-        trade.status === 'completed' ||
-        trade.accepted_at !== null ||
-        trade.counter_count >= 2;
-
-      if (!ratingEligible) {
+      if (trade.rating_eligible_at === null) {
         return reply.status(422).send({
           statusCode: 422,
           error: 'Unprocessable Entity',
-          message: 'Trade has not progressed far enough to be rated. Rate once the offer has been accepted by both parties, after both sides have proposed a counteroffer, or after the trade completes.',
+          message: 'Trade has not progressed far enough to be rated.',
+          details: 'Rate once the offer has been accepted by both parties, after both sides have proposed a counteroffer, or after the trade completes.',
         });
       }
 
@@ -84,12 +77,15 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
         return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You are not a party to this trade.' });
       }
 
-      if (trade.completed_at) {
-        const completedAt = new Date(trade.completed_at);
-        const cutoff = new Date(completedAt.getTime() + 14 * 24 * 60 * 60 * 1000);
-        if (new Date() > cutoff) {
-          return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: 'Rating window has closed (14 days after completion).' });
-        }
+      const eligibleAt = new Date(trade.rating_eligible_at);
+      const cutoff = new Date(eligibleAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+      if (new Date() > cutoff) {
+        return reply.status(422).send({
+          statusCode: 422,
+          error: 'Unprocessable Entity',
+          message: 'Rating window has closed.',
+          details: 'Ratings must be submitted within 7 days of the trade becoming eligible to rate.',
+        });
       }
 
       const { rows: existingRows } = await fastify.db.query<{ id: string }>(
