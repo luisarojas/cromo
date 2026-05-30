@@ -47,9 +47,11 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
         requester_id: string;
         recipient_id: string;
         status: string;
+        accepted_at: string | null;
         completed_at: string | null;
+        counter_count: number;
       }>(
-        `SELECT requester_id, recipient_id, status, completed_at
+        `SELECT requester_id, recipient_id, status, accepted_at, completed_at, counter_count
          FROM trade_requests
          WHERE id = $1`,
         [tradeId],
@@ -61,8 +63,17 @@ export async function trustSafetyRoutes(fastify: FastifyInstance): Promise<void>
 
       const trade = tradeRows[0]!;
 
-      if (trade.status !== 'completed') {
-        return reply.status(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: 'Trade is not completed.' });
+      const ratingEligible =
+        trade.status === 'completed' ||
+        trade.accepted_at !== null ||
+        trade.counter_count >= 2;
+
+      if (!ratingEligible) {
+        return reply.status(422).send({
+          statusCode: 422,
+          error: 'Unprocessable Entity',
+          message: 'Trade has not progressed far enough to be rated. Rate once the offer has been accepted by both parties, after both sides have proposed a counteroffer, or after the trade completes.',
+        });
       }
 
       const userId = request.userId!;

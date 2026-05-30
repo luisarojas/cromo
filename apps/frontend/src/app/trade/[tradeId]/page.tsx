@@ -148,7 +148,11 @@ export default function TradeDetailPage() {
           setTrade(data);
           setMessages(data.messages);
         }
-        if (!cancelled && data.status === 'completed') {
+        const ratingEligible =
+          data.status === 'completed' ||
+          data.acceptedAt !== null ||
+          data.counterCount >= 2;
+        if (!cancelled && ratingEligible) {
           try {
             const { items } = await fetchTradeRatings(tradeId, token);
             if (!cancelled) {
@@ -461,8 +465,12 @@ export default function TradeDetailPage() {
   const partnerUserId = isRequester ? trade.recipientId : trade.requesterId;
   const partnerUsername = isRequester ? trade.recipientUsername : trade.requesterUsername;
 
+  const ratingEligible =
+    trade.status === 'completed' ||
+    trade.acceptedAt !== null ||
+    trade.counterCount >= 2;
   const canRate =
-    trade.status === 'completed' &&
+    ratingEligible &&
     !hasRated &&
     !ratingSubmitted &&
     (isRequester || isRecipient) &&
@@ -540,7 +548,9 @@ export default function TradeDetailPage() {
       {canRate && (
         <div className="rounded-xl border border-blue-100 bg-[var(--cromo-accent-soft)] p-5 mb-5">
           <h2 className="text-sm font-semibold text-[var(--cromo-accent)] mb-3">
-            How was your trade with @{partnerUsername}?
+            {trade.status === 'completed'
+              ? `How was your trade with @${partnerUsername}?`
+              : `How has your interaction with @${partnerUsername} been so far?`}
           </h2>
           {ratingError && (
             <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-3">

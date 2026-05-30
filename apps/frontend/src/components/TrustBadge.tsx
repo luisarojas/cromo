@@ -44,6 +44,7 @@ export default function TrustBadge({ userId, size = 'small' }: Props) {
 
   const tier = trustScore.tier;
   const config = TIER_CONFIG[tier];
+  const showPositivePercent = trustScore.totalRatings >= 5;
 
   if (size === 'small') {
     return (
@@ -64,11 +65,15 @@ export default function TrustBadge({ userId, size = 'small' }: Props) {
           {config.icon && <span className="text-lg" aria-hidden>{config.icon}</span>}
           <span>{config.label}</span>
         </div>
-        {trustScore.totalRatings > 0 && (
+        {showPositivePercent ? (
           <span className="text-xs text-[var(--cromo-fg-subtle)]">
             {trustScore.positiveCount}/{trustScore.totalRatings} positive ({trustScore.positivePercent}%)
           </span>
-        )}
+        ) : trustScore.totalRatings > 0 ? (
+          <span className="text-xs text-[var(--cromo-fg-subtle)]">
+            {trustScore.totalRatings} {trustScore.totalRatings === 1 ? 'rating' : 'ratings'} (5+ needed to display rate)
+          </span>
+        ) : null}
       </div>
 
       {trustScore.totalRatings === 0 && (
