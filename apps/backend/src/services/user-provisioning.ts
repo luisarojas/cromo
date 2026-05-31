@@ -101,6 +101,7 @@ export async function provisionUserProfile(tx: Executor, userId: string): Promis
     albumEditionId: albumIds.editionId,
     albumFormatId: albumIds.formatId,
     isDefault: true,
+    isTradeInventoryPublic: true,
   });
 }
 
