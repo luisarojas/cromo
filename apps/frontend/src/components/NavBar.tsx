@@ -7,7 +7,6 @@ import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { logoutApi } from '@/lib/api';
 import { CromoLogo } from '@/components/CromoLogo';
-import ThemeToggle from '@/components/ThemeToggle';
 
 export default function NavBar() {
   const router = useRouter();
@@ -83,7 +82,6 @@ export default function NavBar() {
               clear cache
             </button>
           )}
-          <ThemeToggle compact />
           {user ? (
             <>
               <Link
@@ -118,7 +116,6 @@ export default function NavBar() {
 
         {/* Mobile right cluster */}
         <div className="ml-auto flex md:hidden items-center gap-2">
-          <ThemeToggle compact />
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
