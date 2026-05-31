@@ -49,7 +49,7 @@ export default function NavBar() {
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-4 md:gap-6">
         <Link
           href="/"
-          className="hover:opacity-80 transition-opacity shrink-0"
+          className="flex items-center hover:opacity-80 transition-opacity shrink-0"
           aria-label="Cromo home"
         >
           <CromoLogo size={26} variant="chrome" />
@@ -70,7 +70,7 @@ export default function NavBar() {
         </div>
 
         {/* Desktop right cluster */}
-        <div className="ml-auto hidden md:flex items-center gap-2 text-sm">
+        <div className="ml-auto hidden md:flex items-center gap-3 text-sm">
           {isDev && (
             <button
               onClick={() => {
@@ -108,7 +108,7 @@ export default function NavBar() {
               <NavLink href="/login">Log in</NavLink>
               <Link
                 href="/register"
-                className="rounded-btn bg-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent-fg)] transition-colors"
+                className="rounded-btn bg-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent-fg)] transition-colors ml-1"
               >
                 Register
               </Link>
