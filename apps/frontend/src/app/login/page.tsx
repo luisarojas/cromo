@@ -1,13 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { loginApi, fetchUserPreferences } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { Button, Card, Field, Input, Alert } from '@/components/ui';
 import { CromoMark } from '@/components/CromoLogo';
+
+// Only honour same-origin relative paths to prevent open-redirect via ?next=.
+function safeNext(raw: string | null): string {
+  if (!raw) return '/dashboard';
+  if (!raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
+  return raw;
+}
 
 const TEST_USERS = [
   { email: 'alice@test.local', label: 'Alice', description: 'Partial collection (1–200)' },
@@ -19,8 +26,12 @@ const TEST_USERS = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const setFromServer = usePreferencesStore((s) => s.setFromServer);
+
+  const next = safeNext(searchParams.get('next'));
+  const sessionExpired = searchParams.get('reason') === 'session-expired';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,7 +55,7 @@ export default function LoginPage() {
       } catch {
         setFromServer({ duplicatesCountAllVariants: false, defaultBaseVariant: 'base_border', cities: [], profileVisibility: 'public', tradeMatchingEnabled: true });
       }
-      router.push('/dashboard');
+      router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -73,6 +84,12 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
+
+        {sessionExpired && !error && (
+          <div className="mb-4">
+            <Alert tone="info">Your session expired. Please sign in again to continue.</Alert>
+          </div>
+        )}
 
         <Card>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

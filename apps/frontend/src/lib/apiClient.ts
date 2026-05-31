@@ -3,6 +3,8 @@
 // pulling in the whole public surface, and so api.ts can shrink to a barrel
 // of domain endpoints rather than mixing infrastructure with surface area.
 
+import { useAuthStore, type AuthUser } from '@/store/auth';
+
 export const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -59,6 +61,51 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 // initial render. Mutations bypass this entirely.
 const inFlightGets = new Map<string, Promise<unknown>>();
 
+// Silent token refresh on 401. The access token is short-lived; the refresh
+// token lives in an HTTP-only cookie. When apiFetch sees a 401, it calls
+// /auth/refresh once and retries the original request with the new access
+// token. Concurrent 401s share one refresh promise so we don't stampede the
+// refresh endpoint when the page wakes from sleep and fires N requests.
+let inFlightRefresh: Promise<string | null> | null = null;
+
+function isAuthEndpoint(path: string): boolean {
+  return path.startsWith('/api/v1/auth/');
+}
+
+async function performRefresh(): Promise<string | null> {
+  if (inFlightRefresh) return inFlightRefresh;
+  inFlightRefresh = (async () => {
+    try {
+      const res = await retryFetch(`${BASE_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        authenticated: boolean;
+        accessToken?: string;
+        user?: AuthUser;
+      };
+      if (!data.authenticated || !data.accessToken || !data.user) return null;
+      useAuthStore.getState().setAuth(data.accessToken, data.user);
+      return data.accessToken;
+    } catch {
+      return null;
+    } finally {
+      inFlightRefresh = null;
+    }
+  })();
+  return inFlightRefresh;
+}
+
+function redirectToLogin(): void {
+  if (typeof window === 'undefined') return;
+  const current = window.location.pathname + window.location.search;
+  if (window.location.pathname.startsWith('/login')) return;
+  const next = encodeURIComponent(current);
+  window.location.href = `/login?next=${next}&reason=session-expired`;
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
@@ -76,14 +123,13 @@ export async function apiFetch<T>(
 
   const signal = options.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
 
-  const run = (async (): Promise<T> => {
-    let res: Response;
+  const sendOnce = async (bearer: string | undefined): Promise<Response> => {
     try {
-      res = await retryFetch(`${BASE_URL}${path}`, {
+      return await retryFetch(`${BASE_URL}${path}`, {
         ...options,
         signal,
         headers: {
-          ...buildHeaders(token, hasBody),
+          ...buildHeaders(bearer, hasBody),
           ...(options.headers ?? {}),
         },
       });
@@ -92,6 +138,24 @@ export async function apiFetch<T>(
         throw new Error(`API timeout after ${DEFAULT_TIMEOUT_MS}ms: ${path}`);
       }
       throw err;
+    }
+  };
+
+  const run = (async (): Promise<T> => {
+    let res = await sendOnce(token);
+
+    // Silent refresh on 401 — only for authenticated, non-auth requests.
+    // If refresh fails, clear the store and bounce to /login so the caller
+    // never sees the expired-token error as a UI error.
+    if (res.status === 401 && token && !isAuthEndpoint(path)) {
+      const fresh = await performRefresh();
+      if (fresh) {
+        res = await sendOnce(fresh);
+      } else {
+        useAuthStore.getState().clearAuth();
+        redirectToLogin();
+        throw new Error('Session expired');
+      }
     }
 
     if (!res.ok) {
