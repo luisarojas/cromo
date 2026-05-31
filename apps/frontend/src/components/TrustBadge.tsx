@@ -37,7 +37,7 @@ export default function TrustBadge({ userId }: Props) {
     return <span className="inline-block h-4 w-20 rounded bg-[var(--cromo-surface-2)] animate-pulse" />;
   }
 
-  if (!trustScore) return null;
+  if (!trustScore || trustScore.totalRatings < 3) return null;
 
   const tier = trustScore.tier;
   const config = TIER_CONFIG[tier];
@@ -46,9 +46,7 @@ export default function TrustBadge({ userId }: Props) {
     <span className={`inline-flex items-center gap-1 text-xs font-medium ${config.className}`}>
       {config.icon && <span aria-hidden>{config.icon}</span>}
       <span>{config.label}</span>
-      {trustScore.totalRatings > 0 && (
-        <span className="text-[var(--cromo-fg-subtle)] font-normal">({trustScore.totalRatings})</span>
-      )}
+      <span className="text-[var(--cromo-fg-subtle)] font-normal">({trustScore.totalRatings})</span>
     </span>
   );
 }

@@ -40,16 +40,16 @@ interface InventoryState {
 }
 
 const STICKER_TYPE_COLORS: Record<string, string> = {
-  player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
-  badge: 'bg-[var(--cromo-tier-very-rare-soft)] text-[var(--cromo-tier-very-rare)] border-purple-200',
-  team_photo: 'bg-[var(--cromo-warning-soft)] text-yellow-800 border-[var(--cromo-warning)]/30',
-  intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border-[var(--cromo-accent)]/30',
-  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] border-[var(--cromo-danger)]/30',
-  extra: 'bg-pink-100 text-pink-700 border-pink-200',
+  player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
+  badge: 'bg-[var(--cromo-tier-very-rare-soft)] text-[var(--cromo-tier-very-rare)]',
+  team_photo: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)]',
+  intro: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
+  coca_cola_special: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]',
+  extra: 'bg-pink-100 text-pink-700',
 };
 
 function stickerTypeColor(type: string): string {
-  return STICKER_TYPE_COLORS[type] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)] border-[var(--cromo-border)]';
+  return STICKER_TYPE_COLORS[type] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]';
 }
 
 function prettify(value: string): string {
@@ -701,7 +701,7 @@ export default function PublicProfilePage() {
                               >
                                 {showQty && (
                                   <span
-                                    className="absolute top-1.5 right-1.5 rounded-full bg-[var(--cromo-warning)] text-[var(--cromo-warning-fg)] text-[10px] font-bold min-w-[1.25rem] h-5 px-1 flex items-center justify-center"
+                                    className="absolute top-1.5 right-1.5 text-[10px] font-medium text-[var(--cromo-fg-subtle)]"
                                     title={`${qty} copies available`}
                                   >
                                     ×{qty}
@@ -728,13 +728,13 @@ export default function PublicProfilePage() {
                                 </div>
                                 <div className="mt-auto flex flex-wrap items-center gap-1">
                                   <span
-                                    className={`inline-block rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase ${stickerTypeColor(item.stickerType)}`}
+                                    className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase ${stickerTypeColor(item.stickerType)}`}
                                   >
                                     {prettify(item.stickerType)}
                                   </span>
                                   {item.variantType && (
                                     <span
-                                      className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
+                                      className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
                                       title={variantLabel(item.variantType)}
                                     >
                                       <span
