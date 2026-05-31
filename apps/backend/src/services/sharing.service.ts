@@ -532,7 +532,8 @@ export async function getPublicProfile(
               s.album_code,
               s.player_name,
               s.sticker_type,
-              t.name AS team_name,
+              t.name       AS team_name,
+              t.group_name AS group_name,
               sv.variant_type,
               us.quantity
        FROM user_stickers us
@@ -773,6 +774,7 @@ export async function getPublicAlbumWanted(
             ms.player_name,
             ms.sticker_type,
             t.name        AS team_name,
+            t.group_name  AS group_name,
             ws.wanted_variant_type AS variant_type,
             NULL::int     AS quantity
      FROM missing_stickers ms
@@ -931,6 +933,7 @@ export async function getPublicAlbumOffered(
             s.player_name,
             s.sticker_type,
             t.name           AS team_name,
+            t.group_name     AS group_name,
             sv.variant_type,
             us.quantity
      FROM user_stickers us

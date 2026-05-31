@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import MultiSelect from './MultiSelect';
 import { HeartIcon } from '@/components/HeartIcon';
 
@@ -23,6 +23,7 @@ interface Props {
   variantOptions: { value: string; label: string; swatch?: string }[];
   showFavourites?: boolean;
   showWanted?: boolean;
+  extraControls?: ReactNode;
 }
 
 export default function FilterBar({
@@ -34,6 +35,7 @@ export default function FilterBar({
   variantOptions,
   showFavourites = true,
   showWanted = true,
+  extraControls,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -144,6 +146,8 @@ export default function FilterBar({
           )}
         </button>
 
+        {extraControls}
+
         <button
           type="button"
           onClick={() => hasActiveFilter && onChange({})}
@@ -201,6 +205,7 @@ export default function FilterBar({
               value={filters.variant ?? []}
               onChange={(v) => updateMulti('variant', v)}
               placeholder="Any variant"
+              className="min-w-52"
             />
           )}
 

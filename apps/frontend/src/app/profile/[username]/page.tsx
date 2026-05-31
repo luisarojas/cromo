@@ -19,7 +19,8 @@ import TrustBadge from '@/components/TrustBadge';
 import ReportUserModal from '@/components/ReportUserModal';
 
 type InventoryTab = 'offered' | 'wanted';
-type GroupBy = 'team' | 'type' | 'variant' | 'none';
+type GroupBy = 'team' | 'group' | 'type' | 'variant' | 'none';
+type SortBy = 'code' | 'playerName' | 'teamName';
 
 interface InventoryState {
   items: PublicInventoryItem[];
@@ -72,6 +73,7 @@ function groupItems(
   for (const item of items) {
     let key: string;
     if (groupBy === 'team') key = item.teamName ?? 'Other';
+    else if (groupBy === 'group') key = item.groupName ? `Group ${item.groupName}` : 'Other';
     else if (groupBy === 'type') key = prettify(item.stickerType);
     else key = item.variantType ? variantLabel(item.variantType) : 'Any variant';
     const bucket = grouped.get(key) ?? [];
@@ -79,6 +81,21 @@ function groupItems(
     grouped.set(key, bucket);
   }
   return grouped;
+}
+
+function sortItems(items: PublicInventoryItem[], sortBy: SortBy): PublicInventoryItem[] {
+  if (sortBy === 'code') return items;
+  return [...items].sort((a, b) => {
+    if (sortBy === 'playerName') {
+      const aName = (a.playerName ?? a.teamName ?? a.albumCode).toLowerCase();
+      const bName = (b.playerName ?? b.teamName ?? b.albumCode).toLowerCase();
+      return aName.localeCompare(bName) || a.number - b.number;
+    }
+    // teamName
+    const aTeam = (a.teamName ?? 'zzz').toLowerCase();
+    const bTeam = (b.teamName ?? 'zzz').toLowerCase();
+    return aTeam.localeCompare(bTeam) || a.number - b.number;
+  });
 }
 
 function sortGroupKeys(keys: string[]): string[] {
@@ -113,6 +130,7 @@ export default function PublicProfilePage() {
   const [filters, setFilters] = useState<FilterState>({});
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('team');
+  const [sortBy, setSortBy] = useState<SortBy>('code');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(filters.search?.trim() ?? ''), 300);
@@ -296,6 +314,7 @@ export default function PublicProfilePage() {
   useEffect(() => {
     setFilters({});
     setDebouncedSearch('');
+    setSortBy('code');
   }, [activeAlbumId, activeTab]);
 
   // ── Derived item list for the active tab ───────────────────────────────────
@@ -328,9 +347,14 @@ export default function PublicProfilePage() {
   const effectiveGroupBy: GroupBy =
     activeTab === 'wanted' && groupBy === 'variant' ? 'team' : groupBy;
 
+  const sortedItems = useMemo(
+    () => sortItems(filteredItems, sortBy),
+    [filteredItems, sortBy],
+  );
+
   const groupedItems = useMemo(
-    () => groupItems(filteredItems, effectiveGroupBy),
-    [filteredItems, effectiveGroupBy],
+    () => groupItems(sortedItems, effectiveGroupBy),
+    [sortedItems, effectiveGroupBy],
   );
   const sortedGroupKeys = useMemo(
     () => sortGroupKeys([...groupedItems.keys()]),
@@ -579,8 +603,8 @@ export default function PublicProfilePage() {
             )}
           </div>
 
-          {/* Toolbar: FilterBar + group-by */}
-          <div className="px-4 pt-4 space-y-3">
+          {/* Toolbar: FilterBar with inline group-by + sort-by */}
+          <div className="px-4 pt-4">
             <FilterBar
               filters={filters}
               onChange={setFilters}
@@ -590,27 +614,42 @@ export default function PublicProfilePage() {
               variantOptions={availableVariants.map((v) => ({ value: v, label: variantLabel(v), swatch: variantSwatch(v) }))}
               showFavourites={false}
               showWanted={false}
+              extraControls={
+                <>
+                  <label className="inline-flex items-center gap-1.5 shrink-0 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-sm">
+                    <span className="text-[var(--cromo-fg-muted)]">Group</span>
+                    <select
+                      value={effectiveGroupBy}
+                      onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+                      className="bg-transparent text-[var(--cromo-fg)] font-medium focus:outline-none text-sm"
+                    >
+                      <option value="team">Team</option>
+                      <option value="group">FIFA Group</option>
+                      <option value="type">Type</option>
+                      {activeTab !== 'wanted' && <option value="variant">Variant</option>}
+                      <option value="none">None</option>
+                    </select>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 shrink-0 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-sm">
+                    <span className="text-[var(--cromo-fg-muted)]">Sort</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as SortBy)}
+                      className="bg-transparent text-[var(--cromo-fg)] font-medium focus:outline-none text-sm"
+                    >
+                      <option value="code">Code</option>
+                      <option value="playerName">Player name</option>
+                      <option value="teamName">Country</option>
+                    </select>
+                  </label>
+                </>
+              }
             />
-            <div className="flex items-center justify-between gap-4">
-              <label className="inline-flex items-center gap-2 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-sm">
-                <span className="text-[var(--cromo-fg-muted)]">Group by</span>
-                <select
-                  value={effectiveGroupBy}
-                  onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-                  className="bg-transparent text-[var(--cromo-fg)] font-medium focus:outline-none"
-                >
-                  <option value="team">Team</option>
-                  <option value="type">Sticker type</option>
-                  {activeTab !== 'wanted' && <option value="variant">Variant</option>}
-                  <option value="none">None</option>
-                </select>
-              </label>
-              {hasActiveFilter && (
-                <p className="text-xs text-[var(--cromo-fg-muted)]">
-                  Showing {activeItems.length} of {activeTotal}
-                </p>
-              )}
-            </div>
+            {hasActiveFilter && (
+              <p className="mt-2 text-xs text-[var(--cromo-fg-muted)]">
+                Showing {activeItems.length} of {activeTotal}
+              </p>
+            )}
           </div>
 
           {/* Items */}

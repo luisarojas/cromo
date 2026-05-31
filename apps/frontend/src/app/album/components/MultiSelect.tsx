@@ -16,6 +16,7 @@ interface Props {
   onChange: (value: string[]) => void;
   placeholder?: string;
   searchable?: boolean;
+  className?: string;
 }
 
 export default function MultiSelect({
@@ -26,6 +27,7 @@ export default function MultiSelect({
   onChange,
   placeholder = 'All',
   searchable = true,
+  className,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -80,7 +82,7 @@ export default function MultiSelect({
   const hasSelection = value.length > 0;
 
   return (
-    <div className="flex flex-col gap-1" ref={ref}>
+    <div className={`flex flex-col gap-1${className ? ` ${className}` : ''}`} ref={ref}>
       <label htmlFor={id} className="text-xs font-medium text-[var(--cromo-fg-muted)]">
         {label}
       </label>
@@ -142,7 +144,7 @@ export default function MultiSelect({
                 filteredOptions.map((opt) => (
                   <label
                     key={opt.value}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--cromo-surface-2)] cursor-pointer text-sm text-[var(--cromo-fg)]"
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--cromo-surface-2)] cursor-pointer text-sm text-[var(--cromo-fg)] whitespace-nowrap"
                   >
                     <input
                       type="checkbox"
