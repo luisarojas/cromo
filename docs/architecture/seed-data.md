@@ -501,17 +501,19 @@ This file seeds enough state to exercise every panel of the moderation admin UI:
 
 ## 11. Data Maintenance: Handling Panini Corrections
 
-Panini occasionally corrects player names or sticker details after release. In Phase A the
-flow is:
+Panini occasionally corrects player names or sticker details after release. The flow is:
 
 1. Update the relevant row in the seed file (e.g. `03_team_stickers.sql`)
 2. Re-run `pnpm db:seed` — every seed uses `ON CONFLICT DO UPDATE`, so the correction is
-   applied to local/dev without re-running the full schema
+   applied to local/dev without re-running migrations
 3. For urgent fixes in production, use the admin sticker-correction interface
    (`PATCH /api/v1/admin/stickers/:id`), which busts the catalog-version cache key so
    every browser picks up the change on next page load
-4. In Phase B (Drizzle migrations), one-off SQL corrections will become numbered migration
-   files alongside the regular schema migrations
+4. For corrections that need to be permanent across all environments (i.e. survive a
+   reseed), update the seed file *and* land a hand-written Drizzle migration
+   (`NNNN_correction.sql`) that applies the same `UPDATE` — see
+   [`local-development.md` §4.3](./local-development.md#43-database-schema--first-run-setup)
+   for the hand-written-migration procedure
 
 ## 12. How to Verify the Seed Ran Correctly
 

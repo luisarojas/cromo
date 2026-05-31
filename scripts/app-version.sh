@@ -17,7 +17,7 @@
 #
 # Used by:
 #   - scripts/dev-up.sh           — exports APP_VERSION before `docker compose`
-#   - .github/workflows/ci.yml    — build-arg for backend + frontend images
+#   - .github/workflows/ci-cd.yml — build-arg for backend + frontend images
 #
 # Release tags are produced by scripts/release.sh, which also bumps the
 # four workspace package.json `version` fields (the *base SemVer* this

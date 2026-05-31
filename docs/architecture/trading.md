@@ -62,7 +62,7 @@ Managed real-time services (Pusher, Ably, Firebase) are explicitly rejected beca
 
 ### The Multi-Server Problem and How Redis Solves It
 
-In cloud, multiple API instances run in parallel (ECS Fargate tasks). A naive implementation breaks: User A connects to Server 1 for their SSE stream; User B sends a message that lands on Server 2; Server 1 never hears about it and User A sees nothing.
+Today the cloud runs a single EC2 instance (one API container — see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)), so cross-server pub/sub is not yet load-bearing. But the design assumes horizontal scaling will happen (ECS Fargate when traffic warrants), at which point a naive implementation breaks: User A connects to Server 1 for their SSE stream; User B sends a message that lands on Server 2; Server 1 never hears about it and User A sees nothing.
 
 Redis Pub/Sub solves this cleanly:
 

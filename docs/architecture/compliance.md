@@ -52,7 +52,7 @@ The 30-day SLA from §23.2 is implemented as a two-stage process:
    - `trade_ratings` they gave/received → comments cleared, IDs anonymised at API layer (§33.9)
    - `trade_messages` → deleted (CASCADE)
    - Active trades → cancelled with status `'cancelled'` and a system-generated message
-3. **Day 30 — Backups age out:** Aurora point-in-time recovery rolls past the deletion event. The account is now unrecoverable everywhere.
+3. **Day 30 — Backups age out:** RDS point-in-time recovery rolls past the deletion event (retention window configured in Terraform). The account is now unrecoverable everywhere.
 
 ### 23.6 IP Address Retention in `audit_log`
 

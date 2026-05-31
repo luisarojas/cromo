@@ -6,7 +6,7 @@ The frontend is mobile-first (collectors using their phone while sorting packs) 
 
 ## 36.1 Core Web Vitals Targets
 
-Measured at p75 across all sessions on real devices (Vercel Speed Insights + Sentry RUM).
+Measured at p75 across all sessions on real devices via Sentry's `@sentry/nextjs` RUM (Web Vitals + browser-side transactions).
 
 | Metric | Target | Hard fail |
 |---|---|---|
@@ -57,7 +57,7 @@ Trade-related UI is **not** cached offline (real-time correctness matters more t
 
 ## 36.6 Real User Monitoring
 
-Vercel Speed Insights captures Web Vitals from real users. Sentry's `@sentry/nextjs` adds custom transactions for React renders and `fetch` calls. Combined, they answer: "Why is my user's experience slow right now?" — backend metrics alone can't.
+Sentry's `@sentry/nextjs` captures Web Vitals from real users and adds custom transactions for React renders and `fetch` calls. It answers: "Why is my user's experience slow right now?" — backend metrics alone can't.
 
 A weekly `web-vitals-report` runbook step compares the trailing-7-day p75 against budget. Regressions trigger a focused investigation rather than waiting for users to complain.
 

@@ -6,7 +6,7 @@
 
 ### 6.1 Technology: Node.js + TypeScript + Fastify
 
-TypeScript catches bugs at compile time. Fastify handles thousands of requests per second on modest hardware. Identical code runs locally in Docker and in ECS Fargate.
+TypeScript catches bugs at compile time. Fastify handles thousands of requests per second on modest hardware. Identical code runs locally in Docker and on the cloud EC2 instance (see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)).
 
 ### 6.1.1 CORS Configuration
 
@@ -21,7 +21,7 @@ import cors from '@fastify/cors'
 await fastify.register(cors, {
   origin:
     process.env.NODE_ENV === 'production'
-      ? ['https://cromo.ca', /\.vercel\.app$/]  // Vercel preview URLs
+      ? ['https://cromotrade.ca', 'https://dev.cromotrade.ca']
       : 'http://localhost:3000',
   credentials: true,   // required for cookies / auth headers
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -40,13 +40,13 @@ import { Pool } from 'pg'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 10,         // maximum concurrent connections (match Aurora's RDS Proxy config in cloud)
+  max: 10,         // maximum concurrent connections; stays under RDS db.t3.micro's connection limit with headroom
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 2_000,
 })
 ```
 
-In cloud, RDS Proxy sits in front of Aurora and handles connection multiplexing at the infrastructure level. Locally, the `pg` pool is sufficient.
+The same `pg` pool runs locally and in cloud — the cloud DB is RDS PostgreSQL `db.t3.micro` (see [ADR-0002](decisions/0002-rds-postgresql-over-aurora-serverless.md)), not Aurora, so there is no RDS Proxy in front of it. If connection pressure grows, RDS Proxy or a larger instance class is the next step.
 
 ### 6.1.3 Auto-Generated API Documentation
 
@@ -159,9 +159,9 @@ Admin
   PATCH  /api/v1/admin/stickers/:id         # correct sticker data
 
 System
-  GET    /health
-  GET    /health/ready
-  GET    /api/v1/version
+  GET    /api/v1/health           # liveness probe — returns status + version
+  GET    /api/v1/health/ready     # readiness probe — checks DB and Redis
+  GET    /api/v1/version          # build/environment descriptor
 ```
 
 **Pagination:** All list endpoints use cursor-based pagination. Pass `?cursor=<opaque_token>` to get the next page. Responses include a `nextCursor` field (null when no more pages exist) and a `total` count. Default page size is 100 items.

@@ -5,12 +5,13 @@ Operational runbook for the time-based jobs catalogued in
 
 ## Where they run
 
-- **Phase A (local):** `node-cron` runs inside the same Node.js process as the
-  API (`apps/backend/src/jobs/scheduler.ts`). Set `JOBS_MODE=disabled` in
-  `.env.local` to skip registration entirely (useful when iterating on routes —
-  avoids surprise queries during dev).
-- **Phase B (cloud):** an ECS Scheduled Task fires the same job entrypoints from
-  a small dedicated container.
+`node-cron` runs inside the same Node.js process as the API
+(`apps/backend/src/jobs/scheduler.ts`) in **both local and cloud** — the cloud
+deployment is a single EC2 instance running the same Docker image (see
+[ADR-0001](../architecture/decisions/0001-ec2-docker-compose-over-ecs-fargate.md)),
+so no separate scheduler container or ECS Scheduled Task is involved. Set
+`JOBS_MODE=disabled` in `.env.local` to skip registration entirely (useful when
+iterating on routes — avoids surprise queries during dev).
 
 ## Job catalog
 
@@ -53,7 +54,6 @@ skip registration.
 ## Run a job manually
 
 ```bash
-# Phase A: pnpm job -- <name>
 pnpm --filter @cromo/backend job -- expire-pending-trades
 
 # What it does internally
@@ -69,7 +69,7 @@ container.
    `job_name`, `error_class`, `error_message`. Grep for the job name in `docker
    compose logs api`.
 2. **Three consecutive failures triggers the alert** in `observability.md §20.3`
-   (Slack #cromo-alerts in Phase B).
+   (Slack #cromo-alerts once cloud alerting is wired).
 3. **If the job is misbehaving** (e.g., a query plan went bad after a schema
    change), pause it with the flag (above), open an issue, fix it, then re-enable.
 4. **If the job is fine but data is wrong** (e.g., a stuck row), prefer fixing

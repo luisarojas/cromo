@@ -47,5 +47,5 @@ For the installed PWA experience, transactional notifications (new trade message
 | User control | `user_settings.push_*` boolean per notification type; opt-in only |
 | Privacy | Subscription endpoint URLs are PII (browser-derived); deleted on account deletion |
 
-Web push is feature-flagged behind `FEATURE_WEB_PUSH` (default false). Scheduled to roll out in Phase A6 (weeks 20–22) after the core trade flow is stable.
+Web push is feature-flagged behind `FEATURE_WEB_PUSH` (default false). Scheduled to roll out in milestone A6 (see `overview.md §31`) after the core trade flow is stable.
 

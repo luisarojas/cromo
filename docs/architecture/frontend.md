@@ -4,7 +4,7 @@
 
 ## 5.1 Technology: Next.js 15 + TypeScript
 
-Next.js renders pages both server-side (fast initial load, SEO) and client-side (fast navigation). TypeScript adds compile-time type safety. Works identically locally and on Vercel.
+Next.js renders pages both server-side (fast initial load, SEO) and client-side (fast navigation). TypeScript adds compile-time type safety. Works identically locally and on the cloud EC2 instance, co-hosted with the API behind the ALB (see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)).
 
 ## 5.2 Styling: Tailwind CSS
 
@@ -58,7 +58,7 @@ Built with i18n routing from day one using Next.js's built-in support. Launch or
 The 48 team flags (referenced by `teams.flag_url`) and any sticker-position diagrams are bundled as static assets in `apps/frontend/public/images/flags/{fifa_code}.svg`. Bundling is preferred over S3 hosting because:
 - The set is fixed and small (~48 SVGs, `< 200 KB` total)
 - No additional infrastructure to provision
-- Vercel's CDN serves them with edge caching automatically
+- Served by Next.js with standard cache headers; the ALB / CloudFront front can layer additional edge caching later
 - Bundling avoids cross-origin headaches with `<img src>` and `Content-Security-Policy`
 
 User-generated images (avatars, scan uploads) remain on S3 / local filesystem (§6.3). Sticker artwork itself is **not** stored or rendered by this application — Panini owns the artwork and the album experience reproduces only the metadata (number, name, team, variant). The album grid uses placeholder cards with sticker numbers rather than artwork.
@@ -68,5 +68,6 @@ User-generated images (avatars, scan uploads) remain on S3 / local filesystem (�
 | Environment | Hosting | URL |
 |---|---|---|
 | Local | Next.js dev server | `http://localhost:3000` |
-| Dev / Staging / Production | Vercel | `https://cromo.ca` |
+| Dev (cloud) | EC2 + Docker Compose, behind ALB + ACM (HTTPS) | `https://dev.cromotrade.ca` |
+| Production | EC2 + Docker Compose, behind ALB + ACM (HTTPS) — planned | `https://cromotrade.ca` |
 

@@ -7,7 +7,7 @@
 | Environment | Database | Notes |
 |---|---|---|
 | Local | PostgreSQL 16 in Docker | Identical schema to cloud |
-| Cloud | AWS Aurora PostgreSQL Serverless v2 | Scales to zero overnight |
+| Cloud | AWS RDS PostgreSQL `db.t3.micro` | Stopped overnight on the business-hours schedule in dev; always-on in prod. See [ADR-0002](decisions/0002-rds-postgresql-over-aurora-serverless.md) for the choice over Aurora Serverless v2. |
 
 The schema and seed scripts are **identical** in both environments. This guarantees that what works locally will work in the cloud.
 

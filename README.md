@@ -39,20 +39,20 @@ The repository name and internal workspace package names (`@cromo/*`) still refl
    docker compose -f infrastructure/docker/docker-compose.yml up -d
    ```
 
-5. **Apply schema and seed data**
+5. **Seed catalog data**
    ```bash
-   pnpm db:migrate && pnpm db:seed
+   pnpm db:seed
    ```
-   In Phase A the database schema lives in a single `apps/backend/src/db/schema.sql` file
-   that is applied at API startup (and by `pnpm db:migrate` for manual runs). Phase B will
-   migrate to Drizzle ORM migrations once the schema stabilises.
+   Drizzle migrations apply automatically when the API container starts
+   (`runMigrations()` in `apps/backend/src/db/migrate.ts`). `pnpm db:migrate`
+   is available for manual re-runs against the API container.
 
 6. **Open the app**
 
    | Service | URL |
    |---|---|
    | Frontend | http://localhost:3000 |
-   | API | http://localhost:3001/health |
+   | API | http://localhost:3001/api/v1/health |
    | API Docs | http://localhost:3001/docs |
    | Email inbox (Mailpit) | http://localhost:8025 |
    | Cache browser | http://localhost:8081 |
@@ -101,9 +101,9 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md) for the ful
 |---|---|
 | Frontend | Next.js 15 + TypeScript + Tailwind CSS |
 | Backend | Node.js + Fastify + TypeScript |
-| Database | PostgreSQL 16 (Docker) → Aurora PostgreSQL (cloud) |
+| Database | PostgreSQL 16 (Docker) → RDS PostgreSQL `db.t3.micro` (cloud) |
 | Cache | Redis 7 (Docker) → ElastiCache (cloud) |
 | Auth | Local mock → AWS Cognito (cloud) |
 | Email | Mailpit (local) → AWS SES (cloud) |
-| Schema (Phase A) | Single `schema.sql` applied at startup → Drizzle ORM migrations in Phase B |
+| Schema & migrations | Drizzle ORM (`apps/backend/src/db/schema.ts` + `migrations/`), applied at API startup |
 | Monorepo | Turborepo |

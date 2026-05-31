@@ -1,6 +1,6 @@
-# Cloud Bootstrap — Phase B1
+# Cloud Bootstrap
 
-How to take a fresh AWS account and turn it into a running Cromo `dev` environment. This is a one-time process per environment; ongoing deploys are handled by `.github/workflows/deploy-dev.yml`.
+How to take a fresh AWS account and turn it into a running Cromo `dev` environment. This is a one-time process per environment; ongoing deploys are handled by `.github/workflows/ci-cd.yml`.
 
 > **Prerequisites already met:**
 > - AWS account with MFA on the root user, region `ca-central-1` (Montréal)
@@ -162,7 +162,7 @@ If anything is red, the logs land in CloudWatch:
 
 ## 8. Standing up prod
 
-Once dev is healthy and you're ready for Phase B3, prod uses the same modules with different inputs. The workflow is the same as §3–7, with these differences:
+Once dev is healthy and you're ready to provision production, prod uses the same modules with different inputs. The workflow is the same as §3–7, with these differences:
 
 - **Shared comes first.** Both envs assume `env/shared` is already applied. If you got dev running, you already did this — no extra step. Prod can be applied without dev existing.
 - **SES identity is shared.** Lives in `env/shared`; prod just references it by deterministic ARN. Don't add a duplicate SES module to prod.

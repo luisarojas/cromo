@@ -32,7 +32,7 @@ Detailed subsystem documentation lives in sibling files. Read this map first; lo
 | [`local-development.md`](./local-development.md) | Setting up the local Docker environment, dev workflow | §2, §4 |
 | [`frontend.md`](./frontend.md) | Working on the Next.js UI, PWA, i18n, screens | §5 |
 | [`backend.md`](./backend.md) | Fastify routes, CORS, pooling, AI scan endpoint | §6, §10 |
-| [`database.md`](./database.md) | Schema (single `schema.sql` in Phase A, Drizzle migrations in Phase B), Redis cache keys | §7 |
+| [`database.md`](./database.md) | Drizzle ORM schema & migrations, Redis cache keys | §7 |
 | [`seed-data.md`](./seed-data.md) | Compiling and loading 2026 World Cup seed data | §8 |
 | [`auth-security.md`](./auth-security.md) | Email verification, Cognito, headers, cookies, lockout | §9 |
 | [`trading.md`](./trading.md) | Trade-flow rules, SSE messaging, disputes, public lists | §11 |
@@ -164,7 +164,7 @@ A production-ready system: never loses data, recovers automatically from failure
 └──────────────┘                 └─────────────────┘
 ```
 
-> Phase B uses a single EC2 instance for both frontend and backend. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the migration path to ECS Fargate.
+> The cloud deployment uses a single EC2 instance for both frontend and backend. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the migration path to ECS Fargate.
 
 
 ---
@@ -181,8 +181,7 @@ A production-ready system: never loses data, recovers automatically from failure
 | Auth (cloud) | AWS Cognito | Cloud only |
 | Database (local) | PostgreSQL 16 in Docker | Yes |
 | Database (cloud) | RDS PostgreSQL db.t3.micro | Cloud only |
-| Schema (Phase A) | Single `apps/backend/src/db/schema.sql` applied at startup | Yes |
-| Migrations (Phase B) | Drizzle ORM | Cloud only |
+| Schema & migrations | Drizzle ORM (`apps/backend/src/db/schema.ts` + `migrations/`) applied at API startup | Yes |
 | Connection pooling | `pg` pool (local + cloud) | Yes |
 | Cache (local) | Redis 7 in Docker | Yes |
 | Cache (cloud) | AWS ElastiCache Redis | Cloud only |
@@ -199,11 +198,11 @@ A production-ready system: never loses data, recovers automatically from failure
 | IaC | Terraform | Cloud only |
 | Monorepo | Turborepo | Yes |
 | CI/CD | GitHub Actions | Cloud only |
-| Versioning | semantic-release | Yes (for tagging) |
+| Versioning | Hybrid SemVer + `git describe` (manual `scripts/release.sh` for tags; runtime `APP_VERSION` baked from `git describe`) | Yes (for tagging) |
 | Container runtime | Docker | Yes |
-| Container orchestration | EC2 + Docker Compose (Phase B); ECS Fargate when traffic warrants — see ADR-0001 | Cloud only |
+| Container orchestration | EC2 + Docker Compose; ECS Fargate when traffic warrants — see ADR-0001 | Cloud only |
 | Frontend hosting | EC2 + Docker Compose (co-hosted with API) | Cloud only |
-| CDN | ALB (Phase B); CloudFront when static asset caching is needed | Cloud only |
+| CDN | ALB; CloudFront when static asset caching is needed | Cloud only |
 | DNS | AWS Route 53 | Cloud only |
 | TLS | AWS Certificate Manager | Cloud only |
 | Monitoring | CloudWatch + Grafana | Cloud only |
@@ -217,27 +216,30 @@ A production-ready system: never loses data, recovers automatically from failure
 | Integration tests | Supertest + Testcontainers | Yes |
 | E2E tests | Playwright | Yes (local) + Staging (CI) |
 | Load tests | k6 | Yes + Cloud |
-| Dep scanning | Snyk + Dependabot | CI |
-| Container scanning | Trivy | CI |
-| Security scanning | OWASP ZAP | CI (Staging) |
+| Dep scanning | `pnpm audit` | CI |
+| Filesystem + container scanning | Trivy (deps + Dockerfile misconfig + secrets) | CI |
+| Secret scanning | Gitleaks (full git history) | CI |
+| DAST | OWASP ZAP against dev — planned, not yet wired | Future |
 | Uptime monitoring | Upptime | Cloud only |
 | Status page | Upptime (GitHub Pages) | Cloud only |
 
 
 ---
 
-## 31. Development Phases
+## 31. Development Milestones
 
-### Phase A: Local Development
+The milestone identifiers below (A1–A7, B1–B3) are internal project markers used for tracking progress against the initial roadmap. They are not architectural concepts — they exist so the team has a shared shorthand for "we're roughly here." Once a milestone is complete and shipped, the relevant capabilities are documented in their topic-specific files (e.g. trading, trust-safety, devops), and the milestone ID becomes a historical reference.
 
-> **Timeline note:** The 25-week Phase A estimate below is a target, not a guarantee. A full-stack application of this scope (AI scanning, trading, SSE messaging, PWA, i18n, trust & safety moderation, scheduled jobs, web push, 80% test coverage) realistically takes 25–32 weeks for a single developer starting from scratch. Phase A6 is an explicit buffer/hardening block; if implementation runs ahead of schedule, A6 work may begin earlier and A7 polish work can expand into the freed weeks. Use the milestone checkpoints to track progress objectively.
+### Build Phase (Local Development)
+
+> **Timeline note:** The 25-week estimate below is a target, not a guarantee. A full-stack application of this scope (AI scanning, trading, SSE messaging, PWA, i18n, trust & safety moderation, scheduled jobs, web push, 80% test coverage) realistically takes 25–32 weeks for a single developer starting from scratch. A6 is an explicit buffer/hardening block; if implementation runs ahead of schedule, A6 work may begin earlier and A7 polish work can expand into the freed weeks. Use the milestone checkpoints to track progress objectively.
 
 **A1 — Foundation (Weeks 1–4)**
 - **Prerequisite (before coding begins):** Complete `03_team_stickers.sql` with all 960 records and sequential sticker numbers sourced from checklistinsider.com
 - Monorepo scaffolded with Turborepo
 - `docker-compose.yml` working — `docker compose up` starts all services
 - README "Getting Started" tested by a second person from scratch
-- Database schema deployed by applying a single `apps/backend/src/db/schema.sql` file at API startup. **No incremental migration files in Phase A**; the file is idempotent (`IF NOT EXISTS`, `CREATE OR REPLACE`, `ON CONFLICT`). Phase B will introduce Drizzle ORM migrations once the schema stabilises in production.
+- Database schema managed by Drizzle ORM: tables defined in `apps/backend/src/db/schema.ts`, migrations generated into `apps/backend/src/db/migrations/`, and applied automatically at API startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`.
 - CORS and connection pooling configured in the API
 - All seed data loaded and verified: 48 teams · **980 core stickers (20 intro/FWC + 960 team)** · plus 12 Coca-Cola and 20 Extra stickers · all variants
 - `/health` and `/health/ready` endpoints live
@@ -306,28 +308,29 @@ A production-ready system: never loses data, recovers automatically from failure
 - All runbooks written (including `local-setup.md` and `scheduled-jobs.md`)
 - Load test with k6 against local Docker environment
 
-### Phase B: Cloud Migration
+### Cloud Phase (AWS Deployment)
 
-**B1 — Infrastructure & Dev Environment (Weeks 26–28)**
-- AWS account created, MFA enabled
-- Domain registered
-- Terraform provisions dev environment
-- GitHub Actions CI/CD pipeline operational
-- Application deployed to dev, health checks pass
-- Database seeded in dev cloud environment
+**B1 — Infrastructure & Dev Environment (Weeks 26–28)** — *in progress*
+- AWS account created, MFA enabled ✓
+- Domain registered (`cromotrade.ca`) ✓
+- Terraform provisions dev environment ✓
+- GitHub Actions CI/CD pipeline operational ✓
+- Application deployed to dev, health checks pass ✓
+- Database seeded in dev cloud environment ✓
 
-**B2 — Staging & Production (Weeks 29–31)**
-- Staging environment provisioned and verified
+**B2 — Production (Weeks 29–31)** — *not started*
+- Production environment provisioned via the same Terraform modules with prod inputs
 - Anonymised data refresh from production snapshot process tested
-- Full E2E suite running against staging
-- Production provisioned
+- Release-tag-driven deploy flow to prod (see [`devops.md` §18.3](./devops.md#183-production-pipeline-future))
 - Soft launch to 100–200 beta users
 
+> **Note on staging.** A dedicated staging environment is intentionally deferred for now; the dev environment carries the pre-prod verification role until traffic and risk warrant a third tier.
+
 **B3 — Launch**
-- All Phase A polish applied
+- All A7 polish applied in production
 - Legal documents reviewed and published
 - Responsible disclosure policy live
-- AWS budget alerts configured
+- AWS budget alerts configured (already in place for dev — $75 USD/month cap)
 - Monitoring dashboards verified
 - Public launch
 
@@ -336,18 +339,18 @@ A production-ready system: never loses data, recovers automatically from failure
 
 ## 32. Cost Estimate
 
-### Phase A: Local Development
+### Local Development
 
-**$0/month** — Docker runs everything locally. No AWS costs until Phase B begins.
+**$0/month** — Docker runs everything locally.
 
-One-time costs during Phase A:
+One-time setup costs:
 | Item | Cost |
 |---|---|
 | Domain registration | $15–20 CAD |
-| Privacy / Terms legal review | $500–1,000 CAD (can defer to Phase B) |
-| Panini IP legal review | $200–400 CAD (can defer to Phase B) |
+| Privacy / Terms legal review | $500–1,000 CAD (can defer until prod) |
+| Panini IP legal review | $200–400 CAD (can defer until prod) |
 
-### Phase B: Cloud Monthly Costs
+### Cloud Monthly Costs
 
 **Initial launch (< 100 users) — EC2 + Docker Compose:**
 
@@ -434,13 +437,13 @@ For non-technical readers and developers new to the stack:
 2. Install Docker Desktop on your machine
 3. Register your domain (Route 53 or Namecheap)
 4. Create a free GitHub account and a private repository
-5. Create an AWS account (required for Phase B, not Phase A) and enable MFA on the root account immediately
+5. Create an AWS account (required once the cloud deployment starts) and enable MFA on the root account immediately
 
 ### When Hiring a Developer
 
 Provide this document as the technical specification. The developer should be able to read it, run `docker compose up`, and have a working local environment within 30 minutes.
 
-**Key skills to look for:** TypeScript/Node.js, Drizzle ORM, PostgreSQL, Docker, React/Next.js, AWS (for Phase B), Terraform (for Phase B).
+**Key skills to look for:** TypeScript/Node.js, Drizzle ORM, PostgreSQL, Docker, React/Next.js, AWS, Terraform.
 
 **First milestone to ask for:** "Show me the application running locally with the 48 teams and 980 stickers seeded in the database, and show me the trade matching algorithm returning correct results between two test users."
 
@@ -449,13 +452,13 @@ Provide this document as the technical specification. The developer should be ab
 | Milestone | Success Criteria |
 |---|---|
 | Pre-development | All 960 team sticker records compiled with sequential numbers — `03_team_stickers.sql` is complete |
-| End of Phase A1 | `docker compose up && pnpm db:seed` works. 48 teams, 980 core stickers (20 intro + 960 team), plus 12 Coca-Cola + 20 Extra in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
-| End of Phase A2 | All stickers visible in album UI with filtering. Can add/remove/mark duplicates. Multiple albums per user. Avatar upload working. Test suite ≥ 60% coverage. |
-| End of Phase A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
-| End of Phase A4 | Mock AI scan adds a sticker to Alice's collection. Real Groq vision API works in dev cloud. |
-| End of Phase A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. PWA installable on mobile. |
-| End of Phase B1 | CI/CD deploys to dev on every merge. Health check passes in AWS. |
-| End of Phase B2 | Full E2E suite passes on staging. Legal documents published. |
+| End of A1 | `docker compose up && pnpm db:seed` works. 48 teams, 980 core stickers (20 intro + 960 team), plus 12 Coca-Cola + 20 Extra in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
+| End of A2 | All stickers visible in album UI with filtering. Can add/remove/mark duplicates. Multiple albums per user. Avatar upload working. Test suite ≥ 60% coverage. |
+| End of A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
+| End of A4 | Mock AI scan adds a sticker to Alice's collection. Real Groq vision API works in dev cloud. |
+| End of A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. PWA installable on mobile. |
+| End of B1 | CI/CD deploys to dev on every merge. Health check passes in AWS. |
+| End of B2 | Production environment provisioned. Release-tag deploy to prod tested. Legal documents published. |
 | Soft Launch | 100 beta users. Zero data loss in first 7 days. |
 | Public Launch | All checkpoints met. Responsible disclosure policy live. |
 

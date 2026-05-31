@@ -4,7 +4,7 @@
 
 ## 21.1 Local Testing First
 
-All testing during Phase A runs locally. The full test suite must pass before any code is deployed to cloud environments.
+The full test suite runs both locally (developer machine) and in CI (`.github/workflows/ci-cd.yml` → `test` job) against a Postgres + Redis service container. All tests must pass in CI before any code is deployed to cloud environments.
 
 ## 21.2 The Testing Pyramid
 

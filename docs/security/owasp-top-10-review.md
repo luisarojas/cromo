@@ -2,8 +2,8 @@
 
 > Required by `docs/architecture/overview.md §31 A7` and
 > `docs/architecture/operations.md §29`. This document is the developer-side
-> review; the automated ZAP scan in CI (`devops.md §15`) is the cloud-side
-> complement and runs in Phase B.
+> review. An automated DAST scan (e.g. OWASP ZAP) against the dev environment
+> is planned as the cloud-side complement; it is not yet wired into CI.
 
 Last reviewed: 2026-05-25.
 
@@ -38,10 +38,11 @@ admin-only.
   HTTP-only cookies signed with the same secret.
 - Sentry / pino loggers redact `password`, `token`, `cookie`, `authorization`
   fields (configured in `app.ts`).
-- Phase B: TLS 1.2+ terminates at ALB; ACM certificates auto-rotate.
+- In cloud environments, TLS 1.2+ terminates at the ALB; ACM certificates
+  auto-rotate.
 
-**Open risks.** Phase A is HTTP-only on `localhost` — this is acceptable for a
-dev environment but must not be deployed without TLS.
+**Open risks.** Local development is HTTP-only on `localhost` — acceptable for
+a dev environment but must not be deployed without TLS.
 
 ## A03 · Injection
 
@@ -89,12 +90,16 @@ conditions in trade acceptance.
 ## A06 · Vulnerable & Outdated Components
 
 **Controls in place.**
-- `pnpm audit` runs in CI gate (Phase B).
+- `pnpm audit --audit-level=high` runs as a CI gate on every PR + push
+  (`.github/workflows/ci-cd.yml` → `security` job).
+- Trivy filesystem scan on every PR + push (deps + Dockerfile misconfig +
+  secrets; `severity: HIGH,CRITICAL`, `ignore-unfixed: true`).
+- Gitleaks secret scan on every PR + push, with full history.
 - `engines.node = ">=22.0.0"` pins to current LTS.
-- Snyk + Trivy scans on every build (Phase B, per `devops.md §15`).
 
-**Open risks.** Phase A has no automated dep-scan gate. Mitigation: weekly
-`pnpm audit` review during Phase A6 hardening.
+**Open risks.** No active container-image vulnerability scanning of built
+images (Trivy currently scans the filesystem, not pushed image layers). ECR
+image-scan-on-push is the natural next step.
 
 ## A07 · Identification & Authentication Failures
 
@@ -121,8 +126,10 @@ conditions in trade acceptance.
 - Every authenticated mutation writes an `audit_log` row via `recordAudit`.
 - Failed logins logged with truncated IP (/24 IPv4, /48 IPv6) after 90 days via
   the `truncate-audit-log-ips` scheduled job.
-- Phase B: CloudWatch + Grafana dashboards on 4xx/5xx, auth failures, queue
-  depth.
+- In cloud environments: CloudWatch metric alarms on RDS CPU and ALB unhealthy
+  hosts (`infrastructure/terraform/modules/monitoring`). Application-level
+  dashboards on 4xx/5xx, auth failures, and queue depth are planned but not
+  yet wired.
 
 ## A10 · Server-Side Request Forgery (SSRF)
 
@@ -148,5 +155,5 @@ matching review item:
 - [ ] **A08:** Does any new file/image upload validate magic bytes?
 - [ ] **A09:** Is the new action recorded in `audit_log`?
 
-The ZAP scan in Phase B CI is the safety net — it is not a substitute for this
-review.
+The planned cloud DAST scan is the safety net — it is not a substitute for
+this review.

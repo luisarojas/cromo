@@ -25,9 +25,9 @@ LOCAL → DEV → PRODUCTION
 | Uptime | On-demand | **Mon–Fri 08:00–19:00 ET** (see §19.2.2) | 24/7 |
 | Public access | localhost only | IP allowlist only (see §19.2.3) | Public |
 
-### 17.2 Moving from Local to Cloud (Phase B)
+### 17.2 Moving from Local to Cloud
 
-The transition is straightforward because Docker containers run identically everywhere. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the rationale behind the initial Phase B architecture choices.
+The transition is straightforward because Docker containers run identically everywhere. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the rationale behind the EC2 + Docker Compose architecture choice.
 
 **Step 1:** AWS account created, MFA enabled on root account.
 
@@ -65,9 +65,9 @@ UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_AI_SCANNING';
 
 ## 19. Cloud Infrastructure (AWS)
 
-This section covers the AWS infrastructure provisioned in Phase B. Nothing here is needed to run the application locally.
+This section covers the AWS infrastructure provisioned by Terraform. Nothing here is needed to run the application locally.
 
-> **Architecture decision:** Phase B launches on EC2 + Docker Compose rather than ECS Fargate. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the full rationale and migration path to Fargate when traffic warrants it.
+> **Architecture decision:** the cloud deployment runs on EC2 + Docker Compose rather than ECS Fargate. See [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md) for the full rationale and migration path to Fargate when traffic warrants it.
 
 ### 19.0 Big-Picture Diagram
 

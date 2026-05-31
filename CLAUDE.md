@@ -51,7 +51,7 @@ Cromo has two version surfaces, and they exist for different reasons:
     - Backend: `ARG APP_VERSION` → `ENV APP_VERSION` in `apps/backend/Dockerfile.cloud`, read at runtime by `apps/backend/src/env.ts`.
     - Frontend: `ARG NEXT_PUBLIC_APP_VERSION` in `apps/frontend/Dockerfile.cloud`, baked into the Next.js client bundle (`NEXT_PUBLIC_*` is build-time) and re-exported in the runtime stage so server-side Sentry init sees it too.
 
-   CI sets both build-args from `./scripts/app-version.sh` in `.github/workflows/ci.yml`. Locally, `./scripts/dev-up.sh` exports `APP_VERSION` before `docker compose`; plain `docker compose -f infrastructure/docker/docker-compose.yml ...` still works and falls back to the static `0.0.0-local` label baked into the compose file.
+   CI sets both build-args from `./scripts/app-version.sh` in `.github/workflows/ci-cd.yml`. Locally, `./scripts/dev-up.sh` exports `APP_VERSION` before `docker compose`; plain `docker compose -f infrastructure/docker/docker-compose.yml ...` still works and falls back to the static `0.0.0-local` label baked into the compose file.
 
 2. **`package.json` `version`** — the **base SemVer** the runtime version extends. It lives in four files that must stay in lockstep: `package.json`, `apps/backend/package.json`, `apps/frontend/package.json`, `packages/shared/package.json`. It has **no runtime consumer** — runtime code must never read `package.json.version`; it must use `process.env.APP_VERSION`. The base SemVer exists purely to (a) answer "what release line are we on?" without git introspection, and (b) keep tooling that introspects `package.json` happy.
 

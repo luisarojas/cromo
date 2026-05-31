@@ -8,7 +8,7 @@ The system depends on several time-based behaviours (auto-expire, retention, swe
 
 | Local | Cloud |
 |---|---|
-| `node-cron` running inside the API container | AWS ECS Scheduled Tasks (cheaper than Lambda + EventBridge for cron, identical container) |
+| `node-cron` running inside the API container | `node-cron` running inside the same API container on EC2 (see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)) |
 
 Jobs are defined in `apps/backend/src/jobs/` and discovered at startup. Each job logs to `audit_log` with `action = 'scheduled_job_run'` on success and an error metric on failure.
 
@@ -29,7 +29,7 @@ Jobs are defined in `apps/backend/src/jobs/` and discovered at startup. Each job
 | `purge-old-share-tokens` | Daily 05:15 UTC | Deletes `public_lists` with `expires_at < now()` | `public_lists` |
 | `cache-warm-stickers` | Every 50 minutes | Re-populates `stickers:all` before its 1h TTL expires (defends against stampede on world-cup-event spikes) | Redis only |
 | `dmarc-report-aggregation` | Weekly | Pulls DMARC aggregate reports from S3 inbox and emails the summary to admins | (off-app) |
-| `synthetic-canary-warm-aurora` | Every 4 minutes | Hits `/health/ready` to keep Aurora connection pool warm (§20.6) | (off-app) |
+| `synthetic-canary-warm-aurora` | Every 4 minutes | Hits `/health/ready` to keep the cloud DB connection pool warm. *Job name is a historical artifact from when the planned DB was Aurora Serverless v2; the actual DB is now RDS `db.t3.micro` (see [ADR-0002](decisions/0002-rds-postgresql-over-aurora-serverless.md)) and the canary's relevance is reduced — it remains as a cheap liveness check.* | (off-app) |
 
 ### 34.2 Failure Handling
 
@@ -63,10 +63,10 @@ BullMQ is a battle-tested Node.js queue library that runs on the Redis already i
 | Concern | Local | Cloud |
 |---|---|---|
 | Queue backend | Redis in Docker | ElastiCache Redis |
-| Worker process | Same Node.js container, separate process | Dedicated ECS Fargate task (`api-worker`), 1–2 instances |
+| Worker process | Same Node.js container, separate process | Same: a second container on the EC2 instance using the same image with `WORKER_MODE=true` |
 | Dashboard | Bull Board at `localhost:3001/admin/queues` | Same, gated behind admin auth |
 
-Workers are deployed as a second ECS service in cloud — same Docker image as the API but with `WORKER_MODE=true` env var that starts the BullMQ worker instead of the Fastify server.
+In cloud the worker runs as a sibling docker-compose service on the same EC2 instance — same Docker image as the API but with `WORKER_MODE=true` env var that starts the BullMQ worker instead of the Fastify server. If worker load grows enough to need horizontal scaling, that is the trigger to move both API and worker to ECS Fargate (see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)).
 
 ### 35.3 Queue Definitions
 

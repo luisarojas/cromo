@@ -40,7 +40,7 @@ pnpm db:migrate && pnpm db:seed
 
 Open:
 - Frontend: http://localhost:3000
-- API health: http://localhost:3001/health
+- API health: http://localhost:3001/api/v1/health
 - API docs: http://localhost:3001/docs
 - Mailpit (catches outbound email): http://localhost:8025
 - pgAdmin: http://localhost:5050 (login: `admin@local.dev` / `admin`)

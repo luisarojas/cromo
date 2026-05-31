@@ -15,39 +15,41 @@ The local-first approach means:
 - Cloud infrastructure mistakes don't cost money during the learning and building phase
 - The transition to cloud is clean because local and cloud are identical in their use of Docker containers
 
-### 2.2 The Two-Phase Plan
+### 2.2 The Two Environments
 
-**Phase A — Local Development (build everything, validate it works)**
+**Local Development (build everything, validate it works)**
 
-The entire application runs on your laptop using Docker Compose. No AWS account needed. No domain. No SSL certificates. Just a `docker compose up` command and you have a fully working application at `http://localhost:3000`.
+The entire application runs on your laptop using Docker Compose. No AWS account needed for day-to-day work. No domain. No SSL certificates. Just a `docker compose up` command and you have a fully working application at `http://localhost:3000`.
 
-During this phase:
+Locally:
 - All application features are built and tested
 - The database is seeded with the full 2026 World Cup data
-- The complete test suite is written and passes
-- The AI scanning feature is tested with a local mock
-- Performance is validated with a local load test
+- The test suite runs in `pnpm test`
+- The AI scanning feature uses a local mock
+- Performance is validated with a local load test (k6)
 
-**Phase B — Cloud Migration (move what works to AWS)**
+**Cloud (the same containers, deployed to AWS)**
 
-Once the application is working fully and all tests pass locally, the exact same Docker containers are deployed to AWS. Because Docker packages the application identically regardless of where it runs, the cloud deployment is reliable. You are not rewriting anything — you are moving a proven, tested system to a more powerful and reliable home.
+The exact same Docker images that run locally are deployed to AWS. Because Docker packages the application identically regardless of where it runs, the cloud deployment is reliable. We are not rewriting anything — we are running a proven, tested system on managed infrastructure.
+
+The dev environment is live today; production is provisioned with the same Terraform modules using prod-specific inputs (see [`devops.md` §18.3](./devops.md#183-production-pipeline-future)).
 
 ### 2.3 What Changes Between Local and Cloud
 
 | Concern | Local | Cloud (AWS) |
 |---|---|---|
-| Database | PostgreSQL in Docker | Aurora PostgreSQL Serverless v2 |
-| Cache | Redis in Docker | ElastiCache Redis |
+| Database | PostgreSQL in Docker | RDS PostgreSQL (`db.t3.micro` at launch — see [ADR-0002](decisions/0002-rds-postgresql-over-aurora-serverless.md)) |
+| Cache | Redis in Docker | ElastiCache Redis (`cache.t3.micro`) |
 | Auth | Local mock (any email/password works) | AWS Cognito |
 | Email | Mailpit (local inbox at localhost:8025) | AWS SES |
 | File storage | Local filesystem directory | AWS S3 |
 | AI scanning | Returns hardcoded mock result | Groq Vision API (Llama 4 Scout) |
-| Frontend hosting | `localhost:3000` | Vercel |
-| API hosting | `localhost:3001` | AWS ECS Fargate |
-| SSL/TLS | None (HTTP only) | AWS Certificate Manager (HTTPS) |
-| Domain | None | Route 53 + your registered domain |
-| Monitoring | Console logs | CloudWatch + Grafana |
-| Cost | $0 | ~$110–253 USD/month |
+| Frontend hosting | `localhost:3000` | EC2 + Docker Compose (co-hosted with API — see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)) |
+| API hosting | `localhost:3001` | EC2 + Docker Compose |
+| SSL/TLS | None (HTTP only) | AWS Certificate Manager (HTTPS) terminating at ALB |
+| Domain | None | Route 53 (`cromotrade.ca`) |
+| Monitoring | Console logs | CloudWatch metric alarms (RDS CPU, ALB unhealthy hosts) |
+| Cost | $0 | ~$55–61 USD/month (see `overview.md §32`) |
 
 Everything else — the codebase, the database schema, the API routes, the frontend, the tests — is **identical** between local and cloud. This is the power of containerisation.
 
@@ -263,28 +265,36 @@ NEXT_PUBLIC_ENV=development
 
 ### 4.3 Database Schema & First-Run Setup
 
-**Phase A approach (current).** The entire database schema lives in a single file:
-`apps/backend/src/db/schema.sql`. The API server applies this file at startup via
-`runMigrations()` in `apps/backend/src/db/migrate.ts`. Every `CREATE TABLE`, `CREATE INDEX`,
-`CREATE FUNCTION`, and seed `INSERT` is idempotent (`IF NOT EXISTS`, `CREATE OR REPLACE`,
-`ON CONFLICT`), so the file is safe to re-apply on an existing database. There are **no
-incremental migration files** during Phase A — schema changes are made by editing
-`schema.sql` directly. This is intentional: while the schema is in flux, a single source-of-truth
-file is much easier to reason about than a numbered chain of migrations.
+The database schema is managed by **Drizzle ORM**. Tables are defined in
+`apps/backend/src/db/schema.ts`; generated migrations live in
+`apps/backend/src/db/migrations/` alongside a `meta/_journal.json` index and
+per-migration snapshots. The API container applies pending migrations at startup
+via `runMigrations()` in `apps/backend/src/db/migrate.ts`, which delegates to
+Drizzle's `migrate()` and records progress in `drizzle.__drizzle_migrations`.
 
-**Phase B transition.** Once the schema stabilises and Cromo is deployed to AWS, Phase B
-will switch to Drizzle ORM migrations. `apps/backend/src/db/schema.ts` (the Drizzle table
-definitions) and `apps/backend/drizzle.config.ts` are already in the repo for that future
-work. Until then `db:generate` is a no-op for actual deployments.
+To change the schema:
+
+1. Edit `apps/backend/src/db/schema.ts`.
+2. Generate a migration: `pnpm db:generate` (routes through `docker compose exec api` automatically).
+3. Review the generated SQL in `src/db/migrations/`. For things Drizzle can't infer
+   (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` file
+   and add a matching entry to `meta/_journal.json` plus a placeholder
+   `meta/NNNN_snapshot.json` (copy the previous snapshot, refresh `id`/`prevId`).
+4. Apply: `pnpm db:migrate` (via docker compose exec). On the next API startup the
+   migration is also applied automatically.
+
+Catalog seed data (album types, editions, formats, scan prompts, teams, stickers,
+variants, test users, etc.) lives in `scripts/seeds/` and is loaded by
+`pnpm db:seed`, not by the migration system.
 
 ```bash
 # After docker compose up, seed the database with World Cup data:
 pnpm db:seed
 
-# To reset the local database entirely (wipes all data):
-pnpm db:reset && pnpm db:seed
+# To reset the local database entirely (wipes all data, re-runs migrations, re-seeds):
+pnpm db:reset
 
-# To apply schema.sql manually (the API also does this at startup):
+# To re-apply pending migrations manually (the API also does this at startup):
 pnpm db:migrate
 ```
 

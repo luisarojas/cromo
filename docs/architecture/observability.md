@@ -16,15 +16,15 @@ Privacy-respecting, cookieless analytics hosted on a small EC2 instance in `ca-c
 
 ### 16.1 Two Endpoints
 
-**`GET /health` — Liveness (lightweight, local and cloud)**
+**`GET /api/v1/health` — Liveness (lightweight, local and cloud)**
 
-Called every 10 seconds by Docker (locally) and ECS (cloud). Confirms the Node.js process is alive. Does not check dependencies.
+Polled by Docker (locally) and by the ALB target group (cloud). Confirms the Node.js process is alive. Does not check dependencies.
 
 ```json
-HTTP 200 { "status": "ok", "version": "1.2.4", "uptime_seconds": 86423 }
+HTTP 200 { "status": "ok", "timestamp": "2026-05-15T14:00:00.000Z", "version": "v0.2.0-3-gabcd123" }
 ```
 
-**`GET /health/ready` — Readiness (comprehensive)**
+**`GET /api/v1/health/ready` — Readiness (comprehensive)**
 
 Called before routing any traffic to a new container. Checks all dependencies.
 
@@ -67,9 +67,9 @@ In local development, all logs appear in the Docker Compose terminal output in s
 
 Structured JSON with `version`, `environment`, and `requestId` on every line. Retention: 7d (dev), 30d (staging), 365d (production).
 
-**Metrics + Dashboards — CloudWatch + Grafana**
+**Metrics + Dashboards — CloudWatch**
 
-Grafana connects to CloudWatch as a data source. Dashboards are JSON-defined and version-controlled in the repository. `docs/runbooks/grafana-guide.md` explains how to read them and add panels.
+CloudWatch metric alarms are provisioned in `infrastructure/terraform/modules/monitoring` (currently: RDS CPU, ALB unhealthy hosts). Application-level dashboards and Grafana integration are planned but not yet wired — `docs/runbooks/cloudwatch-guide.md` (TODO) will document them once they exist.
 
 **Traces — AWS X-Ray**
 
@@ -81,8 +81,8 @@ Slow request debugging — shows which specific query or API call caused a delay
 |---|---|
 | API error rate | > 1% over 5 min |
 | API p99 response | > 2 seconds |
-| ECS CPU | > 80% for 10 min |
-| Aurora CPU | > 80% for 5 min |
+| EC2 CPU | > 80% for 10 min |
+| RDS CPU | > 80% for 5 min |
 | Redis memory | > 80% |
 | Health check failures | 3 consecutive |
 | AWS spend | > $400 USD/month |
@@ -118,12 +118,12 @@ Mitigation (singleflight pattern):
 
 Implemented as a wrapper helper (`cachedOrCompute(key, ttl, fn)`) and applied to all GET endpoints that hit cached read-mostly data.
 
-### 20.6 Aurora Serverless v2 Cold Start
+### 20.6 Cold-Start Behaviour (Business-Hours Schedule)
 
-Aurora Serverless v2 with `min_capacity = 0` saves money at night but adds 10–30 s latency on the first request after a scale-to-zero. Our mitigations:
+The dev environment scales the EC2 ASG to 0 and stops the RDS instance outside business hours (see `infrastructure/terraform/modules/scheduling` and `docs/runbooks/dev-schedule.md`). This keeps dev costs low but means the first request after a scheduled scale-up takes 60–120 s while the instance boots, the SSM agent registers, and the API container pulls + starts.
 
-1. **Production min_capacity = 0.5 ACU** — never scales to zero. The ~$15/month cost is worth the consistent UX.
-2. **Dev/staging min_capacity = 0** — saves money, accepts cold-start during dev work.
-3. **CloudWatch Synthetics canary** — an external GET to `/health/ready` every 4 minutes keeps the connection pool warm even outside business hours (defence in depth).
-4. **Frontend UX during cold start** — the `/health/ready` endpoint is checked from the landing page; if it returns 503, the UI shows a "Waking up — this takes about 20 seconds" notice rather than a generic error.
+1. **Production stays always-on** — `enable = false` on the scheduling module renders the resources with never-fires expressions and a 0-desired-capacity baseline.
+2. **Dev acceptably cold during off-hours** — the schedule (Mon–Fri 17:00–23:00 ET; Sat–Sun 07:00–23:00 ET) covers normal usage; outside it, manual scale-up is expected.
+3. **Synthetic canary job** — `synthetic-canary-warm-aurora` (job name is a historical artifact — actual DB is RDS, not Aurora) hits `/api/v1/health/ready` every 4 minutes while the env is up, keeping the DB connection pool warm.
+4. **Frontend UX during cold start** — `/api/v1/health/ready` is checked from the landing page; if it returns 503, the UI shows a "Waking up — this takes about a minute" notice rather than a generic error.
 

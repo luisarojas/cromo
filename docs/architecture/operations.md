@@ -9,13 +9,19 @@
 - **RTO:** ≤ 30 minutes
 - **RPO:** ≤ 5 minutes of data loss
 
-### 22.2 Backup Strategy (3-2-1)
+### 22.2 Backup Strategy
 
-- Aurora continuous backup: 35-day point-in-time recovery
-- Aurora Global Database: replication to ca-west-1 (~1 second lag)
-- S3 cross-region replication: assets mirrored to ca-west-1
+**Current (RDS PostgreSQL `db.t3.micro` — see [ADR-0002](decisions/0002-rds-postgresql-over-aurora-serverless.md)):**
 
-Failover to Calgary in under 1 minute if Montréal region fails.
+- RDS automated backups with point-in-time recovery (retention configured in Terraform; default 7 days).
+- Manual snapshots before any destructive migration or before a reseed.
+
+**Planned for prod:**
+
+- Cross-region snapshot copy to `ca-west-1` (Calgary).
+- S3 cross-region replication for user-uploaded assets.
+
+> The original spec called for Aurora Global Database replication to `ca-west-1` (~1 second lag) and sub-minute regional failover. That guarantee does not hold with `db.t3.micro` — restore from a snapshot in another region is on the order of tens of minutes. When traffic warrants Aurora, the original RTO/RPO targets become reachable.
 
 ### 22.3 Quarterly DR Exercise
 
@@ -79,7 +85,7 @@ Stored in `docs/runbooks/`. Required before public launch.
 | `local-setup.md` | How to get the application running locally from scratch |
 | `deploy-hotfix.md` | Deploy a critical fix bypassing normal pipeline |
 | `rollback-deployment.md` | Revert to previous Docker image |
-| `restore-database.md` | Restore from Aurora point-in-time backup |
+| `restore-database.md` | Restore from RDS point-in-time backup |
 | `disaster-recovery.md` | Full regional failover to ca-west-1 |
 | `data-breach-response.md` | CPPA breach notification workflow |
 | `process-data-request.md` | Handle export / delete account requests |
