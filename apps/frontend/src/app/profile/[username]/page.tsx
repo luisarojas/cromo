@@ -14,6 +14,7 @@ import {
 import { useAuthStore } from '@/store/auth';
 import ShareProfileButton from '@/components/ShareProfileButton';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import { flagUrl } from '@/lib/flags';
 import FilterBar, { type FilterState } from '@/app/album/components/FilterBar';
 import TrustBadge from '@/components/TrustBadge';
 import ReportUserModal from '@/components/ReportUserModal';
@@ -706,8 +707,21 @@ export default function PublicProfilePage() {
                                     ×{qty}
                                   </span>
                                 )}
-                                <div className="text-base font-extrabold text-[var(--cromo-fg)] leading-none mb-1 pr-6">
-                                  {item.albumCode}
+                                <div className="flex items-center gap-1.5 mb-1 pr-6">
+                                  <span className="text-base font-extrabold text-[var(--cromo-fg)] leading-none">
+                                    {item.albumCode}
+                                  </span>
+                                  {item.fifaCode && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={flagUrl(item.fifaCode) ?? undefined}
+                                      alt={item.fifaCode}
+                                      width={20}
+                                      height={14}
+                                      className="rounded-[2px] object-cover flex-shrink-0"
+                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  )}
                                 </div>
                                 <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-2">
                                   {item.playerName ?? item.teamName ?? '—'}

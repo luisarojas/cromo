@@ -49,6 +49,7 @@ export interface PublicInventoryItem {
   player_name: string | null;
   sticker_type: string;
   team_name: string | null;
+  fifa_code: string | null;
   variant_type: string | null;
   quantity: number | null;
 }
@@ -533,6 +534,7 @@ export async function getPublicProfile(
               s.player_name,
               s.sticker_type,
               t.name       AS team_name,
+              t.fifa_code  AS fifa_code,
               t.group_name AS group_name,
               sv.variant_type,
               us.quantity
@@ -774,6 +776,7 @@ export async function getPublicAlbumWanted(
             ms.player_name,
             ms.sticker_type,
             t.name        AS team_name,
+            t.fifa_code   AS fifa_code,
             t.group_name  AS group_name,
             ws.wanted_variant_type AS variant_type,
             NULL::int     AS quantity
@@ -933,6 +936,7 @@ export async function getPublicAlbumOffered(
             s.player_name,
             s.sticker_type,
             t.name           AS team_name,
+            t.fifa_code      AS fifa_code,
             t.group_name     AS group_name,
             sv.variant_type,
             us.quantity
