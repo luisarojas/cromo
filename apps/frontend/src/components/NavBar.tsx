@@ -65,7 +65,7 @@ export default function NavBar() {
               <NavLink href="/scan">Scan</NavLink>
             </>
           )}
-          <NavLink href="/guide">Guide</NavLink>
+          <NavLink href="/guide">Guides</NavLink>
           {user?.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
         </div>
 
@@ -155,7 +155,7 @@ export default function NavBar() {
                   <DrawerLink href="/scan">Scan</DrawerLink>
                 </>
               )}
-              <DrawerLink href="/guide">Guide</DrawerLink>
+              <DrawerLink href="/guide">Guides</DrawerLink>
               {user?.role === 'admin' && <DrawerLink href="/admin">Admin</DrawerLink>}
 
               <div className="my-2 h-px bg-[var(--cromo-border)]" />

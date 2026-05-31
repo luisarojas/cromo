@@ -13,15 +13,24 @@ export default function WC2026GuidePage() {
       </Link>
 
       {/* Hero */}
-      <div className="rounded-2xl cromo-chrome-fill px-8 py-10 text-[#0E1117] relative overflow-hidden">
-        <span className="inline-flex items-center rounded-full bg-black/15 backdrop-blur px-3 py-1 text-[11px] font-semibold uppercase tracking-wider mb-4">
+      <div className="relative overflow-hidden rounded-2xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-8 py-10">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full opacity-25 blur-3xl cromo-chrome-fill"
+        />
+        <span className="relative inline-flex items-center rounded-full cromo-chrome-fill px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#0E1117] mb-4">
           2026 FIFA World Cup
         </span>
-        <h1 className="font-display text-3xl font-bold leading-tight tracking-tight">Panini Sticker Collection</h1>
-        <p className="text-black/70 text-lg font-medium mt-0.5">Album Guide</p>
-        <p className="mt-3 text-black/80 text-sm max-w-lg leading-relaxed">
-          A complete reference for collectors — covering regional editions, album formats, sticker
-          variants and parallels, the full 980-slot breakdown, and where to find everything.
+        <h1 className="relative font-display text-3xl font-bold leading-tight tracking-tight cromo-chrome-text">
+          Panini Sticker Collection
+        </h1>
+        <p className="relative mt-1 text-lg font-medium text-[var(--cromo-fg-muted)]">
+          Your collector&apos;s handbook
+        </p>
+        <p className="relative mt-4 max-w-xl text-sm leading-relaxed text-[var(--cromo-fg-muted)]">
+          Everything you need to know to chase the 2026 album — which edition to buy, what those
+          fancy borders actually mean, what&apos;s tucked inside the 980 slots, and the best places
+          to track down the rare stuff.
         </p>
       </div>
 
@@ -33,12 +42,12 @@ export default function WC2026GuidePage() {
         <ol className="grid sm:grid-cols-2 gap-0.5">
           {(
             [
-              ['#editions', 'Regional Editions'],
-              ['#formats', 'Album Formats'],
-              ['#variants', 'Sticker Variants & Parallels'],
-              ['#breakdown', "What's in the Album (980 stickers)"],
-              ['#coca-cola', 'Coca-Cola Special Section'],
-              ['#where-to-buy', 'Where to Buy'],
+              ['#editions', 'Which edition should you buy?'],
+              ['#formats', 'Softcover, hardcover & beyond'],
+              ['#variants', 'The fancy sticker variants'],
+              ['#breakdown', "What's actually in the album"],
+              ['#coca-cola', 'The Coca-Cola section'],
+              ['#where-to-buy', 'Where to grab some packs'],
             ] as const
           ).map(([href, label], i) => (
             <li key={href}>
@@ -65,14 +74,14 @@ export default function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             1
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Regional Editions</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Which edition should you buy?</h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          Panini publishes distinct regional variants of the same base album, each with a different
-          cover, language, and sometimes unique extras. The 980-sticker slot list is identical across
-          all editions — what changes is packaging, regional cover art, and which parallels or
-          exclusives you can pull. Knowing your edition matters if you&apos;re hunting specific
-          parallels.
+          Panini makes the same 980-sticker album for the whole world, but they dress it up a bit
+          differently depending on where you live — a different cover, your local language, and
+          sometimes a few exclusive stickers you can&apos;t get anywhere else. If you&apos;re
+          chasing a specific rare border, it really does matter which version of the packs you
+          buy.
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
@@ -167,9 +176,9 @@ export default function WC2026GuidePage() {
           </table>
         </div>
         <p className="text-xs text-[var(--cromo-fg-subtle)] leading-relaxed">
-          Team page order within the album varies by edition — host nations (Canada, Mexico, USA)
-          appear prominently early in the North American edition, while LATAM editions foreground
-          Brazil and Argentina.
+          The team pages aren&apos;t in the same order in every album — your home country usually
+          gets a spot near the front. North American albums lead with Canada, Mexico, and the USA;
+          LATAM editions put Brazil and Argentina up first.
         </p>
       </section>
 
@@ -182,12 +191,12 @@ export default function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             2
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Album Formats</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Softcover, hardcover &amp; beyond</h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          Multiple physical formats exist across different markets. All contain the same 980 sticker
-          slots — the differences are cover material, binding style, and how widely available they
-          are.
+          The album comes in a few different flavours depending on where you shop. The stickers
+          inside are always the same 980 — what changes is the cover (paperback, hardcover, fancy
+          metallic) and how easy it is to actually find.
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
@@ -248,9 +257,9 @@ export default function WC2026GuidePage() {
         </div>
         <div className="flex items-start gap-2.5 rounded-lg bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-4 py-3">
           <span className="text-[var(--cromo-warning-text)] shrink-0 mt-0.5 text-base leading-none">⚠</span>
-          <p className="text-xs text-amber-800 leading-relaxed">
-            There is no &ldquo;Platinum&rdquo; edition for the 2026 collection. Any listing or
-            product using that name is unofficial — do not pay a premium for it.
+          <p className="text-xs text-[var(--cromo-warning-text)] leading-relaxed">
+            Heads up: there&apos;s no such thing as a &ldquo;Platinum&rdquo; edition. If you see
+            one listed online, it&apos;s a fake — don&apos;t pay extra for it.
           </p>
         </div>
       </section>
@@ -264,32 +273,34 @@ export default function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             3
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Sticker Variants &amp; Parallels</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">The fancy sticker variants</h2>
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Base Finish</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">The basics: matte vs. foil</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-1.5 list-disc list-inside">
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Standard (matte)</span> — non-foil base
-              stickers; the majority of the collection
+              <span className="font-medium text-[var(--cromo-fg)]">Matte</span> — your everyday
+              stickers. Most of what you&apos;ll pull will be these.
             </li>
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Foil</span> — shiny finish applied to
-              sticker{' '}
+              <span className="font-medium text-[var(--cromo-fg)]">Foil (shiny)</span> — the
+              eye-catching ones. There are 49 in total: the &ldquo;We Are Panini&rdquo; sticker{' '}
               <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">00</code>,
-              FWC-1 through FWC-8, and all 48 team emblems (49 foil stickers total)
+              the eight World Cup branding stickers (FWC-1 to FWC-8), and the team emblem for each
+              of the 48 nations.
             </li>
           </ul>
         </div>
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">
-            North America Border Parallels
+            Coloured borders (North America only)
           </h3>
           <p className="text-xs text-[var(--cromo-fg-muted)]">
-            Found in physical packs sold in the USA and Canada only. Applied to non-foil stickers —
-            foil stickers do not receive a color border.
+            If you buy packs in the US or Canada, you&apos;ll occasionally get stickers with
+            coloured borders instead of plain white. The rarer the colour, the bigger the brag. Foil
+            stickers always come with the regular border — they don&apos;t get the colour treatment.
           </p>
           <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
             <table className="w-full text-sm">
@@ -329,11 +340,12 @@ export default function WC2026GuidePage() {
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">
-            Panini America iCollect &ldquo;Crumple&rdquo; Parallels
+            &ldquo;Crumple&rdquo; stickers (Panini iCollect)
           </h3>
           <p className="text-xs text-[var(--cromo-fg-muted)]">
-            Available exclusively through the Panini America iCollect digital store. These cannot be
-            found in physical packs — they are a separate digital product line.
+            These are the wrinkled metallic ones — a totally separate line you can only get through
+            Panini America&apos;s iCollect online store. You won&apos;t find them in any physical
+            pack from a shop.
           </p>
           <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
             <table className="w-full text-sm">
@@ -372,15 +384,15 @@ export default function WC2026GuidePage() {
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Other Regional Parallels</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">A few more regional surprises</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-1.5 list-disc list-inside">
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Green (United Edition)</span> —
-              Switzerland exclusive, found in the Panini United 2026 product line
+              <span className="font-medium text-[var(--cromo-fg)]">Green border</span> — only in
+              Switzerland&apos;s &ldquo;Panini United 2026&rdquo; packs
             </li>
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Silver (players only)</span> — Belgium
-              exclusive, found in Special Blister packs
+              <span className="font-medium text-[var(--cromo-fg)]">Silver border (players only)</span> —
+              Belgium-exclusive, hidden inside the Special Blister packs
             </li>
           </ul>
         </div>
@@ -388,11 +400,10 @@ export default function WC2026GuidePage() {
         <div className="flex items-start gap-2.5 rounded-lg bg-[var(--cromo-accent-soft)] border border-[var(--cromo-accent)]/30 px-4 py-3">
           <span className="text-[var(--cromo-accent)] shrink-0 mt-0.5 text-base leading-none">ℹ</span>
           <p className="text-xs text-[var(--cromo-accent)] leading-relaxed">
-            <span className="font-semibold">International bonus stickers:</span> The international
-            format includes 20 elite-player bonus stickers in Purple, Bronze, Silver, and Gold
-            variants, pulled roughly 1 in 100 packs. These have{' '}
-            <span className="font-semibold">no album slot</span> — they are standalone collectibles
-            outside the base 980-sticker set.
+            <span className="font-semibold">About those bonus &ldquo;Extra&rdquo; stickers:</span>{' '}
+            International packs sometimes throw in a bonus sticker of one of 20 superstars in
+            Purple, Bronze, Silver, or Gold — about once every 100 packs. They&apos;re fun to pull,
+            but they don&apos;t go in the album. Think of them as a side collection.
           </p>
         </div>
       </section>
@@ -407,13 +418,13 @@ export default function WC2026GuidePage() {
             4
           </span>
           <h2 className="text-lg font-bold text-[var(--cromo-fg)]">
-            What&apos;s in the Album{' '}
-            <span className="font-normal text-[var(--cromo-fg-muted)] text-base">(980 stickers)</span>
+            What&apos;s actually in the album{' '}
+            <span className="font-normal text-[var(--cromo-fg-muted)] text-base">(all 980 of them)</span>
           </h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          The slot composition is identical across all regional editions. The album runs 112 pages
-          and follows this structure:
+          Every album has the same 980 spots to fill, laid out across 112 pages. Here&apos;s how
+          they break down:
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
@@ -506,15 +517,15 @@ export default function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             5
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Coca-Cola Special Section</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">The Coca-Cola section</h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          Stickers{' '}
+          In the middle of every album there&apos;s a special two-page spread for stickers{' '}
           <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC1</code> to{' '}
-          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC12</code> fill a
-          double-page spread in the middle of the album. They feature elite players selected in
-          partnership with Coca-Cola. The 12 album slots are the same in every edition, but which
-          players appear depends on where your packs were sold.
+          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC12</code> —
+          a Panini × Coca-Cola crossover featuring some of the tournament&apos;s biggest names. The
+          12 slots are the same everywhere, but who fills them depends on which corner of the world
+          your packs come from.
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
@@ -570,36 +581,36 @@ export default function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             6
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Where to Buy</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Where to grab some packs</h2>
         </div>
 
         <div className="space-y-1.5">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Physical Packs &amp; Albums</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">In stores and online</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-2 mt-2">
             {[
               {
                 name: 'Supermarkets & newsstands',
-                desc: 'Walmart, Target, Tesco, Carrefour, Rewe, Fnac, and equivalents. Standard softcover album and loose packs (~5 stickers per pack).',
+                desc: 'The easiest place to start. Walmart, Target, Tesco, Carrefour — you’ll find the regular softcover album and loose packs (about 5 stickers a pack) right next to the checkout.',
               },
               {
                 name: 'Amazon',
-                desc: 'Collectors Bundle includes a hardcover album. USA/Canada listings also carry the Orange Border Amazon-exclusive pack boxes.',
+                desc: 'The Collectors Bundle comes with a hardcover album. In the US and Canada you can also grab the Amazon-exclusive box of packs — that’s where the orange-border stickers live.',
               },
               {
-                name: 'Panini official stores',
-                desc: 'paniniamerica.net, panini.co.uk, panini.de, etc. — starter packs, blister packs, multi-pack bundles, and regional exclusives.',
+                name: 'Panini’s own stores',
+                desc: 'paniniamerica.net, panini.co.uk, panini.de, and so on. Good for starter packs, blister packs, bigger bundles, and country-specific goodies.',
               },
               {
                 name: 'Sports card & hobby shops',
-                desc: 'Often stock full boxes and premium bundles; best source for box-break events and hard-to-find variants.',
+                desc: 'If you want to go big, these shops carry full boxes and premium bundles. They’re also where you’ll find live box-break events and the harder-to-pull stuff.',
               },
               {
                 name: 'Switzerland — Panini United 2026',
-                desc: 'Sold through Swiss Panini distributors and online at panini.ch. The numbered Treasure Box hardcover (1–5000 units) is exclusive to this channel.',
+                desc: 'Sold through Swiss Panini sellers and panini.ch. The numbered Treasure Box hardcover (only 5,000 made) is exclusive to here.',
               },
               {
-                name: 'France — Silver / Gold Hardcover',
-                desc: 'Available at Fnac, Leclerc, and the Panini France online store.',
+                name: 'France — Silver & Gold Hardcovers',
+                desc: 'Check Fnac, Leclerc, or the Panini France online store.',
               },
             ].map(({ name, desc }) => (
               <li key={name} className="flex gap-2">
@@ -613,20 +624,20 @@ export default function WC2026GuidePage() {
         </div>
 
         <div className="space-y-1.5">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Online &amp; Digital</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Going digital</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-2 mt-2">
             {[
               {
                 name: 'Panini America iCollect',
-                desc: 'Digital packs with Crumple parallels exclusive to this platform (icollect.paniniamerica.net). No physical delivery.',
+                desc: 'Digital-only packs at icollect.paniniamerica.net. This is the only place to get those Crumple stickers — nothing ships to your door.',
               },
               {
                 name: 'FIFA Panini Collection app',
-                desc: 'Official digital companion app that mirrors the print album layout per region. Useful for checking sticker progress.',
+                desc: 'The official companion app. Handy for keeping tabs on what you’ve collected and seeing the album layout for your region.',
               },
               {
-                name: 'eBay / Mercado Libre / Vinted',
-                desc: 'Secondary market for singles, sealed packs, and rare parallels. Prices vary significantly — compare listings before buying.',
+                name: 'eBay, Mercado Libre, Vinted',
+                desc: 'Where most collectors buy and sell singles, sealed packs, and rare borders. Prices are all over the map — shop around before you commit.',
               },
             ].map(({ name, desc }) => (
               <li key={name} className="flex gap-2">
@@ -642,10 +653,10 @@ export default function WC2026GuidePage() {
         <div className="flex items-start gap-2.5 rounded-lg bg-transparent border border-[var(--cromo-border)] px-4 py-3">
           <span className="text-[var(--cromo-fg-subtle)] shrink-0 mt-0.5 text-base leading-none">ℹ</span>
           <p className="text-xs text-[var(--cromo-fg-muted)] leading-relaxed">
-            Prices and availability are approximate as of May 2026 and vary by retailer and country.
-            Page-number references in Panini&apos;s album shift between regional editions — for
-            exact placement, consult the table of contents in your specific album or the FIFA Panini
-            Collection app.
+            Prices and stock listed above are rough as of May 2026 — they bounce around a lot
+            between countries and shops. And remember: page numbers shift between regional editions,
+            so if you&apos;re looking for a specific spot, the table of contents in your own album
+            (or the FIFA Panini Collection app) is your best friend.
           </p>
         </div>
       </section>
