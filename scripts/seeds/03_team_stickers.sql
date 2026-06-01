@@ -355,7 +355,7 @@ FROM (VALUES
   ( 193, 'MAR4', 'Achraf Hakimi', 'Achraf Hakimi', 'DEF', 'player', false),
   ( 194, 'MAR5', 'Noussair Mazraoui', 'Noussair Mazraoui', 'DEF', 'player', false),
   ( 195, 'MAR6', 'Nayef Aguerd', 'Nayef Aguerd', 'DEF', 'player', false),
-  ( 196, 'MAR7', 'Roman Saiss', 'Roman Saiss', 'DEF', 'player', false),
+  ( 196, 'MAR7', 'Romain Saiss', 'Romain Saiss', 'DEF', 'player', false),
   ( 197, 'MAR8', 'Jawad El Yamio', 'Jawad El Yamio', 'DEF', 'player', false),
   ( 198, 'MAR9', 'Adam Masina', 'Adam Masina', 'DEF', 'player', false),
   ( 199, 'MAR10', 'Sofyan Amrabat', 'Sofyan Amrabat', 'MID', 'player', false),
