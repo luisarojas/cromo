@@ -43,6 +43,13 @@
       "when": 1780300000000,
       "tag": "0005_preference_aware_duplicate_count",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780400000000,
+      "tag": "0006_default_count_all_duplicates",
+      "breakpoints": true
     }
   ]
 }

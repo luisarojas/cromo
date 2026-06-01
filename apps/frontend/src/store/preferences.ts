@@ -17,7 +17,7 @@ interface PreferencesState {
 }
 
 const DEFAULTS = {
-  duplicatesCountAllVariants: false,
+  duplicatesCountAllVariants: true,
   cities: [] as City[],
   profileVisibility: 'public' as ProfileVisibility,
   tradeMatchingEnabled: true,

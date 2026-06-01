@@ -425,7 +425,7 @@ export async function getStatsAndExtras(
   }>(
     `WITH owner AS (
        SELECT ua.user_id,
-              COALESCE(us.duplicates_count_all_variants, false) AS count_all
+              COALESCE(us.duplicates_count_all_variants, true) AS count_all
        FROM user_albums ua
        LEFT JOIN user_settings us ON us.user_id = ua.user_id
        WHERE ua.id = $1

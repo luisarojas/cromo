@@ -53,7 +53,7 @@ export default function LoginPage() {
         const prefs = await fetchUserPreferences(accessToken);
         setFromServer(prefs);
       } catch {
-        setFromServer({ duplicatesCountAllVariants: false, cities: [], profileVisibility: 'public', tradeMatchingEnabled: true });
+        setFromServer({ duplicatesCountAllVariants: true, cities: [], profileVisibility: 'public', tradeMatchingEnabled: true });
       }
       router.push(next);
     } catch (err) {

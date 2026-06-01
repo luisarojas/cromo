@@ -161,7 +161,7 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
 
   if ((result.rowCount ?? 0) === 0) {
     return {
-      duplicatesCountAllVariants: false,
+      duplicatesCountAllVariants: true,
       cities: [],
       profileVisibility: 'public',
       tradeMatchingEnabled: true,
