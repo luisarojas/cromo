@@ -16,7 +16,7 @@ const MOCK_RESULTS: ScanResult[] = [
   {
     stickerNumber: 247,
     albumCode: 'BRA5',
-    playerName: 'Vinicius Jr.',
+    playerName: 'Vinícius Júnior',
     teamFifaCode: 'BRA',
     variantToken: null,
     stickerType: null,
