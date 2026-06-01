@@ -62,11 +62,11 @@ Set any field that is not visible or not applicable to null. Do NOT invent value
 
 albumCode is the code printed on the BACK of a sticker (e.g. "BRA5", "EX12", "CC4"). When you are looking at the FRONT of a sticker, this code is NOT visible — leave albumCode null. When you are looking at the BACK of a sticker, the code is the ONLY information available — return the code as albumCode and leave the other classification fields (stickerType, variantToken, playerName, stickerNumber, teamFifaCode) null. The backend resolves those from the code.
 
-Output Format Template:
+Output Format Template (variantToken values shown are illustrative — pick the actual token from the album's rules based on what you see):
 {
   "stickers": [
-    { "stickerNumber": 12, "albumCode": null,  "playerName": "NEYMAR JR", "teamFifaCode": "BRA", "variantToken": "<token from album rules>", "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: <…>. VARIANT_SIGNAL: <…>. INTERIOR: <…>. TYPE_TEST: <…>. TOKEN_PICK: <…>." },
-    { "stickerNumber": null, "albumCode": "ARG7", "playerName": null,        "teamFifaCode": null,  "variantToken": null,                       "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: back side of sticker, only album code visible. VARIANT_SIGNAL: n/a (back side). INTERIOR: n/a. TYPE_TEST: skipped, back side. TOKEN_PICK: backend resolves from albumCode ARG7." }
+    { "stickerNumber": 12, "albumCode": null,  "playerName": "NEYMAR JR", "teamFifaCode": "BRA", "variantToken": "blue", "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: <…>. VARIANT_SIGNAL: <…>. INTERIOR: <…>. TYPE_TEST: <…>. TOKEN_PICK: <…>." },
+    { "stickerNumber": null, "albumCode": "ARG7", "playerName": null,        "teamFifaCode": null,  "variantToken": null,    "stickerType": null, "confidence": 0.95, "reasoning": "LAYOUT: back side of sticker, only album code visible. VARIANT_SIGNAL: n/a (back side). INTERIOR: n/a. TYPE_TEST: skipped, back side. TOKEN_PICK: backend resolves from albumCode ARG7." }
   ]
 }`;
 }
@@ -120,11 +120,13 @@ export async function identifySticker(
       // Raised cap mirrors the previous Groq limit — prevents clipping on
       // images with many stickers (each carries a 5-line reasoning string).
       maxOutputTokens: 3000,
-      // Disable Gemini 2.5 Flash's default "thinking" pass. Our own reasoning
-      // protocol in the prompt already serves the same purpose, and leaving
-      // thinking on roughly doubled scan latency past the 30s timeout on
-      // multi-sticker images. Set to -1 for dynamic / a positive int for a cap.
-      thinkingConfig: { thinkingBudget: 0 },
+      // Dynamic thinking budget. Flash with thinking disabled collapsed
+      // variant detection onto the first row of the album's variant table
+      // (returned "base_borderless" for every sticker regardless of rim);
+      // it needs reasoning room to actually inspect the cut-edge rim before
+      // committing to a token. The 60s request timeout absorbs the extra
+      // latency. Set to a positive int to cap, or 0 to disable.
+      thinkingConfig: { thinkingBudget: -1 },
     },
   });
 
