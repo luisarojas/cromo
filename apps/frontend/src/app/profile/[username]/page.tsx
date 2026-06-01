@@ -699,15 +699,7 @@ export default function PublicProfilePage() {
                                 key={item.stickerVariantId}
                                 className="relative flex flex-col rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-2.5 hover:border-[var(--cromo-border-strong)] transition-shadow"
                               >
-                                {showQty && (
-                                  <span
-                                    className="absolute top-1.5 right-1.5 text-[10px] font-medium text-[var(--cromo-fg-subtle)]"
-                                    title={`${qty} copies available`}
-                                  >
-                                    ×{qty}
-                                  </span>
-                                )}
-                                <div className="flex items-center gap-1.5 mb-1 pr-6">
+                                <div className="flex items-center gap-1.5 mb-1">
                                   <span className="text-base font-extrabold text-[var(--cromo-fg)] leading-none">
                                     {item.albumCode}
                                   </span>
@@ -741,7 +733,10 @@ export default function PublicProfilePage() {
                                         className={`inline-block w-2 h-2 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(item.variantType)}`}
                                         aria-hidden
                                       />
-                                      {variantLabel(item.variantType)}
+                                      <span>
+                                        {variantLabel(item.variantType)}
+                                        {showQty && ` ×${qty}`}
+                                      </span>
                                     </span>
                                   )}
                                 </div>
