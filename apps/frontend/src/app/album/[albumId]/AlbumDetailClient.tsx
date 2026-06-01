@@ -43,6 +43,7 @@ import AlbumFormModal from '../components/AlbumFormModal';
 import MassActionBar from '../components/MassActionBar';
 import VariantPickerModal from '../components/VariantPickerModal';
 import type { OwnedVariantEntry } from '../components/VariantPopover';
+import Scanner from '@/app/scan/Scanner';
 
 type OwnedMap = Map<string, OwnedVariantMap>;
 
@@ -129,6 +130,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
   const [massWorking, setMassWorking] = useState(false);
   const [variantPicker, setVariantPicker] = useState<'add' | 'remove' | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   const tokenRef = useRef(token);
   const userRef = useRef(user);
@@ -699,6 +701,15 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
           {activeAlbum && (
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowScanner(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--cromo-accent-fg)] bg-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-strong)] rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                </svg>
+                Scan
+              </button>
               {!activeAlbum.isDefault && (
                 <button
                   onClick={handleSetDefault}
@@ -911,6 +922,26 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           }}
           onClose={() => setVariantPicker(null)}
         />
+      )}
+
+      {showScanner && activeAlbum && (
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-0 sm:p-4 overflow-y-auto"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowScanner(false); }}
+        >
+          <div
+            className="w-full max-w-lg bg-[var(--cromo-surface-2)] sm:rounded-2xl shadow-cromo-lg p-4 sm:p-6 min-h-screen sm:min-h-0"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Scan stickers"
+          >
+            <Scanner
+              album={activeAlbum}
+              onClose={() => setShowScanner(false)}
+              onChange={handleCollectionChange}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
