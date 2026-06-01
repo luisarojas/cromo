@@ -478,7 +478,7 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
       expect(typeof variantId).toBe('string');
     });
 
-    it(`POST /api/v1/users/${ALICE_ID}/stickers returns 204`, async () => {
+    it(`POST /api/v1/users/${ALICE_ID}/stickers returns 200 with the resulting quantity`, async () => {
       const response = await app.inject({
         method: 'POST',
         url: `/api/v1/users/${ALICE_ID}/stickers`,
@@ -489,7 +489,11 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
         body: JSON.stringify({ variantId, albumId: ALICE_NA_ALBUM_ID }),
       });
 
-      expect(response.statusCode).toBe(204);
+      expect(response.statusCode).toBe(200);
+
+      const body = response.json<{ quantity: number }>();
+      expect(typeof body.quantity).toBe('number');
+      expect(body.quantity).toBeGreaterThan(0);
     });
 
     it(`DELETE /api/v1/users/${ALICE_ID}/stickers/:variantId returns 204`, async () => {
