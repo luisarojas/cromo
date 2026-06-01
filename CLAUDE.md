@@ -188,4 +188,6 @@ Use this table to identify a sticker's `sticker_type` from a photo of its **fron
 
 #### 7. Visual Identification — Back of Sticker
 
-The back of a sticker contains **only the album code** (e.g. `COL4`, `BRA19`, `FWC4`). Everything else (player name, country, sticker type, album slot) is derived from that code via the catalog. A scan that returns more than the album code from a back-of-sticker image is hallucinating — trust the code lookup, not the OCR'd surrounding text.
+The back of a real sticker prints the **album code** (e.g. `COL4`, `BRA19`, `FWC4`) PLUS three constant branding markers present on every sticker back: the text `FIFA WORLD CUP 2026`, the text `OFFICIAL LICENSED PRODUCT`, and the Panini wordmark. These three markers are what distinguish a real sticker back from an **empty album slot** — slots inside the physical album also print a code (so the collector knows which sticker belongs there), but they lack the FIFA/Panini branding. Any back-of-sticker scan handler must check for these markers; treating a code-bearing slot as a sticker is the failure mode this rule exists to prevent.
+
+Operationally, the scan still returns **only** the album code from a back-of-sticker image — the FIFA/Panini text exists to disambiguate sticker-vs-slot, not to be re-OCR'd or returned. Player name, country, sticker type, and album slot are all derived from the code via the catalog. A scan that returns more than the album code from a back-of-sticker image is hallucinating — trust the code lookup, not the OCR'd surrounding text.

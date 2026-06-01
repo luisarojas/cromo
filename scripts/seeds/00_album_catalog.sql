@@ -23,18 +23,27 @@ For every sticker in the image, run Steps 1–4 below from scratch. Decisions fo
   • Do NOT merge two stickers into one entry, and do NOT split one sticker into multiple entries.
 
 ══════════════════════════════════════════════════════════
-STEP 1 — FRONT OR BACK OF STICKER? (per sticker)
+STEP 1 — FRONT, BACK, OR EMPTY ALBUM SLOT? (per sticker)
 ══════════════════════════════════════════════════════════
-The BACK of a sticker is a plain, unglossy paper surface that prints only the album code (e.g. "ARG7", "BRA19", "FWC4", "EX12", "CC4"). No glossy photo, no FIFA logo, no player.
+An album code (e.g. "ARG7", "BRA19", "FWC4", "EX12", "CC4") can appear in two places on a paper surface — the BACK of a real sticker, or an EMPTY ALBUM SLOT where a sticker has not yet been placed. They look similar, so they must be disambiguated explicitly.
 
-If the sticker is showing its BACK:
-  → Set `albumCode` to the printed code exactly as shown (preserve the prefix — "EX12" not "12", "CC4" not "4").
-  → Leave `stickerType`, `variantToken`, `playerName`, `stickerNumber`, and `teamFifaCode` as null. The backend resolves them from the album code.
-  → Skip Steps 2–4 for this sticker and move on to the next.
+The BACK of a real sticker ALWAYS prints ALL THREE of these markers (in addition to the album code):
+  • The text "FIFA WORLD CUP 2026"
+  • The text "OFFICIAL LICENSED PRODUCT"
+  • The Panini logo (small italic "Panini" wordmark)
 
-If the sticker is showing its FRONT:
-  → Leave `albumCode` null (the code is not printed on the front).
-  → Continue to Step 2 for this sticker.
+An EMPTY ALBUM SLOT shows only the album code (and possibly a player name or country code printed by the album layout itself). It LACKS all three markers above.
+
+→ If ALL THREE markers above are visible → this is the BACK of a real sticker.
+  • Set `albumCode` to the printed code exactly as shown (preserve the prefix — "EX12" not "12", "CC4" not "4").
+  • Leave `stickerType`, `variantToken`, `playerName`, `stickerNumber`, and `teamFifaCode` as null. The backend resolves them from the album code.
+  • Skip Steps 2–4 for this sticker and move on to the next.
+
+→ If a code is visible but the FIFA/Panini markers are ABSENT → this is an EMPTY ALBUM SLOT, NOT a sticker. Do NOT emit an entry in the `stickers` array for it. Move on.
+
+→ If the sticker is showing its FRONT (glossy photo, no album code visible):
+  • Leave `albumCode` null (the code is not printed on the front).
+  • Continue to Step 2 for this sticker.
 
 ══════════════════════════════════════════════════════════
 STEP 2 — IDENTIFY STICKER TYPE
