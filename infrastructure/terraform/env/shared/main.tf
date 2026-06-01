@@ -35,3 +35,17 @@ module "ses" {
   region             = var.region
   dmarc_report_email = var.dmarc_report_email
 }
+
+# ─── MFA enforcement on the bootstrap admin ───────────────────────────────────
+# Attaches the canonical "deny-unless-MFA, allow self-MFA-management" inline
+# policy to cromo-admin (and any other account-wide users listed). The user
+# resource itself is NOT Terraform-managed — only the inline policy is. After
+# apply, the admin must use `aws sts get-session-token` (or
+# scripts/aws-mfa-session.sh) to mint MFA-protected temp creds before any
+# other CLI call will succeed.
+
+module "mfa_enforcement" {
+  source      = "../../modules/iam-mfa-enforcement"
+  user_names  = var.mfa_enforced_user_names
+  policy_name = "cromo-shared-require-mfa"
+}

@@ -69,3 +69,15 @@ resource "aws_iam_user_policy" "dev" {
   user     = each.value.name
   policy   = data.aws_iam_policy_document.dev.json
 }
+
+# Same MFA-enforcement contract as cromo-admin: deny everything sensitive
+# unless the request was signed with MFA-protected credentials. Without this,
+# a leaked access key for a dev user grants the (narrow) operational policy
+# above with no MFA gate. With this, the user must `aws sts get-session-token`
+# before the SSM / Secrets calls will succeed.
+
+module "mfa" {
+  source      = "../iam-mfa-enforcement"
+  user_names  = [for u in aws_iam_user.dev : u.name]
+  policy_name = "cromo-${var.env}-require-mfa"
+}
