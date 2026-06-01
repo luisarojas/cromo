@@ -100,14 +100,21 @@ const TOOLTIP_STYLE: React.CSSProperties = {
 };
 
 export default function AlbumStats({ stickers, ownedMap }: Props) {
-  const totalCopies = useMemo(() => {
+  // Coca-Cola stickers come from peeling Coke bottle labels, not packs, so
+  // they're excluded from the pack-count estimate.
+  const packCopies = useMemo(() => {
+    const cocaCodes = new Set<string>();
+    for (const s of stickers) {
+      if (s.stickerType === 'coca_cola_special') cocaCodes.add(s.albumCode);
+    }
     let total = 0;
-    for (const perSticker of ownedMap.values()) {
+    for (const [albumCode, perSticker] of ownedMap.entries()) {
+      if (cocaCodes.has(albumCode)) continue;
       for (const entry of perSticker.values()) total += entry.quantity;
     }
     return total;
-  }, [ownedMap]);
-  const packsOpened = Math.floor(totalCopies / STICKERS_PER_PACK);
+  }, [stickers, ownedMap]);
+  const packsOpened = Math.floor(packCopies / STICKERS_PER_PACK);
 
   const byCountry = useMemo<CountryRow[]>(() => {
     const map = new Map<string, CountryRow>();
@@ -171,7 +178,7 @@ export default function AlbumStats({ stickers, ownedMap }: Props) {
               Packs Opened
             </h3>
             <p className="mt-1 text-xs text-[var(--cromo-fg-subtle)]">
-              Estimate · {totalCopies.toLocaleString()} sticker{totalCopies === 1 ? '' : 's'} owned ÷ {STICKERS_PER_PACK} per pack
+              Estimate · {packCopies.toLocaleString()} pack sticker{packCopies === 1 ? '' : 's'} owned ÷ {STICKERS_PER_PACK} per pack
             </p>
           </div>
           <div className="text-5xl font-extrabold text-[var(--cromo-accent)] leading-none tabular-nums">
