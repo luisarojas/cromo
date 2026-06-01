@@ -546,6 +546,8 @@ export async function getCollectionPage(
 /**
  * addSticker — upsert a sticker variant into an album. Wrapped in a
  * transaction so the upsert + denormalized stats refresh stay consistent.
+ * Returns the resulting quantity so callers can implement undo semantics
+ * (subtract the delta they just added without a second round-trip).
  */
 export async function addSticker(
   db: Pool,
@@ -554,20 +556,24 @@ export async function addSticker(
   albumId: string,
   variantId: string,
   quantity = 1
-): Promise<void> {
+): Promise<{ quantity: number }> {
+  let newQuantity = 0;
   await withTx(db, async (client) => {
-    await client.query(
+    const result = await client.query<{ quantity: number }>(
       `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
        VALUES ($1, $2, $3)
        ON CONFLICT (album_id, sticker_variant_id)
        DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
-                     updated_at = NOW()`,
+                     updated_at = NOW()
+       RETURNING quantity`,
       [albumId, variantId, quantity]
     );
+    newQuantity = Number(result.rows[0]?.quantity ?? 0);
     // trg_user_stickers_sync_counts updates the album's counts.
   });
 
   await invalidateUserCaches(redis, userId);
+  return { quantity: newQuantity };
 }
 
 /**

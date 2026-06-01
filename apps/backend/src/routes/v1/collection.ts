@@ -354,7 +354,13 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
             quantity:  { type: 'integer', minimum: 1, default: 1 },
           },
         },
-        response: { 204: { type: 'null', description: 'Sticker added successfully' } },
+        response: {
+          200: {
+            type: 'object',
+            properties: { quantity: { type: 'integer' } },
+            description: 'Sticker added; returns the resulting quantity in the album',
+          },
+        },
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
@@ -369,16 +375,16 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
       if (!albumId) return;
 
       const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
-      const cached = await lookupIdempotent<{ ok: true }>(
+      const cached = await lookupIdempotent<{ quantity: number }>(
         fastify.redis, 'collection:add', userId, idempotencyKey,
       );
-      if (cached) return reply.status(204).send();
+      if (cached) return reply.status(200).send(cached);
 
-      await collectionService.addSticker(
+      const result = await collectionService.addSticker(
         fastify.db, fastify.redis, userId, albumId, variantId, quantity
       );
-      await storeIdempotent(fastify.redis, 'collection:add', userId, idempotencyKey, { ok: true });
-      return reply.status(204).send();
+      await storeIdempotent(fastify.redis, 'collection:add', userId, idempotencyKey, result);
+      return reply.status(200).send(result);
     }
   );
 

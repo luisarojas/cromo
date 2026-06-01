@@ -771,8 +771,8 @@ export async function addSticker(
   quantity?: number,
   token?: string,
   albumId?: string,
-): Promise<CollectionItem> {
-  return apiFetch<CollectionItem>(
+): Promise<{ quantity: number }> {
+  return apiFetch<{ quantity: number }>(
     `/api/v1/users/${userId}/stickers`,
     {
       method: 'POST',

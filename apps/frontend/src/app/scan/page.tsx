@@ -10,6 +10,7 @@ import {
   fetchUserAlbums,
   fetchAllStickers,
   addSticker,
+  patchSticker,
   albumDisplayName,
   type ScanResult,
   type Sticker,
@@ -286,6 +287,15 @@ interface ScanCard {
   selectedVariantId: string;
   matchType: MatchType;
   added: boolean;
+  // Snapshot of the state at the moment of the most recent successful add, so
+  // the Undo button can restore exactly that (variant + album + prior count)
+  // even if the user has since changed the album selector or fiddled with the
+  // card. Cleared once the card transitions back to unadded.
+  lastAdd?: {
+    variantId: string;
+    albumId: string;
+    previousQuantity: number;
+  };
 }
 
 // Pre-selects the best variant for a sticker, applying border hints from the AI scan
@@ -543,10 +553,30 @@ function ScanMode() {
 
   const handleAddItem = async (idx: number) => {
     const card = resultCards[idx];
-    if (!user || !token || !card?.selectedVariantId) return;
+    if (!user || !token || !card?.selectedVariantId || !selectedAlbumId) return;
     try {
-      await addSticker(user.id, card.selectedVariantId, 1, token, selectedAlbumId);
-      setResultCards((prev) => prev.map((c, i) => (i === idx ? { ...c, added: true } : c)));
+      const { quantity } = await addSticker(
+        user.id, card.selectedVariantId, 1, token, selectedAlbumId,
+      );
+      const variantId = card.selectedVariantId;
+      const albumId = selectedAlbumId;
+      setResultCards((prev) => prev.map((c, i) => (i === idx
+        ? { ...c, added: true, lastAdd: { variantId, albumId, previousQuantity: quantity - 1 } }
+        : c)));
+    } catch { /* ignore per-item errors silently */ }
+  };
+
+  const handleUndoAdd = async (idx: number) => {
+    const card = resultCards[idx];
+    if (!user || !token || !card?.lastAdd) return;
+    const { variantId, albumId, previousQuantity } = card.lastAdd;
+    try {
+      // patchSticker with quantity=0 deletes the row, so undo correctly handles
+      // both "this was the user's first copy" and "the user already had some".
+      await patchSticker(user.id, variantId, previousQuantity, token, albumId);
+      setResultCards((prev) => prev.map((c, i) => (i === idx
+        ? { ...c, added: false, lastAdd: undefined }
+        : c)));
     } catch { /* ignore per-item errors silently */ }
   };
 
@@ -776,17 +806,26 @@ function ScanMode() {
                       )}
 
                       {card.sticker && card.selectedVariantId && (
-                        <button
-                          onClick={() => handleAddItem(idx)}
-                          disabled={card.added}
-                          className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                            card.added
-                              ? 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] cursor-default'
-                              : 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)]'
-                          }`}
-                        >
-                          {card.added ? '✓ Added to collection' : 'Add to collection'}
-                        </button>
+                        card.added ? (
+                          <div className="flex items-stretch gap-2">
+                            <div className="flex-1 rounded-lg bg-[var(--cromo-success)] text-[var(--cromo-success-fg)] px-4 py-2 text-sm font-medium flex items-center justify-center">
+                              ✓ Added to collection
+                            </div>
+                            <button
+                              onClick={() => handleUndoAdd(idx)}
+                              className="rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] px-4 py-2 text-sm font-medium"
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAddItem(idx)}
+                            className="w-full rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] px-4 py-2 text-sm font-medium transition-colors"
+                          >
+                            Add to collection
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
