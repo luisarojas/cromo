@@ -127,7 +127,7 @@ aws ssm start-session --target "$INSTANCE_ID" \
   --document-name AWS-StartPortForwardingSessionToRemoteHost \
   --parameters host=<RDS_ENDPOINT>,portNumber=5432,localPortNumber=15432
 # RDS_ENDPOINT comes from `terraform -chdir=infrastructure/terraform/env/dev
-# output -raw database_endpoint`.
+# output -raw database_endpoint` (without port)
 
 # 4. In another terminal: rewrite the host to localhost:15432 and connect.
 LOCAL_URL=$(echo "$DATABASE_URL" | sed 's#@[^/]*/#@localhost:15432/#')
@@ -154,13 +154,23 @@ docker compose -f infrastructure/docker/docker-compose.yml exec cache redis-cli 
 **Dev (through the tunnel from §5):**
 
 ```bash
+# 1. Seed the database (laptop, via the port-forward).
 DATABASE_URL="$LOCAL_URL" ./scripts/seed-database.sh --remote
-# Flush dev Redis — open an SSM shell to the app instance and run the same
-# docker compose exec inside that host. (No port-forward needed for Redis if
-# you exec on-host.)
+
+# 2. Flush dev Redis. Redis is AWS ElastiCache in cloud (modules/cache),
+#    NOT a docker container — `docker compose exec cache` only works locally.
+#    Open an interactive SSM shell to the app instance and run redis-cli from
+#    a throwaway redis image:
 aws ssm start-session --target "$INSTANCE_ID"
-#   inside:  docker compose -f /opt/cromo/docker-compose.yml exec cache redis-cli FLUSHALL
+#   inside the SSM shell:
+#     REDIS_URL=$(sudo grep ^REDIS_URL= /etc/cromo/cromo.env | cut -d= -f2- | tr -d "'\"")
+#     sudo docker run --rm --network host redis:7 redis-cli -u "$REDIS_URL" FLUSHALL
 ```
+
+Why those flags on the `docker run`:
+- `sudo grep` because `/etc/cromo/cromo.env` is `chmod 600` root-owned (set by user-data) and the SSM session lands you as `ssm-user`.
+- `--network host` so the ephemeral container can reach the private ElastiCache endpoint over the EC2's VPC connectivity — on the default bridge network it can't resolve the private hostname.
+- `redis-cli -u redis://…` consumes the full connection string from the secret without us having to split host/port apart.
 
 **Why the Redis flush?** The backend caches the sticker list response for 1 h
 and the catalog-version probe for 5 min (`apps/backend/src/services/stickers.service.ts:119,225`).
