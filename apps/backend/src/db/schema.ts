@@ -118,6 +118,10 @@ import type { AlbumSettings } from '@cromo/shared';
 const DEFAULT_ALBUM_SETTINGS: AlbumSettings = {
   includeExtras: true,
   includeCocaCola: true,
+  // base_borderless is the common case globally (international packs); NA users
+  // can flip to base_border in the album edit modal. Album-create paths that
+  // know the edition should choose deliberately instead of relying on this.
+  defaultBaseVariant: 'base_borderless',
 };
 
 export type { AlbumSettings };
@@ -188,11 +192,9 @@ export const userSettings = pgTable('user_settings', {
   marketingConsentVersion: text('marketing_consent_version'),
   showTrustScorePublic: boolean('show_trust_score_public').notNull().default(true),
   duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(false),
-  defaultBaseVariant: text('default_base_variant').notNull().default('base_border'),
   cities: jsonb('cities').$type<{ label: string; placeId: number }[]>().notNull().default(sql`'[]'::jsonb`),
 }, (table) => ({
   profileVisibilityCheck: check('user_settings_profile_visibility_check', sql`${table.profileVisibility} IN ('private', 'public')`),
-  defaultBaseVariantCheck: check('user_settings_default_base_variant_check', sql`${table.defaultBaseVariant} IN ('base_border', 'base_borderless')`),
 }));
 
 // ─── consent_records ──────────────────────────────────────────────────────────

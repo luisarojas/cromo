@@ -14,7 +14,7 @@ import {
   logoutApi,
 } from '@/lib/api';
 import CityAutocomplete from '@/components/CityAutocomplete';
-import type { BaseVariantPreference, City } from '@/lib/api';
+import type { City } from '@/lib/api';
 import ThemeToggle from '@/components/ThemeToggle';
 import { PageHeader } from '@/components/ui';
 
@@ -541,17 +541,10 @@ function PrivacySettingsTab() {
 
 // ─── Album tab ────────────────────────────────────────────────────────────────
 
-const BASE_VARIANT_OPTIONS: { value: BaseVariantPreference; label: string; hint: string }[] = [
-  { value: 'base_border', label: 'Base (White Border)', hint: 'North American packs' },
-  { value: 'base_borderless', label: 'Base (Borderless)', hint: 'International packs' },
-];
-
 function AlbumSettingsTab() {
   const token = useAuthStore((s) => s.token);
   const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
   const setDuplicatesCountAllVariants = usePreferencesStore((s) => s.setDuplicatesCountAllVariants);
-  const defaultBaseVariant = usePreferencesStore((s) => s.defaultBaseVariant);
-  const setDefaultBaseVariant = usePreferencesStore((s) => s.setDefaultBaseVariant);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleDuplicatesChange(value: boolean) {
@@ -565,45 +558,9 @@ function AlbumSettingsTab() {
     }
   }
 
-  async function handleDefaultBaseChange(value: BaseVariantPreference) {
-    if (!token) return;
-    setSaveError(null);
-    const previous = defaultBaseVariant;
-    setDefaultBaseVariant(value);
-    try {
-      await patchUserPreferences({ defaultBaseVariant: value }, token);
-    } catch {
-      setDefaultBaseVariant(previous);
-      setSaveError('Failed to save preference. Please try again.');
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6">
       {saveError && <StatusMessage type="error" message={saveError} />}
-
-      <SectionCard
-        title="Default base variant"
-        description="Which base layout the one-click “Add” button uses when adding a sticker. The other base stays available in the variant list."
-      >
-        <div className="flex flex-col gap-2">
-          {BASE_VARIANT_OPTIONS.map(({ value, label, hint }) => (
-            <label key={value} className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="defaultBaseVariant"
-                checked={defaultBaseVariant === value}
-                onChange={() => handleDefaultBaseChange(value)}
-                className="mt-0.5 h-4 w-4 border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
-              />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-[var(--cromo-fg)]">{label}</span>
-                <span className="text-xs text-[var(--cromo-fg-muted)]">{hint}</span>
-              </div>
-            </label>
-          ))}
-        </div>
-      </SectionCard>
 
       <SectionCard
         title="Duplicates"

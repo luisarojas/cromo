@@ -51,7 +51,7 @@ module "appregistry" {
 
 # ─── Networking ───────────────────────────────────────────────────────────────
 # Prod runs one NAT per AZ so an AZ outage doesn't sever outbound egress
-# (Groq vision API, SES, ECR pulls) for the surviving AZ. Adds ~$32/mo for
+# (LLM API, SES, ECR pulls) for the surviving AZ. Adds ~$32/mo for
 # the second NAT — accepted for HA.
 
 module "networking" {

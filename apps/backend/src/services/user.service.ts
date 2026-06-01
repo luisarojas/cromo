@@ -136,12 +136,10 @@ export interface City {
   placeId: number;
 }
 
-export type BaseVariantPreference = 'base_border' | 'base_borderless';
 export type ProfileVisibility = 'public' | 'private';
 
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean;
-  defaultBaseVariant: BaseVariantPreference;
   cities: City[];
   profileVisibility: ProfileVisibility;
   tradeMatchingEnabled: boolean;
@@ -150,12 +148,11 @@ export interface UserPreferences {
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
   const result = await db.query<{
     duplicates_count_all_variants: boolean;
-    default_base_variant: BaseVariantPreference;
     cities: City[];
     profile_visibility: ProfileVisibility;
     trade_matching_enabled: boolean;
   }>(
-    `SELECT duplicates_count_all_variants, default_base_variant, cities,
+    `SELECT duplicates_count_all_variants, cities,
             profile_visibility, trade_matching_enabled
      FROM user_settings WHERE user_id = $1`,
     [userId]
@@ -164,7 +161,6 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
   if ((result.rowCount ?? 0) === 0) {
     return {
       duplicatesCountAllVariants: false,
-      defaultBaseVariant: 'base_border',
       cities: [],
       profileVisibility: 'public',
       tradeMatchingEnabled: true,
@@ -174,7 +170,6 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
   const row = result.rows[0]!;
   return {
     duplicatesCountAllVariants: row.duplicates_count_all_variants,
-    defaultBaseVariant: row.default_base_variant,
     cities: row.cities ?? [],
     profileVisibility: row.profile_visibility,
     tradeMatchingEnabled: row.trade_matching_enabled,
@@ -193,10 +188,6 @@ export async function updatePreferences(
   if (patch.duplicatesCountAllVariants !== undefined) {
     setClauses.push(`duplicates_count_all_variants = $${idx++}`);
     values.push(patch.duplicatesCountAllVariants);
-  }
-  if (patch.defaultBaseVariant !== undefined) {
-    setClauses.push(`default_base_variant = $${idx++}`);
-    values.push(patch.defaultBaseVariant);
   }
   if (patch.cities !== undefined) {
     setClauses.push(`cities = $${idx++}::jsonb`);

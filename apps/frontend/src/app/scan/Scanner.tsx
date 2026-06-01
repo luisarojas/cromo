@@ -296,12 +296,15 @@ interface ScanCard {
   };
 }
 
-// Pre-selects the best variant for a sticker, applying border hints from the AI scan
-// (or a prior user choice) with sensible fallbacks.
+// Pre-selects the best variant for a sticker. The AI's explicit pick wins whenever
+// it returned one — including base_border or base_borderless. Only when the AI
+// returned a null variantToken do we fall back to the album's configured default
+// Base. This preserves the model's specific identifications (colored borders,
+// crumple, extras) while filling the uncertain case with the user's preference.
 function pickVariantId(
   variants: StickerVariant[],
   borderHint: string | null,
-  hasAlbumCode: boolean,
+  defaultBaseVariant: 'base_border' | 'base_borderless',
 ): string {
   if (borderHint) {
     const exact = variants.find((v) => v.variantType === borderHint);
@@ -311,10 +314,14 @@ function pickVariantId(
     );
     if (partial) return partial.id;
   }
-  if (!hasAlbumCode) {
-    return variants.find((v) => v.variantType === 'base_borderless')?.id ?? variants[0]?.id ?? '';
-  }
-  return variants.find((v) => v.variantType === 'base_border')?.id ?? variants[0]?.id ?? '';
+
+  // AI returned no variantToken — use the album-level default. Falls through
+  // to base_borderless then variants[0] for Coca-Cola stickers, which only
+  // ever carry base_borderless regardless of the album's default.
+  return variants.find((v) => v.variantType === defaultBaseVariant)?.id
+    ?? variants.find((v) => v.variantType === 'base_borderless')?.id
+    ?? variants[0]?.id
+    ?? '';
 }
 
 function emptyScanCard(sourcePreview: string): ScanCard {
@@ -338,6 +345,7 @@ async function buildScanCard(
   result: ScanResult,
   token: string,
   catalog: Sticker[],
+  defaultBaseVariant: 'base_border' | 'base_borderless',
 ): Promise<ScanCard> {
   let sticker: Sticker | undefined;
   let variants: StickerVariant[] = [];
@@ -348,7 +356,7 @@ async function buildScanCard(
     try {
       sticker = await fetchStickerByAlbumCode(result.albumCode, token);
       variants = await fetchStickerVariants(result.albumCode, token);
-      selectedVariantId = pickVariantId(variants, result.variantToken, !!result.albumCode);
+      selectedVariantId = pickVariantId(variants, result.variantToken, defaultBaseVariant);
       matchType = 'code';
     } catch { /* sticker not in catalog */ }
   }
@@ -364,7 +372,7 @@ async function buildScanCard(
       try {
         sticker = await fetchStickerByAlbumCode(matches[0]!.albumCode, token);
         variants = await fetchStickerVariants(matches[0]!.albumCode, token);
-        selectedVariantId = pickVariantId(variants, result.variantToken, !!result.albumCode);
+        selectedVariantId = pickVariantId(variants, result.variantToken, defaultBaseVariant);
         matchType = 'name';
       } catch { /* ignore */ }
     }
@@ -435,7 +443,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
 
         const cards = results.length === 0
           ? [emptyScanCard(url)]
-          : await Promise.all(results.map((r) => buildScanCard(url, r, token, catalog)));
+          : await Promise.all(results.map((r) => buildScanCard(url, r, token, catalog, album.settings.defaultBaseVariant)));
         setResultCards(cards);
         setStatus('done');
       } else {
@@ -478,7 +486,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
             const results = entry.results ?? [];
             const newCards = results.length === 0
               ? [emptyScanCard(preview)]
-              : await Promise.all(results.map((r) => buildScanCard(preview, r, token, catalog)));
+              : await Promise.all(results.map((r) => buildScanCard(preview, r, token, catalog, album.settings.defaultBaseVariant)));
             setResultCards((prev) => [...prev, ...newCards]);
           }
           setScanProgress((prev) => prev ? { ...prev, done: prev.done + 1 } : null);
@@ -506,7 +514,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
         const variants = await fetchStickerVariants(albumCode, token);
         setResultCards((prev) => prev.map((card, i) => {
           if (i !== idx) return card;
-          const selectedVariantId = pickVariantId(variants, card.borderVariantType || null, true);
+          const selectedVariantId = pickVariantId(variants, card.borderVariantType || null, album.settings.defaultBaseVariant);
           return {
             ...card,
             albumCode: s.albumCode,

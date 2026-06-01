@@ -7,7 +7,16 @@ import type { AlbumEditionOption, AlbumFormatOption, AlbumSettings, Sticker, Use
 const DEFAULT_SETTINGS: AlbumSettings = {
   includeExtras: true,
   includeCocaCola: true,
+  defaultBaseVariant: 'base_borderless',
 };
+
+// Edition-aware initial value for defaultBaseVariant: North-American packs ship
+// white-bordered base; everywhere else ships borderless. Used only when the user
+// hasn't already chosen explicitly (album create path, or legacy albums without
+// the field in their settings JSONB).
+function defaultBaseForEdition(edition: string): AlbumSettings['defaultBaseVariant'] {
+  return edition === 'north_america' ? 'base_border' : 'base_borderless';
+}
 
 interface Props {
   mode: 'create' | 'edit';
@@ -74,9 +83,32 @@ export default function AlbumFormModal({
     }
   }, [availableFormats, format]);
 
-  const [settings, setSettings] = useState<AlbumSettings>(
-    album?.settings ?? DEFAULT_SETTINGS
-  );
+  const [settings, setSettings] = useState<AlbumSettings>(() => {
+    if (album?.settings) {
+      // Legacy rows could lack defaultBaseVariant; fill from edition so the
+      // dropdown has a sensible pre-selected value.
+      return {
+        ...album.settings,
+        defaultBaseVariant: album.settings.defaultBaseVariant ?? defaultBaseForEdition(album.edition),
+      };
+    }
+    return { ...DEFAULT_SETTINGS, defaultBaseVariant: defaultBaseForEdition(edition) };
+  });
+
+  // On create, follow the edition's default if the user hasn't deviated yet.
+  // We can't tell "user deviated" perfectly, so only adjust on the create path
+  // and only when the current value still matches the previous edition's default.
+  useEffect(() => {
+    if (mode !== 'create') return;
+    setSettings((prev) => {
+      const expected = defaultBaseForEdition(edition);
+      if (prev.defaultBaseVariant === expected) return prev;
+      // Skip auto-adjust once the user has chosen the *other* value — they meant it.
+      const otherEditionDefault = defaultBaseForEdition(edition === 'north_america' ? 'international' : 'north_america');
+      if (prev.defaultBaseVariant !== otherEditionDefault) return prev;
+      return { ...prev, defaultBaseVariant: expected };
+    });
+  }, [edition, mode]);
   const [isTradeInventoryPublic, setIsTradeInventoryPublic] = useState<boolean>(
     album?.isTradeInventoryPublic ?? false
   );
@@ -239,7 +271,7 @@ export default function AlbumFormModal({
               [
                 { key: 'includeExtras',   label: 'Extra stickers' },
                 { key: 'includeCocaCola', label: 'Coca-Cola stickers' },
-              ] as { key: keyof AlbumSettings; label: string }[]
+              ] as { key: 'includeExtras' | 'includeCocaCola'; label: string }[]
             ).map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
@@ -256,6 +288,24 @@ export default function AlbumFormModal({
                 </span>
               </label>
             ))}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-[var(--cromo-fg-muted)]" htmlFor="album-default-base">
+              Default Base variant
+            </label>
+            <select
+              id="album-default-base"
+              value={settings.defaultBaseVariant}
+              onChange={(e) => setSettings((s) => ({ ...s, defaultBaseVariant: e.target.value as AlbumSettings['defaultBaseVariant'] }))}
+              className="rounded-lg border border-[var(--cromo-border)] px-3 py-2 text-sm text-[var(--cromo-fg)] focus:border-[var(--cromo-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent-soft)]"
+            >
+              <option value="base_borderless">Base (Borderless) — International packs</option>
+              <option value="base_border">Base (White Border) — North American packs</option>
+            </select>
+            <p className="text-[11px] text-[var(--cromo-fg-subtle)]">
+              Pre-selected when the scanner can&apos;t tell which Base layout a sticker has. You can still pick the other variant per scan.
+            </p>
           </div>
 
           <div className="flex flex-col gap-2 border-t border-[var(--cromo-border)] pt-4">

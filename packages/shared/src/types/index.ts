@@ -1,9 +1,15 @@
 export type UserRole = 'user' | 'admin'
 export type Locale = 'en' | 'es'
 
+export type BaseVariantPreference = 'base_border' | 'base_borderless'
+
 export interface AlbumSettings {
   includeExtras: boolean
   includeCocaCola: boolean
+  // Default Base variant the scanner pre-selects when the AI returns no
+  // variantToken. The AI's own picks (including explicit base_border or
+  // base_borderless) are preserved — this only fills the null case.
+  defaultBaseVariant: BaseVariantPreference
 }
 
 export interface User {
@@ -246,13 +252,10 @@ export interface City {
   placeId: number
 }
 
-export type BaseVariantPreference = 'base_border' | 'base_borderless'
-
 export type ProfileVisibility = 'public' | 'private'
 
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean
-  defaultBaseVariant: BaseVariantPreference
   cities: City[]
   profileVisibility: ProfileVisibility
   tradeMatchingEnabled: boolean

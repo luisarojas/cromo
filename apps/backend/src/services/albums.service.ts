@@ -233,7 +233,7 @@ export async function createAlbum(
            $3,
            $8,
            false,
-           COALESCE($4::jsonb, '{"includeExtras":true,"includeCocaCola":true}'::jsonb),
+           COALESCE($4::jsonb, '{"includeExtras":true,"includeCocaCola":true,"defaultBaseVariant":"base_borderless"}'::jsonb),
            $6
          )
          RETURNING *
