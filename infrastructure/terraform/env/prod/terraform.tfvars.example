@@ -15,8 +15,8 @@ alert_email = "oncall@cromotrade.ca"
 # via JWKS, so this secret does NOT gate user authentication directly.
 jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
 
-# Real Groq key — 'mock' will break AI scanning in prod.
-groq_api_key = "REPLACE_WITH_REAL_GROQ_KEY"
+# Real Gemini key — 'mock' will break AI scanning in prod.
+gemini_api_key = "REPLACE_WITH_REAL_GEMINI_KEY"
 
 # GitHub repo slug allowed to assume the prod deploy role (OIDC). Only v*
 # tag pushes from this repo can deploy to prod.

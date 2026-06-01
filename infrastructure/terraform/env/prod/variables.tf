@@ -30,8 +30,8 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
-variable "groq_api_key" {
-  description = "Groq Llama-4 Scout vision API key. Must be a real key in prod — 'mock' will brick AI scanning."
+variable "gemini_api_key" {
+  description = "Google Gemini 2.5 Flash API key (https://aistudio.google.com/apikey). Must be a real key in prod — 'mock' will brick AI scanning."
   type        = string
   sensitive   = true
 }

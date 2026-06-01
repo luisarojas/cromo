@@ -17,7 +17,7 @@ LOCAL → DEV → PRODUCTION
 | Runs on | Laptop (Docker) | AWS | AWS |
 | Cost | $0 | ~$20–25 USD/mo (scheduled) | $110–253 USD/mo |
 | Auth | Mock | Cognito | Cognito |
-| Groq vision API | Mock | Mock | Real |
+| Gemini API | Mock | Mock | Real |
 | Email | Mailpit | SES sandbox | SES (production access) |
 | Data | Seeded test data | Synthetic | Real user data |
 | Deletion protection | N/A | No | Yes |
@@ -144,7 +144,7 @@ Production topology end-to-end. Every box is a real AWS resource provisioned by 
    │  distribution      │    │  cromo-prod      │    │  registry       │
    │  (cdn)             │    │  (secrets)       │    │  (bootstrap)    │
    │  Public read URL   │    │  DB URL, JWT,    │    │  Pulled by EC2  │
-   │  for uploaded imgs │    │  Groq key, …     │    │  on deploy      │
+   │  for uploaded imgs │    │  Gemini key, …     │    │  on deploy      │
    └────────────────────┘    └──────────────────┘    └─────────────────┘
 
    ┌──────────────── Observability + Ops ──────────────────────────────┐
@@ -179,7 +179,7 @@ If you've never used AWS before, here is what every box above is and why Cromo n
 | **Public subnet** | A slice of the VPC whose traffic *can* reach the internet directly. | Holds only the ALB and NAT Gateways — the things that genuinely need a public IP. Nothing with user data lives here. |
 | **Private subnet** | A slice of the VPC with no inbound internet route. | Where the app, database, and cache live. Even if a bug exposed Postgres on `0.0.0.0`, the network would still refuse outside connections. |
 | **Internet Gateway** | The single doorway between the VPC and the public internet. | Lets the ALB receive user requests. Attached to public subnets only. |
-| **NAT Gateway** | One-way outbound internet for private subnets. | Lets EC2 reach Groq's vision API, SES, and ECR without giving it a public IP. Prod runs one per AZ so an AZ outage doesn't kill outbound traffic. |
+| **NAT Gateway** | One-way outbound internet for private subnets. | Lets EC2 reach the Gemini API, SES, and ECR without giving it a public IP. Prod runs one per AZ so an AZ outage doesn't kill outbound traffic. |
 | **Application Load Balancer (ALB)** | A managed HTTPS reverse proxy. | The only public entry point. Terminates TLS, routes `/api/*` to the API container and everything else to the frontend container, and health-checks both. |
 | **EC2** | A virtual machine you rent by the hour. | Runs the same `docker compose` setup you use locally, with `docker-compose.prod.yml`. One instance (t3.medium in prod, t3.small in dev) wrapped in an Auto Scaling Group so it self-heals if it crashes. |
 | **Auto Scaling Group (ASG)** | A controller that keeps N copies of an EC2 instance alive. | Today N=1. Its real job is self-healing (a crashed instance is replaced automatically) and being the hook the §19.2.2 dev schedule uses to scale to zero overnight. |
@@ -189,7 +189,7 @@ If you've never used AWS before, here is what every box above is and why Cromo n
 | **CloudFront** | AWS's CDN. Caches S3 objects at edge locations worldwide. | Serves uploaded images fast from anywhere, and is the *only* thing allowed to read the uploads bucket directly. The frontend builds image URLs against the CloudFront domain, never S3. |
 | **Cognito** | A managed identity service: signup, login, password reset, JWTs. | Issues the access tokens the API validates on every request. Replaces the mock auth used locally. |
 | **SES (Simple Email Service)** | AWS's transactional email sender. | Sends verification, password-reset, and trade-notification emails from `no-reply@cromotrade.ca`. SPF/DKIM/DMARC records are provisioned automatically. |
-| **Secrets Manager** | Encrypted key/value store for runtime config. | Holds `DATABASE_URL`, `JWT_SECRET`, `GROQ_API_KEY`, Cognito IDs, etc. EC2 reads this at boot — secrets never sit in the AMI, the Compose file, or git. |
+| **Secrets Manager** | Encrypted key/value store for runtime config. | Holds `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, Cognito IDs, etc. EC2 reads this at boot — secrets never sit in the AMI, the Compose file, or git. |
 | **ECR (Elastic Container Registry)** | A private Docker registry. | Stores the `frontend` and `api` images produced by CI. EC2 pulls them on deploy. Provisioned once by the `bootstrap` workspace because it outlives any env. |
 | **CloudWatch Logs** | Managed log aggregation. | Both containers stream stdout/stderr here via the Docker awslogs driver. 365-day retention in prod, 7-day in dev. |
 | **CloudWatch Alarms + SNS** | Alarms watch metrics; SNS delivers the page. | Three alarms today: RDS CPU > 80%, ALB 5xx surge, zero healthy hosts. Each one publishes to an SNS topic that emails the on-call address. |

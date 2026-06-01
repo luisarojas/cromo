@@ -68,7 +68,7 @@ After login, you should be able to:
 2. Click any sticker, mark "have" / "duplicate"
 3. Switch to Bob, see overlapping inventory
 4. Open `/trade`, propose a trade between Alice and Bob — matches should appear
-5. Trigger AI scan (`/scan`) — in `GROQ_API_KEY=mock`, it returns a canned result
+5. Trigger AI scan (`/scan`) — in `GEMINI_API_KEY=mock`, it returns a canned result
 6. Open admin panel as `admin@test.local`
 
 ## 5. Reset

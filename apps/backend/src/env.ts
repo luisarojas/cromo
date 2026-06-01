@@ -47,7 +47,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
 
   // AI scanning — set to 'mock' to skip real API calls (default for local dev)
-  GROQ_API_KEY: z.string().default('mock'),
+  GEMINI_API_KEY: z.string().default('mock'),
 
   // Scheduled jobs. 'enabled' registers the §34 cron catalog at API startup;
   // 'disabled' skips all registration (default for tests + iteration speed in

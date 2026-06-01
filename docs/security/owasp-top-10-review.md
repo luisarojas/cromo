@@ -52,7 +52,7 @@ a dev environment but must not be deployed without TLS.
 - All SQL uses parameterised queries via `pg.Pool#query(text, values)`. No
   string concatenation in handlers — verified by grep for `${` inside `SELECT`
   statements.
-- The AI scan prompt to Groq does not interpolate user data; the image is
+- The AI scan prompt to Gemini does not interpolate user data; the image is
   attached as a multimodal content item and the prompt itself is a static
   template.
 - No `child_process.exec` calls in app code.
@@ -137,7 +137,7 @@ image-scan-on-push is the natural next step.
 `http://169.254.169.254/...` cloud metadata).
 
 **Controls in place.**
-- The only outbound HTTP from the API is to Groq (vision) and SES (email),
+- The only outbound HTTP from the API is to Gemini (vision) and SES (email),
   both with hardcoded base URLs. No user-supplied URL is fetched server-side.
 - Image uploads are read from the multipart body, not from a remote URL.
 

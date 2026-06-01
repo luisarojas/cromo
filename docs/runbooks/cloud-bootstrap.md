@@ -167,7 +167,7 @@ Once dev is healthy and you're ready to provision production, prod uses the same
 - **Shared comes first.** Both envs assume `env/shared` is already applied. If you got dev running, you already did this — no extra step. Prod can be applied without dev existing.
 - **SES identity is shared.** Lives in `env/shared`; prod just references it by deterministic ARN. Don't add a duplicate SES module to prod.
 - **Sandbox exit is a prerequisite, not a post-launch task.** Follow §4 to leave the SES sandbox *before* prod accepts sign-ups, otherwise verification emails won't reach real users.
-- **terraform.tfvars values change.** Real `groq_api_key` (not `mock`), on-call distribution for `alert_email`, fresh `jwt_secret`, plus `admin_emails` + a fresh `admin_temp_password` for the prod admin bootstrap. Copy `env/prod/terraform.tfvars.example` and treat it as a launch checklist.
+- **terraform.tfvars values change.** Real `gemini_api_key` (not `mock`), on-call distribution for `alert_email`, fresh `jwt_secret`, plus `admin_emails` + a fresh `admin_temp_password` for the prod admin bootstrap. Copy `env/prod/terraform.tfvars.example` and treat it as a launch checklist.
 - **Backend state is separate.** Replace `REPLACE_WITH_ACCOUNT_ID` in `env/prod/backend.tf` with your account ID, then `terraform init`.
 - **Resources are destroy-protected.** Prod RDS, S3, Cognito, and ALB all have deletion protection on. A `terraform destroy` of the prod env will fail until you `terraform apply -var 'deletion_protection=false'` first — that's intentional friction.
 - **No business-hours schedule.** The `scheduling` module is wired into `env/prod/main.tf` with `enable = false` so it renders no resources. Don't flip this to true unless you intend to take prod offline outside business hours (you don't).
@@ -180,7 +180,7 @@ See **`docs/runbooks/cloud-recreate.md`** for the safe nuke + recreate flow. The
 
 ## 10. Applying a secret / env change to a running env
 
-Changing a value the app reads from Secrets Manager (e.g. `AUTH_MODE`, `JWT_SECRET`, `GROQ_API_KEY`) takes **two** independent things to go live, and getting only one of them is the usual cause of a post-change outage:
+Changing a value the app reads from Secrets Manager (e.g. `AUTH_MODE`, `JWT_SECRET`, `GEMINI_API_KEY`) takes **two** independent things to go live, and getting only one of them is the usual cause of a post-change outage:
 
 1. **A fresh `cromo.env`.** The env file at `/etc/cromo/cromo.env` is written **only** by the instance's boot user-data (`compute/main.tf`, `aws secretsmanager get-secret-value > /etc/cromo/cromo.env`). `terraform apply` updates the *secret*, but a running instance never re-reads it — you need a **new instance** for the change to reach the box.
 2. **The app (re)started with a valid `IMAGE_TAG`.** The compose file resolves `${ECR_REGISTRY}/cromo-backend:${IMAGE_TAG}`, and those vars are injected by the **deploy path** (the CI workflow or `deploy-dev-bootstrap.sh`) via SSM — *not* by user-data. A cold-booted instance therefore has the right `cromo.env` but **no running containers** until a deploy lands on it.

@@ -21,12 +21,12 @@ Total clock time: ~30 minutes. About 2 minutes of typing; the rest is `terraform
 
 ### 0. Prerequisites — dev `terraform.tfvars`
 
-`env/dev` runs `AUTH_MODE=cognito`, so a clean apply must bootstrap the admin and (if you want live scanning) a real Groq key. Set these in the gitignored `infrastructure/terraform/env/dev/terraform.tfvars` **before** the re-apply (step 4):
+`env/dev` runs `AUTH_MODE=cognito`, so a clean apply must bootstrap the admin and (if you want live scanning) a real Gemini key. Set these in the gitignored `infrastructure/terraform/env/dev/terraform.tfvars` **before** the re-apply (step 4):
 
 ```hcl
 admin_emails        = ["r.luisaf@gmail.com"]   # created in the pool, added to the 'admin' group
 admin_temp_password = "<12+ chars, upper/lower/number>"   # required when admin_emails is non-empty
-groq_api_key        = "<real Groq key>"        # 'mock' skips live AI scanning
+gemini_api_key        = "<real Gemini key>"        # 'mock' skips live AI scanning
 # plus the existing account_id, ecr_registry, alert_email, jwt_secret, github_repo
 ```
 

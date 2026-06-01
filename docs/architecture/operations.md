@@ -51,7 +51,7 @@ Recovery procedure is tested every quarter. Results documented in `docs/runbooks
 
 | Service Down | User Impact | Code Behaviour |
 |---|---|---|
-| **Groq vision API** | `/scan` returns 503 with "AI scan temporarily unavailable"; manual entry still works | `services/scan.service.ts` catches Groq errors and returns a typed unavailable status |
+| **Gemini API** | `/scan` returns 503 with "AI scan temporarily unavailable"; manual entry still works | `services/scan.service.ts` catches Gemini errors and returns a typed unavailable status |
 | **Redis** | Slightly slower responses (cache misses fall through to Postgres) | Every Redis read uses `safeCacheGet`; every write uses `safeCacheSet` — both swallow errors and the request still completes against Postgres |
 | **S3 / local upload dir** | Avatar / scan-image uploads return 503; existing avatars still render | `services/upload.service.ts` checks write permission at startup and surfaces a degraded mode flag |
 | **SES (email)** | Verification / notification emails queued in BullMQ; user sees "we'll email you shortly" | The async-queue worker retries 3× then dead-letters; nothing blocks the originating request |
@@ -64,7 +64,7 @@ degrades gracefully rather than taking the site down.
 #### Implementation pointers
 
 - Redis: `apps/backend/src/services/cache.ts` (`safeCacheGet`, `safeCacheSet`, `singleflight`).
-- Groq: `apps/backend/src/services/scan.service.ts` — returns `{ ok: false, reason }`; the route maps to 503.
+- Gemini: `apps/backend/src/services/scan.service.ts` — returns `{ ok: false, reason }`; the route maps to 503.
 - Email: jobs flow through `apps/backend/src/services/jobs.service.ts` (async queue) — never inline.
 - Uploads: `apps/backend/src/services/upload.service.ts` validates magic bytes before write.
 - Frontend: `apps/frontend/src/lib/api.ts#retryFetch` retries 502/503/504 on GET only (2 attempts, exponential backoff with jitter).

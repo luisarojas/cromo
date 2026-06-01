@@ -43,7 +43,7 @@ The dev environment is live today; production is provisioned with the same Terra
 | Auth | Local mock (any email/password works) | AWS Cognito |
 | Email | Mailpit (local inbox at localhost:8025) | AWS SES |
 | File storage | Local filesystem directory | AWS S3 |
-| AI scanning | Returns hardcoded mock result | Groq Vision API (Llama 4 Scout) |
+| AI scanning | Returns hardcoded mock result | Gemini API (Gemini 2.5 Flash) |
 | Frontend hosting | `localhost:3000` | EC2 + Docker Compose (co-hosted with API — see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)) |
 | API hosting | `localhost:3001` | EC2 + Docker Compose |
 | SSL/TLS | None (HTTP only) | AWS Certificate Manager (HTTPS) terminating at ALB |
@@ -154,7 +154,7 @@ services:
       REDIS_URL: redis://cache:6379
       JWT_SECRET: local-dev-secret-not-for-production
       AUTH_MODE: local                    # bypasses Cognito locally
-      GROQ_API_KEY: mock                  # returns mock scan results locally
+      GEMINI_API_KEY: mock                  # returns mock scan results locally
       S3_MODE: local                      # saves files to ./uploads/ locally
       PORT: 3001
     volumes:
@@ -244,8 +244,8 @@ COGNITO_USER_POOL_ID=
 COGNITO_CLIENT_ID=
 COGNITO_REGION=ca-central-1
 
-# AI Scanning (set to 'mock' locally to skip Groq API calls)
-GROQ_API_KEY=mock
+# AI Scanning (set to 'mock' locally to skip Gemini API calls)
+GEMINI_API_KEY=mock
 
 # File Storage (set to 'local' to save files to disk)
 S3_MODE=local

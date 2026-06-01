@@ -72,15 +72,22 @@ Output Format Template:
 }
 
 const MAX_RETRIES = 3;
+const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-function parseRetryAfterMs(responseBody: string, headers: Headers): number {
-  const retryAfterHeader = headers.get('retry-after');
-  if (retryAfterHeader) {
-    const seconds = parseFloat(retryAfterHeader);
-    if (!isNaN(seconds)) return Math.ceil(seconds * 1000) + 500;
-  }
-  const match = responseBody.match(/try again in ([\d.]+)s/i);
-  if (match) return Math.ceil(parseFloat(match[1]) * 1000) + 500;
+// Pull the retry delay out of a Gemini 429/503 error body. Google nests it
+// under error.details[].retryDelay as a duration string like "12s".
+function parseGeminiRetryMs(responseBody: string): number {
+  try {
+    const parsed = JSON.parse(responseBody) as {
+      error?: { details?: { retryDelay?: string }[] };
+    };
+    const detail = parsed.error?.details?.find((d) => typeof d.retryDelay === 'string');
+    if (detail?.retryDelay) {
+      const m = detail.retryDelay.match(/^([\d.]+)s$/);
+      if (m) return Math.ceil(parseFloat(m[1]!) * 1000) + 500;
+    }
+  } catch { /* fall through */ }
   return 10_000;
 }
 
@@ -90,7 +97,7 @@ export async function identifySticker(
   collectionName = 'sticker collection',
   scanPrompt?: string | null,
 ): Promise<ScanResult[]> {
-  if (env.GROQ_API_KEY === 'mock') {
+  if (env.GEMINI_API_KEY === 'mock') {
     return MOCK_RESULTS;
   }
 
@@ -98,71 +105,91 @@ export async function identifySticker(
   const base64Image = normalizedBuffer.toString('base64');
 
   const requestBody = JSON.stringify({
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_tokens: 3000, // Raised to prevent JSON clipping on complex/multiple extractions
-    temperature: 0,
-    response_format: { type: 'json_object' }, // Tells Groq natively to return structured JSON
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a strict data extraction engine. Follow all visual formatting classification instructions exactly. Never include conversational prose.',
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${base64Image}` },
-          },
-          {
-            type: 'text',
-            text: buildIdentifyPrompt(collectionName, scanPrompt),
-          },
-        ],
-      },
-    ],
+    contents: [{
+      parts: [
+        // Order matters slightly for Gemini: put the image first, then the
+        // instructions that reference it. Both work, but this matches the
+        // pattern in Google's examples.
+        { inline_data: { mime_type: mimeType, data: base64Image } },
+        { text: buildIdentifyPrompt(collectionName, scanPrompt) },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0,
+      responseMimeType: 'application/json',
+      // Raised cap mirrors the previous Groq limit — prevents clipping on
+      // images with many stickers (each carries a 5-line reasoning string).
+      maxOutputTokens: 3000,
+      // Disable Gemini 2.5 Flash's default "thinking" pass. Our own reasoning
+      // protocol in the prompt already serves the same purpose, and leaving
+      // thinking on roughly doubled scan latency past the 30s timeout on
+      // multi-sticker images. Set to -1 for dynamic / a positive int for a cap.
+      thinkingConfig: { thinkingBudget: 0 },
+    },
   });
 
   let response: Response | undefined;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    response = await fetch(GEMINI_URL, {
       method: 'POST',
       headers: {
-        'authorization': `Bearer ${env.GROQ_API_KEY}`,
+        'x-goog-api-key': env.GEMINI_API_KEY,
         'content-type': 'application/json',
       },
       body: requestBody,
-      signal: AbortSignal.timeout(30_000),
+      // 60s covers Gemini Flash on multi-sticker images with thinking off; a
+      // higher cap risks the route exceeding the frontend's own scan timeout.
+      signal: AbortSignal.timeout(60_000),
     });
 
-    if (response.status !== 429) break;
-
+    // 429 = quota / rate limit. 503 = transient overload. Both are worth retrying.
+    if (response.status !== 429 && response.status !== 503) break;
     if (attempt === MAX_RETRIES) break;
 
     const errorText = await response.text().catch(() => '');
-    const delayMs = parseRetryAfterMs(errorText, response.headers);
+    const delayMs = parseGeminiRetryMs(errorText);
     await new Promise(resolve => setTimeout(resolve, delayMs));
   }
 
   if (!response!.ok) {
     const text = await response!.text().catch(() => response!.statusText);
-    throw new Error(`Groq API error ${response!.status}: ${text}`);
+    throw new Error(`Gemini API error ${response!.status}: ${text}`);
   }
 
   const data = await response!.json() as {
-    choices: { message: { content: string } }[];
+    candidates?: {
+      content?: { parts?: { text?: string }[] };
+      finishReason?: string;
+    }[];
+    promptFeedback?: { blockReason?: string };
   };
 
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) {
-    throw new Error('No text response from Groq API');
+  const candidate = data.candidates?.[0];
+  if (data.promptFeedback?.blockReason) {
+    throw new Error(`Gemini blocked the request: ${data.promptFeedback.blockReason}`);
   }
+  if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+    // MAX_TOKENS, SAFETY, RECITATION, OTHER — the response is incomplete.
+    // Truncated JSON is the common cause of downstream parse failures.
+    throw new Error(`Gemini stopped early (${candidate.finishReason}); response is incomplete`);
+  }
+
+  const text = candidate?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error('No text response from Gemini API');
+  }
+
+  // Strip a leading/trailing ```json fence if Gemini ignored the JSON-mode hint.
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(cleaned);
   } catch {
-    throw new Error('Groq API returned invalid JSON syntax');
+    // Surface a snippet of the actual payload so failures are debuggable
+    // without re-running with extra logging. Truncated to avoid log spam.
+    const preview = cleaned.slice(0, 300).replace(/\s+/g, ' ');
+    throw new Error(`Gemini API returned invalid JSON syntax. Preview: ${preview}`);
   }
 
   // Gracefully handle both the preferred wrapper object or an array fallback

@@ -152,8 +152,8 @@ module "secrets" {
     FRONTEND_URL = "https://${local.hostname}"
     CORS_ORIGIN  = "https://${local.hostname}"
 
-    GROQ_API_KEY = var.groq_api_key
-    JOBS_MODE    = "enabled"
+    GEMINI_API_KEY = var.gemini_api_key
+    JOBS_MODE      = "enabled"
 
     UPLOADS_DRIVER     = "s3"
     UPLOADS_BUCKET     = module.storage.uploads_bucket

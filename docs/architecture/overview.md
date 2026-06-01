@@ -190,7 +190,7 @@ A production-ready system: never loses data, recovers automatically from failure
 | File storage (local) | Local filesystem | Yes |
 | File storage (cloud) | AWS S3 | Cloud only |
 | AI scanning (local) | Mock response | Yes |
-| AI scanning (cloud) | Groq (Llama-4 Scout vision) | Cloud only |
+| AI scanning (cloud) | Gemini 2.5 Flash | Cloud only |
 | Email (local) | Mailpit | Yes (localhost:8025) |
 | Email (cloud) | AWS SES | Cloud only |
 | Analytics | Plausible self-hosted | Cloud only |
@@ -273,7 +273,7 @@ The milestone identifiers below (A1–A7, B1–B3) are internal project markers 
 
 **A4 — AI Scanning (Weeks 13–16)**
 - Image upload pipeline (local filesystem mock)
-- Vision-model integration via Groq (Llama-4 Scout) with local mock mode — returns canonical `variantToken` directly, so no separate border-colour detection step is needed
+- Vision-model integration via Gemini 2.5 Flash with local mock mode — returns canonical `variantToken` directly, so no separate border-colour detection step is needed
 - Confidence scoring + confirmation UI
 - Batch scanning mode (SSE-streamed per-image results)
 
@@ -365,7 +365,7 @@ One-time setup costs:
 | AWS Secrets Manager | ~$1 |
 | AWS S3 | ~$1–2 |
 | AWS Certificate Manager | $0 |
-| Groq vision API (Llama-4 Scout) | $1–5 |
+| Gemini 2.5 Flash vision API | $1–5 |
 | **Total** | **~$55–61 USD/month** |
 
 **At scale (5,000+ MAU) — after migration to ECS Fargate (see ADR-0001):**
@@ -377,7 +377,7 @@ One-time setup costs:
 | ElastiCache Redis | $20–30 |
 | ALB + ACM | $8–15 |
 | SES, S3, Route 53, Secrets Manager | $5–10 |
-| Groq vision API | $5–30 |
+| Gemini API | $5–30 |
 | **Total** | **~$93–175 USD/month** |
 
 ### Cost at Scale
@@ -393,7 +393,7 @@ One-time setup costs:
 
 - AWS Budget alert at $150 USD/month
 - EC2 can be resized vertically before migrating to Fargate
-- Groq vision API rate limited to 20 scans/user/hour
+- Gemini API rate limited to 20 scans/user/hour
 
 
 ---
@@ -455,7 +455,7 @@ Provide this document as the technical specification. The developer should be ab
 | End of A1 | `docker compose up && pnpm db:seed` works. 48 teams, 980 core stickers (20 intro + 960 team), plus 12 Coca-Cola + 20 Extra in database. Health check passes. Email verification flow works in Mailpit. API docs visible at `localhost:3001/docs`. |
 | End of A2 | All stickers visible in album UI with filtering. Can add/remove/mark duplicates. Multiple albums per user. Avatar upload working. Test suite ≥ 60% coverage. |
 | End of A3 | Share link visible without login. Email not exposed on public list. Trade matching returns correct results for Alice and Bob test users. SSE trade messages delivered in real-time. |
-| End of A4 | Mock AI scan adds a sticker to Alice's collection. Real Groq vision API works in dev cloud. |
+| End of A4 | Mock AI scan adds a sticker to Alice's collection. Real Gemini API works in dev cloud. |
 | End of A5 | Full test suite ≥ 80% coverage. k6 load test passes. All runbooks written. PWA installable on mobile. |
 | End of B1 | CI/CD deploys to dev on every merge. Health check passes in AWS. |
 | End of B2 | Production environment provisioned. Release-tag deploy to prod tested. Legal documents published. |

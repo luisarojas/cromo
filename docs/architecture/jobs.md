@@ -48,7 +48,7 @@ Locally, `node-cron` runs in the same Node.js process as the API. Setting `JOBS_
 ### 35.1 Why a queue, not inline
 
 If the API tries to send the verification email synchronously inside `POST /auth/register`, the user waits for SES to respond — and if SES is slow or briefly unavailable, the registration appears to fail. The same problem applies to:
-- AI scan processing (Groq vision can take 5–15 s per image)
+- AI scan processing (Gemini vision can take 5–15 s per image)
 - Web push fan-out to multiple subscribers
 - Notification emails (trade requests, accepted, completed)
 - DMARC report ingestion
@@ -105,5 +105,5 @@ In cloud the worker runs as a sibling docker-compose service on the same EC2 ins
 
 Locally, the API container starts the BullMQ worker in-process (controlled by `WORKER_INPROCESS=true` in `.env.local`). This avoids running a second Docker service for dev iteration. Bull Board UI is reachable at `http://localhost:3001/admin/queues` — convenient for inspecting jobs while developing.
 
-When `EMAIL_PROVIDER=mailpit`, the email worker delivers to Mailpit. When `GROQ_API_KEY=mock`, the scan worker returns the mock response. No code path differences — only env vars.
+When `EMAIL_PROVIDER=mailpit`, the email worker delivers to Mailpit. When `GEMINI_API_KEY=mock`, the scan worker returns the mock response. No code path differences — only env vars.
 
