@@ -219,6 +219,22 @@ module "scheduling" {
   stop_hour          = 23 # 11pm every day
 }
 
+# ─── Dev laptop access (IAM users + SSM/Secrets policy) ──────────────────────
+# Lets a developer ssm:StartSession the app instance (for port-forwarding into
+# the private RDS) and read the cromo/dev/app secret (to grab DATABASE_URL for
+# psql). Access keys are NOT provisioned here — create them in the console for
+# each user post-apply so the secret material stays out of Terraform state.
+
+module "dev_access" {
+  source            = "../../modules/dev-access"
+  env               = local.env
+  region            = var.region
+  account_id        = var.account_id
+  usernames         = var.developer_iam_users
+  app_secret_arn    = module.secrets.secret_arn
+  instance_name_tag = "cromo-${local.env}-app"
+}
+
 # ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────
 # Dev trusts every push to main. See modules/cicd/variables.tf for the sub
 # pattern syntax.

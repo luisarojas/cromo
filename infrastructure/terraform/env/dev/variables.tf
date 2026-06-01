@@ -82,3 +82,9 @@ variable "admin_temp_password" {
   sensitive   = true
   default     = ""
 }
+
+variable "developer_iam_users" {
+  description = "IAM user names to create for operating the dev environment from a laptop (SSM port-forward + Secrets Manager read on cromo/dev/app). Access keys are NOT created in Terraform — generate them via the AWS console after apply so the secret material stays out of state."
+  type        = list(string)
+  default     = []
+}

@@ -14,3 +14,7 @@ output "application_arn" {
   description = "cromo-dev myApplications (AppRegistry) application ARN."
   value       = module.appregistry.arn
 }
+output "developer_iam_user_arns" {
+  description = "ARNs of IAM users created for laptop access to dev (SSM port-forward + Secrets Manager read). Create access keys for each in the AWS console after apply."
+  value       = module.dev_access.user_arns
+}
