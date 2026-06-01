@@ -406,6 +406,12 @@ export async function getStats(
  * getStatsAndExtras — combined query returning album stats + total extra
  * copies in a single round trip. Replaces parallel getStats + getTotalExtraCopies
  * calls in getCollectionPage (2 connection acquires → 1).
+ *
+ * The album's `duplicate_count` is denormalized by the _sync_user_album_counts
+ * trigger and already reflects the owner's duplicates_count_all_variants
+ * preference. `extra` (total extra copies) is computed inline here and follows
+ * the same preference: per-variant excess (default) or per-sticker excess
+ * summed across variants (when the user opts in).
  */
 export async function getStatsAndExtras(
   db: Pool,
@@ -417,13 +423,36 @@ export async function getStatsAndExtras(
     duplicates: number;
     extra: number;
   }>(
-    `SELECT ua.total_count     AS total,
+    `WITH owner AS (
+       SELECT ua.user_id,
+              COALESCE(us.duplicates_count_all_variants, false) AS count_all
+       FROM user_albums ua
+       LEFT JOIN user_settings us ON us.user_id = ua.user_id
+       WHERE ua.id = $1
+     ),
+     extras AS (
+       SELECT CASE WHEN (SELECT count_all FROM owner)
+         THEN COALESCE((
+           SELECT SUM(GREATEST(per.total_qty - 1, 0))::int
+           FROM (
+             SELECT sv.sticker_id, SUM(us2.quantity) AS total_qty
+             FROM user_stickers us2
+             JOIN sticker_variants sv ON sv.id = us2.sticker_variant_id
+             WHERE us2.album_id = $1
+             GROUP BY sv.sticker_id
+           ) per
+         ), 0)
+         ELSE COALESCE((
+           SELECT SUM(GREATEST(us2.quantity - 1, 0))::int
+           FROM user_stickers us2
+           WHERE us2.album_id = $1
+         ), 0)
+       END AS extra
+     )
+     SELECT ua.total_count     AS total,
             ua.owned_count     AS owned,
             ua.duplicate_count AS duplicates,
-            COALESCE((
-              SELECT SUM(GREATEST(us.quantity - 1, 0))::int
-              FROM user_stickers us WHERE us.album_id = ua.id
-            ), 0) AS extra
+            (SELECT extra FROM extras) AS extra
      FROM user_albums ua WHERE ua.id = $1`,
     [albumId],
   );

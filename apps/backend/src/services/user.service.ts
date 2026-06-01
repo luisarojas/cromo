@@ -5,6 +5,7 @@ import { withTx } from '../db/transaction.js';
 import { enqueue } from './jobs.service.js';
 import { recordAudit } from '../utils/audit.js';
 import { statusError } from '../utils/errors.js';
+import { invalidateUserCaches } from './cache.js';
 
 function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
@@ -178,6 +179,7 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
 
 export async function updatePreferences(
   db: Pool,
+  redis: Redis,
   userId: string,
   patch: Partial<UserPreferences>
 ): Promise<UserPreferences> {
@@ -209,6 +211,18 @@ export async function updatePreferences(
     `UPDATE user_settings SET ${setClauses.join(', ')} WHERE user_id = $${idx}`,
     values
   );
+
+  // Flipping the duplicate-counting rule changes user_albums.duplicate_count
+  // (denormalized by _sync_user_album_counts, which now reads this setting).
+  // Recompute every album the user owns and bust their cached responses so
+  // the dashboard and album page pick up the new number on next read.
+  if (patch.duplicatesCountAllVariants !== undefined) {
+    await db.query(
+      `SELECT _sync_user_album_counts(id) FROM user_albums WHERE user_id = $1`,
+      [userId]
+    );
+    await invalidateUserCaches(redis, userId);
+  }
 
   return getPreferences(db, userId);
 }

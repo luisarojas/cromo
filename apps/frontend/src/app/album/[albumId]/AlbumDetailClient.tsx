@@ -302,21 +302,13 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   });
 
   // Stats come from user_albums (denormalized columns kept fresh by the
-  // sync trigger). The serverStats.duplicates count uses the "any variant
-  // qty > 1" rule; for users who flipped the duplicatesCountAllVariants
-  // preference to true we re-derive that one value locally — the rest
-  // (total/owned/missing/percentage) are unaffected by the preference.
+  // _sync_user_album_counts trigger, which now honours the owner's
+  // duplicatesCountAllVariants preference). The server is the single source
+  // of truth — do not re-derive duplicate counts on the client.
   const computedStats = useMemo<CollectionStats | null>(() => {
     if (loading) return null;
-    if (!serverStats) return null;
-    if (!duplicatesCountAllVariants) return serverStats;
-    let duplicates = 0;
-    for (const s of settingsFilteredStickers) {
-      const perSticker = ownedMap.get(s.albumCode);
-      if (perSticker && isDuplicateSticker(perSticker, true)) duplicates++;
-    }
-    return { ...serverStats, duplicates };
-  }, [loading, serverStats, duplicatesCountAllVariants, settingsFilteredStickers, ownedMap]);
+    return serverStats;
+  }, [loading, serverStats]);
 
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
@@ -329,22 +321,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     return sum;
   }, [settingsFilteredStickers, ownedMap]);
 
-  // Server provides the canonical "sum of (quantity - 1)" via the bundled
-  // /collection?bundle=page response. Two modes give the same number unless
-  // the user has duplicatesCountAllVariants flipped — in that case we
-  // re-aggregate per-sticker locally over the owned map (small set).
-  const totalExtraCopies = useMemo(() => {
-    if (!duplicatesCountAllVariants) return serverExtraCopies;
-    let sum = 0;
-    for (const s of settingsFilteredStickers) {
-      const perSticker = ownedMap.get(s.albumCode);
-      if (!perSticker) continue;
-      let total = 0;
-      for (const entry of perSticker.values()) total += entry.quantity;
-      if (total > 1) sum += total - 1;
-    }
-    return sum;
-  }, [serverExtraCopies, duplicatesCountAllVariants, settingsFilteredStickers, ownedMap]);
+  const totalExtraCopies = serverExtraCopies;
 
   const displayedStickers = useMemo<Sticker[]>(() => {
     let base: Sticker[];

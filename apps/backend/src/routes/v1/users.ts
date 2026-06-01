@@ -110,7 +110,7 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.error.issues.map((i) => i.message).join('; '),
         });
       }
-      const prefs = await userService.updatePreferences(fastify.db, request.userId!, parsed.data);
+      const prefs = await userService.updatePreferences(fastify.db, fastify.redis, request.userId!, parsed.data);
       return reply.status(200).send(prefs);
     }
   );
