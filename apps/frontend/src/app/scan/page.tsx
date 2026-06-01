@@ -718,8 +718,14 @@ function ScanMode() {
           )}
 
           {status === 'error' && (
-            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger-text)] text-sm p-4">
-              {scanError ?? 'Failed to identify sticker. Please try again.'}
+            <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 text-[var(--cromo-danger-text)] text-sm p-4 space-y-3">
+              <p>{scanError ?? 'Failed to identify sticker. Please try again.'}</p>
+              <button
+                onClick={reset}
+                className="w-full rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-4 py-2 text-sm font-medium hover:bg-[var(--cromo-accent-strong)]"
+              >
+                Retry with a new photo
+              </button>
             </div>
           )}
 
@@ -861,12 +867,12 @@ function ScanMode() {
             </div>
           )}
 
-          {(status === 'done' || status === 'error') && (
+          {status === 'done' && (
             <button
               onClick={reset}
               className="w-full text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] underline"
             >
-              {status === 'error' ? 'Try again' : 'Scan more stickers'}
+              Scan more stickers
             </button>
           )}
         </>
