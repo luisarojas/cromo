@@ -37,6 +37,7 @@ import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import FilterBar from '../components/FilterBar';
 import { ALL_VARIANT_TYPES } from '../components/variantMeta';
+import AlbumStats from '../components/AlbumStats';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import AlbumFormModal from '../components/AlbumFormModal';
@@ -272,6 +273,16 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // Derived totals
   // ---------------------------------------------------------------------------
   const activeAlbum = useMemo(() => albums.find((a) => a.id === albumId), [albums, albumId]);
+
+  // Redirect away from ?tab=stats when the active album type doesn't expose
+  // stats, so a stale share-link doesn't render the WC-2026-specific panel
+  // against an album that doesn't have group/country data.
+  useEffect(() => {
+    if (tab !== 'stats') return;
+    if (!activeAlbum) return;
+    if (activeAlbum.albumTypeKey === DEFAULT_ALBUM_TYPE_KEY) return;
+    setTab('all');
+  }, [tab, activeAlbum, setTab]);
 
   const settingsFilteredStickers = useMemo<Sticker[]>(() => {
     const albumSettings = activeAlbum?.settings;
@@ -593,6 +604,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+  const supportsDetailedStats = activeAlbum?.albumTypeKey === DEFAULT_ALBUM_TYPE_KEY;
   const TABS: { id: Tab; label: string }[] = [
     { id: 'all', label: 'All Stickers' },
     { id: 'have', label: 'Have' },
@@ -735,17 +747,29 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           </div>
         )}
 
-        <StatsBar stats={computedStats} loading={loading} />
-
-        <FilterBar
-          filters={filters}
-          onChange={setFilters}
-          groupOptions={filterOptions.groupOptions}
-          teamOptions={filterOptions.teamOptions}
-          typeOptions={filterOptions.typeOptions}
-          variantOptions={filterOptions.variantOptions}
+        <StatsBar
+          stats={computedStats}
+          loading={loading}
+          onViewDetailedStats={
+            supportsDetailedStats
+              ? () => setTab(tab === 'stats' ? 'all' : 'stats')
+              : undefined
+          }
+          isViewingDetailedStats={tab === 'stats'}
         />
 
+        {tab !== 'stats' && (
+          <FilterBar
+            filters={filters}
+            onChange={setFilters}
+            groupOptions={filterOptions.groupOptions}
+            teamOptions={filterOptions.teamOptions}
+            typeOptions={filterOptions.typeOptions}
+            variantOptions={filterOptions.variantOptions}
+          />
+        )}
+
+        {tab !== 'stats' && (
         <div className="flex items-center gap-1 border-b border-[var(--cromo-border)] overflow-x-auto -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map(({ id, label }) => (
             <button
@@ -803,8 +827,9 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             {selectionMode ? 'Selecting…' : 'Select'}
           </button>
         </div>
+        )}
 
-        {!loading && hasActiveFilter && (
+        {!loading && hasActiveFilter && tab !== 'stats' && (
           <p className="text-xs text-[var(--cromo-fg-muted)]">
             Showing {displayedStickers.length} of {tabStickers.length}
           </p>
@@ -814,6 +839,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           <div className="flex items-center justify-center h-64 text-[var(--cromo-fg-subtle)] text-sm">
             Loading stickers…
           </div>
+        ) : tab === 'stats' ? (
+          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} />
         ) : albumId ? (
           <div className={selectionMode ? 'pb-20' : ''}>
             <StickerGrid

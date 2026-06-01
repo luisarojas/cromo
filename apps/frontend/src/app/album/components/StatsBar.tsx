@@ -5,6 +5,8 @@ import type { CollectionStats } from '@/lib/api';
 interface Props {
   stats: CollectionStats | null;
   loading: boolean;
+  onViewDetailedStats?: () => void;
+  isViewingDetailedStats?: boolean;
 }
 
 function StatTile({
@@ -24,12 +26,35 @@ function StatTile({
   );
 }
 
-export default function StatsBar({ stats, loading }: Props) {
+export default function StatsBar({ stats, loading, onViewDetailedStats, isViewingDetailedStats }: Props) {
   const pct = stats?.percentage ?? 0;
 
   return (
-    <div className="flex flex-col gap-3 bg-[var(--cromo-surface-2)] border border-[var(--cromo-border)] rounded-xl p-4">
-      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:justify-start">
+    <div className="relative flex flex-col gap-3 bg-[var(--cromo-surface-2)] border border-[var(--cromo-border)] rounded-xl p-4">
+      {onViewDetailedStats && (
+        <button
+          type="button"
+          onClick={onViewDetailedStats}
+          className="absolute top-3 right-3 inline-flex items-center gap-1 text-xs text-[var(--cromo-accent)] hover:underline"
+        >
+          {isViewingDetailedStats ? (
+            <>
+              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M12 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Back to album
+            </>
+          ) : (
+            <>
+              View detailed stats
+              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </>
+          )}
+        </button>
+      )}
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-stretch gap-3 sm:justify-start">
         {loading ? (
           [...Array(4)].map((_, i) => (
             <div
