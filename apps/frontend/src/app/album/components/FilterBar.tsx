@@ -46,12 +46,17 @@ export default function FilterBar({
   // flight. Hold the draft locally for instant echo and debounce the commit.
   const [searchDraft, setSearchDraft] = useState(filters.search ?? '');
 
-  // Sync external changes (chip removal, "Clear all", URL navigation) back
-  // into the draft. Skip when the values already match to avoid clobbering
-  // mid-typing state during an unrelated parent rerender.
+  // Track the last value we committed up through onChange. Sync from prop only
+  // when the incoming value isn't our own echo — otherwise a keystroke landing
+  // between "commit fired" and "parent rerender" gets clobbered by the stale
+  // prop catching up.
+  const lastSentRef = useRef(filters.search ?? '');
+
   useEffect(() => {
     const incoming = filters.search ?? '';
-    setSearchDraft((prev) => (prev === incoming ? prev : incoming));
+    if (incoming === lastSentRef.current) return;
+    lastSentRef.current = incoming;
+    setSearchDraft(incoming);
   }, [filters.search]);
 
   // Use a ref so the debounce timer reads the latest filters/onChange without
@@ -64,6 +69,7 @@ export default function FilterBar({
       const { filters: f, onChange: cb } = commitRef.current;
       const committed = f.search ?? '';
       if (committed !== searchDraft) {
+        lastSentRef.current = searchDraft;
         cb({ ...f, search: searchDraft || undefined });
       }
     }, 250);
