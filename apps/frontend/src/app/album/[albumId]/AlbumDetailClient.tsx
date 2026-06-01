@@ -323,23 +323,20 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
   const totalExtraCopies = serverExtraCopies;
 
+  // Tab-narrowed set before the user's filter chips apply. Used as the
+  // denominator of the "Showing X of Y" hint when filters are active.
+  const tabStickers = useMemo<Sticker[]>(() => {
+    if (tab === 'all') return settingsFilteredStickers;
+    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
+    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
+    return settingsFilteredStickers.filter((s) => {
+      const p = ownedMap.get(s.albumCode);
+      return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
+    });
+  }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
+
   const displayedStickers = useMemo<Sticker[]>(() => {
-    let base: Sticker[];
-
-    if (tab === 'all') {
-      base = settingsFilteredStickers;
-    } else if (tab === 'have') {
-      base = settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
-    } else if (tab === 'missing') {
-      base = settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
-    } else {
-      base = settingsFilteredStickers.filter((s) => {
-        const p = ownedMap.get(s.albumCode);
-        return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
-      });
-    }
-
-    return base.filter((s) => {
+    return tabStickers.filter((s) => {
       if (filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
       if (filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
       if (filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
@@ -352,7 +349,16 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
       return true;
     });
-  }, [settingsFilteredStickers, tab, filters, ownedMap, duplicatesCountAllVariants, favouriteSet, wantedAlbumCodeSet]);
+  }, [tabStickers, filters, ownedMap, favouriteSet, wantedAlbumCodeSet]);
+
+  const hasActiveFilter =
+    !!filters.search ||
+    !!filters.group?.length ||
+    !!filters.team?.length ||
+    !!filters.type?.length ||
+    !!filters.variant?.length ||
+    !!filters.favouritesOnly ||
+    !!filters.wantedOnly;
 
   // ---------------------------------------------------------------------------
   // Selection helpers
@@ -797,6 +803,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             {selectionMode ? 'Selecting…' : 'Select'}
           </button>
         </div>
+
+        {!loading && hasActiveFilter && (
+          <p className="text-xs text-[var(--cromo-fg-muted)]">
+            Showing {displayedStickers.length} of {tabStickers.length}
+          </p>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center h-64 text-[var(--cromo-fg-subtle)] text-sm">

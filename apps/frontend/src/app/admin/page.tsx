@@ -176,6 +176,11 @@ function StickersSection({ token }: { token: string }) {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full max-w-md rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         />
+        {search && !loading && (
+          <p className="mt-2 text-xs text-[var(--cromo-fg-muted)]">
+            Showing {filtered.length} of {stickers.length}
+          </p>
+        )}
       </div>
 
       {error && (
