@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import MultiSelect from './MultiSelect';
 import { HeartIcon } from '@/components/HeartIcon';
 
@@ -39,12 +39,36 @@ export default function FilterBar({
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  const updateText = useCallback(
-    (key: keyof FilterState, value: string) => {
-      onChange({ ...filters, [key]: value || undefined });
-    },
-    [filters, onChange],
-  );
+  // Local-state echo for the search input. The committed `filters.search` flows
+  // through `router.replace` in useAlbumUrlState, which is async — binding the
+  // input directly to it drops characters on fast typing because React reverts
+  // the DOM value to the still-stale prop while the URL transition is in
+  // flight. Hold the draft locally for instant echo and debounce the commit.
+  const [searchDraft, setSearchDraft] = useState(filters.search ?? '');
+
+  // Sync external changes (chip removal, "Clear all", URL navigation) back
+  // into the draft. Skip when the values already match to avoid clobbering
+  // mid-typing state during an unrelated parent rerender.
+  useEffect(() => {
+    const incoming = filters.search ?? '';
+    setSearchDraft((prev) => (prev === incoming ? prev : incoming));
+  }, [filters.search]);
+
+  // Use a ref so the debounce timer reads the latest filters/onChange without
+  // resetting on every parent rerender.
+  const commitRef = useRef({ filters, onChange });
+  commitRef.current = { filters, onChange };
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const { filters: f, onChange: cb } = commitRef.current;
+      const committed = f.search ?? '';
+      if (committed !== searchDraft) {
+        cb({ ...f, search: searchDraft || undefined });
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [searchDraft]);
 
   const updateMulti = useCallback(
     (key: keyof FilterState, value: string[]) => {
@@ -121,8 +145,8 @@ export default function FilterBar({
           id="filter-search"
           type="text"
           placeholder="Search player, team, code…"
-          value={filters.search ?? ''}
-          onChange={(e) => updateText('search', e.target.value)}
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
           className="flex-1 min-w-0 rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         />
 
