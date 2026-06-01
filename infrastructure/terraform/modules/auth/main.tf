@@ -62,12 +62,15 @@ resource "aws_cognito_user" "admin" {
   temporary_password = var.admin_temp_password
   message_action     = "SUPPRESS"
 
+  # `custom:username` is intentionally NOT set here. The AWS provider has a
+  # read/write asymmetry on custom Cognito attributes whose schema name
+  # collides with a built-in field (`username`): writes use `custom:username`,
+  # reads strip the prefix, and every plan shows a no-op drift. The backend's
+  # deriveUsername() fallback synthesises the same value from the email local
+  # part on first login, so dropping the bootstrap is behaviour-neutral.
   attributes = {
     email          = each.value
     email_verified = "true"
-    # App-level username the backend reads (custom:username) when JIT-creating
-    # the DB row on first login. Derived from the email local part.
-    "custom:username" = split("@", each.value)[0]
   }
 }
 
