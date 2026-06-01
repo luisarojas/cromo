@@ -10,6 +10,23 @@ const DEFAULT_SETTINGS: AlbumSettings = {
   defaultBaseVariant: 'base_borderless',
 };
 
+// Preferred initial format on the create path when the caller doesn't supply
+// one explicitly. Softcover is the standard retail album for the WC 2026 type
+// and matches what most people are starting with.
+const PREFERRED_FORMAT_KEY = 'softcover_standard';
+
+function pickInitialFormat(
+  formats: AlbumFormatOption[],
+  edition: string,
+): string {
+  const available = formats.filter((f) => f.editions.includes(edition));
+  return (
+    available.find((f) => f.key === PREFERRED_FORMAT_KEY)?.key
+    ?? available[0]?.key
+    ?? ''
+  );
+}
+
 // Edition-aware initial value for defaultBaseVariant: North-American packs ship
 // white-bordered base; everywhere else ships borderless. Used only when the user
 // hasn't already chosen explicitly (album create path, or legacy albums without
@@ -64,24 +81,25 @@ export default function AlbumFormModal({
     [formats, edition]
   );
   const [format, setFormat] = useState<string>(() => {
+    const startingEdition = album?.edition ?? defaultEdition ?? firstEditionKey;
     const initial = album?.format ?? defaultFormat ?? '';
-    if (initial && formats.some((f) => f.key === initial && f.editions.includes(album?.edition ?? defaultEdition ?? firstEditionKey))) {
+    if (initial && formats.some((f) => f.key === initial && f.editions.includes(startingEdition))) {
       return initial;
     }
-    return formats.find((f) => f.editions.includes(album?.edition ?? defaultEdition ?? firstEditionKey))?.key ?? '';
+    return pickInitialFormat(formats, startingEdition);
   });
 
   // When the edition changes, if the current format is no longer valid for the
-  // new edition, fall back to the first available one (or empty if none).
+  // new edition, fall back to the preferred default (or first available).
   useEffect(() => {
     if (availableFormats.length === 0) {
       setFormat('');
       return;
     }
     if (!availableFormats.some((f) => f.key === format)) {
-      setFormat(availableFormats[0].key);
+      setFormat(pickInitialFormat(formats, edition));
     }
-  }, [availableFormats, format]);
+  }, [availableFormats, format, formats, edition]);
 
   const [settings, setSettings] = useState<AlbumSettings>(() => {
     if (album?.settings) {
