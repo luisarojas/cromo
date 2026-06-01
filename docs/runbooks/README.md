@@ -15,6 +15,7 @@ production-only runbooks become TODO once the prod environment is provisioned.
 | [`cloud-bootstrap.md`](./cloud-bootstrap.md) | cloud | ✅ written |
 | [`cloud-recreate.md`](./cloud-recreate.md) | cloud | ✅ written |
 | [`dev-schedule.md`](./dev-schedule.md) | cloud (dev) | ✅ written |
+| [`aws-access.md`](./aws-access.md) | cloud | ✅ written |
 | `deploy-hotfix.md` | cloud | TODO (extension of cloud-bootstrap §7) |
 | `rollback-deployment.md` | cloud | TODO |
 | `restore-database.md` | cloud | TODO (RDS PITR — see ADR-0002) |

@@ -106,6 +106,25 @@ If the tag has already been pushed, **roll forward with a new patch release** (`
 - **Build metadata (`+sha…`) is disallowed in release tags** — `release.sh` rejects it because `+` isn't valid in a git tag name. Use a pre-release suffix (`0.2.0-rc.1`) if you need to disambiguate.
 - **First-time setup is already done** — root, backend, and shared were bumped from `0.0.0-local` → `0.1.0` to match the frontend's existing base. The first run of `release.sh` should be `./scripts/release.sh 0.2.0` (or `0.1.1` for a patch) when cutting the first real release.
 
+### AWS Account Access — Two Profiles, MFA-Gated
+
+Operator authentication to the AWS account uses a two-tier IAM model, both Terraform-managed where possible:
+
+- **`cromo` profile** → `cromo-admin` IAM user (`AdministratorAccess`). Use only for `terraform plan` / `apply` / `destroy` and one-off ops that genuinely need broad permissions. Hardcoded in `infrastructure/terraform/env/dev/main.tf` and `backend.tf` — Terraform always uses this profile regardless of `$AWS_PROFILE`.
+- **`cromo-dev` profile** → an operator IAM user (e.g. `luisa`) created by `modules/dev-access`. Scoped to `ec2:DescribeInstances`, `ssm:StartSession` to the `cromo-dev-app` instance, `secretsmanager:GetSecretValue` on `cromo/dev/app`, and self-MFA management. Use for everything else (seeding through SSM port-forward, reading secrets, ad-hoc psql).
+
+Both users carry the customer-managed policy `cromo-{shared,dev}-require-mfa` (`modules/iam-mfa-enforcement`) that **denies every sensitive action unless `aws:MultiFactorAuthPresent = true`**, so long-lived access keys are useless without first calling `sts:GetSessionToken` with an MFA token. The deny condition is `BoolIfExists` not `Bool`.
+
+The policy is customer-managed rather than inline because the canonical AWS document exceeds the 2,048-byte inline-policy cap — `aws_iam_user_policy_attachment` of an `aws_iam_policy` is the only shape that works.
+
+The operator workflow (mint creds via `scripts/aws-mfa-session.sh`, port-forward into the private dev RDS via SSM, reseed) is in `docs/runbooks/aws-access.md`. Design rationale (including why not AWS IAM Identity Center yet) is in `docs/architecture/auth-security.md` §9.9.
+
+**Rules to follow:**
+- **Never write access keys into Terraform** (`aws_iam_access_key`). Keys land in state and leak through `terraform show`. Create them via the AWS console post-apply; the IAM user resources themselves are fine to manage in Terraform.
+- **Never set `custom:username` on a `aws_cognito_user` resource in `modules/auth`.** The AWS provider has a read/write asymmetry on custom Cognito schema attributes whose name (`username`) collides with a built-in field, which surfaces as permanent plan drift. The backend's `deriveUsername()` in `apps/backend/src/services/cognito-auth.service.ts` synthesises the same value from the email local part on first login — bootstrapping the attribute is behaviour-neutral, so don't do it.
+- **Don't propose AWS IAM Identity Center** unless asked. It was considered and intentionally deferred until the team grows past one person; the MFA-required policy closes the same threat at lower complexity.
+- **The dev RDS is `publicly_accessible = false`.** Any command targeting it from a laptop must go through the SSM port-forward documented in `docs/runbooks/aws-access.md` §5 — direct connections will time out (or fall back to `/tmp/.s.PGSQL.5432` if `DATABASE_URL` is malformed).
+
 ### AI Scan Provider — Env-Driven, Multi-Backend
 
 The sticker identification call in `apps/backend/src/services/scan.service.ts` (`identifySticker`) dispatches to one of two providers based on env, so we can swap backends without touching code. Both providers consume the same prompt built by `buildIdentifyPrompt` and emit the same `ScanResult[]` shape — only the wire-level call differs.

@@ -126,3 +126,50 @@ Account lockout is keyed on `user_id`, not IP, to prevent password-spray attacks
 
 Structured logs (§20) **never** contain: full passwords, JWT tokens or refresh tokens, full email addresses (only the masked form `a***@example.com`), `user_reports.description` content, `trade_messages.body` content, or full `audit_log.ip_address` values for entries older than 90 days. A pre-commit hook runs `gitleaks` to catch accidental commits of secrets.
 
+## 9.9 Infrastructure IAM (AWS Account Access)
+
+Application auth (§9.1–§9.8) covers end users. This section covers the *operators*
+— how a human authenticates to the AWS account to run Terraform, port-forward
+into RDS, etc.
+
+**Two-tier identity model**, both Terraform-managed where possible:
+
+| IAM user | Permissions | Created by | Purpose |
+|---|---|---|---|
+| `cromo-admin` | `AdministratorAccess` | Manual (predates Terraform; the user resource itself is unmanaged, but its inline policy is attached via `modules/iam-mfa-enforcement` from `env/shared`) | Bootstrap admin; runs `terraform apply`; break-glass |
+| `luisa` (and any other names listed in `developer_iam_users`) | `ec2:DescribeInstances`, `ssm:StartSession` to the `cromo-dev-app` instance, `secretsmanager:GetSecretValue` on `cromo/dev/app`, plus self-MFA management | `modules/dev-access` (instantiated from `env/dev/main.tf`) | Day-to-day dev ops |
+
+**MFA is enforced on every operator user** via a customer-managed policy
+(`modules/iam-mfa-enforcement`) that denies all sensitive actions unless the
+request was signed with MFA-protected temp credentials. Long-lived access keys
+exist but are useless without first calling `sts:GetSessionToken` with an MFA
+token. The deny gate uses `BoolIfExists` so service-to-service calls that omit
+`aws:MultiFactorAuthPresent` are treated as no-MFA rather than bypassing the
+deny.
+
+The policy is customer-managed rather than inline because the canonical
+"deny-unless-MFA, allow self-MFA-management" document exceeds the 2,048-byte
+inline cap. Customer-managed has a 6,144-byte cap and is also reusable across
+users. `env/shared` creates `cromo-shared-require-mfa` for `cromo-admin`;
+`env/dev` (via `dev-access`) creates `cromo-dev-require-mfa` for each operator.
+Two policies, one per Terraform state — duplication is the cost of avoiding
+cross-state output coupling (same pattern as the SES ARN, computed by
+deterministic format string in `env/dev/main.tf` rather than read across states).
+
+**No access keys in Terraform state.** Both `cromo-admin` and the dev-access
+users have their access keys created via the AWS console (or `aws iam
+create-access-key`) post-apply. This is a deliberate choice — provisioning keys
+through `aws_iam_access_key` would land the secret material in the Terraform
+state file.
+
+**Why not AWS IAM Identity Center?** Considered and deferred. Identity Center is
+the AWS-recommended endgame (no long-lived keys at all; federated browser
+login), but it requires a one-time manual console bootstrap that Terraform
+can't perform, and migrating ratchets up complexity for a solo-dev account.
+The MFA-required policy on long-lived keys closes the same threat (compromised
+laptop key) with a smaller change. Revisit when the team grows past one person.
+
+The operator playbook — profile selection, MFA helper, SSM port-forward, seeding
+through the tunnel — is in
+[`docs/runbooks/aws-access.md`](../runbooks/aws-access.md).
+
