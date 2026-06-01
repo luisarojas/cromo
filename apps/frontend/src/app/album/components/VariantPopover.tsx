@@ -196,13 +196,17 @@ export default function VariantPopover({
   const unownedVariants = (allVariants ?? []).filter(
     (v) => !ownedVariants.has(v.variantType),
   );
-  // The user's preferred base layout gets the single prominent "Add" button.
-  // If this sticker's catalog doesn't carry that layout, fall back to whatever
-  // base it does have. The non-preferred base drops into the variant list.
+  // The user's preferred base layout gets the single prominent "Add" button —
+  // but only when nothing of this sticker is owned yet. Once any variant is in
+  // the collection, the base drops into the regular "Add other variant" list
+  // so the popover doesn't push a base on someone who deliberately collected,
+  // say, the blue parallel.
   const catalogHasPreferredBase = (allVariants ?? []).some((v) => v.variantType === defaultBaseVariant);
-  const preferredBaseUnowned = unownedVariants.find(
-    (v) => v.variantType === defaultBaseVariant || (!catalogHasPreferredBase && isBaseVariant(v.variantType)),
-  );
+  const preferredBaseUnowned = ownedVariants.size === 0
+    ? unownedVariants.find(
+        (v) => v.variantType === defaultBaseVariant || (!catalogHasPreferredBase && isBaseVariant(v.variantType)),
+      )
+    : undefined;
   const otherUnowned = unownedVariants.filter((v) => v.id !== preferredBaseUnowned?.id);
 
   const node = (
