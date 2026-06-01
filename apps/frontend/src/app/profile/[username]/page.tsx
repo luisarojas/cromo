@@ -699,7 +699,11 @@ export default function PublicProfilePage() {
                                 key={item.stickerVariantId}
                                 className="relative flex flex-col rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-2.5 hover:border-[var(--cromo-border-strong)] transition-shadow"
                               >
-                                <div className="flex items-center gap-1.5 mb-1">
+                                <div
+                                  className={`flex items-center gap-1.5 ${
+                                    item.playerName && item.teamName ? '' : 'mb-1'
+                                  }`}
+                                >
                                   <span className="text-base font-extrabold text-[var(--cromo-fg)] leading-none">
                                     {item.albumCode}
                                   </span>
@@ -715,6 +719,11 @@ export default function PublicProfilePage() {
                                     />
                                   )}
                                 </div>
+                                {item.playerName && item.teamName && (
+                                  <div className="text-[10px] text-[var(--cromo-fg-subtle)] truncate leading-tight mb-1">
+                                    {item.teamName}
+                                  </div>
+                                )}
                                 <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-2">
                                   {item.playerName ?? item.teamName ?? '—'}
                                 </div>

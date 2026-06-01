@@ -106,7 +106,11 @@ export default function StickerCard({
         )
       )}
 
-      <div className="flex items-center gap-1.5 mb-1 mt-0.5">
+      <div
+        className={`flex items-center gap-1.5 mt-0.5 ${
+          sticker.playerName && sticker.teamName ? '' : 'mb-1'
+        }`}
+      >
         <span className="text-lg font-extrabold text-[var(--cromo-fg)] leading-none">
           {sticker.albumCode}
         </span>
@@ -123,6 +127,11 @@ export default function StickerCard({
         )}
       </div>
 
+      {sticker.playerName && sticker.teamName && (
+        <div className="text-[10px] text-[var(--cromo-fg-subtle)] truncate leading-tight mb-1">
+          {sticker.teamName}
+        </div>
+      )}
       <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-1">
         {sticker.playerName ?? sticker.teamName ?? '—'}
       </div>
