@@ -185,10 +185,18 @@ export default function DashboardPage() {
               ))
             : (
               <>
-                <Stat label="Total" value={defaultAlbumStats?.total ?? 0} tone="chrome" />
-                <Stat label="Owned" value={defaultAlbumStats?.owned ?? 0} tone="success" />
-                <Stat label="Missing" value={defaultAlbumStats?.missing ?? 0} />
-                <Stat label="Duplicates" value={defaultAlbumStats?.duplicates ?? 0} tone="accent" />
+                <StatLink albumId={defaultAlbum?.id} tab="all">
+                  <Stat label="Total" value={defaultAlbumStats?.total ?? 0} tone="chrome" />
+                </StatLink>
+                <StatLink albumId={defaultAlbum?.id} tab="have">
+                  <Stat label="Owned" value={defaultAlbumStats?.owned ?? 0} tone="success" />
+                </StatLink>
+                <StatLink albumId={defaultAlbum?.id} tab="missing">
+                  <Stat label="Missing" value={defaultAlbumStats?.missing ?? 0} />
+                </StatLink>
+                <StatLink albumId={defaultAlbum?.id} tab="duplicates">
+                  <Stat label="Duplicates" value={defaultAlbumStats?.duplicates ?? 0} tone="accent" />
+                </StatLink>
               </>
             )}
         </div>
@@ -514,6 +522,26 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function StatLink({
+  albumId,
+  tab,
+  children,
+}: {
+  albumId: string | undefined;
+  tab: 'all' | 'have' | 'missing' | 'duplicates';
+  children: React.ReactNode;
+}) {
+  if (!albumId) return <>{children}</>;
+  return (
+    <Link
+      href={`/album/${albumId}?tab=${tab}`}
+      className="block rounded-card transition-transform hover:-translate-y-0.5 hover:shadow-cromo focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)]"
+    >
+      {children}
+    </Link>
   );
 }
 
