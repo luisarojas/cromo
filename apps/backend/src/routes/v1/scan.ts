@@ -211,6 +211,10 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await deleteScanTemp(tempPath);
+      request.log.info(
+        { reasoning: results.map((r) => ({ albumCode: r.albumCode, playerName: r.playerName, variantToken: r.variantToken, reasoning: r.reasoning })) },
+        'scan identify reasoning',
+      );
       const enriched = await Promise.all(results.map((r) => enrichFromCatalog(fastify.db, r, albumTypeKey)));
 
       // Cache the successful response so a retry with the same Idempotency-Key
@@ -299,6 +303,10 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
             const tempPath = await saveScanTemp(buffer, ext);
             tempPaths.push(tempPath);
             const scanResults = await identifySticker(buffer, mimeType, collectionName, scanPrompt);
+            request.log.info(
+              { index, reasoning: scanResults.map((r) => ({ albumCode: r.albumCode, playerName: r.playerName, variantToken: r.variantToken, reasoning: r.reasoning })) },
+              'scan batch reasoning',
+            );
             const enriched = await Promise.all(scanResults.map((r) => enrichFromCatalog(fastify.db, r, albumTypeKey)));
             writeSSEEvent(reply, 'result', { index, results: enriched });
           } catch (err) {

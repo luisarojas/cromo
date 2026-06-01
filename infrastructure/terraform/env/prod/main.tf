@@ -141,7 +141,11 @@ module "auth" {
 module "secrets" {
   source = "../../modules/secrets"
   env    = local.env
-  values = {
+  # SCAN_MODEL is only included when explicitly set. An empty-string value
+  # would override the code-side default in scan.service.ts (it uses
+  # env.SCAN_MODEL ?? DEFAULT_<PROVIDER>_MODEL) and force the API call to
+  # model="", so the key must be absent from the env when unused.
+  values = merge({
     NODE_ENV     = "production"
     APP_VERSION  = "0.0.0-prod"
     DATABASE_URL = module.database.connection_url
@@ -158,7 +162,9 @@ module "secrets" {
     FRONTEND_URL = "https://${local.hostname}"
     CORS_ORIGIN  = "https://${local.hostname}"
 
-    GEMINI_API_KEY = var.gemini_api_key # real key in prod — gate via tfvars
+    SCAN_PROVIDER  = var.scan_provider
+    GEMINI_API_KEY = var.gemini_api_key # consulted when scan_provider='gemini'
+    GROQ_API_KEY   = var.groq_api_key   # consulted when scan_provider='groq'
     JOBS_MODE      = "enabled"
 
     UPLOADS_DRIVER     = "s3"
@@ -166,7 +172,7 @@ module "secrets" {
     UPLOADS_REGION     = var.region
     UPLOADS_PUBLIC_URL = module.cdn.uploads_url
     AWS_REGION         = var.region
-  }
+  }, var.scan_model != "" ? { SCAN_MODEL = var.scan_model } : {})
 }
 
 # ─── Compute ──────────────────────────────────────────────────────────────────

@@ -46,8 +46,18 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
 
-  // AI scanning — set to 'mock' to skip real API calls (default for local dev)
+  // AI scanning. SCAN_PROVIDER picks which backend runs identifySticker:
+  //   - 'gemini' → Google AI Studio (gemini-2.5-flash by default)
+  //   - 'groq'   → Groq Cloud (meta-llama/llama-4-maverick-17b-128e-instruct
+  //                by default; OpenAI-compatible API).
+  // SCAN_MODEL optionally overrides the provider's default model id — handy
+  // for A/B'ing Scout vs Maverick without redeploying. The provider's own
+  // API key must be set to a non-'mock' value for live calls; the mock
+  // pathway short-circuits when the ACTIVE provider's key is 'mock'.
+  SCAN_PROVIDER: z.enum(['gemini', 'groq']).default('gemini'),
+  SCAN_MODEL: z.string().optional(),
   GEMINI_API_KEY: z.string().default('mock'),
+  GROQ_API_KEY: z.string().default('mock'),
 
   // Scheduled jobs. 'enabled' registers the §34 cron catalog at API startup;
   // 'disabled' skips all registration (default for tests + iteration speed in

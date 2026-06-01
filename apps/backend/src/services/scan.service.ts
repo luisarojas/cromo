@@ -71,9 +71,23 @@ Output Format Template (variantToken values shown are illustrative — pick the 
 }`;
 }
 
-const MAX_RETRIES = 3;
-const GEMINI_MODEL = 'gemini-2.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Fail fast on 429/503. Retrying through Gemini's free-tier rate limits
+// just stacks 60s timeouts and 10s back-offs into multi-minute hangs that
+// the user reads as "nothing happened". Surface the error immediately so
+// the caller can decide.
+// Fail fast on 429/503. Retrying through free-tier rate limits just stacks
+// 60s timeouts and 10s back-offs into multi-minute hangs that the user
+// reads as "nothing happened". Surface the error immediately so the caller
+// can decide.
+const MAX_RETRIES = 0;
+
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+const DEFAULT_GROQ_MODEL = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+function geminiUrl(model: string): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+}
 
 // Pull the retry delay out of a Gemini 429/503 error body. Google nests it
 // under error.details[].retryDelay as a duration string like "12s".
@@ -91,19 +105,13 @@ function parseGeminiRetryMs(responseBody: string): number {
   return 10_000;
 }
 
-export async function identifySticker(
-  imageBuffer: Buffer,
+async function callGemini(
+  prompt: string,
+  base64Image: string,
   mimeType: string,
-  collectionName = 'sticker collection',
-  scanPrompt?: string | null,
-): Promise<ScanResult[]> {
-  if (env.GEMINI_API_KEY === 'mock') {
-    return MOCK_RESULTS;
-  }
-
-  const normalizedBuffer = await sharp(imageBuffer).rotate().toBuffer();
-  const base64Image = normalizedBuffer.toString('base64');
-
+): Promise<string> {
+  const model = env.SCAN_MODEL ?? DEFAULT_GEMINI_MODEL;
+  const url = geminiUrl(model);
   const requestBody = JSON.stringify({
     contents: [{
       parts: [
@@ -111,43 +119,37 @@ export async function identifySticker(
         // instructions that reference it. Both work, but this matches the
         // pattern in Google's examples.
         { inline_data: { mime_type: mimeType, data: base64Image } },
-        { text: buildIdentifyPrompt(collectionName, scanPrompt) },
+        { text: prompt },
       ],
     }],
     generationConfig: {
       temperature: 0,
       responseMimeType: 'application/json',
-      // Raised cap mirrors the previous Groq limit — prevents clipping on
-      // images with many stickers (each carries a 5-line reasoning string).
-      maxOutputTokens: 3000,
-      // Dynamic thinking budget. Flash with thinking disabled collapsed
-      // variant detection onto the first row of the album's variant table
-      // (returned "base_borderless" for every sticker regardless of rim);
-      // it needs reasoning room to actually inspect the cut-edge rim before
-      // committing to a token. The 60s request timeout absorbs the extra
-      // latency. Set to a positive int to cap, or 0 to disable.
-      thinkingConfig: { thinkingBudget: -1 },
+      maxOutputTokens: 4000,
+      // Flash needs thinking on for variant detection (see commit ec6de2e —
+      // disabling it collapsed every result onto base_borderless). Cap at
+      // 2048 to keep latency bounded; raise toward dynamic (-1) only if the
+      // quality regresses on real photos.
+      thinkingConfig: { thinkingBudget: 2048 },
     },
   });
 
   let response: Response | undefined;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    response = await fetch(GEMINI_URL, {
+    response = await fetch(url, {
       method: 'POST',
       headers: {
         'x-goog-api-key': env.GEMINI_API_KEY,
         'content-type': 'application/json',
       },
       body: requestBody,
-      // 60s covers Gemini Flash on multi-sticker images with thinking off; a
+      // 60s covers Gemini Flash on multi-sticker images with thinking on; a
       // higher cap risks the route exceeding the frontend's own scan timeout.
       signal: AbortSignal.timeout(60_000),
     });
 
-    // 429 = quota / rate limit. 503 = transient overload. Both are worth retrying.
     if (response.status !== 429 && response.status !== 503) break;
     if (attempt === MAX_RETRIES) break;
-
     const errorText = await response.text().catch(() => '');
     const delayMs = parseGeminiRetryMs(errorText);
     await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -171,17 +173,87 @@ export async function identifySticker(
     throw new Error(`Gemini blocked the request: ${data.promptFeedback.blockReason}`);
   }
   if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
-    // MAX_TOKENS, SAFETY, RECITATION, OTHER — the response is incomplete.
-    // Truncated JSON is the common cause of downstream parse failures.
     throw new Error(`Gemini stopped early (${candidate.finishReason}); response is incomplete`);
   }
-
   const text = candidate?.content?.parts?.[0]?.text;
-  if (!text) {
-    throw new Error('No text response from Gemini API');
+  if (!text) throw new Error('No text response from Gemini API');
+  return text;
+}
+
+async function callGroq(
+  prompt: string,
+  base64Image: string,
+  mimeType: string,
+): Promise<string> {
+  const model = env.SCAN_MODEL ?? DEFAULT_GROQ_MODEL;
+  const requestBody = JSON.stringify({
+    model,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } },
+      ],
+    }],
+    temperature: 0,
+    max_tokens: 4000,
+    response_format: { type: 'json_object' },
+  });
+
+  let response: Response | undefined;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.GROQ_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: requestBody,
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (response.status !== 429 && response.status !== 503) break;
+    if (attempt === MAX_RETRIES) break;
+    await new Promise(resolve => setTimeout(resolve, 10_000));
   }
 
-  // Strip a leading/trailing ```json fence if Gemini ignored the JSON-mode hint.
+  if (!response!.ok) {
+    const text = await response!.text().catch(() => response!.statusText);
+    throw new Error(`Groq API error ${response!.status}: ${text}`);
+  }
+
+  const data = await response!.json() as {
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
+  };
+  const choice = data.choices?.[0];
+  if (choice?.finish_reason && choice.finish_reason !== 'stop') {
+    throw new Error(`Groq stopped early (${choice.finish_reason}); response is incomplete`);
+  }
+  const text = choice?.message?.content;
+  if (!text) throw new Error('No text response from Groq API');
+  return text;
+}
+
+export async function identifySticker(
+  imageBuffer: Buffer,
+  mimeType: string,
+  collectionName = 'sticker collection',
+  scanPrompt?: string | null,
+): Promise<ScanResult[]> {
+  const activeKey = env.SCAN_PROVIDER === 'groq' ? env.GROQ_API_KEY : env.GEMINI_API_KEY;
+  if (activeKey === 'mock') {
+    return MOCK_RESULTS;
+  }
+
+  const normalizedBuffer = await sharp(imageBuffer).rotate().toBuffer();
+  const base64Image = normalizedBuffer.toString('base64');
+  const prompt = buildIdentifyPrompt(collectionName, scanPrompt);
+
+  const text = env.SCAN_PROVIDER === 'groq'
+    ? await callGroq(prompt, base64Image, mimeType)
+    : await callGemini(prompt, base64Image, mimeType);
+
+  // Strip a leading/trailing ```json fence if the model ignored JSON-mode.
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
 
   let parsed: unknown;
@@ -191,7 +263,7 @@ export async function identifySticker(
     // Surface a snippet of the actual payload so failures are debuggable
     // without re-running with extra logging. Truncated to avoid log spam.
     const preview = cleaned.slice(0, 300).replace(/\s+/g, ' ');
-    throw new Error(`Gemini API returned invalid JSON syntax. Preview: ${preview}`);
+    throw new Error(`${env.SCAN_PROVIDER} API returned invalid JSON syntax. Preview: ${preview}`);
   }
 
   // Gracefully handle both the preferred wrapper object or an array fallback

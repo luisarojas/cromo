@@ -287,6 +287,7 @@ interface ScanCard {
   selectedVariantId: string;
   matchType: MatchType;
   added: boolean;
+  reasoning?: string;
   // Snapshot of the state at the moment of the most recent successful add, so
   // the Undo button can restore exactly that. Cleared once the card transitions
   // back to unadded.
@@ -390,6 +391,7 @@ async function buildScanCard(
     selectedVariantId,
     matchType,
     added: false,
+    reasoning: result.reasoning || undefined,
   };
 }
 
@@ -771,6 +773,17 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
                     <div className="flex items-center gap-2 flex-wrap">
                       <MatchBadge matchType={card.matchType} />
                     </div>
+
+                    {card.reasoning && (
+                      <details className="text-xs text-[var(--cromo-fg-subtle)]">
+                        <summary className="cursor-pointer hover:text-[var(--cromo-fg-muted)] select-none">
+                          Show reasoning
+                        </summary>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-[var(--cromo-fg-muted)]">
+                          {card.reasoning}
+                        </p>
+                      </details>
+                    )}
 
                     <div className="space-y-2">
                       <div className="space-y-1">

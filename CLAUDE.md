@@ -106,6 +106,39 @@ If the tag has already been pushed, **roll forward with a new patch release** (`
 - **Build metadata (`+sha…`) is disallowed in release tags** — `release.sh` rejects it because `+` isn't valid in a git tag name. Use a pre-release suffix (`0.2.0-rc.1`) if you need to disambiguate.
 - **First-time setup is already done** — root, backend, and shared were bumped from `0.0.0-local` → `0.1.0` to match the frontend's existing base. The first run of `release.sh` should be `./scripts/release.sh 0.2.0` (or `0.1.1` for a patch) when cutting the first real release.
 
+### AI Scan Provider — Env-Driven, Multi-Backend
+
+The sticker identification call in `apps/backend/src/services/scan.service.ts` (`identifySticker`) dispatches to one of two providers based on env, so we can swap backends without touching code. Both providers consume the same prompt built by `buildIdentifyPrompt` and emit the same `ScanResult[]` shape — only the wire-level call differs.
+
+| Env var          | Values                                                                                       | Notes |
+| ---------------- | -------------------------------------------------------------------------------------------- | ----- |
+| `SCAN_PROVIDER`  | `gemini` (default), `groq`                                                                   | Picks which provider `identifySticker` calls. |
+| `SCAN_MODEL`     | provider-specific model id (optional)                                                         | Overrides the provider's default model. E.g. `meta-llama/llama-4-scout-17b-16e-instruct` to try Scout instead of Maverick on Groq, or `gemini-2.5-pro` to try Pro instead of Flash on Gemini. |
+| `GEMINI_API_KEY` | `mock` (default) or real key from https://aistudio.google.com/apikey                          | Only consulted when `SCAN_PROVIDER=gemini`. |
+| `GROQ_API_KEY`   | `mock` (default) or real key from https://console.groq.com/keys                               | Only consulted when `SCAN_PROVIDER=groq`. |
+
+**Default models per provider** (defined as constants in `scan.service.ts`):
+- `gemini` → `gemini-2.5-flash`
+- `groq`   → `meta-llama/llama-4-maverick-17b-128e-instruct`
+
+**Mock pathway.** `identifySticker` short-circuits to the canned `MOCK_RESULTS` (BRA5 / Vinicius Jr.) when the **active** provider's API key equals the literal string `'mock'`. That means flipping `SCAN_PROVIDER` without also setting the new provider's key flips you into mock mode silently — the symptom is "every scan returns BRA5". Always set both `SCAN_PROVIDER` and the matching key together.
+
+**Why we have a switch.** Quality and latency are in tension on the free tiers:
+- Gemini Flash with thinking enabled: best quality on fine variant detection, ~10–20s per scan.
+- Gemini Pro with thinking enabled: stronger reasoning, but free-tier quotas are tight (~5 RPM) and latency runs 30–60s+.
+- Groq Llama 4 Maverick/Scout: fast (~1–3s) and a much more generous free tier, but historically weaker on the fine visual discriminations this app needs (border colours, foil textures, background tiers). Commit `150be50` migrated *away* from Scout for exactly this reason; Maverick is the upgrade path within the Llama family.
+
+There is no free option that is simultaneously fast, high-quality, and unmetered — that is a paid-API decision (GPT-4o, Claude Sonnet vision), not a tuning decision.
+
+**Rate-limit behaviour.** `MAX_RETRIES = 0` for both providers. Free-tier 429s used to stack into multi-minute hangs (one 60s timeout per attempt + 10s back-off × 4 attempts ≈ 4–5 minutes); failing fast surfaces the 503 to the frontend in ~1–2s so the user knows to back off. Raise `MAX_RETRIES` only if you move to a paid tier where quotas are no longer the binding constraint.
+
+**Rules to follow:**
+- **Don't read `env.GEMINI_API_KEY` or `env.GROQ_API_KEY` directly from elsewhere** — all provider selection and key consumption is centralised in `scan.service.ts`. If you need a new provider, add a third branch alongside `callGemini` / `callGroq`, not a parallel call site.
+- **Both providers must accept the same prompt and emit the same `ScanResult[]` shape.** The prompt in `buildIdentifyPrompt` is provider-agnostic; if a future provider needs a different prompt shape, branch *inside* the provider call helper, not at the call site.
+- **When changing the default model**, update both the constant in `scan.service.ts` AND the description in `.env.example` so the documented default doesn't drift from reality.
+- **Production deploys.** `SCAN_PROVIDER`, `SCAN_MODEL`, `GEMINI_API_KEY`, and `GROQ_API_KEY` all exist as Terraform variables in `infrastructure/terraform/env/{dev,prod}/`. Edit `terraform.tfvars` and re-apply to flip providers or models without a code change; the new values land in Secrets Manager and the EC2 user-data re-renders `/etc/cromo/cromo.env` on the next instance launch (ASG recycle).
+- **`SCAN_MODEL` is conditionally merged into the secrets block** (`var.scan_model != "" ? { SCAN_MODEL = var.scan_model } : {}`) rather than always-set. The reason: in `scan.service.ts`, model selection is `env.SCAN_MODEL ?? DEFAULT_<PROVIDER>_MODEL` — an empty string would *override* the default to `""` and force `model=""` in the API call. The Terraform-side conditional keeps the env var absent when unused so the code-side default wins. Preserve this pattern; never replace it with an unconditional assignment.
+
 ### Sticker Types & Rarities — Source of Truth
 
 This section is the **canonical model** of every sticker variant Cromo recognises. Every change to the codebase — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's actual product) and this section ever diverge, update this section first and propagate; do not let the codebase silently drift.

@@ -15,8 +15,19 @@ alert_email = "oncall@cromotrade.ca"
 # via JWKS, so this secret does NOT gate user authentication directly.
 jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
 
-# Real Gemini key — 'mock' will break AI scanning in prod.
+# AI scanning. scan_provider picks which backend is called; only the matching
+# api key needs to be a real value, the other can stay 'mock'. Setting the
+# matching key to 'mock' WILL brick AI scanning in prod. See the 'AI Scan
+# Provider' section in CLAUDE.md for the trade-offs between Gemini Flash and
+# Groq Llama.
+scan_provider  = "gemini"
 gemini_api_key = "REPLACE_WITH_REAL_GEMINI_KEY"
+groq_api_key   = "mock"
+# Optional. Leave empty to use the code-side default per provider
+# (gemini-2.5-flash, meta-llama/llama-4-maverick-17b-128e-instruct).
+# Set to e.g. "gemini-2.5-pro" or
+# "meta-llama/llama-4-scout-17b-16e-instruct" to override without a redeploy.
+scan_model     = ""
 
 # GitHub repo slug allowed to assume the prod deploy role (OIDC). Only v*
 # tag pushes from this repo can deploy to prod.
