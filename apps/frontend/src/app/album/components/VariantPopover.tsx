@@ -9,7 +9,6 @@ import {
 } from '@/lib/api';
 import { VARIANT_META, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
-import { usePreferencesStore } from '@/store/preferences';
 import { albumDisplayName } from '@/lib/api';
 
 export interface OwnedVariantEntry {
@@ -73,7 +72,8 @@ export default function VariantPopover({
 
   const albums = useAlbumsStore((s) => s.albums);
   const otherAlbums = albums.filter((a) => a.id !== albumId);
-  const defaultBaseVariant = usePreferencesStore((s) => s.defaultBaseVariant);
+  const defaultBaseVariant =
+    albums.find((a) => a.id === albumId)?.settings.defaultBaseVariant ?? 'base_borderless';
 
   // Fetch the variant catalog on mount. Wanted state is owned by the page so
   // toggles here stay in sync with the filter bar.
