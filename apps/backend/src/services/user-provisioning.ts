@@ -25,6 +25,21 @@ export function hashEmail(email: string): string {
 }
 
 /**
+ * Strips any `+variation` tag from the local part so plus-addressing variants
+ * collapse onto the same key. Used only for the banned_emails lookup — the
+ * user's stored `hashedEmail` still hashes the literal address. This is what
+ * makes a hard ban on `foo@host` also block `foo+anything@host` from creating
+ * a fresh account.
+ */
+export function canonicalizeEmailForBan(email: string): string {
+  return email.toLowerCase().trim().replace(/\+[^@]*@/, '@');
+}
+
+export function hashEmailForBan(email: string): string {
+  return hashEmail(canonicalizeEmailForBan(email));
+}
+
+/**
  * Derives a username from the email local-part, then appends a numeric suffix
  * (`2`, `3`, …) until the result is free. Used when the register form omits
  * the username field. The user can rename later in settings.
@@ -131,7 +146,7 @@ export async function ensureUser(
   // middleware; this only gates first-ever provisioning.
   const [existingRow] = await db.select({ id: users.id }).from(users).where(eq(users.id, params.id)).limit(1);
   if (!existingRow) {
-    const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmail(email))).limit(1);
+    const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmailForBan(email))).limit(1);
     if (blocked) throw statusError('This email address is not eligible for registration.', 403);
   }
 

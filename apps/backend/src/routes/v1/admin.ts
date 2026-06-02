@@ -1,11 +1,40 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { Pool } from 'pg';
 import { verifyToken, requireRole } from '../../middleware/auth.js';
 import { recordAudit } from '../../utils/audit.js';
 import { getTrustScore } from '../../services/trust-safety.service.js';
+import { hashEmailForBan } from '../../services/user-provisioning.js';
 import { env } from '../../env.js';
 import * as cognitoAdmin from '../../services/cognito-admin.js';
 
 const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
+
+/**
+ * Mirrors a user's hard-ban into the banned_emails list (or removes it), keyed
+ * by the canonical (plus-variation-stripped) email hash so any `<local>+x@host`
+ * form is blocked from registering a fresh account.
+ */
+async function syncBannedEmailForUser(
+  db: Pool,
+  userId: string,
+  action: 'add' | 'remove',
+  actorId: string | null,
+): Promise<void> {
+  const { rows } = await db.query<{ email: string }>(
+    `SELECT email FROM users WHERE id = $1`,
+    [userId],
+  );
+  if (rows.length === 0) return;
+  const hashed = hashEmailForBan(rows[0]!.email);
+  if (action === 'add') {
+    await db.query(
+      `INSERT INTO banned_emails (hashed_email, created_by) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [hashed, actorId],
+    );
+  } else {
+    await db.query(`DELETE FROM banned_emails WHERE hashed_email = $1`, [hashed]);
+  }
+}
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -173,12 +202,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       if (resolvedBanType === 'hard') {
-        await fastify.db.query(
-          `INSERT INTO banned_emails (hashed_email, created_by)
-           SELECT hashed_email, $2 FROM users WHERE id = $1
-           ON CONFLICT DO NOTHING`,
-          [id, request.userId],
-        );
+        await syncBannedEmailForUser(fastify.db, id, 'add', request.userId ?? null);
       }
 
       await recordAudit(fastify.db, request.userId!, 'user_banned', {
@@ -225,10 +249,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         [id],
       );
       if (remainingHardBans.length === 0) {
-        await fastify.db.query(
-          `DELETE FROM banned_emails WHERE hashed_email = (SELECT hashed_email FROM users WHERE id = $1)`,
-          [id],
-        );
+        await syncBannedEmailForUser(fastify.db, id, 'remove', request.userId ?? null);
       }
 
       await recordAudit(fastify.db, request.userId!, 'user_unbanned', {
@@ -323,12 +344,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       if (banType === 'hard') {
-        await fastify.db.query(
-          `INSERT INTO banned_emails (hashed_email, created_by)
-           SELECT hashed_email, $2 FROM users WHERE id = $1
-           ON CONFLICT DO NOTHING`,
-          [id, request.userId],
-        );
+        await syncBannedEmailForUser(fastify.db, id, 'add', request.userId ?? null);
       }
 
       await fastify.redis.del(`user:${id}:ban_status`).catch(() => undefined);
@@ -413,10 +429,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         [id],
       );
       if (remainingHardBans.length === 0) {
-        await fastify.db.query(
-          `DELETE FROM banned_emails WHERE hashed_email = (SELECT hashed_email FROM users WHERE id = $1)`,
-          [id],
-        );
+        await syncBannedEmailForUser(fastify.db, id, 'remove', request.userId ?? null);
       }
 
       await fastify.redis.del(`user:${id}:ban_status`).catch(() => undefined);

@@ -15,7 +15,7 @@ import type { Drizzle } from '../db/index.js';
 import { users, bannedEmails } from '../db/schema.js';
 import type { Redis } from 'ioredis';
 import { statusError } from '../utils/errors.js';
-import { ensureUser, createUser, deriveUniqueUsernameFromEmail, hashEmail } from './user-provisioning.js';
+import { ensureUser, createUser, deriveUniqueUsernameFromEmail, hashEmailForBan } from './user-provisioning.js';
 import { deleteUser } from './cognito-admin.js';
 import type { AuthTokens, RegisterInput, LoginInput } from './auth.service.js';
 
@@ -104,7 +104,7 @@ export async function register(
 ): Promise<{ userId: string; email: string; username: string }> {
   const email = input.email.toLowerCase().trim();
 
-  const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmail(email))).limit(1);
+  const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmailForBan(email))).limit(1);
   if (blocked) throw statusError('This email address is not eligible for registration.', 403);
 
   const providedUsername = input.username?.trim();

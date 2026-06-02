@@ -14,7 +14,7 @@ import type { Redis } from 'ioredis';
 import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
 import { statusError } from '../utils/errors.js';
-import { provisionUserProfile, hashEmail, deriveUniqueUsernameFromEmail } from './user-provisioning.js';
+import { provisionUserProfile, hashEmail, hashEmailForBan, deriveUniqueUsernameFromEmail } from './user-provisioning.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,7 +91,7 @@ export async function register(
   const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1);
   if (existingEmail) throw statusError('Email is already registered.', 409);
 
-  const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashedEmail)).limit(1);
+  const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmailForBan(normalizedEmail))).limit(1);
   if (blocked) throw statusError('This email address is not eligible for registration.', 403);
 
   const providedUsername = input.username?.trim();
