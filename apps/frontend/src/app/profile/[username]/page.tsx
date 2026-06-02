@@ -130,7 +130,7 @@ export default function PublicProfilePage() {
 
   const [filters, setFilters] = useState<FilterState>({});
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupBy>('team');
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [sortBy, setSortBy] = useState<SortBy>('code');
 
   useEffect(() => {
