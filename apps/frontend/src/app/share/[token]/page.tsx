@@ -199,10 +199,10 @@ export default function ShareListPage() {
                         )}
                       </div>
                       <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5 flex gap-1.5">
-                        <span>{item.variantType}</span>
                         {item.stickerType !== 'player' && (
-                          <span>&middot; {item.stickerType}</span>
+                          <span>{item.stickerType} &middot;</span>
                         )}
+                        <span>{item.variantType}</span>
                       </div>
                     </div>
                     {showQuantity && item.quantity != null && item.quantity > 1 && (

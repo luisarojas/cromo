@@ -725,18 +725,18 @@ export default function PublicProfilePage() {
                                     {item.teamName}
                                   </div>
                                 )}
-                                <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-2">
+                                <div className="text-xs font-medium text-[var(--cromo-fg)] truncate leading-tight mb-1">
                                   {item.playerName ?? item.teamName ?? '—'}
                                 </div>
-                                <div className="mt-auto flex flex-wrap items-center gap-1">
-                                  <span
-                                    className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase ${stickerTypeColor(item.stickerType)}`}
-                                  >
-                                    {prettify(item.stickerType)}
-                                  </span>
-                                  {item.variantType && (
+                                <span
+                                  className={`mt-2 inline-block self-start rounded-full px-1.5 py-px text-[9px] font-medium uppercase ${stickerTypeColor(item.stickerType)}`}
+                                >
+                                  {prettify(item.stickerType)}
+                                </span>
+                                {item.variantType && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
                                     <span
-                                      className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
+                                      className="inline-flex items-center gap-1 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] px-1.5 py-0.5 text-[10px] text-[var(--cromo-fg)]"
                                       title={variantLabel(item.variantType)}
                                     >
                                       <span
@@ -748,8 +748,8 @@ export default function PublicProfilePage() {
                                         {showQty && ` ×${qty}`}
                                       </span>
                                     </span>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
