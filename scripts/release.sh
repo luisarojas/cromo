@@ -16,13 +16,18 @@
 #      Build metadata (`+sha…`) is rejected because git tag names disallow `+`.
 #   2. Refuse to run on a dirty working tree or with v<version> already
 #      tagged — both would produce a tag that doesn't mean what it says.
-#   3. Rewrite the top-level "version" field in:
+#   3. Validate that apps/frontend/src/app/changelog/entries.ts has a
+#      non-empty "Unreleased" entry — fail before any mutations if the
+#      release would ship with empty notes.
+#   4. Rewrite the top-level "version" field in:
 #        package.json
 #        apps/backend/package.json
 #        apps/frontend/package.json
 #        packages/shared/package.json
-#   4. git add + commit those four files with message "Release v<version>".
-#   5. Create an annotated tag v<version> on the new commit.
+#   5. Rotate the changelog: rename Unreleased → v<version>, stamp today's
+#      UTC date, and prepend a fresh empty Unreleased block.
+#   6. git add + commit those five files with message "Release v<version>".
+#   7. Create an annotated tag v<version> on the new commit.
 #
 # After it returns successfully:
 #   git push origin main --tags
@@ -82,6 +87,12 @@ for f in "${FILES[@]}"; do
   fi
 done
 
+CHANGELOG_FILE="apps/frontend/src/app/changelog/entries.ts"
+
+# Pre-flight: refuse to release if the in-app changelog's Unreleased entry
+# is empty. Done before any mutations so a failure leaves the tree clean.
+node scripts/rotate-changelog.mjs check
+
 # In-place rewrite of the top-level "version" field. We use `node` instead of
 # `sed`/`jq` so the existing key order and formatting (2-space indent + trailing
 # newline) are preserved, and so we don't introduce a `jq` host dependency.
@@ -98,7 +109,13 @@ for f in "${FILES[@]}"; do
   echo "  bumped $f → $VERSION"
 done
 
-git add "${FILES[@]}"
+# Rotate the in-app changelog: Unreleased → v$VERSION + today's UTC date,
+# then a fresh empty Unreleased prepended. The check above already verified
+# the Unreleased block has bullets, so this should never fail; if it does,
+# the package.json bumps are left uncommitted and the user can re-run.
+node scripts/rotate-changelog.mjs rotate "v$VERSION"
+
+git add "${FILES[@]}" "$CHANGELOG_FILE"
 git commit -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "Release v$VERSION"
 

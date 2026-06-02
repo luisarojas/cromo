@@ -106,6 +106,34 @@ If the tag has already been pushed, **roll forward with a new patch release** (`
 - **Build metadata (`+sha…`) is disallowed in release tags** — `release.sh` rejects it because `+` isn't valid in a git tag name. Use a pre-release suffix (`0.2.0-rc.1`) if you need to disambiguate.
 - **First-time setup is already done** — root, backend, and shared were bumped from `0.0.0-local` → `0.1.0` to match the frontend's existing base. The first run of `release.sh` should be `./scripts/release.sh 0.2.0` (or `0.1.1` for a patch) when cutting the first real release.
 
+### In-App Changelog — User-Facing Release Notes
+
+The user-facing changelog lives at `/changelog` in the frontend. It is a static server-rendered page whose data is hand-curated, not derived from git history.
+
+- **Page:** `apps/frontend/src/app/changelog/page.tsx` — renders entries in array order (newest first), with category tags and an "Unreleased" badge when `date` is `null`.
+- **Data:** `apps/frontend/src/app/changelog/entries.ts` — the only file you edit when shipping notes. Each entry has `version`, `date` (`'YYYY-MM-DD'` or `null`), and `changes` keyed by category. Supported categories follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): `Added`, `Changed`, `Fixed`, `Removed`, `Security`.
+- **No navigation entries** point to `/changelog`. It is reachable only by typing the URL; this is intentional.
+
+**Workflow — adding notes as work ships (the only manual step):**
+1. While in development between releases, append bullets to the single `Unreleased` entry at the top of the `CHANGELOG` array, under whichever category fits.
+2. Write bullets for collectors, not committers — describe the user-visible effect, not the implementation. ("Player search matches accented names" beats "Normalize NFD in name lookup".)
+3. Skip changes with no user-visible effect (refactors, infra, internal renames).
+
+**Workflow — at release time (fully automated by `scripts/release.sh`):**
+When you run `./scripts/release.sh X.Y.Z`, the script invokes `scripts/rotate-changelog.mjs` twice:
+1. **Pre-flight `check`** — runs before any mutations. Fails the release with a clear error if the `Unreleased` entry doesn't exist at index 0, has the wrong `date`, or has zero bullets. This is the guard against "I cut a release with empty notes."
+2. **`rotate`** — runs after the `package.json` bumps. Renames `Unreleased` → `vX.Y.Z`, stamps today's UTC date, and prepends a fresh empty `Unreleased` block. The mutated `entries.ts` is included in the same release commit as the `package.json` bumps, so the page and the tag ship together.
+
+You never edit `version` or `date` in `entries.ts` by hand — the script owns those fields, the same way `release.sh` owns the four `package.json` `version` fields.
+
+**Rules to follow:**
+- **Do not link `/changelog` from any nav, footer, menu, or in-app banner.** If a future change makes it discoverable, that's a deliberate product decision, not a drive-by edit.
+- **Do not auto-generate entries from git log.** The point of the in-app changelog is that it speaks to collectors in their language; commit subjects are written for reviewers and don't translate. Curate by hand.
+- **Do not parse the root `CHANGELOG.md` at build time.** The two files are independent: `CHANGELOG.md` (if maintained at all) serves git tooling and GitHub Releases; `entries.ts` is the in-app source of truth. Keeping them decoupled means an in-app copy edit doesn't need a repo-wide rebuild story.
+- **Do not edit `version` or `date` in `entries.ts` by hand.** `scripts/release.sh` rotates them automatically, and the script's `check` subcommand enforces the shape it expects (`version: 'Unreleased'`, `date: null`, at index 0). Hand-edits will either be overwritten or will trip the validator on the next release.
+- **Preserve the shape of `entries.ts`.** `rotate-changelog.mjs` matches the file with regexes against a known shape (the literal string `CHANGELOG: ChangelogEntry[] = [`, then `version: 'Unreleased'` and `date: null` inside the first entry). Reformatting that changes those substrings — e.g. switching to double quotes, renaming the export, or splitting the type annotation across lines — will break the script. If you must change the shape, update `scripts/rotate-changelog.mjs` in the same commit.
+- **Dates are rendered in UTC** by the page and stamped in UTC by the rotator, so SSR and browser agree.
+
 ### AWS Account Access — Two Profiles, MFA-Gated
 
 Operator authentication to the AWS account uses a two-tier IAM model, both Terraform-managed where possible:
