@@ -93,7 +93,7 @@ export async function listStickers(
        WHERE ($1::text IS NULL OR s.fifa_code = $1)
          AND ($2::text IS NULL OR s.group_name = $2)
          AND ($3::text IS NULL OR s.sticker_type = $3)
-         AND ($4::text IS NULL OR s.player_name ILIKE '%' || $4 || '%')
+         AND ($4::text IS NULL OR unaccent(s.player_name) ILIKE '%' || unaccent($4) || '%')
          AND ($7::text IS NULL OR at.key = $7)
      ) page
      WHERE ($5::int IS NULL OR page.number > $5)
@@ -180,7 +180,7 @@ export async function getStickerByPlayerName(
          AND variant_type IN ('base_border', 'base_borderless')
        ORDER BY rarity_rank LIMIT 1
      ) sv ON true
-     WHERE s.player_name ILIKE $1
+     WHERE unaccent(s.player_name) ILIKE unaccent($1)
        AND ($2::text IS NULL OR at.key = $2)
        AND ($3::text IS NULL OR s.sticker_type = $3)
        AND (NOT $4 OR s.sticker_type NOT IN ('extra', 'coca_cola_special'))

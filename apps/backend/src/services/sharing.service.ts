@@ -605,7 +605,7 @@ function buildFilterClauses(
   if (filters.search?.trim()) {
     params.push(`%${filters.search.trim()}%`);
     const i = idx++;
-    searchClause = `AND (s.album_code ILIKE $${i} OR s.player_name ILIKE $${i})`;
+    searchClause = `AND (s.album_code ILIKE $${i} OR unaccent(s.player_name) ILIKE unaccent($${i}))`;
   }
 
   let variantTypeClause = '';
