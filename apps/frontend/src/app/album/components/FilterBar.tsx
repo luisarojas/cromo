@@ -12,6 +12,7 @@ export interface FilterState {
   search?: string;
   favouritesOnly?: boolean;
   wantedOnly?: boolean;
+  recentMinutes?: number;
 }
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
   variantOptions: { value: string; label: string; swatch?: string }[];
   showFavourites?: boolean;
   showWanted?: boolean;
+  showRecent?: boolean;
   extraControls?: ReactNode;
 }
 
@@ -35,6 +37,7 @@ export default function FilterBar({
   variantOptions,
   showFavourites = true,
   showWanted = true,
+  showRecent = true,
   extraControls,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -45,12 +48,16 @@ export default function FilterBar({
   // the DOM value to the still-stale prop while the URL transition is in
   // flight. Hold the draft locally for instant echo and debounce the commit.
   const [searchDraft, setSearchDraft] = useState(filters.search ?? '');
+  const [recentDraft, setRecentDraft] = useState(
+    filters.recentMinutes ? String(filters.recentMinutes) : '',
+  );
 
   // Track the last value we committed up through onChange. Sync from prop only
   // when the incoming value isn't our own echo — otherwise a keystroke landing
   // between "commit fired" and "parent rerender" gets clobbered by the stale
   // prop catching up.
   const lastSentRef = useRef(filters.search ?? '');
+  const lastSentRecentRef = useRef(filters.recentMinutes ?? 0);
 
   useEffect(() => {
     const incoming = filters.search ?? '';
@@ -58,6 +65,13 @@ export default function FilterBar({
     lastSentRef.current = incoming;
     setSearchDraft(incoming);
   }, [filters.search]);
+
+  useEffect(() => {
+    const incoming = filters.recentMinutes ?? 0;
+    if (incoming === lastSentRecentRef.current) return;
+    lastSentRecentRef.current = incoming;
+    setRecentDraft(incoming ? String(incoming) : '');
+  }, [filters.recentMinutes]);
 
   // Use a ref so the debounce timer reads the latest filters/onChange without
   // resetting on every parent rerender.
@@ -76,6 +90,19 @@ export default function FilterBar({
     return () => clearTimeout(t);
   }, [searchDraft]);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const { filters: f, onChange: cb } = commitRef.current;
+      const parsed = parseInt(recentDraft, 10);
+      const next = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+      if ((f.recentMinutes ?? 0) !== (next ?? 0)) {
+        lastSentRecentRef.current = next ?? 0;
+        cb({ ...f, recentMinutes: next });
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [recentDraft]);
+
   const updateMulti = useCallback(
     (key: keyof FilterState, value: string[]) => {
       onChange({ ...filters, [key]: value.length > 0 ? value : undefined });
@@ -89,7 +116,8 @@ export default function FilterBar({
     (filters.type?.length ?? 0) +
     (filters.variant?.length ?? 0) +
     (filters.favouritesOnly ? 1 : 0) +
-    (filters.wantedOnly ? 1 : 0);
+    (filters.wantedOnly ? 1 : 0) +
+    (showRecent && filters.recentMinutes && filters.recentMinutes > 0 ? 1 : 0);
 
   const hasActiveFilter = nonSearchActiveCount > 0 || !!filters.search;
 
@@ -111,6 +139,12 @@ export default function FilterBar({
     activeChips.push({
       label: 'Wanted',
       onRemove: () => onChange({ ...filters, wantedOnly: undefined }),
+    });
+  }
+  if (showRecent && filters.recentMinutes && filters.recentMinutes > 0) {
+    activeChips.push({
+      label: `Updated < ${filters.recentMinutes} min`,
+      onRemove: () => onChange({ ...filters, recentMinutes: undefined }),
     });
   }
   (filters.group ?? []).forEach((v) => {
@@ -275,6 +309,29 @@ export default function FilterBar({
                 <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
                 Wanted
               </button>
+            </div>
+          )}
+
+          {/* Recently updated (minutes) */}
+          {showRecent && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="filter-recent" className="text-xs font-medium text-[var(--cromo-fg-muted)]">
+                Updated in last
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="filter-recent"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  placeholder="—"
+                  value={recentDraft}
+                  onChange={(e) => setRecentDraft(e.target.value.replace(/[^\d]/g, ''))}
+                  className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+                />
+                <span className="text-xs text-[var(--cromo-fg-muted)]">min</span>
+              </div>
             </div>
           )}
         </div>

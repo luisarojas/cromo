@@ -28,15 +28,20 @@ export function useAlbumUrlState() {
     return VALID_TABS.includes(raw as Tab) ? (raw as Tab) : 'all';
   }, [searchParams]);
 
-  const filters: FilterState = useMemo(() => ({
-    group: parseList(searchParams.get('group')),
-    team: parseList(searchParams.get('team')),
-    type: parseList(searchParams.get('type')),
-    variant: parseList(searchParams.get('variant')),
-    search: searchParams.get('q') ?? undefined,
-    favouritesOnly: searchParams.get('fav') === '1' ? true : undefined,
-    wantedOnly: searchParams.get('wanted') === '1' ? true : undefined,
-  }), [searchParams]);
+  const filters: FilterState = useMemo(() => {
+    const recentRaw = searchParams.get('recent');
+    const recentParsed = recentRaw !== null ? parseInt(recentRaw, 10) : NaN;
+    return {
+      group: parseList(searchParams.get('group')),
+      team: parseList(searchParams.get('team')),
+      type: parseList(searchParams.get('type')),
+      variant: parseList(searchParams.get('variant')),
+      search: searchParams.get('q') ?? undefined,
+      favouritesOnly: searchParams.get('fav') === '1' ? true : undefined,
+      wantedOnly: searchParams.get('wanted') === '1' ? true : undefined,
+      recentMinutes: Number.isFinite(recentParsed) && recentParsed > 0 ? recentParsed : undefined,
+    };
+  }, [searchParams]);
 
   const apply = useCallback(
     (next: { tab?: Tab; filters?: FilterState }) => {
@@ -66,6 +71,8 @@ export function useAlbumUrlState() {
         else params.delete('fav');
         if (f.wantedOnly) params.set('wanted', '1');
         else params.delete('wanted');
+        if (f.recentMinutes && f.recentMinutes > 0) params.set('recent', String(f.recentMinutes));
+        else params.delete('recent');
       }
 
       const qs = params.toString();

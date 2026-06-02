@@ -615,6 +615,7 @@ export default function PublicProfilePage() {
               variantOptions={availableVariants.map((v) => ({ value: v, label: variantLabel(v), swatch: variantSwatch(v) }))}
               showFavourites={false}
               showWanted={false}
+              showRecent={false}
               extraControls={
                 <>
                   <label className="inline-flex items-center gap-1.5 shrink-0 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-sm">

@@ -644,6 +644,7 @@ export interface OwnedVariantRow {
   quantity: number;
   tradeHidden: boolean;
   tradeForced: boolean;
+  updatedAt: string;
 }
 
 export interface AlbumView {

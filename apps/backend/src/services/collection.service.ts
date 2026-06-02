@@ -686,6 +686,7 @@ export interface OwnedVariantRow {
   quantity: number;
   trade_hidden: boolean;
   trade_forced: boolean;
+  updated_at: string;
 }
 
 /**
@@ -711,7 +712,8 @@ export async function getOwnedVariants(
             us.sticker_variant_id,
             us.quantity,
             us.trade_hidden,
-            us.trade_forced
+            us.trade_forced,
+            us.updated_at
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id

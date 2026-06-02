@@ -16,6 +16,7 @@ export interface OwnedVariantEntry {
   quantity: number;
   tradeHidden: boolean;
   tradeForced: boolean;
+  updatedAt: string;
 }
 
 interface Props {

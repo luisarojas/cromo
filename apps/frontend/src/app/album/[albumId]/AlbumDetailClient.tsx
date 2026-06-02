@@ -75,6 +75,7 @@ async function loadAlbumView(
       quantity: row.quantity,
       tradeHidden: row.tradeHidden,
       tradeForced: row.tradeForced,
+      updatedAt: row.updatedAt,
     });
   }
   return {
@@ -347,6 +348,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
 
   const displayedStickers = useMemo<Sticker[]>(() => {
+    const recentThresholdMs =
+      filters.recentMinutes && filters.recentMinutes > 0
+        ? Date.now() - filters.recentMinutes * 60_000
+        : null;
     return tabStickers.filter((s) => {
       if (filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
       if (filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
@@ -356,6 +361,18 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       if (filters.variant?.length) {
         const p = ownedMap.get(s.albumCode);
         if (!p || !filters.variant.some((v) => p.has(v))) return false;
+      }
+      if (recentThresholdMs !== null) {
+        const p = ownedMap.get(s.albumCode);
+        if (!p) return false;
+        let recent = false;
+        for (const e of p.values()) {
+          if (Date.parse(e.updatedAt) >= recentThresholdMs) {
+            recent = true;
+            break;
+          }
+        }
+        if (!recent) return false;
       }
       if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
       return true;
@@ -369,7 +386,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     !!filters.type?.length ||
     !!filters.variant?.length ||
     !!filters.favouritesOnly ||
-    !!filters.wantedOnly;
+    !!filters.wantedOnly ||
+    !!(filters.recentMinutes && filters.recentMinutes > 0);
 
   // ---------------------------------------------------------------------------
   // Selection helpers
@@ -546,6 +564,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             quantity: newQty,
             tradeHidden: current?.tradeHidden ?? false,
             tradeForced: current?.tradeForced ?? false,
+            updatedAt: new Date().toISOString(),
           });
         }
         if (perSticker.size === 0) next.delete(albumCode);
