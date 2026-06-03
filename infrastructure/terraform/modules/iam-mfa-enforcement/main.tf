@@ -29,10 +29,20 @@ data "aws_iam_policy_document" "mfa" {
     resources = ["*"]
   }
 
+  # NB on resource ARNs: dev users are created with an IAM path
+  # (`modules/dev-access/main.tf` sets `path = "/cromo/dev/"`), so their ARN is
+  # `arn:aws:iam::*:user/cromo/dev/<name>`, not `arn:aws:iam::*:user/<name>`.
+  # `$${aws:username}` evaluates to the bare name with no path, so the literal
+  # AWS-docs pattern `arn:aws:iam::*:user/$${aws:username}` silently denies every
+  # per-user action for any path-having user. `*` matches `/` in IAM ARNs, so
+  # `arn:aws:iam::*:user/*$${aws:username}` absorbs the path while still anchoring
+  # on the username tail; it matches both path-less (`cromo-admin`) and
+  # path-having (`/cromo/dev/luisa`) users without widening the blast radius.
+
   statement {
     sid       = "AllowManageOwnPasswords"
     actions   = ["iam:ChangePassword", "iam:GetUser"]
-    resources = ["arn:aws:iam::*:user/$${aws:username}"]
+    resources = ["arn:aws:iam::*:user/*$${aws:username}"]
   }
 
   statement {
@@ -44,7 +54,7 @@ data "aws_iam_policy_document" "mfa" {
       "iam:UpdateAccessKey",
       "iam:GetAccessKeyLastUsed",
     ]
-    resources = ["arn:aws:iam::*:user/$${aws:username}"]
+    resources = ["arn:aws:iam::*:user/*$${aws:username}"]
   }
 
   statement {
@@ -61,7 +71,7 @@ data "aws_iam_policy_document" "mfa" {
       "iam:ListMFADevices",
       "iam:ResyncMFADevice",
     ]
-    resources = ["arn:aws:iam::*:user/$${aws:username}"]
+    resources = ["arn:aws:iam::*:user/*$${aws:username}"]
   }
 
   statement {

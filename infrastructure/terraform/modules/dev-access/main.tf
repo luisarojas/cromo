@@ -50,6 +50,17 @@ data "aws_iam_policy_document" "dev" {
     resources = ["arn:aws:ssm:${var.region}::document/AWS-StartPortForwardingSessionToRemoteHost"]
   }
 
+  # Interactive shell document for the Redis-flush step in
+  # `docs/runbooks/aws-access.md` §6. Unlike the port-forward document
+  # (AWS-managed, no account in the ARN), `SSM-SessionManagerRunShell` is
+  # account-owned — auto-created per account on first SSM use — so its ARN
+  # includes the account ID.
+  statement {
+    sid       = "StartSessionWithRunShellDocument"
+    actions   = ["ssm:StartSession"]
+    resources = ["arn:aws:ssm:${var.region}:${var.account_id}:document/SSM-SessionManagerRunShell"]
+  }
+
   statement {
     sid       = "ManageOwnSessions"
     actions   = ["ssm:DescribeSessions", "ssm:TerminateSession", "ssm:ResumeSession"]
