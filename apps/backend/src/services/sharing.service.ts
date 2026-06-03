@@ -752,16 +752,25 @@ export async function getPublicAlbumWanted(
        ${stickerTypeClause}
        ${searchClause}
      ),
+     -- Wanted = unfilled slots. Slot identity is album_code because CC regional
+     -- alternates share an album_code; owning any one alternate fills the slot.
+     -- DISTINCT ON picks the lowest-number alternate as the canonical row, so
+     -- the page totals and the profile's wantedCount agree on slot count.
      missing_stickers AS (
-       SELECT fs.*
+       SELECT DISTINCT ON (fs.album_code)
+         fs.sticker_id, fs.number, fs.album_code, fs.player_name,
+         fs.sticker_type, fs.team_id
        FROM filtered_stickers fs
        WHERE NOT EXISTS (
-         SELECT 1 FROM user_stickers us
-         JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id
-         WHERE sv2.sticker_id = fs.sticker_id
+         SELECT 1
+         FROM filtered_stickers fs2
+         JOIN sticker_variants sv2 ON sv2.sticker_id = fs2.sticker_id
+         JOIN user_stickers us ON us.sticker_variant_id = sv2.id
+         WHERE fs2.album_code = fs.album_code
            AND us.album_id = $1
            AND us.quantity > 0
        )
+       ORDER BY fs.album_code, fs.number
      ),
      canonical_variant AS (
        SELECT DISTINCT ON (sv.sticker_id)
@@ -822,16 +831,22 @@ export async function getPublicAlbumWanted(
        ${cStickerType}
        ${cSearch}
      ),
+     -- Mirror the items query: collapse CC regional alternates to one row per
+     -- album_code so the total reports slot count, matching profile wantedCount.
      missing_stickers AS (
-       SELECT fs.*
+       SELECT DISTINCT ON (fs.album_code)
+         fs.sticker_id, fs.sticker_type, fs.album_code, fs.player_name, fs.team_id
        FROM filtered_stickers fs
        WHERE NOT EXISTS (
-         SELECT 1 FROM user_stickers us
-         JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id
-         WHERE sv2.sticker_id = fs.sticker_id
+         SELECT 1
+         FROM filtered_stickers fs2
+         JOIN sticker_variants sv2 ON sv2.sticker_id = fs2.sticker_id
+         JOIN user_stickers us ON us.sticker_variant_id = sv2.id
+         WHERE fs2.album_code = fs.album_code
            AND us.album_id = $1
            AND us.quantity > 0
        )
+       ORDER BY fs.album_code
      ),
      canonical_variant AS (
        SELECT DISTINCT ON (sv.sticker_id)

@@ -77,10 +77,11 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
         items: {
           id: string;
           tradeId: string;
-          senderId: string;
-          senderUsername: string;
+          senderId: string | null;
+          senderUsername: string | null;
           body: string;
           sentAt: string;
+          isSystem: boolean;
         }[];
         nextCursor: string | null;
       }>();
@@ -92,8 +93,11 @@ describe.skipIf(!shouldRun)('Trade messaging routes (integration)', () => {
       for (const msg of body.items) {
         expect(typeof msg.id).toBe('string');
         expect(typeof msg.body).toBe('string');
-        expect(typeof msg.senderUsername).toBe('string');
         expect(msg.tradeId).toBe(TRADE_A);
+        // System messages have no sender; only user-sent messages carry a username.
+        if (!msg.isSystem) {
+          expect(typeof msg.senderUsername).toBe('string');
+        }
       }
     });
 
