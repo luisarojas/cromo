@@ -180,14 +180,14 @@ export default function FilterBar({
     <div className="flex flex-col gap-2 bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-xl p-4">
 
       {/* Primary row: search + filters toggle + clear */}
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <input
           id="filter-search"
           type="text"
           placeholder="Search player, team, code…"
           value={searchDraft}
           onChange={(e) => setSearchDraft(e.target.value)}
-          className="flex-1 min-w-0 rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+          className="basis-full sm:basis-auto sm:flex-1 min-w-0 rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         />
 
         <button

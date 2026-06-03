@@ -405,7 +405,7 @@ export default function PublicProfilePage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-10">
+      <div className="max-w-5xl mx-auto px-4 py-6 sm:py-10">
         <div className="space-y-4">
           <div className="h-16 w-16 rounded-full bg-[var(--cromo-surface-2)] animate-pulse" />
           <div className="h-6 w-40 rounded bg-[var(--cromo-surface-2)] animate-pulse" />
@@ -418,8 +418,8 @@ export default function PublicProfilePage() {
 
   if (notFound) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-10 text-center">
-        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-10">
+      <div className="max-w-2xl mx-auto px-4 py-6 sm:py-10 text-center">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-6 sm:p-10">
           <div className="text-4xl mb-3">404</div>
           <h1 className="text-xl font-semibold text-[var(--cromo-fg)] mb-2">User not found</h1>
           <p className="text-sm text-[var(--cromo-fg-muted)]">
@@ -432,7 +432,7 @@ export default function PublicProfilePage() {
 
   if (error || !profile) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-10">
+      <div className="max-w-2xl mx-auto px-4 py-6 sm:py-10">
         <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-4 text-sm text-[var(--cromo-danger-text)]">
           {error ?? 'Failed to load profile.'}
         </div>
@@ -467,38 +467,40 @@ export default function PublicProfilePage() {
   const activeLoader = activeTab === 'offered' ? loadOffered : loadWanted;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div className="max-w-5xl mx-auto px-4 py-6 sm:py-10">
       {/* Profile header */}
-      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-6 mb-5">
-        <div className="flex items-center gap-4">
-          {profile.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.avatarUrl}
-              alt={displayName}
-              className="h-16 w-16 rounded-full object-cover border border-[var(--cromo-border)]"
-            />
-          ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-2xl font-bold text-[var(--cromo-accent-fg)]">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-[var(--cromo-fg)] truncate">{displayName}</h1>
-            {profile.displayName && (
-              <div className="text-sm text-[var(--cromo-fg-muted)] truncate">@{profile.username}</div>
+      <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 sm:p-6 mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-start gap-4 min-w-0 flex-1">
+            {profile.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.avatarUrl}
+                alt={displayName}
+                className="h-16 w-16 shrink-0 rounded-full object-cover border border-[var(--cromo-border)]"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-2xl font-bold text-[var(--cromo-accent-fg)]">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
             )}
-            <div className="text-xs text-[var(--cromo-fg-subtle)] mt-1">Member since {memberSince}</div>
-            <div className="mt-2">
-              <TrustBadge userId={profile.userId} />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-[var(--cromo-fg)] truncate">{displayName}</h1>
+              {profile.displayName && (
+                <div className="text-sm text-[var(--cromo-fg-muted)] truncate">@{profile.username}</div>
+              )}
+              <div className="text-xs text-[var(--cromo-fg-subtle)] mt-1">Member since {memberSince}</div>
+              <div className="mt-2">
+                <TrustBadge userId={profile.userId} />
+              </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex flex-col sm:items-end gap-2 sm:shrink-0">
+            <div className="flex items-center gap-2 flex-wrap sm:justify-end">
               {canStartTrade && (
                 <Link
                   href={`/trade?tab=find&recipient=${encodeURIComponent(profile.username)}`}
-                  className="inline-flex items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
+                  className="inline-flex flex-1 sm:flex-none justify-center items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
                 >
                   Start a trade
                 </Link>
@@ -508,7 +510,7 @@ export default function PublicProfilePage() {
             {canInteract && viewerToken && (
               <button
                 onClick={() => setShowReportModal(true)}
-                className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] transition-colors"
+                className="text-xs text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] transition-colors self-start sm:self-end"
               >
                 Report user
               </button>
@@ -547,7 +549,7 @@ export default function PublicProfilePage() {
                       }`}
                     >
                       {albumLabel(album)}
-                      <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">
+                      <span className="hidden sm:inline ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">
                         {album.editionName} · {album.formatName}
                       </span>
                     </button>
