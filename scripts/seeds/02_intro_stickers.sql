@@ -34,7 +34,7 @@ FROM (VALUES
   (979, 'FWC18', NULL, 'FIFA World Cup Champion — Germany 2014',        'intro', true),
   (980, 'FWC19', NULL, 'FIFA World Cup Champion — Argentina 2022',      'intro', true)
 ) AS s(number, album_code, team_id, player_name, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   sticker_type = EXCLUDED.sticker_type,
   is_foil      = EXCLUDED.is_foil;

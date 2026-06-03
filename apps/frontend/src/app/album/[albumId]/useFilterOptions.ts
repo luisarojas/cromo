@@ -21,7 +21,7 @@ interface Args {
   filters: FilterState;
   ownedMap: Map<string, Map<string, unknown>>;
   favouriteSet: Set<string>;
-  wantedAlbumCodeSet: Set<string>;
+  wantedStickerIds: Set<string>;
 }
 
 /**
@@ -33,17 +33,17 @@ interface Args {
  * filter*, so toggling a single team value doesn't immediately drop the
  * other team options from the dropdown.
  */
-export function useFilterOptions({ tabBase, filters, ownedMap, favouriteSet, wantedAlbumCodeSet }: Args) {
+export function useFilterOptions({ tabBase, filters, ownedMap, favouriteSet, wantedStickerIds }: Args) {
   return useMemo(() => {
     const filterExcept = (exclude: keyof FilterState): Sticker[] =>
       tabBase.filter((s) => {
-        if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
-        if (exclude !== 'wantedOnly' && filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
+        if (exclude !== 'favouritesOnly' && filters.favouritesOnly && !favouriteSet.has(s.id)) return false;
+        if (exclude !== 'wantedOnly' && filters.wantedOnly && !wantedStickerIds.has(s.id)) return false;
         if (exclude !== 'group' && filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
         if (exclude !== 'team' && filters.team?.length && !filters.team.includes(s.teamName ?? '') && !filters.team.includes(s.fifaCode ?? '')) return false;
         if (exclude !== 'type' && filters.type?.length && !filters.type.includes(s.stickerType)) return false;
         if (exclude !== 'variant' && filters.variant?.length) {
-          const p = ownedMap.get(s.albumCode);
+          const p = ownedMap.get(s.id);
           if (!p || !filters.variant.some((v) => p.has(v))) return false;
         }
         if (exclude !== 'search' && filters.search) {
@@ -77,11 +77,11 @@ export function useFilterOptions({ tabBase, filters, ownedMap, favouriteSet, wan
 
     const variantSet = new Set<string>();
     for (const s of filterExcept('variant')) {
-      const p = ownedMap.get(s.albumCode);
+      const p = ownedMap.get(s.id);
       if (p) for (const vt of p.keys()) variantSet.add(vt);
     }
     const variantOptions = [...variantSet].map((v) => ({ value: v, label: variantLabel(v), swatch: variantSwatch(v) }));
 
     return { groupOptions, teamOptions, typeOptions, variantOptions };
-  }, [tabBase, filters, ownedMap, favouriteSet, wantedAlbumCodeSet]);
+  }, [tabBase, filters, ownedMap, favouriteSet, wantedStickerIds]);
 }

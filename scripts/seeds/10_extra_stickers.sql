@@ -33,7 +33,9 @@ FROM (VALUES
   (1011, 'EX19', 'MEX', 'Raúl Jiménez',           'FWD'),
   (1012, 'EX20', 'BRA', 'Vinícius Júnior',        'FWD')
 ) AS s(number, album_code, team_code, player_name, position)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
+  album_code   = EXCLUDED.album_code,
+  team_id      = EXCLUDED.team_id,
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position;
 

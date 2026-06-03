@@ -81,12 +81,12 @@ export default function VariantPopover({
   useEffect(() => {
     let cancelled = false;
     setLoadingVariants(true);
-    fetchStickerVariants(sticker.albumCode, token)
+    fetchStickerVariants(sticker.albumCode, token, sticker.id)
       .then((items) => { if (!cancelled) setAllVariants(items); })
       .catch((err) => console.error('Failed to fetch variants', err))
       .finally(() => { if (!cancelled) setLoadingVariants(false); });
     return () => { cancelled = true; };
-  }, [sticker.albumCode, token]);
+  }, [sticker.albumCode, sticker.id, token]);
 
   // Close on outside click / Esc
   useEffect(() => {

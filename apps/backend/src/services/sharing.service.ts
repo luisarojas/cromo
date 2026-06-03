@@ -486,7 +486,7 @@ export async function getPublicProfile(
          AND ua.is_trade_inventory_public = true
      ),
      filtered_stickers AS (
-       SELECT pa.album_id, s.id AS sticker_id
+       SELECT pa.album_id, s.id AS sticker_id, s.album_code
        FROM public_albums pa
        JOIN stickers s ON s.album_type_id = pa.album_type_id
        WHERE CASE
@@ -495,13 +495,19 @@ export async function getPublicProfile(
          ELSE true
        END
      ),
+     -- Wanted = unfilled album slots. Slot identity is (album_id, album_code)
+     -- because CC regional alternates share an album_code; owning any one
+     -- sticker under the code fills the slot.
      wanted_counts AS (
-       SELECT fs.album_id, COUNT(*)::text AS wanted_count
+       SELECT fs.album_id, COUNT(DISTINCT fs.album_code)::text AS wanted_count
        FROM filtered_stickers fs
        WHERE NOT EXISTS (
-         SELECT 1 FROM user_stickers us
-         JOIN sticker_variants sv2 ON sv2.id = us.sticker_variant_id
-         WHERE sv2.sticker_id = fs.sticker_id
+         SELECT 1
+         FROM filtered_stickers fs2
+         JOIN sticker_variants sv2 ON sv2.sticker_id = fs2.sticker_id
+         JOIN user_stickers us ON us.sticker_variant_id = sv2.id
+         WHERE fs2.album_id = fs.album_id
+           AND fs2.album_code = fs.album_code
            AND us.album_id = fs.album_id
            AND us.quantity > 0
        )

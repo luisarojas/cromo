@@ -37,7 +37,7 @@ FROM (VALUES
   (  28, 'MEX19', 'Roberto Alvarado', 'Roberto Alvarado', 'FWD', 'player', false),
   (  29, 'MEX20', 'César Huerta', 'César Huerta', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -74,7 +74,7 @@ FROM (VALUES
   (  48, 'RSA19', 'Mohau Nkota', 'Mohau Nkota', 'FWD', 'player', false),
   (  49, 'RSA20', 'Oswin Appollis', 'Oswin Appollis', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -111,7 +111,7 @@ FROM (VALUES
   (  68, 'KOR19', 'Hee-chan Hwang', 'Hee-chan Hwang', 'FWD', 'player', false),
   (  69, 'KOR20', 'Hyeon-gyu Oh', 'Hyeon-gyu Oh', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -148,7 +148,7 @@ FROM (VALUES
   (  88, 'CZE19', 'Adam Hložek', 'Adam Hložek', 'FWD', 'player', false),
   (  89, 'CZE20', 'Patrik Schick', 'Patrik Schick', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -185,7 +185,7 @@ FROM (VALUES
   ( 108, 'CAN19', 'Cyle Larin', 'Cyle Larin', 'FWD', 'player', false),
   ( 109, 'CAN20', 'Jonathan David', 'Jonathan David', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -222,7 +222,7 @@ FROM (VALUES
   ( 128, 'BIH19', 'Samed Baždar', 'Samed Baždar', 'FWD', 'player', false),
   ( 129, 'BIH20', 'Haris Tabaković', 'Haris Tabaković', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -259,7 +259,7 @@ FROM (VALUES
   ( 148, 'QAT19', 'Ahmed Al-Ganehi', 'Ahmed Al-Ganehi', 'FWD', 'player', false),
   ( 149, 'QAT20', 'Almoez Ali', 'Almoez Ali', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -296,7 +296,7 @@ FROM (VALUES
   ( 168, 'SUI19', 'Dan Ndoye', 'Dan Ndoye', 'FWD', 'player', false),
   ( 169, 'SUI20', 'Zeki Amdouni', 'Zeki Amdouni', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -333,7 +333,7 @@ FROM (VALUES
   ( 188, 'BRA19', 'Raphinha', 'Raphinha', 'FWD', 'player', false),
   ( 189, 'BRA20', 'Estêvão', 'Estêvão', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -370,7 +370,7 @@ FROM (VALUES
   ( 208, 'MAR19', 'Brahim Díaz', 'Brahim Díaz', 'MID', 'player', false),
   ( 209, 'MAR20', 'Ayoub El Kaabi', 'Ayoub El Kaabi', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -407,7 +407,7 @@ FROM (VALUES
   ( 228, 'HAI19', 'Louicius Don Deedson', 'Louicius Don Deedson', 'FWD', 'player', false),
   ( 229, 'HAI20', 'Frantzdy Pierrot', 'Frantzdy Pierrot', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -444,7 +444,7 @@ FROM (VALUES
   ( 248, 'SCO19', 'Che Adams', 'Che Adams', 'FWD', 'player', false),
   ( 249, 'SCO20', 'Ben Doak', 'Ben Doak', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -481,7 +481,7 @@ FROM (VALUES
   ( 268, 'USA19', 'Haji Wright', 'Haji Wright', 'FWD', 'player', false),
   ( 269, 'USA20', 'Folarin Balogun', 'Folarin Balogun', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -518,7 +518,7 @@ FROM (VALUES
   ( 288, 'PAR19', 'Ángel Romero', 'Ángel Romero', 'FWD', 'player', false),
   ( 289, 'PAR20', 'Antonio Sanabria', 'Antonio Sanabria', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -555,7 +555,7 @@ FROM (VALUES
   ( 308, 'AUS19', 'Nestory Irankunda', 'Nestory Irankunda', 'FWD', 'player', false),
   ( 309, 'AUS20', 'Mohamed Touré', 'Mohamed Touré', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -592,7 +592,7 @@ FROM (VALUES
   ( 328, 'TUR19', 'Kerem Aktürkoğlu', 'Kerem Aktürkoğlu', 'FWD', 'player', false),
   ( 329, 'TUR20', 'Kenan Yıldız', 'Kenan Yıldız', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -629,7 +629,7 @@ FROM (VALUES
   ( 348, 'GER19', 'Karim Adeyemi', 'Karim Adeyemi', 'FWD', 'player', false),
   ( 349, 'GER20', 'Nick Woltemade', 'Nick Woltemade', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -666,7 +666,7 @@ FROM (VALUES
   ( 368, 'CUW19', 'Gervane Kastaneer', 'Gervane Kastaneer', 'FWD', 'player', false),
   ( 369, 'CUW20', 'Sontje Hansen', 'Sontje Hansen', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -703,7 +703,7 @@ FROM (VALUES
   ( 388, 'CIV19', 'Evann Guessand', 'Evann Guessand', 'FWD', 'player', false),
   ( 389, 'CIV20', 'Oumar Diakité', 'Oumar Diakité', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -740,7 +740,7 @@ FROM (VALUES
   ( 408, 'ECU19', 'Kevin Rodríguez', 'Kevin Rodríguez', 'FWD', 'player', false),
   ( 409, 'ECU20', 'Enner Valencia', 'Enner Valencia', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -777,7 +777,7 @@ FROM (VALUES
   ( 428, 'NED19', 'Wout Weghorst', 'Wout Weghorst', 'FWD', 'player', false),
   ( 429, 'NED20', 'Cody Gakpo', 'Cody Gakpo', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -814,7 +814,7 @@ FROM (VALUES
   ( 448, 'JPN19', 'Koki Ogawa', 'Koki Ogawa', 'FWD', 'player', false),
   ( 449, 'JPN20', 'Ayase Ueda', 'Ayase Ueda', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -851,7 +851,7 @@ FROM (VALUES
   ( 468, 'SWE19', 'Alexander Isak', 'Alexander Isak', 'FWD', 'player', false),
   ( 469, 'SWE20', 'Viktor Gyökeres', 'Viktor Gyökeres', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -888,7 +888,7 @@ FROM (VALUES
   ( 488, 'TUN19', 'Sayfallah Ltaief', 'Sayfallah Ltaief', 'FWD', 'player', false),
   ( 489, 'TUN20', 'Naïm Sliti', 'Naïm Sliti', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -925,7 +925,7 @@ FROM (VALUES
   ( 508, 'BEL19', 'Loïs Openda', 'Loïs Openda', 'FWD', 'player', false),
   ( 509, 'BEL20', 'Romelu Lukaku', 'Romelu Lukaku', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -962,7 +962,7 @@ FROM (VALUES
   ( 528, 'EGY19', 'Trezeguet', 'Trezeguet', 'FWD', 'player', false),
   ( 529, 'EGY20', 'Omar Marmoush', 'Omar Marmoush', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -999,7 +999,7 @@ FROM (VALUES
   ( 548, 'IRN19', 'Alireza Jahanbakhsh', 'Alireza Jahanbakhsh', 'FWD', 'player', false),
   ( 549, 'IRN20', 'Ali Gholizadeh', 'Ali Gholizadeh', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1036,7 +1036,7 @@ FROM (VALUES
   ( 568, 'NZL19', 'Callum McCowatt', 'Callum McCowatt', 'FWD', 'player', false),
   ( 569, 'NZL20', 'Kosta Barbarouses', 'Kosta Barbarouses', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1073,7 +1073,7 @@ FROM (VALUES
   ( 588, 'ESP19', 'Álvaro Morata', 'Álvaro Morata', 'FWD', 'player', false),
   ( 589, 'ESP20', 'Mikel Oyarzabal', 'Mikel Oyarzabal', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1110,7 +1110,7 @@ FROM (VALUES
   ( 608, 'CPV19', 'Willy Semedo', 'Willy Semedo', 'FWD', 'player', false),
   ( 609, 'CPV20', 'Bebé', 'Bebé', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1147,7 +1147,7 @@ FROM (VALUES
   ( 628, 'KSA19', 'Saleh Al-Shehri', 'Saleh Al-Shehri', 'FWD', 'player', false),
   ( 629, 'KSA20', 'Abdullah Al-Hamdan', 'Abdullah Al-Hamdan', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1184,7 +1184,7 @@ FROM (VALUES
   ( 648, 'URU19', 'Rodrigo Aguirre', 'Rodrigo Aguirre', 'FWD', 'player', false),
   ( 649, 'URU20', 'Facundo Pellistri', 'Facundo Pellistri', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1221,7 +1221,7 @@ FROM (VALUES
   ( 668, 'FRA19', 'Hugo Ekitiké', 'Hugo Ekitiké', 'FWD', 'player', false),
   ( 669, 'FRA20', 'Kylian Mbappé', 'Kylian Mbappé', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1258,7 +1258,7 @@ FROM (VALUES
   ( 688, 'SEN19', 'Nicolas Jackson', 'Nicolas Jackson', 'FWD', 'player', false),
   ( 689, 'SEN20', 'Krépin Diatta', 'Krépin Diatta', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1295,7 +1295,7 @@ FROM (VALUES
   ( 708, 'IRQ19', 'Aymen Hussein', 'Aymen Hussein', 'FWD', 'player', false),
   ( 709, 'IRQ20', 'Mohanad Ali', 'Mohanad Ali', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1332,7 +1332,7 @@ FROM (VALUES
   ( 728, 'NOR19', 'Antonio Nusa', 'Antonio Nusa', 'FWD', 'player', false),
   ( 729, 'NOR20', 'Oscar Bobb', 'Oscar Bobb', 'MID', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1369,7 +1369,7 @@ FROM (VALUES
   ( 748, 'ARG19', 'Julián Álvarez', 'Julián Álvarez', 'FWD', 'player', false),
   ( 749, 'ARG20', 'Giuliano Simeone', 'Giuliano Simeone', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1406,7 +1406,7 @@ FROM (VALUES
   ( 768, 'ALG19', 'Baghdad Bounedjah', 'Baghdad Bounedjah', 'FWD', 'player', false),
   ( 769, 'ALG20', 'Mohammed Amoura', 'Mohammed Amoura', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1443,7 +1443,7 @@ FROM (VALUES
   ( 788, 'AUT19', 'Michael Gregoritsch', 'Michael Gregoritsch', 'FWD', 'player', false),
   ( 789, 'AUT20', 'Marko Arnautović', 'Marko Arnautović', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1480,7 +1480,7 @@ FROM (VALUES
   ( 808, 'JOR19', 'Mohammad Abu Zrayq', 'Mohammad Abu Zrayq', 'FWD', 'player', false),
   ( 809, 'JOR20', 'Ibrahim Sabra', 'Ibrahim Sabra', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1517,7 +1517,7 @@ FROM (VALUES
   ( 828, 'POR19', 'Pedro Neto', 'Pedro Neto', 'FWD', 'player', false),
   ( 829, 'POR20', 'Rafael Leão', 'Rafael Leão', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1554,7 +1554,7 @@ FROM (VALUES
   ( 848, 'COD19', 'Cédric Bakambu', 'Cédric Bakambu', 'FWD', 'player', false),
   ( 849, 'COD20', 'Nathanaël Mbuku', 'Nathanaël Mbuku', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1591,7 +1591,7 @@ FROM (VALUES
   ( 868, 'UZB19', 'Igor Sergeev', 'Igor Sergeev', 'FWD', 'player', false),
   ( 869, 'UZB20', 'Abbosbek Fayzullaev', 'Abbosbek Fayzullaev', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1628,7 +1628,7 @@ FROM (VALUES
   ( 888, 'COL19', 'Luis Suárez', 'Luis Suárez', 'FWD', 'player', false),
   ( 889, 'COL20', 'Luis Díaz', 'Luis Díaz', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1665,7 +1665,7 @@ FROM (VALUES
   ( 908, 'ENG19', 'Marcus Rashford', 'Marcus Rashford', 'FWD', 'player', false),
   ( 909, 'ENG20', 'Ollie Watkins', 'Ollie Watkins', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1702,7 +1702,7 @@ FROM (VALUES
   ( 928, 'CRO19', 'Andrej Kramarić', 'Andrej Kramarić', 'FWD', 'player', false),
   ( 929, 'CRO20', 'Franjo Ivanović', 'Franjo Ivanović', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1739,7 +1739,7 @@ FROM (VALUES
   ( 948, 'GHA19', 'Osman Bukari', 'Osman Bukari', 'FWD', 'player', false),
   ( 949, 'GHA20', 'Antoine Semenyo', 'Antoine Semenyo', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;
@@ -1776,7 +1776,7 @@ FROM (VALUES
   ( 968, 'PAN19', 'José Luis Rodríguez', 'José Luis Rodríguez', 'MID', 'player', false),
   ( 969, 'PAN20', 'Alberto Quintero', 'Alberto Quintero', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
-ON CONFLICT (album_type_id, album_code) DO UPDATE SET
+ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
   is_foil      = EXCLUDED.is_foil;

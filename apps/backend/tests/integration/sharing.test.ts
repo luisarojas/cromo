@@ -16,8 +16,10 @@ import type { FastifyInstance } from 'fastify';
  *             trade_forced on #151 and #156 (north_america)
  *
  * Coca-Cola stickers (from 08_coca_cola_stickers.sql):
- *   CC1–CC12 have numbers 981–992 — all outside Alice's 1–200 range, so she
- *   is missing all 12 of them. This makes the includeCocaCola filter test exact.
+ *   CC1–CC13 across 20 sticker rows (regional alternates share an album_code).
+ *   All outside Alice's 1–200 range, so she is missing every CC slot. Album
+ *   completion treats CC by album_code, so toggling includeCocaCola moves the
+ *   wantedCount by exactly 13 (one per code group).
  *
  * Setup / teardown:
  *   beforeAll enables is_trade_inventory_public on Alice's and Bob's NA albums
@@ -224,7 +226,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
   // ── Album settings filter — includeCocaCola ──────────────────────────────────
 
   describe('Album settings filter — includeCocaCola', () => {
-    it('disabling includeCocaCola reduces wantedCount by exactly 12 (CC1–CC12)', async () => {
+    it('disabling includeCocaCola reduces wantedCount by exactly 13 (CC1–CC13)', async () => {
       const before = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
       const countBefore = before.json<PublicProfile>().tradingInventory[0]!.wantedCount;
 
@@ -239,7 +241,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
       const after = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
       const countAfter = after.json<PublicProfile>().tradingInventory[0]!.wantedCount;
 
-      expect(countBefore - countAfter).toBe(12);
+      expect(countBefore - countAfter).toBe(13);
 
       // Restore.
       await app.inject({

@@ -2,15 +2,14 @@ import type { Pool } from 'pg';
 import { withTx } from '../db/transaction.js';
 
 export async function listFavourites(db: Pool, albumId: string): Promise<string[]> {
-  const { rows } = await db.query<{ album_code: string }>(
-    `SELECT s.album_code
+  const { rows } = await db.query<{ sticker_id: string }>(
+    `SELECT f.sticker_id
      FROM user_sticker_favourites f
-     JOIN stickers s ON s.id = f.sticker_id
      WHERE f.album_id = $1
-     ORDER BY s.album_code`,
+     ORDER BY f.sticker_id`,
     [albumId],
   );
-  return rows.map((r) => r.album_code);
+  return rows.map((r) => r.sticker_id);
 }
 
 /**

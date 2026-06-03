@@ -680,6 +680,7 @@ export async function setTradeFlags(
 // ─── Owned variants ───────────────────────────────────────────────────────────
 
 export interface OwnedVariantRow {
+  sticker_id: string;
   album_code: string;
   variant_type: string;
   sticker_variant_id: string;
@@ -707,7 +708,8 @@ export async function getOwnedVariants(
   if (cached) return JSON.parse(cached) as OwnedVariantRow[];
 
   const { rows } = await db.query<OwnedVariantRow>(
-    `SELECT s.album_code,
+    `SELECT s.id AS sticker_id,
+            s.album_code,
             sv.variant_type,
             us.sticker_variant_id,
             us.quantity,
@@ -719,7 +721,7 @@ export async function getOwnedVariants(
        JOIN stickers s ON s.id = sv.sticker_id
       WHERE us.album_id = $1
         AND us.quantity > 0
-      ORDER BY s.album_code`,
+      ORDER BY s.album_code, s.number`,
     [albumId],
   );
 

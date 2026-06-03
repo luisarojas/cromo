@@ -60,15 +60,17 @@ async function loadAlbumView(
   albumId: string,
   token: string,
 ): Promise<LoadedView> {
-  // One round-trip — server returns every (album_code, variant) the user owns
-  // in this album, plus stats, plus cross-album indicators.
+  // One round-trip — server returns every (sticker, variant) the user owns
+  // in this album, plus stats, plus cross-album indicators. Keyed by stickerId
+  // (UUID) so regional alternates that share an album_code (CC stickers) stay
+  // distinct.
   const view = await fetchAlbumView(userId, albumId, token);
   const map: OwnedMap = new Map();
   for (const row of view.ownedVariants) {
-    let perSticker = map.get(row.albumCode);
+    let perSticker = map.get(row.stickerId);
     if (!perSticker) {
       perSticker = new Map<string, OwnedVariantEntry>();
-      map.set(row.albumCode, perSticker);
+      map.set(row.stickerId, perSticker);
     }
     perSticker.set(row.variantType, {
       variantId: row.stickerVariantId,
@@ -145,14 +147,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Favourites are persisted server-side (replaces localStorage). The hook
-  // takes a sticker-by-code map because the API canonicalises by UUID while
-  // the UI keys everything by album_code.
-  const stickersByAlbumCode = useMemo(() => {
-    const m = new Map<string, Sticker>();
-    for (const s of stickers) m.set(s.albumCode, s);
-    return m;
-  }, [stickers]);
+  // Favourites are persisted server-side (replaces localStorage) and keyed by
+  // sticker UUID end-to-end, so the hook gets sticker IDs directly.
   const {
     favouriteSet,
     toggle: handleToggleFavourite,
@@ -161,7 +157,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     userId: user?.id ?? null,
     albumId,
     token,
-    stickersByAlbumCode,
   });
 
   const {
@@ -169,13 +164,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     wantedStickerIds,
     toggle: handleToggleWanted,
   } = useWantedVariants({ userId: user?.id ?? null, albumId, token });
-
-  // Cards are keyed by album_code; the wanted set is keyed by sticker UUID.
-  const wantedAlbumCodeSet = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of stickers) if (wantedStickerIds.has(s.id)) set.add(s.albumCode);
-    return set;
-  }, [stickers, wantedStickerIds]);
 
   // ---------------------------------------------------------------------------
   // Data loaders
@@ -297,10 +285,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
   const tabBase = useMemo(() => {
     if (tab === 'all') return settingsFilteredStickers;
-    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
-    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
+    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.id));
+    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.id));
     return settingsFilteredStickers.filter((s) => {
-      const p = ownedMap.get(s.albumCode);
+      const p = ownedMap.get(s.id);
       return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
     });
   }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
@@ -310,7 +298,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     filters,
     ownedMap: ownedMap as unknown as Map<string, Map<string, unknown>>,
     favouriteSet,
-    wantedAlbumCodeSet,
+    wantedStickerIds,
   });
 
   // Stats come from user_albums (denormalized columns kept fresh by the
@@ -325,7 +313,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const totalOwnedQuantity = useMemo(() => {
     let sum = 0;
     for (const s of settingsFilteredStickers) {
-      const perSticker = ownedMap.get(s.albumCode);
+      const perSticker = ownedMap.get(s.id);
       if (perSticker) {
         for (const entry of perSticker.values()) sum += entry.quantity;
       }
@@ -339,10 +327,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // denominator of the "Showing X of Y" hint when filters are active.
   const tabStickers = useMemo<Sticker[]>(() => {
     if (tab === 'all') return settingsFilteredStickers;
-    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.albumCode));
-    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.albumCode));
+    if (tab === 'have') return settingsFilteredStickers.filter((s) => ownedMap.has(s.id));
+    if (tab === 'missing') return settingsFilteredStickers.filter((s) => !ownedMap.has(s.id));
     return settingsFilteredStickers.filter((s) => {
-      const p = ownedMap.get(s.albumCode);
+      const p = ownedMap.get(s.id);
       return p ? isDuplicateSticker(p, duplicatesCountAllVariants) : false;
     });
   }, [settingsFilteredStickers, tab, ownedMap, duplicatesCountAllVariants]);
@@ -353,17 +341,17 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         ? Date.now() - filters.recentMinutes * 60_000
         : null;
     return tabStickers.filter((s) => {
-      if (filters.favouritesOnly && !favouriteSet.has(s.albumCode)) return false;
-      if (filters.wantedOnly && !wantedAlbumCodeSet.has(s.albumCode)) return false;
+      if (filters.favouritesOnly && !favouriteSet.has(s.id)) return false;
+      if (filters.wantedOnly && !wantedStickerIds.has(s.id)) return false;
       if (filters.group?.length && !filters.group.includes(s.groupName ?? '')) return false;
       if (filters.team?.length && !filters.team.includes(s.teamName ?? '') && !filters.team.includes(s.fifaCode ?? '')) return false;
       if (filters.type?.length && !filters.type.includes(s.stickerType)) return false;
       if (filters.variant?.length) {
-        const p = ownedMap.get(s.albumCode);
+        const p = ownedMap.get(s.id);
         if (!p || !filters.variant.some((v) => p.has(v))) return false;
       }
       if (recentThresholdMs !== null) {
-        const p = ownedMap.get(s.albumCode);
+        const p = ownedMap.get(s.id);
         if (!p) return false;
         let recent = false;
         for (const e of p.values()) {
@@ -377,7 +365,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
       return true;
     });
-  }, [tabStickers, filters, ownedMap, favouriteSet, wantedAlbumCodeSet]);
+  }, [tabStickers, filters, ownedMap, favouriteSet, wantedStickerIds]);
 
   const hasActiveFilter =
     !!filters.search ||
@@ -395,8 +383,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const {
     selectionMode,
     setSelectionMode,
-    selectedCodes,
-    setSelectedCodes,
+    selectedStickerIds,
+    setSelectedStickerIds,
     selectedHasAnyOwned,
     selectedFavouriteState,
     removableVariantTypes,
@@ -417,7 +405,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   ) => {
     const tok = tokenRef.current;
     const usr = userRef.current;
-    if (!tok || !usr || selectedCodes.size === 0) return;
+    if (!tok || !usr || selectedStickerIds.size === 0) return;
     setMassWorking(true);
     try {
       const { ops, emptyMessage, successMessage } = buildOps();
@@ -434,15 +422,15 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     } finally {
       setMassWorking(false);
     }
-  // buildOps closes over selectedCodes/ownedMap/etc. via the caller's closure.
+  // buildOps closes over selectedStickerIds/ownedMap/etc. via the caller's closure.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCodes, albumId, loadView, addToast]);
+  }, [selectedStickerIds, albumId, loadView, addToast]);
 
   const handleMassDelete = useCallback(async () => {
     await runMassAction(() => {
       const ops: BulkOp[] = [];
-      for (const code of selectedCodes) {
-        const variants = ownedMap.get(code);
+      for (const id of selectedStickerIds) {
+        const variants = ownedMap.get(id);
         if (variants) {
           for (const entry of variants.values()) {
             ops.push({ op: 'remove', variantId: entry.variantId });
@@ -455,34 +443,37 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         failMessage: 'Failed to delete stickers. Please try again.',
       };
     });
-    setSelectedCodes(new Set());
-  }, [selectedCodes, ownedMap, runMassAction, setSelectedCodes]);
+    setSelectedStickerIds(new Set());
+  }, [selectedStickerIds, ownedMap, runMassAction, setSelectedStickerIds]);
 
   const handleMassAddVariant = useCallback(async (variantType: string) => {
     const tok = tokenRef.current;
     const usr = userRef.current;
-    if (!tok || !usr || selectedCodes.size === 0) return;
+    if (!tok || !usr || selectedStickerIds.size === 0) return;
     setMassWorking(true);
     try {
       const selectedStickerList = stickers.filter(
-        (s) => selectedCodes.has(s.albumCode) && !ownedMap.get(s.albumCode)?.has(variantType),
+        (s) => selectedStickerIds.has(s.id) && !ownedMap.get(s.id)?.has(variantType),
       );
       if (selectedStickerList.length === 0) {
         addToast('All selected stickers already own that variant.');
         return;
       }
-      const codes = selectedStickerList.map((s) => s.albumCode);
-      const variantIdMap = new Map<string, string>();
+      // fetchStickersBulk is keyed by album_code on the server. For regional
+      // alternates that share a code (CC stickers), pick the variant by sticker
+      // id so each card maps to its own underlying variant row.
+      const codes = Array.from(new Set(selectedStickerList.map((s) => s.albumCode)));
+      const variantIdByStickerId = new Map<string, string>();
       for (let i = 0; i < codes.length; i += 100) {
         const results = await fetchStickersBulk(codes.slice(i, i + 100), tok);
         for (const lookup of results) {
           const v = lookup.variants.find((x) => x.variantType === variantType);
-          if (v) variantIdMap.set(lookup.albumCode, v.id);
+          if (v) variantIdByStickerId.set(lookup.id, v.id);
         }
       }
       const ops: BulkOp[] = [];
       for (const sticker of selectedStickerList) {
-        const variantId = variantIdMap.get(sticker.albumCode);
+        const variantId = variantIdByStickerId.get(sticker.id);
         if (variantId) ops.push({ op: 'add', variantId, quantity: 1 });
       }
       if (ops.length === 0) return;
@@ -495,13 +486,13 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     } finally {
       setMassWorking(false);
     }
-  }, [selectedCodes, stickers, ownedMap, albumId, loadView, addToast]);
+  }, [selectedStickerIds, stickers, ownedMap, albumId, loadView, addToast]);
 
   const handleMassRemoveVariant = useCallback(async (variantType: string) => {
     await runMassAction(() => {
       const ops: BulkOp[] = [];
-      for (const code of selectedCodes) {
-        const entry = ownedMap.get(code)?.get(variantType);
+      for (const id of selectedStickerIds) {
+        const entry = ownedMap.get(id)?.get(variantType);
         if (entry) ops.push({ op: 'remove', variantId: entry.variantId });
       }
       return {
@@ -510,18 +501,18 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         failMessage: 'Failed to remove variants. Please try again.',
       };
     });
-  }, [selectedCodes, ownedMap, runMassAction]);
+  }, [selectedStickerIds, ownedMap, runMassAction]);
 
   const handleMassToggleFavourite = useCallback(() => {
     const addFav = selectedFavouriteState !== 'all';
-    setFavouritesBulk([...selectedCodes], addFav);
-  }, [selectedCodes, selectedFavouriteState, setFavouritesBulk]);
+    setFavouritesBulk([...selectedStickerIds], addFav);
+  }, [selectedStickerIds, selectedFavouriteState, setFavouritesBulk]);
 
   const handleMassTradeFlags = useCallback(async (flags: { tradeHidden?: boolean; tradeForced?: boolean }) => {
     await runMassAction(() => {
       const ops: BulkOp[] = [];
-      for (const code of selectedCodes) {
-        const variants = ownedMap.get(code);
+      for (const id of selectedStickerIds) {
+        const variants = ownedMap.get(id);
         if (variants) {
           for (const entry of variants.values()) {
             ops.push({ op: 'flags', variantId: entry.variantId, ...flags });
@@ -534,7 +525,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         failMessage: 'Failed to update trade flags. Please try again.',
       };
     });
-  }, [selectedCodes, ownedMap, runMassAction]);
+  }, [selectedStickerIds, ownedMap, runMassAction]);
 
   // ---------------------------------------------------------------------------
   // Mutation handlers
@@ -550,10 +541,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   }, [albumId, loadView]);
 
   const handleOptimisticAdjust = useCallback(
-    (albumCode: string, variantType: string, variantId: string, delta: number) => {
+    (stickerId: string, variantType: string, variantId: string, delta: number) => {
       setOwnedMap((prev) => {
         const next = new Map(prev);
-        const perSticker = new Map(next.get(albumCode) ?? []);
+        const perSticker = new Map(next.get(stickerId) ?? []);
         const current = perSticker.get(variantType);
         const newQty = (current?.quantity ?? 0) + delta;
         if (newQty <= 0) {
@@ -567,8 +558,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             updatedAt: new Date().toISOString(),
           });
         }
-        if (perSticker.size === 0) next.delete(albumCode);
-        else next.set(albumCode, perSticker);
+        if (perSticker.size === 0) next.delete(stickerId);
+        else next.set(stickerId, perSticker);
         return next;
       });
     },
@@ -878,7 +869,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               wantedVariantIds={wantedVariantIds}
               onToggleWanted={handleToggleWanted}
               selectionMode={selectionMode}
-              selectedCodes={selectedCodes}
+              selectedStickerIds={selectedStickerIds}
               onToggleSelect={handleToggleSelect}
               onRangeSelect={handleRangeSelect}
             />
@@ -924,11 +915,11 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
       {selectionMode && (
         <MassActionBar
-          selectedCount={selectedCodes.size}
+          selectedCount={selectedStickerIds.size}
           totalDisplayed={displayedStickers.length}
           allDisplayedSelected={
             displayedStickers.length > 0 &&
-            displayedStickers.every((s) => selectedCodes.has(s.albumCode))
+            displayedStickers.every((s) => selectedStickerIds.has(s.id))
           }
           hasAnyOwned={selectedHasAnyOwned}
           favouriteState={selectedFavouriteState}

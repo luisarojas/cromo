@@ -215,6 +215,7 @@ export interface StickerVariant {
 }
 
 export interface StickerLookup {
+  id: string
   albumCode: string
   playerName: string | null
   teamName: string | null

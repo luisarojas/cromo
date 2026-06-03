@@ -350,9 +350,11 @@ export async function fetchStickerByAlbumCode(
 export async function fetchStickerVariants(
   albumCode: string,
   token?: string,
+  stickerId?: string,
 ): Promise<StickerVariant[]> {
+  const qs = stickerId ? `?stickerId=${encodeURIComponent(stickerId)}` : '';
   const { items } = await apiFetch<{ items: StickerVariant[] }>(
-    `/api/v1/stickers/${albumCode}/variants`,
+    `/api/v1/stickers/${albumCode}/variants${qs}`,
     {},
     token,
   );
@@ -638,6 +640,7 @@ export async function fetchAlbumCrossAlbum(
 // One-shot album-page payload — replaces the (fetchCollectionPage loop +
 // fetchAlbumCrossAlbum) pair the page used to spin up on mount.
 export interface OwnedVariantRow {
+  stickerId: string;
   albumCode: string;
   variantType: string;
   stickerVariantId: string;

@@ -194,7 +194,8 @@ Hard rules that follow from this model (call these out in any PR that touches st
 - The variant `base_borderless` is shared by **two** sticker types: international core Base stickers AND Coca-Cola stickers. They are distinguished by `sticker_type` (`null` vs `'coca_cola_special'`), never by the variant token.
 - There is **no smooth (non-crumple) gold border variant** in the main set. The only "gold" finish on a core sticker is `gold_crumple` (iCollect online base). The only smooth gold finish anywhere is `extra_gold`, which is the **background colour** of an Extra sticker — its outer border is still white.
 - Extra stickers' outer border is **always white**. Rarity is encoded in the background colour behind the action photo, never in the rim. Extras have no Crumple variants and no album slot.
-- Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Cromo (physical-only).
+- Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical except for the player image. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Cromo (physical-only).
+- **Coca-Cola is the only subset where `album_code` is not unique.** Several CC slots (CC3, CC5, CC6, CC8, CC9, CC12, CC13) print different players in different regions; each regional alternate is its own `stickers` row sharing one `album_code`. **Identity is `sticker_id` (UUID) everywhere.** Any code-keyed map (`Map<albumCode, …>`, `Set<albumCode>`) silently loses CC alternates via last-write-wins and is a bug. Frontend `ownedMap`, favourites, selection, and wanted sets are all keyed by `sticker_id`; only display labels and cross-album completion (which is per-slot, see §5) use `album_code`. The `stickers_album_type_id_album_code_unique` constraint was dropped in `0008_coca_cola_regional_variants.sql` — do not reintroduce it.
 - `swiss_green` is the Switzerland "United Edition" **sticker border variant** (light/mint/sage green). `swiss_gold` is the **album edition key** for the Swiss gold-foiled premium album cover. Do not conflate them.
 - The AI scan prompt must return **canonical `variant_type` tokens** in the `variantToken` field (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`, …). The frontend's `pickVariantId` does exact match first, `startsWith` fallback second.
 - The full canonical variant list lives in `packages/shared/src/types/index.ts` (`VariantType` union) and `packages/shared/src/constants/index.ts` (`VARIANT_RARITY`). Display labels live in `apps/frontend/src/app/album/components/variantMeta.ts`. Add new variants in all three files in lockstep.
@@ -248,10 +249,20 @@ Short-printed, unnumbered action shots of 20 global superstars (Messi, Ronaldo, 
 
 #### 5. Coca-Cola Partnership Subset
 
-A promotional subset featuring **12 specific international stars** (including Lamine Yamal, Harry Kane, Weston McKennie, Alphonso Davies) heavily weighted toward North American talent.
+A promotional subset spanning **13 slots (CC1–CC13)** with up to 20 specific international stars across all regional printings. Six slots (CC1, CC2, CC4, CC7, CC10, CC11) print the same player in every market; the other seven slots have **regional alternates** — the player printed on the bottle label depends on where the bottle was sold (North America, Latin America, Europe, or "Rest of the World").
 
-- **Physical stickers** — obtained by peeling labels off specially-marked 20-oz Coca-Cola and Coca-Cola Zero Sugar bottles in the USA. They have **no border variants and no Crumple versions**; every physical Coca-Cola sticker looks identical. They live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (shared with international core base; distinguished via `sticker_type = 'coca_cola_special'`).
+Concrete examples:
+- **CC9** prints Alphonso Davies in NA, William Saliba in Europe, and Jordan Ayew in RoW.
+- **CC3** prints Harry Kane in NA and Eduardo Camavinga in Europe.
+- **CC13** (Raúl Jiménez) ships only in Latin America and Europe; NA and RoW bottles never see this slot at all.
+
+The catalog stores every regional alternate as its own `stickers` row, so multiple sticker IDs can share one `album_code`. This is **the only subset where that's true** — for everything else, `album_code` is unique within an album.
+
+- **Physical stickers** — obtained by peeling labels off specially-marked Coca-Cola and Coca-Cola Zero Sugar bottles. They have **no border variants and no Crumple versions**; every physical Coca-Cola sticker looks identical except for the player image. They live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (shared with international core base; distinguished via `sticker_type = 'coca_cola_special'`).
+- **No back-of-sticker scan path** — physical Coca-Cola stickers have no Panini-printed back (the back is bottle-label adhesive). Any back-of-sticker scan flow can ignore the Coca-Cola subset; CC stickers are only ever identified by the front (player face).
 - **Digital Album App** — scanning the bottle labels unlocks digital-only packs in the FIFA Panini Collection App with exclusive **"Fan Stickers"** and **"Cosmic" variants**. These are app-only and **out of scope** for Cromo's physical-sticker tracking.
+
+**Album completion treats CC slots by `album_code`, not by sticker row** — owning *any one* regional alternate fills the slot. This is enforced server-side in `_sync_user_album_counts` (`0009_album_count_by_album_code.sql`), which counts `COUNT(DISTINCT album_code)` for `total` and `owned`. Non-CC subsets are unaffected because each of their album codes maps to exactly one sticker.
 
 #### 6. Visual Identification — Front of Sticker
 

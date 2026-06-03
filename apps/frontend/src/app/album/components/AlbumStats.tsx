@@ -103,13 +103,13 @@ export default function AlbumStats({ stickers, ownedMap }: Props) {
   // Coca-Cola stickers come from peeling Coke bottle labels, not packs, so
   // they're excluded from the pack-count estimate.
   const packCopies = useMemo(() => {
-    const cocaCodes = new Set<string>();
+    const cocaStickerIds = new Set<string>();
     for (const s of stickers) {
-      if (s.stickerType === 'coca_cola_special') cocaCodes.add(s.albumCode);
+      if (s.stickerType === 'coca_cola_special') cocaStickerIds.add(s.id);
     }
     let total = 0;
-    for (const [albumCode, perSticker] of ownedMap.entries()) {
-      if (cocaCodes.has(albumCode)) continue;
+    for (const [stickerId, perSticker] of ownedMap.entries()) {
+      if (cocaStickerIds.has(stickerId)) continue;
       for (const entry of perSticker.values()) total += entry.quantity;
     }
     return total;
@@ -127,7 +127,7 @@ export default function AlbumStats({ stickers, ownedMap }: Props) {
         map.set(key, entry);
       }
       entry.total++;
-      if (ownedMap.has(s.albumCode)) entry.owned++;
+      if (ownedMap.has(s.id)) entry.owned++;
     }
     return Array.from(map.values()).sort((a, b) => {
       const aPct = a.total > 0 ? a.owned / a.total : 0;
@@ -148,7 +148,7 @@ export default function AlbumStats({ stickers, ownedMap }: Props) {
         map.set(key, entry);
       }
       entry.total++;
-      if (ownedMap.has(s.albumCode)) entry.owned++;
+      if (ownedMap.has(s.id)) entry.owned++;
     }
     return Array.from(map.values())
       .map((g) => ({ ...g, pct: g.total > 0 ? Math.round((g.owned / g.total) * 100) : 0 }))

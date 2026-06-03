@@ -522,10 +522,11 @@ export default function WC2026GuidePage() {
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
           In the middle of every album there&apos;s a special two-page spread for stickers{' '}
           <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC1</code> to{' '}
-          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC12</code> —
+          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC13</code> —
           a Panini × Coca-Cola crossover featuring some of the tournament&apos;s biggest names. The
-          12 slots are the same everywhere, but who fills them depends on which corner of the world
-          your packs come from.
+          slots are the same everywhere, but who fills them depends on which corner of the world
+          your packs come from. Some slots even change player by region — CC9 alone has Davies in
+          North America, Saliba in Europe, and Ayew in the Rest of World.
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">

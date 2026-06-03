@@ -258,7 +258,6 @@ export const stickers = pgTable('stickers', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
   albumTypeNumberUnique: unique('stickers_album_type_id_number_unique').on(table.albumTypeId, table.number),
-  albumTypeCodeUnique: unique('stickers_album_type_id_album_code_unique').on(table.albumTypeId, table.albumCode),
   albumTypeIdx: index('idx_stickers_album_type_id').on(table.albumTypeId),
   teamIdx: index('idx_stickers_team_id').on(table.teamId),
   numberCheck: check('stickers_number_check', sql`${table.number} BETWEEN 0 AND 9999`),

@@ -1,0 +1,1 @@
+ALTER TABLE "stickers" DROP CONSTRAINT "stickers_album_type_id_album_code_unique";

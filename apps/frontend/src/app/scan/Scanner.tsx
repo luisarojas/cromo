@@ -507,13 +507,13 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
     }
   };
 
-  const handleCardAlbumCodeSelect = useCallback(
-    async (idx: number, albumCode: string) => {
+  const handleCardStickerSelect = useCallback(
+    async (idx: number, stickerId: string) => {
       if (!token) return;
-      const s = catalog.find((c) => c.albumCode === albumCode);
+      const s = catalog.find((c) => c.id === stickerId);
       if (!s) return;
       try {
-        const variants = await fetchStickerVariants(albumCode, token);
+        const variants = await fetchStickerVariants(s.albumCode, token, s.id);
         setResultCards((prev) => prev.map((card, i) => {
           if (i !== idx) return card;
           const selectedVariantId = pickVariantId(variants, card.borderVariantType || null, album.settings.defaultBaseVariant);
@@ -531,7 +531,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
         }));
       } catch { /* ignore */ }
     },
-    [catalog, token],
+    [catalog, token, album.settings.defaultBaseVariant],
   );
 
   const handleCardBorderSelect = useCallback(
@@ -604,7 +604,9 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
           : s.stickerType === 'extra' ? ' (Extra)'
           : '';
         const base = s.playerName ? `${s.albumCode} — ${s.playerName}` : s.albumCode;
-        return { value: s.albumCode, label: `${base}${typeSuffix}` };
+        // The value carries the sticker UUID so CC regional alternates that
+        // share an album_code are still distinguishable by selection.
+        return { value: s.id, label: `${base}${typeSuffix}` };
       }),
     [catalog],
   );
@@ -761,7 +763,9 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
                 const teamDisplayValue = card.teamName
                   ? `${card.teamName} (${card.teamFifaCode})`
                   : card.teamFifaCode;
-                const stickerDisplayValue = stickerOptions.find((o) => o.value === card.albumCode)?.label ?? '';
+                const stickerDisplayValue = card.sticker
+                  ? stickerOptions.find((o) => o.value === card.sticker!.id)?.label ?? ''
+                  : '';
 
                 return (
                   <div key={idx} className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 space-y-3">
@@ -791,7 +795,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
                         <ComboBox
                           value={stickerDisplayValue}
                           options={stickerOptions}
-                          onSelect={(opt) => handleCardAlbumCodeSelect(idx, opt.value)}
+                          onSelect={(opt) => handleCardStickerSelect(idx, opt.value)}
                           placeholder="Search by album code or player name…"
                           disabled={card.added}
                         />

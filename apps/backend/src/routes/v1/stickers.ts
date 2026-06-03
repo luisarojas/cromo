@@ -299,6 +299,15 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { albumCode } = request.params as { albumCode: string };
+      const { stickerId } = request.query as { stickerId?: string };
+
+      // If the caller passes ?stickerId=<uuid> the album code in the path is
+      // treated as documentation only and variants are scoped to that exact
+      // sticker. Needed for CC regional alternates that share an album_code.
+      if (stickerId) {
+        const variants = await stickersService.getStickerVariantsByStickerId(fastify.db, stickerId);
+        return reply.status(200).send({ items: variants });
+      }
 
       // Verify parent sticker exists
       const sticker = await stickersService.getStickerByAlbumCode(fastify.db, albumCode);
