@@ -7,7 +7,7 @@ import {
   type Sticker,
   type StickerVariant,
 } from '@/lib/api';
-import { VARIANT_META, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
+import { VARIANT_META, compareVariantTypes, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
 
@@ -82,7 +82,11 @@ export default function VariantPopover({
     let cancelled = false;
     setLoadingVariants(true);
     fetchStickerVariants(sticker.albumCode, token, sticker.id)
-      .then((items) => { if (!cancelled) setAllVariants(items); })
+      .then((items) => {
+        if (cancelled) return;
+        const sorted = [...items].sort((a, b) => compareVariantTypes(a.variantType, b.variantType));
+        setAllVariants(sorted);
+      })
       .catch((err) => console.error('Failed to fetch variants', err))
       .finally(() => { if (!cancelled) setLoadingVariants(false); });
     return () => { cancelled = true; };
@@ -120,7 +124,8 @@ export default function VariantPopover({
     window.innerWidth - POPOVER_WIDTH - 8,
   );
 
-  const ownedEntries = Array.from(ownedVariants.entries()); // [variantType, entry]
+  const ownedEntries = Array.from(ownedVariants.entries()) // [variantType, entry]
+    .sort(([a], [b]) => compareVariantTypes(a, b));
 
   function openAddPicker() {
     setShowAddPicker(true);

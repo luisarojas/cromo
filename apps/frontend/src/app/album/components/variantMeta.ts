@@ -29,6 +29,20 @@ black:                  { label: 'Black',                   short: 'Black',     
 
 export const ALL_VARIANT_TYPES = Object.keys(VARIANT_META);
 
+const VARIANT_ORDER: Record<string, number> = Object.fromEntries(
+  ALL_VARIANT_TYPES.map((type, idx) => [type, idx]),
+);
+
+// Canonical display order for any variant-typed list (pills, popover lists,
+// pickers). Unknown types sort to the end, alphabetically, so a stray new
+// variant never silently reorders the rest.
+export function compareVariantTypes(a: string, b: string): number {
+  const ai = VARIANT_ORDER[a] ?? Number.MAX_SAFE_INTEGER;
+  const bi = VARIANT_ORDER[b] ?? Number.MAX_SAFE_INTEGER;
+  if (ai !== bi) return ai - bi;
+  return a.localeCompare(b);
+}
+
 export function variantLabel(type: string): string {
   return VARIANT_META[type]?.label ?? type;
 }

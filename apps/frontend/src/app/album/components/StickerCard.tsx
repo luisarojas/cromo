@@ -3,7 +3,7 @@
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
 import { HeartIcon } from '@/components/HeartIcon';
-import { variantRarity, variantShort, variantSwatch } from './variantMeta';
+import { compareVariantTypes, variantRarity, variantShort, variantSwatch } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
 
 interface Props {
@@ -45,7 +45,9 @@ export default function StickerCard({
   const typeColor =
     TYPE_COLORS[sticker.stickerType] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]';
 
-  const ownedEntries = ownedVariants ? Array.from(ownedVariants.entries()) : [];
+  const ownedEntries = ownedVariants
+    ? Array.from(ownedVariants.entries()).sort(([a], [b]) => compareVariantTypes(a, b))
+    : [];
   const owned = ownedEntries.length > 0;
   const totalQuantity = ownedEntries.reduce((sum, [, e]) => sum + e.quantity, 0);
 

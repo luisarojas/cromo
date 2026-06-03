@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { VARIANT_META, variantSwatch } from './variantMeta';
+import { VARIANT_META, compareVariantTypes, variantSwatch } from './variantMeta';
 
 interface Props {
   mode: 'add' | 'remove';
@@ -12,7 +12,8 @@ interface Props {
 }
 
 export default function VariantPickerModal({ mode, availableTypes, onConfirm, onClose }: Props) {
-  const [selected, setSelected] = useState<string>(availableTypes[0] ?? '');
+  const orderedTypes = [...availableTypes].sort(compareVariantTypes);
+  const [selected, setSelected] = useState<string>(orderedTypes[0] ?? '');
 
   const node = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -35,11 +36,11 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
             : 'Pick a variant type to remove from all selected stickers that own it.'}
         </p>
 
-        {availableTypes.length === 0 ? (
+        {orderedTypes.length === 0 ? (
           <p className="text-xs text-[var(--cromo-fg-subtle)] italic py-2 text-center">No variants available.</p>
         ) : (
           <div className="flex flex-col gap-1 max-h-56 overflow-y-auto -mx-1 px-1">
-            {availableTypes.map((type) => {
+            {orderedTypes.map((type) => {
               const meta = VARIANT_META[type];
               return (
                 <button
@@ -75,7 +76,7 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
           </button>
           <button
             onClick={() => { if (selected) onConfirm(selected); }}
-            disabled={!selected || availableTypes.length === 0}
+            disabled={!selected || orderedTypes.length === 0}
             className="flex-1 rounded-lg bg-[var(--cromo-accent)] py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {mode === 'add' ? 'Add' : 'Remove'}
