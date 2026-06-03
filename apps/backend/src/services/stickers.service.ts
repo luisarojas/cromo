@@ -59,7 +59,12 @@ export async function listStickers(
 ): Promise<PaginatedResult<StickerRow>> {
   const limit = Math.min(filters.limit ?? 50, 200);
   const normalised = { ...filters, limit };
-  const cacheKey = `stickers:list:${hashFilters(normalised)}`;
+  // Scope the cache key by catalog version so any sticker mutation (seed,
+  // admin patch, future write path) naturally orphans old entries instead of
+  // serving them for the 1-hour TTL. getCatalogVersion is itself cached for
+  // 5 min so this adds at most one extra Redis GET per call.
+  const version = await getCatalogVersion(db, redis);
+  const cacheKey = `stickers:list:${version}:${hashFilters(normalised)}`;
 
   const cached = await redis.get(cacheKey);
   if (cached) {
