@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Fragment, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  fetchStickers,
+  fetchAllStickers,
   patchAdminSticker,
   fetchAdminUsers,
   patchAdminUserRole,
@@ -131,8 +131,8 @@ function StickersSection({ token }: { token: string }) {
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchStickers({ limit: 200 }, token);
-        if (!cancelled) setStickers(result.items);
+        const items = await fetchAllStickers(token);
+        if (!cancelled) setStickers(items);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load stickers');
       } finally {
