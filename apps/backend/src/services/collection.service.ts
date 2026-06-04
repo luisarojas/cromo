@@ -351,13 +351,18 @@ export async function getDuplicates(
   const hasMore = items.length > pageSize;
   const pageItems = hasMore ? items.slice(0, pageSize) : items;
   const nextCursor = hasMore ? pageItems[pageItems.length - 1]!.number : null;
-  // Always equal to the album's denormalized duplicate_count (this endpoint
-  // has no facet filters), so no window function needed.
-  const { rows: ua } = await db.query<{ duplicates: number }>(
-    `SELECT duplicate_count AS duplicates FROM user_albums WHERE id = $1`,
+  // Count of variant rows the items query would return without pagination.
+  // The album's denormalized duplicate_count is per-sticker (one entry per
+  // sticker_id with a duplicate variant), so it can't be used here — a sticker
+  // with two duplicate variants contributes 2 rows to this endpoint but only 1
+  // to duplicate_count.
+  const { rows: totalRows } = await db.query<{ total: number }>(
+    `SELECT COUNT(*)::int AS total
+     FROM user_stickers
+     WHERE album_id = $1 AND quantity > 1`,
     [albumId],
   );
-  const total = ua[0]?.duplicates ?? 0;
+  const total = totalRows[0]?.total ?? 0;
 
   const result: PaginatedResult<DuplicateItem> = {
     items: pageItems,
@@ -523,8 +528,14 @@ export async function getFilterOptions(
 }
 
 /**
- * getTotalExtraCopies — sum of (quantity - 1) across all sticker_variants in
- * an album. Used by the UI's "Duplicates (12 / +37)" tab label.
+ * getTotalExtraCopies — sum of extra copies in an album, computed under the
+ * album owner's duplicates_count_all_variants preference (matches the
+ * `extra` branch in getStatsAndExtras so the standalone endpoint and the
+ * bundled /view response report the same number). Used by the UI's
+ * "Duplicates (12 / +37)" tab label.
+ *
+ *   count_all = true  → SUM(GREATEST(per_sticker_total_qty - 1, 0))
+ *   count_all = false → SUM(GREATEST(per_variant_qty       - 1, 0))
  */
 export async function getTotalExtraCopies(
   db: Pool,
@@ -537,8 +548,29 @@ export async function getTotalExtraCopies(
   if (cached !== null) return Number.parseInt(cached, 10);
 
   const { rows } = await db.query<{ extra: number | null }>(
-    `SELECT COALESCE(SUM(GREATEST(quantity - 1, 0)), 0)::int AS extra
-     FROM user_stickers WHERE album_id = $1`,
+    `WITH owner AS (
+       SELECT COALESCE(us.duplicates_count_all_variants, true) AS count_all
+       FROM user_albums ua
+       LEFT JOIN user_settings us ON us.user_id = ua.user_id
+       WHERE ua.id = $1
+     )
+     SELECT CASE WHEN (SELECT count_all FROM owner)
+       THEN COALESCE((
+         SELECT SUM(GREATEST(per.total_qty - 1, 0))::int
+         FROM (
+           SELECT sv.sticker_id, SUM(us2.quantity) AS total_qty
+           FROM user_stickers us2
+           JOIN sticker_variants sv ON sv.id = us2.sticker_variant_id
+           WHERE us2.album_id = $1
+           GROUP BY sv.sticker_id
+         ) per
+       ), 0)
+       ELSE COALESCE((
+         SELECT SUM(GREATEST(us2.quantity - 1, 0))::int
+         FROM user_stickers us2
+         WHERE us2.album_id = $1
+       ), 0)
+     END AS extra`,
     [albumId],
   );
   const extra = rows[0]?.extra ?? 0;
