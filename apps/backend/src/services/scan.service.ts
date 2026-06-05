@@ -82,7 +82,7 @@ Output Format Template (variantToken values shown are illustrative — pick the 
 const MAX_RETRIES = 0;
 
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
-const DEFAULT_GROQ_MODEL = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+const DEFAULT_GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 function geminiUrl(model: string): string {

@@ -41,7 +41,7 @@ variable "scan_provider" {
 }
 
 variable "scan_model" {
-  description = "Optional model id override for the active provider. Empty string falls back to the code-side default (gemini-2.5-flash for gemini, meta-llama/llama-4-maverick-17b-128e-instruct for groq). Set to e.g. 'gemini-2.5-pro' or 'meta-llama/llama-4-scout-17b-16e-instruct' to override without a redeploy."
+  description = "Optional model id override for the active provider. Empty string falls back to the code-side default (gemini-2.5-flash for gemini, meta-llama/llama-4-scout-17b-16e-instruct for groq). Set to e.g. 'gemini-2.5-pro' to override without a redeploy."
   type        = string
   default     = ""
 }

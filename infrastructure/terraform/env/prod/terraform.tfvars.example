@@ -24,9 +24,8 @@ scan_provider  = "gemini"
 gemini_api_key = "REPLACE_WITH_REAL_GEMINI_KEY"
 groq_api_key   = "mock"
 # Optional. Leave empty to use the code-side default per provider
-# (gemini-2.5-flash, meta-llama/llama-4-maverick-17b-128e-instruct).
-# Set to e.g. "gemini-2.5-pro" or
-# "meta-llama/llama-4-scout-17b-16e-instruct" to override without a redeploy.
+# (gemini-2.5-flash, meta-llama/llama-4-scout-17b-16e-instruct).
+# Set to e.g. "gemini-2.5-pro" to override without a redeploy.
 scan_model     = ""
 
 # GitHub repo slug allowed to assume the prod deploy role (OIDC). Only v*

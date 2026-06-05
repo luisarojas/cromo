@@ -160,20 +160,20 @@ The sticker identification call in `apps/backend/src/services/scan.service.ts` (
 | Env var          | Values                                                                                       | Notes |
 | ---------------- | -------------------------------------------------------------------------------------------- | ----- |
 | `SCAN_PROVIDER`  | `gemini` (default), `groq`                                                                   | Picks which provider `identifySticker` calls. |
-| `SCAN_MODEL`     | provider-specific model id (optional)                                                         | Overrides the provider's default model. E.g. `meta-llama/llama-4-scout-17b-16e-instruct` to try Scout instead of Maverick on Groq, or `gemini-2.5-pro` to try Pro instead of Flash on Gemini. |
+| `SCAN_MODEL`     | provider-specific model id (optional)                                                         | Overrides the provider's default model. E.g. `gemini-2.5-pro` to try Pro instead of Flash on Gemini. |
 | `GEMINI_API_KEY` | `mock` (default) or real key from https://aistudio.google.com/apikey                          | Only consulted when `SCAN_PROVIDER=gemini`. |
 | `GROQ_API_KEY`   | `mock` (default) or real key from https://console.groq.com/keys                               | Only consulted when `SCAN_PROVIDER=groq`. |
 
 **Default models per provider** (defined as constants in `scan.service.ts`):
 - `gemini` → `gemini-2.5-flash`
-- `groq`   → `meta-llama/llama-4-maverick-17b-128e-instruct`
+- `groq`   → `meta-llama/llama-4-scout-17b-16e-instruct`
 
 **Mock pathway.** `identifySticker` short-circuits to the canned `MOCK_RESULTS` (BRA5 / Vinicius Jr.) when the **active** provider's API key equals the literal string `'mock'`. That means flipping `SCAN_PROVIDER` without also setting the new provider's key flips you into mock mode silently — the symptom is "every scan returns BRA5". Always set both `SCAN_PROVIDER` and the matching key together.
 
 **Why we have a switch.** Quality and latency are in tension on the free tiers:
 - Gemini Flash with thinking enabled: best quality on fine variant detection, ~10–20s per scan.
 - Gemini Pro with thinking enabled: stronger reasoning, but free-tier quotas are tight (~5 RPM) and latency runs 30–60s+.
-- Groq Llama 4 Maverick/Scout: fast (~1–3s) and a much more generous free tier, but historically weaker on the fine visual discriminations this app needs (border colours, foil textures, background tiers). Commit `150be50` migrated *away* from Scout for exactly this reason; Maverick is the upgrade path within the Llama family.
+- Groq Llama 4 Scout: fast (~1–3s) and a much more generous free tier, but historically weaker on the fine visual discriminations this app needs (border colours, foil textures, background tiers). Commit `150be50` originally migrated *away* from Scout for that reason and onto Maverick, but Groq has since removed Maverick from their catalog — Scout is once again the only Llama-family option on Groq.
 
 There is no free option that is simultaneously fast, high-quality, and unmetered — that is a paid-API decision (GPT-4o, Claude Sonnet vision), not a tuning decision.
 

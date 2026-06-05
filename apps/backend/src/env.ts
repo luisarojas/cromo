@@ -48,10 +48,10 @@ const envSchema = z.object({
 
   // AI scanning. SCAN_PROVIDER picks which backend runs identifySticker:
   //   - 'gemini' → Google AI Studio (gemini-2.5-flash by default)
-  //   - 'groq'   → Groq Cloud (meta-llama/llama-4-maverick-17b-128e-instruct
+  //   - 'groq'   → Groq Cloud (meta-llama/llama-4-scout-17b-16e-instruct
   //                by default; OpenAI-compatible API).
-  // SCAN_MODEL optionally overrides the provider's default model id — handy
-  // for A/B'ing Scout vs Maverick without redeploying. The provider's own
+  // SCAN_MODEL optionally overrides the provider's default model id without
+  // a redeploy. The provider's own
   // API key must be set to a non-'mock' value for live calls; the mock
   // pathway short-circuits when the ACTIVE provider's key is 'mock'.
   SCAN_PROVIDER: z.enum(['gemini', 'groq']).default('gemini'),
