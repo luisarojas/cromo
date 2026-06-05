@@ -26,27 +26,6 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
-    changes: {
-      Added: [
-        'Album detail page now supports filtering to stickers updated in the last week.',
-      ],
-      Changed: [
-        'Profile inventory Group filter defaults to None.',
-        'Hard-ban now covers plus-addressing email variants (e.g. user+tag@example.com).',
-      ],
-      Fixed: [
-        'Player name search and scan matching now handle accented characters.',
-        'Packs-opened estimate no longer includes Coca-Cola stickers.',
-        'Trade Matcher now reads the way collectors actually write their lists — prefix-then-numbers ("BRA: 5, 7, 12"), flag emoji decoration, and section headers like "What I need:" or "ISO (Looking for):" all work.',
-      ],
-    },
-  },
-  {
-    // Baseline tag — first cut of the codebase. Hand-authored (not produced by
-    // scripts/release.sh) so v0.1.0 ships with no bullets; everything already
-    // in flight rolls forward into the next release.
-    version: 'v0.1.0',
-    date: '2026-06-05',
     changes: {},
   },
 ];

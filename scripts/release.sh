@@ -10,6 +10,8 @@
 #
 # Usage:
 #   ./scripts/release.sh 0.2.0
+#   ./scripts/release.sh 0.2.0 --allow-empty   # ship without changelog notes
+#   ./scripts/release.sh 0.2.0 --no-publish    # local-only (no push, no GH release)
 #
 # Performs, in order:
 #   1. Validate <version> is a clean SemVer (MAJOR.MINOR.PATCH[-prerelease]).
@@ -18,7 +20,7 @@
 #      tagged — both would produce a tag that doesn't mean what it says.
 #   3. Validate that apps/frontend/src/app/changelog/entries.ts has a
 #      non-empty "Unreleased" entry — fail before any mutations if the
-#      release would ship with empty notes.
+#      release would ship with empty notes (unless --allow-empty is set).
 #   4. Rewrite the top-level "version" field in:
 #        package.json
 #        apps/backend/package.json
@@ -28,9 +30,9 @@
 #      UTC date, and prepend a fresh empty Unreleased block.
 #   6. git add + commit those five files with message "Release v<version>".
 #   7. Create an annotated tag v<version> on the new commit.
-#
-# After it returns successfully:
-#   git push origin main --tags
+#   8. Publish: push commit + tag to `origin`, then create a GitHub release
+#      whose body is the markdown rendering of the v<version> changelog
+#      entry. Skipped when --no-publish is passed (local-only cut).
 #
 # CI then picks up the new tag automatically — `scripts/app-version.sh`
 # reports `v<version>` for the release commit and `v<version>-N-g<sha>`
@@ -38,13 +40,38 @@
 
 set -euo pipefail
 
-if [ $# -ne 1 ]; then
-  echo "Usage: $0 <version>" >&2
+VERSION=""
+ALLOW_EMPTY=0
+PUBLISH=1
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --allow-empty) ALLOW_EMPTY=1 ;;
+    --no-publish)  PUBLISH=0 ;;
+    -h|--help)
+      echo "Usage: $0 <version> [--allow-empty] [--no-publish]" >&2
+      exit 0
+      ;;
+    -*)
+      echo "✗ unknown flag: $1" >&2
+      exit 1
+      ;;
+    *)
+      if [ -n "$VERSION" ]; then
+        echo "✗ extra positional argument: $1" >&2
+        exit 1
+      fi
+      VERSION="$1"
+      ;;
+  esac
+  shift
+done
+
+if [ -z "$VERSION" ]; then
+  echo "Usage: $0 <version> [--allow-empty] [--no-publish]" >&2
   echo "Example: $0 0.2.0" >&2
   exit 1
 fi
-
-VERSION="$1"
 
 # Strict SemVer: MAJOR.MINOR.PATCH with optional `-prerelease` (e.g. `0.2.0`,
 # `1.0.0-rc.1`). Pre-release identifiers may contain [0-9A-Za-z.-].
@@ -69,6 +96,19 @@ if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
   exit 1
 fi
 
+# Publishing requires gh (and an authenticated session). Check up-front so a
+# missing dependency fails the run before any mutations.
+if [ "$PUBLISH" -eq 1 ]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "✗ 'gh' CLI not found on PATH. Install GitHub CLI or re-run with --no-publish." >&2
+    exit 1
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "✗ 'gh' is not authenticated. Run 'gh auth login' or re-run with --no-publish." >&2
+    exit 1
+  fi
+fi
+
 # Source of truth for which workspace package.jsons participate in versioning.
 # Keep this list in sync with the table in CLAUDE.md if a new app/package is
 # added to the monorepo.
@@ -90,8 +130,11 @@ done
 CHANGELOG_FILE="apps/frontend/src/app/changelog/entries.ts"
 
 # Pre-flight: refuse to release if the in-app changelog's Unreleased entry
-# is empty. Done before any mutations so a failure leaves the tree clean.
-node scripts/rotate-changelog.mjs check
+# is empty (unless --allow-empty). Done before any mutations so a failure
+# leaves the tree clean.
+CHECK_FLAGS=()
+[ "$ALLOW_EMPTY" -eq 1 ] && CHECK_FLAGS+=(--allow-empty)
+node scripts/rotate-changelog.mjs check "${CHECK_FLAGS[@]}"
 
 # In-place rewrite of the top-level "version" field. We use `node` instead of
 # `sed`/`jq` so the existing key order and formatting (2-space indent + trailing
@@ -110,10 +153,9 @@ for f in "${FILES[@]}"; do
 done
 
 # Rotate the in-app changelog: Unreleased → v$VERSION + today's UTC date,
-# then a fresh empty Unreleased prepended. The check above already verified
-# the Unreleased block has bullets, so this should never fail; if it does,
-# the package.json bumps are left uncommitted and the user can re-run.
-node scripts/rotate-changelog.mjs rotate "v$VERSION"
+# then a fresh empty Unreleased prepended. The check above already validated
+# the Unreleased shape (and bullet count if --allow-empty was not set).
+node scripts/rotate-changelog.mjs rotate "v$VERSION" "${CHECK_FLAGS[@]}"
 
 git add "${FILES[@]}" "$CHANGELOG_FILE"
 git commit -m "Release v$VERSION"
@@ -121,4 +163,32 @@ git tag -a "v$VERSION" -m "Release v$VERSION"
 
 echo
 echo "✓ Tagged v$VERSION on $(git rev-parse --short HEAD)."
-echo "  Push with: git push origin main --tags"
+
+if [ "$PUBLISH" -eq 0 ]; then
+  echo "  Skipped publish (--no-publish). Push with:"
+  echo "    git push origin main --tags"
+  echo "  Then optionally:"
+  echo "    gh release create v$VERSION --title v$VERSION --notes \"\$(node scripts/rotate-changelog.mjs notes v$VERSION)\""
+  exit 0
+fi
+
+# Publish step. Pushing the tag and main together keeps the deploy pipeline
+# from racing on a tagless commit. We push by explicit refspecs so the script
+# never accidentally pushes unrelated local branches.
+echo
+echo "Pushing main + tag to origin…"
+git push origin "refs/heads/main:refs/heads/main" "refs/tags/v$VERSION:refs/tags/v$VERSION"
+
+# Render release notes from the just-rotated entry. May be empty (when
+# --allow-empty was used); in that case we create the release with no body.
+NOTES="$(node scripts/rotate-changelog.mjs notes "v$VERSION")"
+
+echo "Creating GitHub release v$VERSION…"
+if [ -n "$NOTES" ]; then
+  gh release create "v$VERSION" --title "v$VERSION" --notes "$NOTES"
+else
+  gh release create "v$VERSION" --title "v$VERSION" --notes ""
+fi
+
+echo
+echo "✓ Released v$VERSION."
