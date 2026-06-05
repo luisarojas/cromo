@@ -64,6 +64,7 @@ export default function NavBar() {
               <NavLink href="/scan">Scan</NavLink>
             </>
           )}
+          {!user && <NavLink href="/trade/match">Trade Matcher</NavLink>}
           <NavLink href="/guide">Guides</NavLink>
           {user?.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
         </div>
@@ -152,6 +153,7 @@ export default function NavBar() {
                   <DrawerLink href="/scan">Scan</DrawerLink>
                 </>
               )}
+              {!user && <DrawerLink href="/trade/match">Trade Matcher</DrawerLink>}
               <DrawerLink href="/guide">Guides</DrawerLink>
               {user?.role === 'admin' && <DrawerLink href="/admin">Admin</DrawerLink>}
 

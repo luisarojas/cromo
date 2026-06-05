@@ -327,6 +327,60 @@ export interface TradeDetail extends TradeSummary {
   expiresAt: string | null
 }
 
+// ─── External list trade-matching (third-party / anonymous) ─────────────────
+// Lightweight, ephemeral matching for two cases that don't involve a registered
+// user collection on the "their" side:
+//   1. A logged-in user pastes a friend's list and matches it against their own
+//      collection (match-against-me).
+//   2. An anonymous visitor pastes two lists and gets the optimal trade
+//      between them (match-pair).
+// In both cases, identity is by album code (not variant) because hand-written
+// or photographed lists rarely carry variant detail.
+
+export interface ExternalStickerRef {
+  albumCode: string
+  playerName: string | null
+  stickerType: StickerType | null
+  number: number | null
+}
+
+export interface ExternalList {
+  offered: string[]
+  wanted: string[]
+}
+
+/** Result of matching a third-party list against the logged-in user. */
+export interface MatchAgainstMeResult {
+  /** Codes the requester would receive (their offered ∩ my missing). */
+  iGet: ExternalStickerRef[]
+  /** Codes the requester would give (their wanted ∩ my duplicates). */
+  theyGet: ExternalStickerRef[]
+  /** Codes from the input that could not be resolved against the catalog. */
+  unknownCodes: string[]
+  mutualOverlap: number
+}
+
+/** Result of matching two independent lists (anonymous pair flow). */
+export interface MatchPairResult {
+  /** Codes Person A would receive (a.wanted ∩ b.offered). */
+  aGets: ExternalStickerRef[]
+  /** Codes Person B would receive (b.wanted ∩ a.offered). */
+  bGets: ExternalStickerRef[]
+  unknownCodes: string[]
+  mutualOverlap: number
+}
+
+/**
+ * Album codes extracted from a photo of a written/printed list, tagged by
+ * which section they appeared under. A single list image may contain both
+ * "what they have" and "what they want" separated by section headers; the
+ * model splits them here so callers don't need a second pass.
+ */
+export interface ScanListResult {
+  offered: string[]
+  wanted: string[]
+}
+
 // ─── Sharing / public profile wire types ───────────────────────────────────
 
 export interface ShareLink {

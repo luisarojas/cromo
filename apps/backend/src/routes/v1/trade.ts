@@ -5,7 +5,11 @@ import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import { checkSoftBan } from '../../middleware/ban-check.js';
 import { env } from '../../env.js';
-import { getTradeMatches } from '../../services/trade-matching.service.js';
+import {
+  getTradeMatches,
+  matchAgainstUserAlbum,
+  matchPair,
+} from '../../services/trade-matching.service.js';
 import {
   acceptTrade,
   cancelTrade,
@@ -45,6 +49,39 @@ const CounterTradeBody = z.object({
 
 const SendMessageBody = z.object({
   body: z.string().min(1).max(2000),
+});
+
+// External-list inputs are short hand-written/photographed lists. 500 codes
+// is well above any realistic single-person list and bounds the catalog query
+// cost on the unauthenticated /match-pair endpoint.
+const CodeListSchema = z.array(z.string().min(1).max(16)).max(500);
+
+// albumTypeKey lands in a Redis cache-key suffix and a SQL parameter. The
+// allow-list keeps an attacker from filling the cache namespace with garbage
+// keys (e.g. `*`, `..`, slashes) and rules out any character that could be
+// misread by downstream code expecting an identifier shape.
+const AlbumTypeKeySchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9_]+$/, 'albumTypeKey must match /^[a-z0-9_]+$/');
+
+const MatchAgainstMeBody = z.object({
+  albumId: z.string().uuid(),
+  theirOffered: CodeListSchema.default([]),
+  theirWanted: CodeListSchema.default([]),
+});
+
+const MatchPairBody = z.object({
+  albumTypeKey: AlbumTypeKeySchema.default('fifa_world_cup_2026'),
+  a: z.object({
+    offered: CodeListSchema.default([]),
+    wanted: CodeListSchema.default([]),
+  }),
+  b: z.object({
+    offered: CodeListSchema.default([]),
+    wanted: CodeListSchema.default([]),
+  }),
 });
 
 // ─── Route registration ───────────────────────────────────────────────────────
@@ -118,6 +155,88 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       );
       return reply.status(200).send(page);
     }
+  );
+
+  /**
+   * POST /api/v1/trade/match-against-me
+   * Ephemeral matching of a third-party's offered/wanted list against the
+   * logged-in user's own collection. No persistence.
+   */
+  fastify.post(
+    `${prefix}/match-against-me`,
+    {
+      preHandler: [verifyToken],
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: (request) => request.userId ?? request.ip,
+        },
+      },
+      schema: {
+        tags: ['Trade'],
+        summary: 'Match a third-party list against the requester\'s collection',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = MatchAgainstMeBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400, error: 'Bad Request', message: parsed.error.message,
+        });
+      }
+      try {
+        const result = await matchAgainstUserAlbum(
+          fastify.db, request.userId!, parsed.data.albumId,
+          { theirOffered: parsed.data.theirOffered, theirWanted: parsed.data.theirWanted },
+        );
+        return reply.status(200).send(result);
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        return reply.status(e.statusCode ?? 500).send({
+          statusCode: e.statusCode ?? 500,
+          error: e.statusCode === 404 ? 'Not Found' : 'Internal Server Error',
+          message: e.message ?? 'Failed to compute match.',
+        });
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/trade/match-pair
+   * Public, anonymous-friendly matching of two ephemeral lists (Person A and
+   * Person B). Returns the optimal sticker exchange between them.
+   */
+  fastify.post(
+    `${prefix}/match-pair`,
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request) => request.userId ?? request.ip,
+        },
+      },
+      schema: {
+        tags: ['Trade'],
+        summary: 'Match two ephemeral sticker lists (anonymous flow)',
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = MatchPairBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400, error: 'Bad Request', message: parsed.error.message,
+        });
+      }
+      const result = await matchPair(fastify.db, {
+        a: parsed.data.a,
+        b: parsed.data.b,
+        albumTypeKey: parsed.data.albumTypeKey,
+      });
+      return reply.status(200).send(result);
+    },
   );
 
   /**

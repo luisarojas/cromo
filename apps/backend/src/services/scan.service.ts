@@ -299,6 +299,105 @@ export async function identifySticker(
   });
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// extractListFromImage — multi-code extraction from a photo of a written or
+// printed list. The list may contain BOTH "offered" and "wanted" sections in
+// a single image, separated by headers like "HAVE", "OFFERED", "WANT",
+// "WANTED" (plus Spanish equivalents). The model tags each code by which
+// section it appeared under so callers don't need a second pass to split.
+// Reuses the same SCAN_PROVIDER switch + mock pathway as identifySticker.
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface ExtractedListBuckets {
+  offered: string[];
+  wanted: string[];
+}
+
+const MOCK_LIST_BUCKETS: ExtractedListBuckets = {
+  offered: ['BRA5', 'ARG7'],
+  wanted: ['EX12', 'CC4'],
+};
+
+function buildListPrompt(collectionName: string): string {
+  return `You are extracting ${collectionName} album codes from a photo of a written or printed list.
+
+The image shows a hand-written, typed, or printed list of stickers. The list may contain BOTH what the person has (their duplicates / offered list) AND what the person is missing (their wanted list), separated by section headers. Common section headers (case-insensitive):
+
+  Offered section: "HAVE", "HAVES", "OFFERED", "OFFERING", "FOR TRADE", "DUPES", "DUPLICATES", "TIENE", "TENGO", "OFREZCO"
+  Wanted section:  "WANT", "WANTS", "WANTED", "NEED", "NEEDS", "LOOKING FOR", "BUSCA", "BUSCO", "FALTA", "NECESITO"
+
+Each entry is an album code — a short alphanumeric token (e.g. "BRA5", "ARG12", "EX3", "CC7", "FWC4", "MEX18"). Codes follow the pattern: 2–4 uppercase letters (country FIFA code or subset prefix like EX/CC/FWC) immediately followed by 1–3 digits.
+
+══════════════════════════════════════════════════════════
+RULES
+══════════════════════════════════════════════════════════
+R1. Read the image top-to-bottom, left-to-right. Track the current section as you go: each section header switches the current bucket.
+R2. Codes that appear BEFORE any section header — or in an image with no headers at all — go into "offered". Most lists shown without explicit headers are inventories of what the person has.
+R3. Return ONLY canonical album codes. Uppercase the letters, strip whitespace/hyphens between the letters and digits ("bra 5" → "BRA5", "EX-12" → "EX12").
+R4. Do NOT invent codes. If a line is illegible, skip it.
+R5. Do NOT include player names, prices, quantities, or commentary text. Only the codes.
+R6. If the same code appears multiple times in the same bucket, return it once. If the same code appears in BOTH buckets, return it in the bucket where it last appeared.
+
+══════════════════════════════════════════════════════════
+OUTPUT FORMAT
+══════════════════════════════════════════════════════════
+Respond with a valid JSON object: { "offered": ["BRA5", "ARG7"], "wanted": ["EX12", "CC4"] }
+
+If you see no codes at all, respond with { "offered": [], "wanted": [] }.`;
+}
+
+export async function extractListFromImage(
+  imageBuffer: Buffer,
+  mimeType: string,
+  collectionName = 'sticker collection',
+): Promise<ExtractedListBuckets> {
+  const activeKey = env.SCAN_PROVIDER === 'groq' ? env.GROQ_API_KEY : env.GEMINI_API_KEY;
+  if (activeKey === 'mock') {
+    return MOCK_LIST_BUCKETS;
+  }
+
+  // `limitInputPixels` caps libvips' decoded-area allocation so a small but
+  // wildly-dimensioned "decompression bomb" (e.g. a 1×500M PNG) can't make the
+  // worker allocate gigabytes before we hand it off to the AI. 50M matches
+  // the cap on the cover-image pipeline in upload.service.ts.
+  const normalizedBuffer = await sharp(imageBuffer, { limitInputPixels: 50_000_000 }).rotate().toBuffer();
+  const base64Image = normalizedBuffer.toString('base64');
+  const prompt = buildListPrompt(collectionName);
+
+  const text = env.SCAN_PROVIDER === 'groq'
+    ? await callGroq(prompt, base64Image, mimeType)
+    : await callGemini(prompt, base64Image, mimeType);
+
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    const preview = cleaned.slice(0, 200).replace(/\s+/g, ' ');
+    throw new Error(`${env.SCAN_PROVIDER} API returned invalid JSON. Preview: ${preview}`);
+  }
+
+  const p = parsed as { offered?: unknown; wanted?: unknown };
+  const normalize = (raw: unknown): string[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((c): c is string => typeof c === 'string')
+      .map(normalizeAlbumCode)
+      .filter((c) => c.length > 0);
+  };
+  return { offered: normalize(p.offered), wanted: normalize(p.wanted) };
+}
+
+/**
+ * normalizeAlbumCode — canonical form used for both scan output and text input.
+ * Uppercases letters, strips whitespace/punctuation between letters and digits,
+ * and rejects anything that doesn't match the {LETTERS}{DIGITS} shape.
+ */
+export function normalizeAlbumCode(raw: string): string {
+  const stripped = raw.toUpperCase().replace(/[\s\-_.·,;:]+/g, '');
+  return /^[A-Z]{2,4}\d{1,3}$/.test(stripped) ? stripped : '';
+}
+
 // Extra stickers require POSITIVE structural evidence — either an "EX"-prefixed album
 // code (back-side decisive signal) or an extra_* variantToken (front-side decisive
 // signal). Without one of those, the model is almost certainly mistaking a shiny/foil

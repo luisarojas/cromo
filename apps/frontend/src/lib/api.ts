@@ -47,6 +47,10 @@ import type {
   PublicProfileAlbum as SharedPublicProfileAlbum,
   PublicProfile as SharedPublicProfile,
   PublicWantedPage as SharedPublicWantedPage,
+  ExternalStickerRef as SharedExternalStickerRef,
+  MatchAgainstMeResult as SharedMatchAgainstMeResult,
+  MatchPairResult as SharedMatchPairResult,
+  ScanListResult as SharedScanListResult,
 } from '@cromo/shared';
 
 // Infrastructure (apiFetch / retryFetch / toQueryString / BASE_URL) lives in
@@ -985,6 +989,65 @@ export async function fetchTradeMatches(
 ): Promise<TradeMatchesPage> {
   const qs = toQueryString({ albumId, ...(opts ?? {}) });
   return apiFetch<TradeMatchesPage>(`/api/v1/trade/matches${qs}`, {}, token);
+}
+
+// ─── External-list matching (third-party / anonymous flows) ────────────────
+export type ExternalStickerRef = SharedExternalStickerRef;
+export type MatchAgainstMeResult = SharedMatchAgainstMeResult;
+export type MatchPairResult = SharedMatchPairResult;
+export type ScanListResult = SharedScanListResult;
+
+export async function matchAgainstMe(
+  body: { albumId: string; theirOffered: string[]; theirWanted: string[] },
+  token: string,
+): Promise<MatchAgainstMeResult> {
+  return apiFetch<MatchAgainstMeResult>(
+    '/api/v1/trade/match-against-me',
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function matchPair(body: {
+  albumTypeKey?: string;
+  a: { offered: string[]; wanted: string[] };
+  b: { offered: string[]; wanted: string[] };
+}): Promise<MatchPairResult> {
+  return apiFetch<MatchPairResult>(
+    '/api/v1/trade/match-pair',
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+/** Public list of all album types, used by the anonymous trade-match flow. */
+export interface AlbumTypeOption { key: string; name: string }
+
+export async function fetchAlbumTypes(): Promise<AlbumTypeOption[]> {
+  const res = await apiFetch<{ items: AlbumTypeOption[] }>('/api/v1/album-types');
+  return res.items;
+}
+
+/** Extract album codes from one or more images of a written/printed list. */
+export async function scanList(
+  files: File[],
+  opts?: { albumTypeKey?: string; token?: string },
+): Promise<ScanListResult> {
+  const form = new FormData();
+  for (const f of files) form.append('images', f, f.name);
+  const qs = toQueryString({ albumTypeKey: opts?.albumTypeKey });
+  // apiFetch always sets Content-Type: application/json on bodies, which
+  // breaks multipart uploads. Use retryFetch directly so the browser can set
+  // the multipart boundary itself.
+  const res = await retryFetch(`${BASE_URL}/api/v1/scan/list${qs}`, {
+    method: 'POST',
+    headers: opts?.token ? { Authorization: `Bearer ${opts.token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<ScanListResult>;
 }
 
 export interface TradesPage {

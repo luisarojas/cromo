@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { normalizeAlbumCode } from './scan.service.js';
 
 export interface TradeMatch {
   user_id: string;
@@ -254,4 +255,223 @@ export async function getTradeMatches(
     .exec();
 
   return result;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// External-list matching (third-party / anonymous flows)
+//
+// matchAgainstUserAlbum — match a third-party's offered/wanted list against a
+//   registered user's collection (their missing + their duplicates).
+// matchPair — purely set-based match between two ephemeral lists, with codes
+//   resolved against the catalog so the response carries player metadata.
+//
+// Both are ephemeral: no persistence, no cache, no rate-limit index.
+// Identity is by album code, not variant — hand-written lists rarely carry
+// variant detail and the existing trade-request flow can refine variants
+// later if the parties decide to formalise.
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface ExternalRef {
+  albumCode: string;
+  playerName: string | null;
+  stickerType: 'extra' | 'coca_cola_special' | null;
+  number: number | null;
+}
+
+export interface MatchAgainstMeOutcome {
+  iGet: ExternalRef[];
+  theyGet: ExternalRef[];
+  unknownCodes: string[];
+  mutualOverlap: number;
+}
+
+export interface MatchPairOutcome {
+  aGets: ExternalRef[];
+  bGets: ExternalRef[];
+  unknownCodes: string[];
+  mutualOverlap: number;
+}
+
+// Cap the number of unknown codes echoed back to the caller. A 500-all-bogus
+// request would otherwise round-trip every garbage token, which is a cheap
+// way to amplify response size. The diagnostic value is the same after ~50.
+const UNKNOWN_ECHO_CAP = 50;
+
+function dedupeCodes(input: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input) {
+    const code = normalizeAlbumCode(raw);
+    if (code && !seen.has(code)) {
+      seen.add(code);
+      out.push(code);
+    }
+  }
+  return out;
+}
+
+interface CatalogLookupRow {
+  album_code: string;
+  player_name: string | null;
+  sticker_type: string;
+  number: number;
+}
+
+async function lookupCatalogCodes(
+  db: Pool,
+  codes: string[],
+  albumTypeKey: string,
+): Promise<Map<string, ExternalRef>> {
+  if (codes.length === 0) return new Map();
+  // album_code is unique within an album type except for Coca-Cola regional
+  // alternates; for those we pick a representative row (any regional variant
+  // satisfies the slot for matching purposes).
+  const { rows } = await db.query<CatalogLookupRow>(
+    `SELECT DISTINCT ON (s.album_code)
+            s.album_code, s.player_name, s.sticker_type, s.number
+       FROM stickers s
+       JOIN album_types at ON at.id = s.album_type_id
+      WHERE at.key = $1
+        AND s.album_code = ANY($2::text[])
+      ORDER BY s.album_code, s.number ASC`,
+    [albumTypeKey, codes],
+  );
+  const map = new Map<string, ExternalRef>();
+  for (const r of rows) {
+    map.set(r.album_code, {
+      albumCode: r.album_code,
+      playerName: r.player_name,
+      stickerType:
+        r.sticker_type === 'extra' ? 'extra'
+        : r.sticker_type === 'coca_cola_special' ? 'coca_cola_special'
+        : null,
+      number: r.number,
+    });
+  }
+  return map;
+}
+
+/**
+ * matchAgainstUserAlbum — third-party list vs. a registered user's collection.
+ * "iGet" is the set of codes the user is missing AND the third party offers.
+ * "theyGet" is the set of codes the user has spares of AND the third party wants.
+ * Album codes are resolved against the catalog (scoped to the user's album type)
+ * so the response carries player metadata for display.
+ */
+export async function matchAgainstUserAlbum(
+  db: Pool,
+  userId: string,
+  albumId: string,
+  input: { theirOffered: string[]; theirWanted: string[] },
+): Promise<MatchAgainstMeOutcome> {
+  const offered = dedupeCodes(input.theirOffered);
+  const wanted = dedupeCodes(input.theirWanted);
+  if (offered.length === 0 && wanted.length === 0) {
+    return { iGet: [], theyGet: [], unknownCodes: [], mutualOverlap: 0 };
+  }
+
+  // Resolve the album's type key once so the catalog lookup is scoped correctly.
+  const { rows: albumRows } = await db.query<{ album_type_key: string }>(
+    `SELECT at.key AS album_type_key
+       FROM user_albums ua
+       JOIN album_types at ON at.id = ua.album_type_id
+      WHERE ua.id = $1 AND ua.user_id = $2`,
+    [albumId, userId],
+  );
+  if (albumRows.length === 0) {
+    throw Object.assign(new Error('Album not found.'), { statusCode: 404 });
+  }
+  const albumTypeKey = albumRows[0]!.album_type_key;
+
+  // Codes the user does NOT own any variant of (= missing slots).
+  // Codes the user owns 2+ copies of (or has trade_forced) — their duplicates.
+  // We intersect inline against the inputs to avoid round-tripping the full
+  // album state. Album code as identity matches the way the album-completion
+  // count works in _sync_user_album_counts.
+  const { rows: stateRows } = await db.query<{
+    album_code: string;
+    owned_qty: string;
+    has_dupe: boolean;
+  }>(
+    `SELECT s.album_code,
+            COALESCE(SUM(us.quantity), 0) AS owned_qty,
+            BOOL_OR((us.quantity > 1) OR us.trade_forced) FILTER (WHERE NOT us.trade_hidden) AS has_dupe
+       FROM stickers s
+       JOIN album_types at ON at.id = s.album_type_id
+       LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id
+       LEFT JOIN user_stickers us
+              ON us.sticker_variant_id = sv.id
+             AND us.album_id = $1
+      WHERE at.key = $2
+        AND s.album_code = ANY($3::text[])
+      GROUP BY s.album_code`,
+    [albumId, albumTypeKey, [...offered, ...wanted]],
+  );
+
+  const ownedByCode = new Map<string, { qty: number; hasDupe: boolean }>();
+  for (const r of stateRows) {
+    ownedByCode.set(r.album_code, {
+      qty: Number(r.owned_qty),
+      hasDupe: !!r.has_dupe,
+    });
+  }
+
+  const myMissingCodes = offered.filter((c) => (ownedByCode.get(c)?.qty ?? 0) === 0);
+  const myDuplicateCodes = wanted.filter((c) => ownedByCode.get(c)?.hasDupe);
+
+  const catalog = await lookupCatalogCodes(db, [...new Set([...offered, ...wanted])], albumTypeKey);
+  const unknownCodes = [...offered, ...wanted].filter((c) => !catalog.has(c));
+
+  const refOf = (c: string): ExternalRef =>
+    catalog.get(c) ?? { albumCode: c, playerName: null, stickerType: null, number: null };
+
+  const iGet = myMissingCodes.filter((c) => catalog.has(c)).map(refOf);
+  const theyGet = myDuplicateCodes.filter((c) => catalog.has(c)).map(refOf);
+
+  return {
+    iGet,
+    theyGet,
+    unknownCodes: [...new Set(unknownCodes)].slice(0, UNKNOWN_ECHO_CAP),
+    mutualOverlap: iGet.length + theyGet.length,
+  };
+}
+
+/**
+ * matchPair — anonymous two-party matching.
+ * Each side specifies offered + wanted. Person A receives stickers that are in
+ * their wanted list AND in B's offered list; vice versa for Person B.
+ * Codes are resolved against the catalog so the response carries player names.
+ */
+export async function matchPair(
+  db: Pool,
+  input: {
+    a: { offered: string[]; wanted: string[] };
+    b: { offered: string[]; wanted: string[] };
+    albumTypeKey: string;
+  },
+): Promise<MatchPairOutcome> {
+  const aOffered = dedupeCodes(input.a.offered);
+  const aWanted = dedupeCodes(input.a.wanted);
+  const bOffered = dedupeCodes(input.b.offered);
+  const bWanted = dedupeCodes(input.b.wanted);
+
+  const allCodes = [...new Set([...aOffered, ...aWanted, ...bOffered, ...bWanted])];
+  const catalog = await lookupCatalogCodes(db, allCodes, input.albumTypeKey);
+  const unknownCodes = allCodes.filter((c) => !catalog.has(c));
+
+  const bOfferedSet = new Set(bOffered);
+  const aOfferedSet = new Set(aOffered);
+
+  const refOf = (c: string): ExternalRef =>
+    catalog.get(c) ?? { albumCode: c, playerName: null, stickerType: null, number: null };
+
+  const aGets = aWanted.filter((c) => bOfferedSet.has(c) && catalog.has(c)).map(refOf);
+  const bGets = bWanted.filter((c) => aOfferedSet.has(c) && catalog.has(c)).map(refOf);
+
+  return {
+    aGets,
+    bGets,
+    unknownCodes: unknownCodes.slice(0, UNKNOWN_ECHO_CAP),
+    mutualOverlap: aGets.length + bGets.length,
+  };
 }

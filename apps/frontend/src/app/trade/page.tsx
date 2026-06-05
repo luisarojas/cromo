@@ -14,20 +14,24 @@ import {
   createTrade,
   setTradeFlags,
   patchUserPreferences,
+  matchAgainstMe,
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
   type TradeSummary,
   type CollectionItem,
   type City,
+  type MatchAgainstMeResult,
 } from '@/lib/api';
 import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
+import CombinedListInput from './components/CombinedListInput';
+import ExternalMatchResult from './components/ExternalMatchResult';
 import CityAutocomplete from '@/components/CityAutocomplete';
 
 import { saveDraft, clearDraft, loadDraft } from './draftStorage';
 
-type Tab = 'find' | 'my';
+type Tab = 'find' | 'third-party' | 'my';
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-[var(--cromo-warning-soft)] text-yellow-800' },
@@ -81,7 +85,11 @@ function TradePageContent() {
   }
 
   const rawTab = searchParams.get('tab');
-  const [tab, setTab] = useState<Tab>(rawTab === 'my' ? 'my' : 'find');
+  const initialTab: Tab =
+    rawTab === 'my' ? 'my'
+    : rawTab === 'third-party' ? 'third-party'
+    : 'find';
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [nearbyOnly, setNearbyOnly] = useState(false);
 
   // Deep link: /trade?recipient=<username> opens the propose modal for that
@@ -124,6 +132,14 @@ function TradePageContent() {
   const [tradesCursor, setTradesCursor] = useState<string | null>(null);
   const [tradesError, setTradesError] = useState<string | null>(null);
 
+  // Third-party (external list) state
+  const [tpAlbumId, setTpAlbumId] = useState<string>('');
+  const [tpOffered, setTpOffered] = useState<string[]>([]);
+  const [tpWanted, setTpWanted] = useState<string[]>([]);
+  const [tpResult, setTpResult] = useState<MatchAgainstMeResult | null>(null);
+  const [tpLoading, setTpLoading] = useState(false);
+  const [tpError, setTpError] = useState<string | null>(null);
+
   // Propose modal
   const [proposeModal, setProposeModal] = useState<ProposeModalState | null>(null);
   const draftRestoredRef = useRef(false);
@@ -146,6 +162,7 @@ function TradePageContent() {
           if (data.length > 0) {
             const defaultAlbum = data.find((a) => a.isDefault) ?? data[0];
             setSelectedAlbumId(defaultAlbum!.id);
+            setTpAlbumId(defaultAlbum!.id);
           }
         }
       } catch {
@@ -365,6 +382,27 @@ function TradePageContent() {
     }
   }
 
+  async function handleTpMatch() {
+    if (!token || !tpAlbumId) return;
+    if (tpOffered.length === 0 && tpWanted.length === 0) {
+      setTpError('Add at least one code to the offered or wanted list.');
+      return;
+    }
+    setTpLoading(true);
+    setTpError(null);
+    try {
+      const result = await matchAgainstMe(
+        { albumId: tpAlbumId, theirOffered: tpOffered, theirWanted: tpWanted },
+        token,
+      );
+      setTpResult(result);
+    } catch (err) {
+      setTpError(err instanceof Error ? err.message : 'Failed to compute match.');
+    } finally {
+      setTpLoading(false);
+    }
+  }
+
   async function handleSendTradeRequest() {
     if (!proposeModal || !token || !user) return;
 
@@ -448,6 +486,16 @@ function TradePageContent() {
           }`}
         >
           Find Trades
+        </button>
+        <button
+          onClick={() => switchTab('third-party')}
+          className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'third-party'
+              ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+              : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
+          }`}
+        >
+          Third-Party List
         </button>
         <button
           onClick={() => switchTab('my')}
@@ -604,6 +652,69 @@ function TradePageContent() {
                 </div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Third-Party tab — match a non-registered person's list against you */}
+      {tab === 'third-party' && (
+        <div className="space-y-5">
+          <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
+            <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-1">
+              Match someone&apos;s list against your collection
+            </h2>
+            <p className="text-xs text-[var(--cromo-fg-muted)] mb-4">
+              Paste a friend&apos;s offered and wanted album codes, or upload a photo
+              of their list. We&apos;ll show what you could trade with them — no
+              account on their side required.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">Album</label>
+              <select
+                value={tpAlbumId}
+                onChange={(e) => setTpAlbumId(e.target.value)}
+                className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+              >
+                {albums.length === 0 && <option value="">No albums found</option>}
+                {albums.map((album) => (
+                  <option key={album.id} value={album.id}>{albumDisplayName(album)}</option>
+                ))}
+              </select>
+            </div>
+
+            <CombinedListInput
+              label="Their list"
+              offered={tpOffered}
+              wanted={tpWanted}
+              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); }}
+              albumTypeKey={albums.find((a) => a.id === tpAlbumId)?.albumTypeKey}
+              token={token ?? undefined}
+            />
+
+            <button
+              onClick={handleTpMatch}
+              disabled={!tpAlbumId || tpLoading}
+              className="mt-4 bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {tpLoading ? 'Matching…' : 'Find Trade'}
+            </button>
+
+            {tpError && (
+              <p className="mt-2 text-xs text-[var(--cromo-danger-text)]">{tpError}</p>
+            )}
+          </div>
+
+          {tpResult && (
+            <ExternalMatchResult
+              title="Optimal trade"
+              leftLabel="You"
+              leftReceives={tpResult.iGet}
+              rightLabel="They"
+              rightReceives={tpResult.theyGet}
+              mutualOverlap={tpResult.mutualOverlap}
+              unknownCodes={tpResult.unknownCodes}
+            />
           )}
         </div>
       )}

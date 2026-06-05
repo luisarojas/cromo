@@ -5,7 +5,7 @@ import type { Pool } from 'pg';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken } from '../../middleware/auth.js';
 import { validateImageBuffer } from '../../services/upload.service.js';
-import { identifySticker, type ScanResult } from '../../services/scan.service.js';
+import { identifySticker, extractListFromImage, normalizeAlbumCode, type ScanResult } from '../../services/scan.service.js';
 import { getStickerByAlbumCode, getStickerByPlayerName } from '../../services/stickers.service.js';
 import { isFeatureFlagEnabled } from '../../services/trust-safety.service.js';
 import { idempotency, storeIdempotent } from '../../services/idempotency.service.js';
@@ -330,6 +330,109 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
 
       writeSSEEvent(reply, 'done', { total: index });
       reply.raw.end();
+    },
+  );
+
+  // ── POST /api/v1/scan/list ────────────────────────────────────────────────
+  // Extract album codes from images of a written/printed sticker list. Public
+  // (no auth) so the anonymous third-party-pair flow on /trade/match can use
+  // it; the only side effect is one AI call, gated by a per-IP rate limit.
+
+  fastify.post(
+    '/api/v1/scan/list',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 hour',
+          keyGenerator: (req) => (req as FastifyRequest).userId ?? req.ip,
+        },
+      },
+      schema: {
+        tags: ['AI Scanning'],
+        summary: 'Extract album codes from one or more images of a written list',
+        consumes: ['multipart/form-data'],
+        querystring: {
+          type: 'object',
+          properties: {
+            // Allow-listed identifier shape — same regex Zod enforces on
+            // /trade/match-pair. Keeps the public surface narrow and rules out
+            // cache-key garbage from anonymous probes.
+            albumTypeKey: { type: 'string', maxLength: 64, pattern: '^[a-z0-9_]+$' },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      if (!await guardFeature(fastify, 'FEATURE_AI_SCANNING', reply)) return;
+
+      const { albumTypeKey } = request.query as { albumTypeKey?: string };
+      const { rows: typeRows } = await fastify.db.query<{ name: string }>(
+        `SELECT name FROM album_types WHERE key = $1 LIMIT 1`,
+        [albumTypeKey ?? 'fifa_world_cup_2026'],
+      );
+      const collectionName = typeRows[0]?.name ?? 'sticker collection';
+
+      const parts = request.files();
+      const offeredAcc: string[] = [];
+      const wantedAcc: string[] = [];
+      const tempPaths: string[] = [];
+      let imageCount = 0;
+
+      try {
+        for await (const part of parts) {
+          imageCount++;
+          if (imageCount > 5) {
+            // Cap so a single anonymous request can't trigger 100 AI calls.
+            return reply.status(413).send({
+              statusCode: 413,
+              error: 'Payload Too Large',
+              message: 'At most 5 images per request.',
+            });
+          }
+
+          const chunks: Buffer[] = [];
+          let total = 0;
+          for await (const chunk of part.file) {
+            total += chunk.length;
+            if (total > MAX_FILE_SIZE) break;
+            chunks.push(chunk);
+          }
+          const buffer = Buffer.concat(chunks);
+
+          try {
+            await validateImageBuffer(buffer);
+            const ext = part.mimetype === 'image/png' ? '.png'
+              : part.mimetype === 'image/webp' ? '.webp'
+              : '.jpg';
+            tempPaths.push(await saveScanTemp(buffer, ext));
+            const buckets = await extractListFromImage(buffer, part.mimetype, collectionName);
+            offeredAcc.push(...buckets.offered);
+            wantedAcc.push(...buckets.wanted);
+          } catch (err) {
+            request.log.warn({ err }, 'list scan: image processing failed');
+          }
+        }
+      } finally {
+        for (const p of tempPaths) await deleteScanTemp(p);
+      }
+
+      // Dedup + normalize per bucket. If a code lands in both buckets across
+      // multiple images, keep it in "wanted" (the more recent intent) and
+      // drop it from "offered" — same precedence the AI prompt uses.
+      const normSet = (raw: string[]): string[] => {
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const r of raw) {
+          const c = normalizeAlbumCode(r);
+          if (c && !seen.has(c)) { seen.add(c); out.push(c); }
+        }
+        return out;
+      };
+      const wanted = normSet(wantedAcc);
+      const wantedSet = new Set(wanted);
+      const offered = normSet(offeredAcc).filter((c) => !wantedSet.has(c));
+      return reply.status(200).send({ offered, wanted });
     },
   );
 }

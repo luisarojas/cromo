@@ -546,6 +546,32 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /**
+   * GET /api/v1/album-types
+   * Public — returns every album type as { key, name }. Used by the anonymous
+   * trade-match flow to pick which catalog to validate codes against.
+   */
+  fastify.get(
+    '/api/v1/album-types',
+    {
+      schema: {
+        tags: ['Albums'],
+        summary: 'List all album types',
+      },
+    },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const cacheKey = 'album_types:all';
+      const cached = await fastify.redis.get(cacheKey);
+      if (cached) return reply.status(200).send({ items: JSON.parse(cached) });
+
+      const { rows } = await fastify.db.query<{ key: string; name: string }>(
+        `SELECT key, name FROM album_types ORDER BY created_at ASC`,
+      );
+      await fastify.redis.set(cacheKey, JSON.stringify(rows), 'EX', 86400);
+      return reply.status(200).send({ items: rows });
+    },
+  );
+
+  /**
    * GET /api/v1/album-types/:typeKey/editions
    * Public — returns the ordered list of editions for an album type.
    */
