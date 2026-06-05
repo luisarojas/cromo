@@ -173,4 +173,135 @@ CC: 7`;
       expect(wanted).toEqual(['MEX1']);
     });
   });
+
+  describe('country-name aliases', () => {
+    it('translates single-word country names to FIFA codes', () => {
+      const { offered } = parseTradeList(
+        'Mexico: 6, 10\nBrazil: 1, 3\nGermany: 9, 12',
+      );
+      expect(offered.sort()).toEqual([
+        'BRA1', 'BRA3', 'GER12', 'GER9', 'MEX10', 'MEX6',
+      ]);
+    });
+
+    it('translates multi-word country names to FIFA codes', () => {
+      const { offered } = parseTradeList(
+        'South Korea: 1, 3, 7\nSouth Africa: 2, 3\nNew Zealand: 4, 5',
+      );
+      expect(offered.sort()).toEqual([
+        'KOR1', 'KOR3', 'KOR7', 'NZL4', 'NZL5', 'RSA2', 'RSA3',
+      ]);
+    });
+
+    it('handles "Cote D\'Ivoire" with a curly apostrophe', () => {
+      const input = 'Cote D’Ivoire: 1, 4, 5';
+      const { offered } = parseTradeList(input);
+      expect(offered.sort()).toEqual(['CIV1', 'CIV4', 'CIV5']);
+    });
+
+    it('handles "Bosnia & Herzegovina" with the ampersand variant', () => {
+      const { offered } = parseTradeList('Bosnia & Herzegovina: 2, 3');
+      expect(offered.sort()).toEqual(['BIH2', 'BIH3']);
+    });
+
+    it('matches a multi-word alias before its single-word substring', () => {
+      // "Bosnia" alone resolves to BIH too, but the full name must win first
+      // so users who write the formal label still get the right code.
+      const { offered } = parseTradeList('Bosnia and Herzegovina: 9');
+      expect(offered).toEqual(['BIH9']);
+    });
+
+    it('handles common misspellings and exonyms', () => {
+      const { offered } = parseTradeList(
+        'Columbia: 4, 6\nHolland: 1\nIvory Coast: 5',
+      );
+      expect(offered.sort()).toEqual(['CIV5', 'COL4', 'COL6', 'NED1']);
+    });
+
+    it('handles accented names ("Türkiye", "Curaçao") via NFD normalisation', () => {
+      const { offered } = parseTradeList('Türkiye: 2, 3\nCuraçao: 6, 7');
+      expect(offered.sort()).toEqual(['CUW6', 'CUW7', 'TUR2', 'TUR3']);
+    });
+
+    it('handles "FIFA WORLD CUP" as a header for FWC codes', () => {
+      const { offered } = parseTradeList('FIFA WORLD CUP: 2, 3, 5, 9');
+      expect(offered.sort()).toEqual(['FWC2', 'FWC3', 'FWC5', 'FWC9']);
+    });
+
+    it('handles "Congo DR" (and "DR Congo") for CGO', () => {
+      const a = parseTradeList('Congo DR: 1, 5, 7');
+      const b = parseTradeList('DR Congo: 1, 5, 7');
+      expect(a.offered.sort()).toEqual(['CGO1', 'CGO5', 'CGO7']);
+      expect(b.offered.sort()).toEqual(['CGO1', 'CGO5', 'CGO7']);
+    });
+  });
+
+  describe('glued-number typo recovery', () => {
+    it('splits a 3-digit run into 1+2 when only that split is valid', () => {
+      // "Belgium: 2, 5, 6, 714, 15, 16, 18" — "714" is "7, 14" with a missing
+      // comma. 7+14 → both valid 1–2-digit sticker numbers.
+      const { offered } = parseTradeList('Belgium: 2, 5, 6, 714, 15');
+      expect(offered.sort()).toEqual([
+        'BEL14', 'BEL15', 'BEL2', 'BEL5', 'BEL6', 'BEL7',
+      ]);
+    });
+
+    it('splits a 4-digit run into 2+2', () => {
+      // "Uzbekistan: 3, 5, 7, 9, 13, 14, 1920" — "1920" is "19, 20".
+      const { offered } = parseTradeList('Uzbekistan: 13, 14, 1920');
+      expect(offered.sort()).toEqual(['UZB13', 'UZB14', 'UZB19', 'UZB20']);
+    });
+
+    it('drops digit runs that have no unambiguous split', () => {
+      // "100" splits to 1+00 (invalid) or 10+0 (invalid) → drop entirely.
+      const { offered } = parseTradeList('MEX: 5, 100, 7');
+      expect(offered.sort()).toEqual(['MEX5', 'MEX7']);
+    });
+  });
+
+  describe('full real-world paste with DUPLICATES / WHAT I NEED sections', () => {
+    // Condensed version of a collector list the parser used to choke on —
+    // mixes country names, multi-word names, accents-free exonyms, the
+    // ampersand variant, FIFA WORLD CUP header, and glued-number typos.
+    const input = `DUPLICATES:
+Mexico: 6, 10, 11
+South Africa: 2, 3, 4
+South Korea: 1, 3
+Cote D'Ivoire: 1, 4, 5
+Bosnia: 2, 3, 5
+Belgium: 2, 5, 6, 714, 15
+Congo DR: 1, 5
+Columbia: 4, 6
+FIFA WORLD CUP: 00, 2, 3
+WHAT I NEED:
+Mexico: 1, 3
+South Korea: 4, 5
+Uzbekistan: 13, 14, 1920
+Cabo Verde: 1, 2, 3
+Turkey: 6, 13`;
+
+    it('buckets every code into the right side and recovers glued typos', () => {
+      const { offered, wanted } = parseTradeList(input);
+      // DUPLICATES side
+      expect(offered.sort()).toEqual([
+        'BEL14', 'BEL15', 'BEL2', 'BEL5', 'BEL6', 'BEL7',
+        'BIH2', 'BIH3', 'BIH5',
+        'CGO1', 'CGO5',
+        'CIV1', 'CIV4', 'CIV5',
+        'COL4', 'COL6',
+        'FWC2', 'FWC3',
+        'KOR1', 'KOR3',
+        'MEX10', 'MEX11', 'MEX6',
+        'RSA2', 'RSA3', 'RSA4',
+      ]);
+      // WHAT I NEED side
+      expect(wanted.sort()).toEqual([
+        'CPV1', 'CPV2', 'CPV3',
+        'KOR4', 'KOR5',
+        'MEX1', 'MEX3',
+        'TUR13', 'TUR6',
+        'UZB13', 'UZB14', 'UZB19', 'UZB20',
+      ]);
+    });
+  });
 });
