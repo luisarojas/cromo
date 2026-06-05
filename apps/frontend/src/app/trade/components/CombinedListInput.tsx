@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { parseTradeList } from '@cromo/shared';
 import { scanList } from '@/lib/api';
 
 interface Props {
@@ -15,20 +16,6 @@ interface Props {
   token?: string;
 }
 
-// Section markers — kept in lowercase, matched case-insensitively. Spanish
-// markers are included because the user base spans both languages and the
-// product domain (Panini stickers) is heavily Latin American.
-const OFFERED_MARKERS = [
-  'have', 'haves', 'offered', 'offering', 'for trade', 'fortrade',
-  'dupes', 'duplicates', 'duplicate', 'tiene', 'tengo', 'ofrezco',
-];
-const WANTED_MARKERS = [
-  'want', 'wants', 'wanted', 'need', 'needs', 'looking for', 'lookingfor',
-  'busca', 'busco', 'falta', 'faltan', 'necesito',
-];
-
-type Bucket = 'offered' | 'wanted';
-
 // Client-side guard rails. The server already caps each bucket at 500 codes
 // in its Zod schema; we mirror that here so the UI fails fast with a clear
 // message instead of the user submitting and getting a 400. The text cap
@@ -37,60 +24,11 @@ type Bucket = 'offered' | 'wanted';
 const MAX_BUCKET_CODES = 500;
 const MAX_TEXT_LENGTH = 16_000;
 
-/**
- * Parse a single block of text into separate offered/wanted code lists.
- * Walks the text token-by-token tracking the current bucket; section markers
- * (HAVE / OFFERED / WANT / WANTED / Spanish equivalents) flip the bucket.
- * Codes that appear before any marker default to "offered" — that's the most
- * common case (someone hands you their list of duplicates).
- */
 function parseCombinedText(value: string): { offered: string[]; wanted: string[] } {
-  // Split on whitespace and punctuation, but KEEP colons/section words intact.
-  // We tokenise twice: once on lines (to detect headers like "HAVE:") then
-  // once within each line (to pick out codes).
-  const offered = new Set<string>();
-  const wanted = new Set<string>();
-  let current: Bucket = 'offered';
-
-  const lines = value.split(/\n+/);
-  for (const rawLine of lines) {
-    const line = rawLine.toLowerCase().trim();
-    if (!line) continue;
-
-    // Check if this line is (or starts with) a section header. A header line
-    // is "HAVE:", "WANT:", "I want:", "Looking for —", etc. We match if the
-    // line starts with one of the marker phrases.
-    const stripped = line.replace(/^[^a-zñáéíóú]+/, '');
-    const matchedOffered = OFFERED_MARKERS.find((m) => stripped.startsWith(m));
-    const matchedWanted = WANTED_MARKERS.find((m) => stripped.startsWith(m));
-    if (matchedOffered && (!matchedWanted || matchedOffered.length >= matchedWanted.length)) {
-      current = 'offered';
-      // Fall through: the same line may contain codes after the header.
-    } else if (matchedWanted) {
-      current = 'wanted';
-    }
-
-    // Now harvest codes from the line.
-    const tokens = rawLine
-      .split(/[\s,;]+/)
-      .map((t) => t.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''));
-    for (const t of tokens) {
-      if (/^[A-Z]{2,4}\d{1,3}$/.test(t)) {
-        // If a code appears in both buckets across the same text, the most
-        // recent occurrence wins — same precedence as the AI prompt.
-        if (current === 'offered') { wanted.delete(t); offered.add(t); }
-        else { offered.delete(t); wanted.add(t); }
-      }
-      // Bail out the moment either bucket is full — we don't need to keep
-      // scanning a paste-bomb past the server limit.
-      if (offered.size >= MAX_BUCKET_CODES && wanted.size >= MAX_BUCKET_CODES) break;
-    }
-    if (offered.size >= MAX_BUCKET_CODES && wanted.size >= MAX_BUCKET_CODES) break;
-  }
-
+  const { offered, wanted } = parseTradeList(value);
   return {
-    offered: [...offered].slice(0, MAX_BUCKET_CODES),
-    wanted: [...wanted].slice(0, MAX_BUCKET_CODES),
+    offered: offered.slice(0, MAX_BUCKET_CODES),
+    wanted: wanted.slice(0, MAX_BUCKET_CODES),
   };
 }
 
@@ -158,7 +96,7 @@ export default function CombinedListInput({
         onChange={(e) => handleTextChange(e.target.value)}
         rows={6}
         maxLength={MAX_TEXT_LENGTH}
-        placeholder={'HAVE: BRA5, ARG7, EX12\nWANT: MEX1, BRA10'}
+        placeholder={'HAVE\nBRA: 5, 7, 12\nARG 4, 9\n\nWANT\nMEX 1, 10\nFWC: 3'}
         className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] font-mono"
       />
       {truncated && (
@@ -168,7 +106,7 @@ export default function CombinedListInput({
       )}
       <div className="mt-1 flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-[var(--cromo-fg-subtle)]">
-          {helper ?? 'Use HAVE: / WANT: section headers. Codes before any header are treated as offered.'}
+          {helper ?? 'Use HAVE / WANT section headers. Inline codes (BRA5) or prefix-then-numbers (BRA: 5, 7) both work.'}
           {(offered.length > 0 || wanted.length > 0) && (
             <span className="ml-1">
               · <span className="text-[var(--cromo-success-text)] font-medium">{offered.length} offered</span>

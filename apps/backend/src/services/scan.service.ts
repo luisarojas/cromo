@@ -328,15 +328,22 @@ The image shows a hand-written, typed, or printed list of stickers. The list may
 
 Each entry is an album code — a short alphanumeric token (e.g. "BRA5", "ARG12", "EX3", "CC7", "FWC4", "MEX18"). Codes follow the pattern: 2–4 uppercase letters (country FIFA code or subset prefix like EX/CC/FWC) immediately followed by 1–3 digits.
 
+Entries may be written in either of two styles, and a single image often mixes both:
+  • Inline form: "BRA5, ARG7, MEX18" — letters and digits glued together.
+  • Prefix-then-numbers form: "BRA: 5, 7, 12" or "BRA - 5, 7, 12" or "BRA 5 7 12" — a country/subset prefix appears once and applies to every number that follows on the same line. Each number becomes its own code (BRA5, BRA7, BRA12). This is the most common shape for handwritten lists.
+
+Flag emoji, sport icons, bullet characters, and separators (":", "-", "—", "/", "·") next to a prefix are decoration — ignore them.
+
 ══════════════════════════════════════════════════════════
 RULES
 ══════════════════════════════════════════════════════════
 R1. Read the image top-to-bottom, left-to-right. Track the current section as you go: each section header switches the current bucket.
 R2. Codes that appear BEFORE any section header — or in an image with no headers at all — go into "offered". Most lists shown without explicit headers are inventories of what the person has.
-R3. Return ONLY canonical album codes. Uppercase the letters, strip whitespace/hyphens between the letters and digits ("bra 5" → "BRA5", "EX-12" → "EX12").
-R4. Do NOT invent codes. If a line is illegible, skip it.
-R5. Do NOT include player names, prices, quantities, or commentary text. Only the codes.
+R3. Return ONLY canonical album codes. Uppercase the letters and emit them glued to the digit ("bra 5" → "BRA5", "EX-12" → "EX12"). For a prefix-then-numbers line, expand it: "BRA: 5, 7, 12" → ["BRA5", "BRA7", "BRA12"].
+R4. Do NOT invent codes. If a line is illegible, skip it. Skip orphan numbers that aren't preceded by a prefix on the same line.
+R5. Do NOT include player names, prices, quantities, or commentary text (e.g. "first to have full page"). Only the codes.
 R6. If the same code appears multiple times in the same bucket, return it once. If the same code appears in BOTH buckets, return it in the bucket where it last appeared.
+R7. A prefix on one line never carries to the next line. If line N is "BRA: 5, 7" and line N+1 is "9, 12" with no prefix, drop the orphan numbers on line N+1.
 
 ══════════════════════════════════════════════════════════
 OUTPUT FORMAT
