@@ -97,6 +97,10 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'v0.1.0',
     date: '2026-06-05',
-    changes: {},
+    changes: {
+      Added: [
+        'Initial release.',
+      ],
+    },
   },
 ];
