@@ -482,14 +482,6 @@ export default function StickerGrid({
     [userId, albumId, token, onCollectionChange, addToast],
   );
 
-  if (stickers.length === 0) {
-    return (
-      <div className="flex h-40 items-center justify-center text-[var(--cromo-fg-subtle)] text-sm">
-        No stickers found.
-      </div>
-    );
-  }
-
   // Distinct group names, in the order they appear in the list. Drives the
   // right-edge jump rail. Only render the rail when there's more than one
   // group to jump to — otherwise it's noise.
@@ -504,6 +496,14 @@ export default function StickerGrid({
     }
     return list;
   }, [virtualRows]);
+
+  if (stickers.length === 0) {
+    return (
+      <div className="flex h-40 items-center justify-center text-[var(--cromo-fg-subtle)] text-sm">
+        No stickers found.
+      </div>
+    );
+  }
 
   return (
     <>
