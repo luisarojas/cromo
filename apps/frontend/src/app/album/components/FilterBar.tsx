@@ -176,6 +176,113 @@ export default function FilterBar({
     });
   });
 
+  // The expandable advanced panel is identical on desktop and mobile — only
+  // its container differs (inline on md+, bottom-sheet on mobile). Render it
+  // through a single function to keep the two layouts in lockstep without
+  // duplicating five MultiSelects.
+  const advancedPanel = (
+    <div className="flex flex-wrap gap-3 items-end">
+      {groupOptions.length > 0 && (
+        <MultiSelect
+          id="filter-group"
+          label="Group"
+          options={groupOptions}
+          value={filters.group ?? []}
+          onChange={(v) => updateMulti('group', v)}
+          placeholder="All groups"
+        />
+      )}
+      {teamOptions.length > 0 && (
+        <MultiSelect
+          id="filter-team"
+          label="Team"
+          options={teamOptions}
+          value={filters.team ?? []}
+          onChange={(v) => updateMulti('team', v)}
+          placeholder="All teams"
+        />
+      )}
+      {typeOptions.length > 0 && (
+        <MultiSelect
+          id="filter-type"
+          label="Type"
+          options={typeOptions}
+          value={filters.type ?? []}
+          onChange={(v) => updateMulti('type', v)}
+          placeholder="All types"
+        />
+      )}
+      {variantOptions.length > 0 && (
+        <MultiSelect
+          id="filter-variant"
+          label="Variant"
+          options={variantOptions}
+          value={filters.variant ?? []}
+          onChange={(v) => updateMulti('variant', v)}
+          placeholder="Any variant"
+          className="min-w-52"
+        />
+      )}
+
+      {showFavourites && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Favourites</span>
+          <button
+            type="button"
+            onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
+            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+              filters.favouritesOnly
+                ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]'
+                : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
+            }`}
+          >
+            <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
+            Only
+          </button>
+        </div>
+      )}
+      {showWanted && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Wishlist</span>
+          <button
+            type="button"
+            onClick={() => onChange({ ...filters, wantedOnly: filters.wantedOnly ? undefined : true })}
+            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
+              filters.wantedOnly
+                ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
+                : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
+            }`}
+            aria-pressed={filters.wantedOnly ?? false}
+          >
+            <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
+            Wanted
+          </button>
+        </div>
+      )}
+      {showRecent && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="filter-recent" className="text-xs font-medium text-[var(--cromo-fg-muted)]">
+            Updated in last
+          </label>
+          <div className="flex items-center gap-1.5">
+            <input
+              id="filter-recent"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              placeholder="—"
+              value={recentDraft}
+              onChange={(e) => setRecentDraft(e.target.value.replace(/[^\d]/g, ''))}
+              className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+            />
+            <span className="text-xs text-[var(--cromo-fg-muted)]">min</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-2 bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-xl p-4">
 
@@ -225,115 +332,63 @@ export default function FilterBar({
         </button>
       </div>
 
-      {/* Expanded filter panel */}
+      {/* Expanded filter panel — inline on desktop, sheet on mobile. */}
       {expanded && (
-        <div className="flex flex-wrap gap-3 items-end pt-3 border-t border-[var(--cromo-border)]">
-          {groupOptions.length > 0 && (
-            <MultiSelect
-              id="filter-group"
-              label="Group"
-              options={groupOptions}
-              value={filters.group ?? []}
-              onChange={(v) => updateMulti('group', v)}
-              placeholder="All groups"
-            />
-          )}
-
-          {teamOptions.length > 0 && (
-            <MultiSelect
-              id="filter-team"
-              label="Team"
-              options={teamOptions}
-              value={filters.team ?? []}
-              onChange={(v) => updateMulti('team', v)}
-              placeholder="All teams"
-            />
-          )}
-
-          {typeOptions.length > 0 && (
-            <MultiSelect
-              id="filter-type"
-              label="Type"
-              options={typeOptions}
-              value={filters.type ?? []}
-              onChange={(v) => updateMulti('type', v)}
-              placeholder="All types"
-            />
-          )}
-
-          {variantOptions.length > 0 && (
-            <MultiSelect
-              id="filter-variant"
-              label="Variant"
-              options={variantOptions}
-              value={filters.variant ?? []}
-              onChange={(v) => updateMulti('variant', v)}
-              placeholder="Any variant"
-              className="min-w-52"
-            />
-          )}
-
-          {/* Favourites toggle */}
-          {showFavourites && (
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Favourites</span>
+        <div className="hidden md:block pt-3 border-t border-[var(--cromo-border)]">
+          {advancedPanel}
+        </div>
+      )}
+      {expanded && (
+        <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-label="Filter stickers">
+          {/* Scrim — taps close. */}
+          <button
+            type="button"
+            aria-label="Close filters"
+            onClick={() => setExpanded(false)}
+            className="absolute inset-0 bg-black/50"
+          />
+          {/* Sheet body. Pinned to bottom; capped at ~80vh so the user can
+              always see they can scroll the inner panel on small phones. */}
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-[var(--cromo-surface)] shadow-cromo-lg flex flex-col"
+            style={{
+              maxHeight: '80vh',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            }}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-4 py-3">
+              <span className="text-sm font-semibold text-[var(--cromo-fg)]">Filters</span>
               <button
                 type="button"
-                onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
-                className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                  filters.favouritesOnly
-                    ? 'border-[var(--cromo-danger)]/40 bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]'
-                    : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
-                }`}
+                onClick={() => setExpanded(false)}
+                aria-label="Close"
+                className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] p-1"
               >
-                <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
-                Only
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
-          )}
-
-          {/* Wishlist toggle */}
-          {showWanted && (
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Wishlist</span>
+            <div className="overflow-y-auto px-4 py-4">{advancedPanel}</div>
+            <div className="border-t border-[var(--cromo-border)] px-4 py-3 flex gap-2">
               <button
                 type="button"
-                onClick={() => onChange({ ...filters, wantedOnly: filters.wantedOnly ? undefined : true })}
-                className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors ${
-                  filters.wantedOnly
-                    ? 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
-                    : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] hover:text-[var(--cromo-fg)]'
-                }`}
-                aria-pressed={filters.wantedOnly ?? false}
+                onClick={() => onChange({})}
+                disabled={!hasActiveFilter}
+                className="flex-1 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg-muted)] text-sm font-medium py-2 disabled:opacity-50"
               >
-                <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
-                Wanted
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="flex-1 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-sm font-semibold py-2 hover:bg-[var(--cromo-accent-strong)]"
+              >
+                Done
               </button>
             </div>
-          )}
-
-          {/* Recently updated (minutes) */}
-          {showRecent && (
-            <div className="flex flex-col gap-1">
-              <label htmlFor="filter-recent" className="text-xs font-medium text-[var(--cromo-fg-muted)]">
-                Updated in last
-              </label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  id="filter-recent"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  placeholder="—"
-                  value={recentDraft}
-                  onChange={(e) => setRecentDraft(e.target.value.replace(/[^\d]/g, ''))}
-                  className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
-                />
-                <span className="text-xs text-[var(--cromo-fg-muted)]">min</span>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 

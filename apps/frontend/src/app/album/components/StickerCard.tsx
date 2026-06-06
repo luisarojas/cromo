@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
 import { HeartIcon } from '@/components/HeartIcon';
@@ -16,10 +17,26 @@ interface Props {
   isFavourited?: boolean;
   onToggleFavourite?: () => void;
   onOpenPopover: (anchor: HTMLElement) => void;
+  // Horizontal swipe shortcut. Right = +1 default Base, Left = -1 first owned.
+  // Undefined when the parent doesn't want gestures (e.g. selection mode).
+  onSwipeAdjust?: (direction: 'left' | 'right') => void;
+  // Fires after a sustained press (~500ms) with no significant movement.
+  // Caller decides what it means in context — entering selection mode for an
+  // owned sticker, adding to wishlist for an unowned one.
+  onLongPress?: () => void;
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (shiftKey: boolean) => void;
 }
+
+const LONG_PRESS_MS = 480;
+const LONG_PRESS_TOLERANCE_PX = 8;
+
+// Pixels of horizontal travel before a swipe commits. Below threshold the
+// card snaps back without firing — keeps accidental drags inert.
+const SWIPE_THRESHOLD = 60;
+// Cap the visual translate so the card doesn't fly across the grid.
+const SWIPE_MAX = 90;
 
 const TYPE_COLORS: Record<string, string> = {
   player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
@@ -38,6 +55,8 @@ export default function StickerCard({
   isFavourited,
   onToggleFavourite,
   onOpenPopover,
+  onSwipeAdjust,
+  onLongPress,
   selectionMode,
   isSelected,
   onToggleSelect,
@@ -51,28 +70,122 @@ export default function StickerCard({
   const owned = ownedEntries.length > 0;
   const totalQuantity = ownedEntries.reduce((sum, [, e]) => sum + e.quantity, 0);
 
+  // Touch-driven swipe. We capture the start X on touchstart, track dx while
+  // moving, suppress the synthetic click if the gesture commits, and hand the
+  // direction back to the parent. Vertical drags (|dy| > |dx|) bail out so the
+  // user can still scroll the list past a card without accidentally toggling.
+  const startRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const committedRef = useRef(false);
+  // A long-press timer that's armed on touchstart and disarmed by movement,
+  // touchend, or commit. We treat the fire as the click-suppressing event
+  // (same channel as a committed swipe) so the popover doesn't *also* open.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const gesturesEnabled = !!onSwipeAdjust && !selectionMode;
+  const longPressEnabled = !!onLongPress && !selectionMode;
+
+  function cancelLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0]!;
+    if (gesturesEnabled || longPressEnabled) {
+      startRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+      committedRef.current = false;
+    }
+    if (longPressEnabled) {
+      cancelLongPress();
+      longPressTimerRef.current = setTimeout(() => {
+        committedRef.current = true;
+        onLongPress?.();
+      }, LONG_PRESS_MS);
+    }
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!startRef.current) return;
+    const t = e.touches[0]!;
+    const dx = t.clientX - startRef.current.x;
+    const dy = t.clientY - startRef.current.y;
+    // Any meaningful movement cancels a pending long-press.
+    if (Math.abs(dx) > LONG_PRESS_TOLERANCE_PX || Math.abs(dy) > LONG_PRESS_TOLERANCE_PX) {
+      cancelLongPress();
+    }
+    if (!gesturesEnabled) return;
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // vertical scroll wins — abandon the swipe.
+      startRef.current = null;
+      setDragX(0);
+      return;
+    }
+    setDragX(Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx)));
+  }
+  function onTouchEnd() {
+    cancelLongPress();
+    if (!startRef.current) {
+      setDragX(0);
+      return;
+    }
+    if (gesturesEnabled && dragX >= SWIPE_THRESHOLD) {
+      committedRef.current = true;
+      onSwipeAdjust?.('right');
+    } else if (gesturesEnabled && dragX <= -SWIPE_THRESHOLD) {
+      committedRef.current = true;
+      onSwipeAdjust?.('left');
+    }
+    startRef.current = null;
+    setDragX(0);
+  }
+
+  const swipeIntent = dragX > 10 ? 'add' : dragX < -10 ? 'remove' : null;
+
   return (
     <button
       type="button"
       onClick={(e) => {
+        // If a swipe just committed, swallow the click so the popover doesn't open.
+        if (committedRef.current) {
+          committedRef.current = false;
+          e.preventDefault();
+          return;
+        }
         if (selectionMode && onToggleSelect) {
           onToggleSelect(e.shiftKey);
         } else {
           onOpenPopover(e.currentTarget);
         }
       }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={() => { cancelLongPress(); startRef.current = null; setDragX(0); }}
+      style={dragX !== 0 ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
       className={`
         group relative flex flex-col rounded-lg border p-2.5 text-sm text-left
-        transition-all duration-150 select-none w-full
+        transition-all duration-150 select-none w-full touch-pan-y
         ${
           selectionMode && isSelected
             ? 'border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] ring-2 ring-blue-200'
-            : owned
-              ? 'border-green-400 bg-[var(--cromo-success-soft)] hover:border-[var(--cromo-border-strong)]'
-              : 'border-[var(--cromo-border)] bg-[var(--cromo-surface)] opacity-70 hover:opacity-100 hover:border-[var(--cromo-border-strong)]'
+            : swipeIntent === 'add'
+              ? 'border-[var(--cromo-success)] bg-[var(--cromo-success-soft)]'
+              : swipeIntent === 'remove'
+                ? 'border-[var(--cromo-danger)] bg-[var(--cromo-danger-soft)]'
+                : owned
+                  ? 'border-green-400 bg-[var(--cromo-success-soft)] hover:border-[var(--cromo-border-strong)]'
+                  : 'border-[var(--cromo-border)] bg-[var(--cromo-surface)] opacity-70 hover:opacity-100 hover:border-[var(--cromo-border-strong)]'
         }
       `}
     >
+      {/* Swipe affordance: subtle arrow on the inactive edge once a swipe is underway. */}
+      {swipeIntent === 'add' && (
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 left-1 flex items-center text-[var(--cromo-success-text)] text-base font-bold">+1</span>
+      )}
+      {swipeIntent === 'remove' && (
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[var(--cromo-danger-text)] text-base font-bold">−1</span>
+      )}
       {sticker.isFoil && (
         <span
           className="absolute top-1.5 right-1.5 text-xs"

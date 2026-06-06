@@ -14,6 +14,25 @@ import {
 import { useAuthStore } from '@/store/auth';
 import { useAlbumsStore } from '@/store/albums';
 import { Alert, Badge, Button, Card, PageHeader, Stat } from '@/components/ui';
+import { readLastScan, clearLastScan, readStreak, type LastScan } from '@/lib/lastScan';
+
+// New users on the dashboard who have never scanned see a one-time card that
+// explains we'll ask for camera access on first scan. Browsers only prompt in
+// response to a user gesture, so we precondition the user mentally before they
+// land on /scan — denial is sticky on most browsers and a cold prompt is the
+// most common cause of denials.
+const PRIMER_DISMISS_KEY = 'cromo:dashboardCameraPrimerDismissed';
+const CAMERA_PRIMED_KEY = 'cromo:cameraPrimed';
+function shouldShowDashboardPrimer(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (window.localStorage.getItem(PRIMER_DISMISS_KEY) === '1') return false;
+    if (window.localStorage.getItem(CAMERA_PRIMED_KEY) === '1') return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const EDITION_TINTS: Record<string, { dot: string; bar: string }> = {
   north_america: { dot: '#60A5FA', bar: '#60A5FA' },
@@ -37,6 +56,15 @@ export default function DashboardPage() {
 
   const [filterType, setFilterType] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
+  const [lastScan, setLastScan] = useState<LastScan | null>(null);
+  const [showCameraPrimer, setShowCameraPrimer] = useState(false);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    setLastScan(readLastScan());
+    setShowCameraPrimer(shouldShowDashboardPrimer());
+    setStreak(readStreak().current);
+  }, []);
   const [allAlbumTypeNames, setAllAlbumTypeNames] = useState<string[]>([]);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -441,6 +469,79 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Camera primer for new users — shown once, dismissed forever once
+            the user either taps "Got it" or successfully grants camera access
+            in the Scanner (which sets cromo:cameraPrimed). */}
+        {showCameraPrimer && albums.length > 0 && (
+          <div className="mb-6 flex items-start gap-3 rounded-card border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 8a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-[var(--cromo-fg)] leading-tight">Heads-up before your first scan</p>
+              <p className="text-xs text-[var(--cromo-fg-muted)] leading-tight mt-1">
+                We&apos;ll ask for camera access the first time you open the scanner. Photos go to the AI identifier only — never stored unless you keep the sticker.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                try { window.localStorage.setItem(PRIMER_DISMISS_KEY, '1'); } catch { /* ignore */ }
+                setShowCameraPrimer(false);
+              }}
+              className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]"
+            >
+              Got it
+            </button>
+          </div>
+        )}
+
+        {/* Resume scanning — surfaces only when there's a fresh lastScan
+            pointer (set whenever the Scanner mounts for an album). One tap
+            puts the user back in the same scanning context they left. */}
+        {lastScan && albums.some((a) => a.id === lastScan.albumId) && (
+          <div className="mb-8">
+            <h2 className="text-xs font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
+              Pick up where you left off
+            </h2>
+            <div className="flex items-center gap-3 rounded-card border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent-soft)] px-4 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)]">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2" />
+                  <circle cx="12" cy="12" r="3.5" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[var(--cromo-fg)] leading-tight">Resume scanning</p>
+                <p className="text-xs text-[var(--cromo-fg-muted)] leading-tight mt-0.5 truncate">{lastScan.albumLabel}</p>
+                {streak >= 2 && (
+                  <p className="text-[11px] font-semibold text-[var(--cromo-accent)] mt-0.5">
+                    🔥 {streak}-day scan streak
+                  </p>
+                )}
+              </div>
+              <Link
+                href="/scan"
+                className="shrink-0 rounded-btn bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-3 py-1.5 text-xs font-semibold hover:bg-[var(--cromo-accent-strong)] transition-colors"
+              >
+                Continue
+              </Link>
+              <button
+                aria-label="Dismiss"
+                onClick={() => { clearLastScan(); setLastScan(null); }}
+                className="shrink-0 text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] p-1"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Quick actions */}
         <div>
           <h2 className="text-xs font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
@@ -480,13 +581,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk action bar — anchored above the MobileTabBar via the shared
+          --cromo-tabbar-h token (0px on desktop, h-14 + safe area on mobile). */}
       {selectMode && selectedIds.size > 0 && (
         <div
-          className="fixed bottom-0 inset-x-0 z-40 border-t shadow-cromo-lg"
+          className="fixed inset-x-0 z-40 border-t shadow-cromo-lg"
           style={{
             background: 'var(--cromo-surface)',
             borderColor: 'var(--cromo-border)',
+            bottom: 'var(--cromo-tabbar-h)',
           }}
         >
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-2 flex-wrap">

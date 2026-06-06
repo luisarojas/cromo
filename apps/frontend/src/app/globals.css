@@ -204,6 +204,24 @@ body {
 .shadow-cromo-lg { box-shadow: var(--cromo-shadow-lg); }
 
 /* ============================================================
+   Layout tokens — single source of truth for fixed-bottom chrome.
+   --cromo-tabbar-h is the height of the MobileTabBar (h-14 = 3.5rem)
+   plus the iOS safe-area inset. Any fixed-bottom action bar (mass
+   select bars, bulk action footers, etc.) should anchor itself via
+   `bottom: var(--cromo-tabbar-h)` so it sits flush above the tab
+   bar on mobile and at 0 on desktop, where there is no tab bar.
+   Keeping this in one place means we never need to grep for hard-
+   coded `pb-14` / `bottom-14` again — the layout shrinks/grows
+   from one knob.
+   ============================================================ */
+:root {
+  --cromo-tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  :root { --cromo-tabbar-h: 0px; }
+}
+
+/* ============================================================
    Form controls — adopt theme colors out of the box.
    ============================================================ */
 input, textarea, select {

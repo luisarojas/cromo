@@ -34,6 +34,12 @@ interface Props {
   albumsWithSticker?: Array<{ id: string; name: string }>;
   wantedVariantIds: Set<string>;
   onToggleWanted: (variantId: string, stickerId: string) => Promise<void> | void;
+  // Optional full-screen presentation mode for phones. When 'sheet' we ignore
+  // anchorRect, render as a bottom sheet, and expose prev/next nav so the user
+  // can swipe through adjacent stickers without bouncing back to the grid.
+  presentation?: 'popover' | 'sheet';
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 const POPOVER_WIDTH = 280;
@@ -53,6 +59,9 @@ export default function VariantPopover({
   albumsWithSticker,
   wantedVariantIds,
   onToggleWanted,
+  presentation = 'popover',
+  onPrev,
+  onNext,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [allVariants, setAllVariants] = useState<StickerVariant[] | null>(null);
@@ -215,33 +224,170 @@ export default function VariantPopover({
     : undefined;
   const otherUnowned = unownedVariants.filter((v) => v.id !== preferredBaseUnowned?.id);
 
+  // Lock the underlying page scroll while the sheet is up — same pattern the
+  // NavBar drawer uses. Otherwise the album grid scrolls behind a half-open
+  // sheet, which both feels wrong and lets a sticky FilterBar peek through.
+  useEffect(() => {
+    if (presentation !== 'sheet') return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [presentation]);
+
+  // Sheet-mode horizontal swipe: left → next sticker, right → previous. We
+  // commit on a 50px threshold and only when no other drawer (move picker,
+  // wanted picker) is open inside the sheet to avoid eating those gestures.
+  // Visual feedback: the sheet follows the finger with a damped translateX
+  // during the gesture and snaps back to centre below threshold.
+  const SHEET_SWIPE_THRESHOLD = 50;
+  const SHEET_SWIPE_MAX = 120;
+  const sheetSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const sheetIgnoreUntilEnd = useRef(false);
+  const [sheetDragX, setSheetDragX] = useState(0);
+  const [sheetSnapping, setSheetSnapping] = useState(false);
+
+  function onSheetTouchStart(e: React.TouchEvent) {
+    if (presentation !== 'sheet') return;
+    if (showMovePicker || showMoveFromPicker || showAddPicker) return;
+    const t = e.touches[0]!;
+    sheetSwipeStartRef.current = { x: t.clientX, y: t.clientY };
+    sheetIgnoreUntilEnd.current = false;
+    setSheetSnapping(false);
+  }
+  function onSheetTouchMove(e: React.TouchEvent) {
+    if (!sheetSwipeStartRef.current || sheetIgnoreUntilEnd.current) return;
+    const t = e.touches[0]!;
+    const dx = t.clientX - sheetSwipeStartRef.current.x;
+    const dy = t.clientY - sheetSwipeStartRef.current.y;
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+      // Vertical scroll wins — let the sheet's content scroll instead of swiping.
+      sheetIgnoreUntilEnd.current = true;
+      setSheetDragX(0);
+      return;
+    }
+    // Rubber-band past the threshold so over-swipes still feel responsive.
+    const clamped = Math.max(-SHEET_SWIPE_MAX, Math.min(SHEET_SWIPE_MAX, dx));
+    setSheetDragX(clamped);
+  }
+  function onSheetTouchEnd(e: React.TouchEvent) {
+    if (!sheetSwipeStartRef.current) return;
+    const start = sheetSwipeStartRef.current;
+    sheetSwipeStartRef.current = null;
+    if (sheetIgnoreUntilEnd.current) {
+      setSheetDragX(0);
+      return;
+    }
+    const end = e.changedTouches[0]!;
+    const dx = end.clientX - start.x;
+    setSheetSnapping(true);
+    if (dx <= -SHEET_SWIPE_THRESHOLD && onNext) {
+      // Visually animate out, then commit. Re-mount of the sheet (key by
+      // sticker.id from the parent) resets dragX so the new card lands centred.
+      setSheetDragX(-SHEET_SWIPE_MAX);
+      window.setTimeout(() => { onNext(); }, 120);
+    } else if (dx >= SHEET_SWIPE_THRESHOLD && onPrev) {
+      setSheetDragX(SHEET_SWIPE_MAX);
+      window.setTimeout(() => { onPrev(); }, 120);
+    } else {
+      setSheetDragX(0);
+    }
+  }
+
+  // Two presentations share the same body but differ in wrapper. The body
+  // (post-header) is rendered once via this fragment to avoid duplication.
+  const sharedHeader = (
+    // Outer sheet wrapper already provides p-3, so this header has no padding
+    // of its own — keeps the prev/next chevrons flush with the album-code/
+    // player-name text and the close button.
+    <div className="flex items-center gap-2">
+      {presentation === 'sheet' && onPrev && (
+        <button
+          onClick={onPrev}
+          aria-label="Previous sticker"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
+        </button>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-[var(--cromo-fg)]">{sticker.albumCode}</div>
+        <div className="text-xs text-[var(--cromo-fg-muted)] truncate">{sticker.playerName ?? sticker.teamName ?? '—'}</div>
+      </div>
+      {presentation === 'sheet' && onNext && (
+        <button
+          onClick={onNext}
+          aria-label="Next sticker"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+      )}
+      <button
+        onClick={onClose}
+        className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-lg leading-none px-1 shrink-0 ml-1"
+        aria-label="Close"
+      >
+        ×
+      </button>
+    </div>
+  );
+
   const node = (
     <div
       ref={ref}
       role="dialog"
       aria-label={`Manage variants for sticker ${sticker.albumCode}`}
-      className="fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-3 flex flex-col gap-2 overflow-y-auto"
-      style={{ ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }}
+      className={
+        // Sheet uses overflow-y-auto so tall content (move picker, full variant
+        // list, etc.) is reachable. p-3 + gap-2 mirror the popover's body
+        // spacing so the inner sharedHeader can drop its own padding without
+        // looking flush against the rounded top edge.
+        presentation === 'sheet'
+          ? 'fixed inset-x-0 bottom-0 z-50 w-full max-h-[92vh] flex flex-col bg-[var(--cromo-surface)] rounded-t-2xl shadow-cromo-lg overflow-y-auto p-3 gap-2'
+          : 'fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-3 flex flex-col gap-2 overflow-y-auto'
+      }
+      style={
+        presentation === 'sheet'
+          ? {
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              transform: sheetDragX !== 0 ? `translateX(${sheetDragX}px)` : undefined,
+              transition: sheetSnapping ? 'transform 120ms ease-out' : 'none',
+              opacity: Math.max(0.6, 1 - Math.abs(sheetDragX) / 240),
+            }
+          : { ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }
+      }
+      onTouchStart={onSheetTouchStart}
+      onTouchMove={onSheetTouchMove}
+      onTouchEnd={onSheetTouchEnd}
     >
-      <div className="flex items-center justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-[var(--cromo-fg)]">
-            {sticker.albumCode}
-          </div>
-          <div className="text-xs text-[var(--cromo-fg-muted)] truncate">
-            {sticker.playerName ?? sticker.teamName ?? '—'}
-          </div>
+      {presentation === 'sheet' && (
+        <div className="flex justify-center py-2" aria-hidden>
+          <span className="h-1 w-10 rounded-full bg-[var(--cromo-border)]" />
         </div>
-        <button
-          onClick={onClose}
-          className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-lg leading-none px-1 shrink-0 ml-2"
-          aria-label="Close"
-        >
-          ×
-        </button>
-      </div>
+      )}
+      {presentation === 'sheet' ? sharedHeader : (
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-[var(--cromo-fg)]">
+              {sticker.albumCode}
+            </div>
+            <div className="text-xs text-[var(--cromo-fg-muted)] truncate">
+              {sticker.playerName ?? sticker.teamName ?? '—'}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-lg leading-none px-1 shrink-0 ml-2"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
-      <div className="h-px bg-[var(--cromo-surface-2)]" />
+      <div className={presentation === 'sheet' ? 'h-px bg-[var(--cromo-surface-2)] mt-2' : 'h-px bg-[var(--cromo-surface-2)]'} />
 
       {/* Owned variants */}
       {!showMovePicker && !showMoveFromPicker && (ownedEntries.length === 0 ? (
@@ -588,5 +734,20 @@ export default function VariantPopover({
   );
 
   if (typeof document === 'undefined') return null;
+  // Sheet presentation needs a dimming backdrop sibling; the inner node is
+  // bottom-anchored and clicking outside it should dismiss.
+  if (presentation === 'sheet') {
+    return createPortal(
+      <>
+        <div
+          aria-hidden
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/50"
+        />
+        {node}
+      </>,
+      document.body,
+    );
+  }
   return createPortal(node, document.body);
 }

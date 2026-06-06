@@ -24,7 +24,15 @@ export default function Footer() {
   const version = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0-local';
 
   return (
-    <footer className="border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)] mt-16">
+    // Bottom padding reserves space below the visible content equal to the
+    // MobileTabBar's height (via the shared --cromo-tabbar-h token in
+    // globals.css — 0 on desktop). The footer's surface bg continues into
+    // that reserved area, which matches the tab bar's translucent surface
+    // on top, so the seam is invisible.
+    <footer
+      style={{ paddingBottom: 'var(--cromo-tabbar-h)' }}
+      className="border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)] mt-16"
+    >
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}

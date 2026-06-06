@@ -12,6 +12,9 @@ import BanStatusBanner from '@/components/BanStatusBanner';
 import UnverifiedEmailBanner from '@/components/UnverifiedEmailBanner';
 import { ThemeProvider, themeBootstrapScript } from '@/components/ThemeProvider';
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
+import MobileTabBar from '@/components/MobileTabBar';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -68,10 +71,18 @@ export default async function RootLayout({
               <UnverifiedEmailBanner />
               <ToastProvider>
                 <ErrorBoundary>
-                  <main className="flex-1">{children}</main>
+                  {/* Bottom padding reserves space for the MobileTabBar via the
+                      shared --cromo-tabbar-h token (h-14 + safe-area on mobile,
+                      0 on desktop). Single source of truth — search globals.css. */}
+                  <main className="flex-1" style={{ paddingBottom: 'var(--cromo-tabbar-h)' }}>
+                    {children}
+                  </main>
                 </ErrorBoundary>
               </ToastProvider>
               <Footer />
+              <MobileTabBar />
+              <PWAInstallPrompt />
+              <OfflineIndicator />
             </AuthProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

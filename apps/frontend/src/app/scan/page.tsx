@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
 import { fetchUserAlbums, albumDisplayName, type UserAlbum } from '@/lib/api';
 import Scanner from './Scanner';
+import { readLastScan } from '@/lib/lastScan';
 
 export default function ScanPage() {
   const user = useAuthStore((s) => s.user);
@@ -19,7 +20,18 @@ export default function ScanPage() {
       .then((list) => {
         setAlbums(list);
         // Auto-pick when there's only one album, so the picker step is skipped.
-        if (list.length === 1) setSelectedAlbum(list[0]!);
+        if (list.length === 1) {
+          setSelectedAlbum(list[0]!);
+          return;
+        }
+        // If the user scanned recently and that album still exists, skip the
+        // picker and resume on the same album. Cuts a step out of the common
+        // "open the app, keep adding to the album I'm working through" loop.
+        const last = readLastScan();
+        if (last) {
+          const match = list.find((a) => a.id === last.albumId);
+          if (match) setSelectedAlbum(match);
+        }
       })
       .catch(() => setAlbums([]));
   }, [user, token]);

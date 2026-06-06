@@ -40,6 +40,9 @@ import { ALL_VARIANT_TYPES } from '../components/variantMeta';
 import AlbumStats from '../components/AlbumStats';
 import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
+import PullToRefresh from '@/components/PullToRefresh';
+import CompletionCelebration from '@/components/CompletionCelebration';
+import FocusInsight from '../components/FocusInsight';
 import AlbumFormModal from '../components/AlbumFormModal';
 import MassActionBar from '../components/MassActionBar';
 import VariantPickerModal from '../components/VariantPickerModal';
@@ -126,6 +129,22 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const { tab, filters, setTab, setFilters } = useAlbumUrlState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Grid density (2/3/4 columns) — persisted per browser so the user's
+  // preferred density survives reloads without needing a backend field.
+  const [density, setDensityState] = useState<2 | 3 | 4>(() => {
+    if (typeof window === 'undefined') return 4;
+    try {
+      const raw = window.localStorage.getItem('cromo:gridDensity');
+      const n = raw ? parseInt(raw, 10) : 0;
+      return n === 2 || n === 3 || n === 4 ? n : 4;
+    } catch {
+      return 4;
+    }
+  });
+  const setDensity = useCallback((next: 2 | 3 | 4) => {
+    setDensityState(next);
+    try { window.localStorage.setItem('cromo:gridDensity', String(next)); } catch { /* ignore */ }
+  }, []);
   const [editions, setEditions] = useState<AlbumEditionOption[]>([]);
   const [formats, setFormats] = useState<AlbumFormatOption[]>([]);
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
@@ -631,6 +650,14 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   }
 
   return (
+    <PullToRefresh
+      onRefresh={async () => {
+        if (token && user && albumId) {
+          await loadView(token, user.id, albumId);
+        }
+      }}
+      disabled={showAddModal || editingAlbum !== null || showScanner}
+    >
     <div className="min-h-screen bg-[var(--cromo-surface-2)]">
       <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4">
 
@@ -768,15 +795,38 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           isViewingDetailedStats={tab === 'stats'}
         />
 
-        {tab !== 'stats' && (
-          <FilterBar
-            filters={filters}
-            onChange={setFilters}
-            groupOptions={filterOptions.groupOptions}
-            teamOptions={filterOptions.teamOptions}
-            typeOptions={filterOptions.typeOptions}
-            variantOptions={filterOptions.variantOptions}
+        {tab !== 'stats' && !loading && (
+          <FocusInsight
+            stickers={settingsFilteredStickers}
+            ownedMap={ownedMap as unknown as Map<string, unknown>}
+            onSelectGroup={(group) => {
+              // Pivot to "missing" so the grid shows exactly the stickers the
+              // user needs to finish that group. Filter chips for wantedOnly /
+              // favouritesOnly are cleared because they'd narrow further past
+              // what the insight implied.
+              setTab('missing');
+              setFilters({ ...filters, group: [group], wantedOnly: undefined, favouritesOnly: undefined });
+            }}
           />
+        )}
+
+        {tab !== 'stats' && (
+          // Pin the filter bar to the top while scrolling the (often very long)
+          // sticker grid — collectors flip filters constantly mid-scan and
+          // having them re-scroll-to-top to flip a chip is friction. The
+          // NavBar is h-14 (56px), so top-14 keeps the filter bar flush
+          // under it. Negative side margins + matching padding cancel the
+          // parent container's gutters so the background spans full width.
+          <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 bg-[var(--cromo-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--cromo-bg)]/70">
+            <FilterBar
+              filters={filters}
+              onChange={setFilters}
+              groupOptions={filterOptions.groupOptions}
+              teamOptions={filterOptions.teamOptions}
+              typeOptions={filterOptions.typeOptions}
+              variantOptions={filterOptions.variantOptions}
+            />
+          </div>
         )}
 
         {tab !== 'stats' && (
@@ -815,6 +865,28 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             </button>
           ))}
           <button
+            onClick={() => setDensity(density === 4 ? 3 : density === 3 ? 2 : 4)}
+            aria-label={`Grid density: ${density} columns. Tap to change.`}
+            title={`Density: ${density} columns`}
+            className="ml-auto shrink-0 px-3 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] transition-colors flex items-center gap-1"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+              {Array.from({ length: density }).map((_, i) => (
+                <rect
+                  key={i}
+                  x={1 + i * (14 / density)}
+                  y={2}
+                  width={14 / density - 1}
+                  height={12}
+                  rx={1}
+                  fill="currentColor"
+                  fillOpacity={0.25}
+                />
+              ))}
+            </svg>
+            <span>{density}×</span>
+          </button>
+          <button
             onClick={() => {
               if (selectionMode) {
                 handleExitSelection();
@@ -822,7 +894,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                 setSelectionMode(true);
               }
             }}
-            className={`ml-auto shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
               selectionMode
                 ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
                 : 'border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)]'
@@ -872,6 +944,15 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               selectedStickerIds={selectedStickerIds}
               onToggleSelect={handleToggleSelect}
               onRangeSelect={handleRangeSelect}
+              defaultBaseVariant={activeAlbum?.settings.defaultBaseVariant ?? 'base_borderless'}
+              onRequestSelectionMode={(stickerId) => {
+                // Long-press an owned card → flip into multi-select with this
+                // sticker pre-selected. Saves the user from tapping the small
+                // "Select" toggle hidden in the tab strip.
+                setSelectionMode(true);
+                setSelectedStickerIds(new Set([stickerId]));
+              }}
+              density={density}
             />
           </div>
         ) : null}
@@ -950,6 +1031,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         />
       )}
 
+      <CompletionCelebration
+        albumId={activeAlbum?.id ?? null}
+        albumLabel={activeAlbum ? albumDisplayName(activeAlbum) : ''}
+        percentage={computedStats?.percentage ?? 0}
+      />
+
       {showScanner && activeAlbum && (
         <div
           className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-0 sm:p-4 overflow-y-auto"
@@ -970,5 +1057,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }

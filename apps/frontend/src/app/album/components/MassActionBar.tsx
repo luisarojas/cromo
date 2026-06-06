@@ -65,7 +65,12 @@ export default function MassActionBar({
   const noneSelected = selectedCount === 0;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--cromo-surface)] border-t border-[var(--cromo-border)] shadow-cromo-lg">
+    <div
+      // Sits above the MobileTabBar on mobile via the shared --cromo-tabbar-h
+      // token; on desktop the token resolves to 0 so the bar hugs the bottom.
+      style={{ bottom: 'var(--cromo-tabbar-h)' }}
+      className="fixed left-0 right-0 z-40 bg-[var(--cromo-surface)] border-t border-[var(--cromo-border)] shadow-cromo-lg"
+    >
       <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2">
         {/* Checkbox + count */}
         <button
