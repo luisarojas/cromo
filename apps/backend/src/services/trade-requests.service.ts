@@ -581,14 +581,18 @@ export async function counterTrade(
       items.filter((i) => i.direction === 'want').map((i) => i.variantId),
     );
 
-    // Snapshot old items (with display labels) before deleting them
+    // Snapshot old items (with display labels) before deleting them. We pull
+    // variant_type too because a trade can now contain multiple variants of
+    // the same album code — labelling those rows only by code would render
+    // an ambiguous "+BRA1, +BRA1" in the diff message.
     const { rows: oldItemRows } = await client.query<{
       sticker_variant_id: string;
       direction: string;
       quantity: number;
       album_code: string;
+      variant_type: string;
     }>(
-      `SELECT ti.sticker_variant_id, ti.direction, ti.quantity, s.album_code
+      `SELECT ti.sticker_variant_id, ti.direction, ti.quantity, s.album_code, sv.variant_type
        FROM trade_items ti
        JOIN sticker_variants sv ON sv.id = ti.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id
@@ -599,15 +603,17 @@ export async function counterTrade(
     // Fetch display labels for incoming items
     const newVariantIds = items.map((i) => i.variantId);
     const { rows: newCodeRows } = newVariantIds.length > 0
-      ? await client.query<{ variant_id: string; album_code: string }>(
-          `SELECT sv.id AS variant_id, s.album_code
+      ? await client.query<{ variant_id: string; album_code: string; variant_type: string }>(
+          `SELECT sv.id AS variant_id, s.album_code, sv.variant_type
            FROM sticker_variants sv
            JOIN stickers s ON s.id = sv.sticker_id
            WHERE sv.id = ANY($1::uuid[])`,
           [newVariantIds],
         )
-      : { rows: [] as { variant_id: string; album_code: string }[] };
-    const newCodeMap = new Map(newCodeRows.map((r) => [r.variant_id, r.album_code]));
+      : { rows: [] as { variant_id: string; album_code: string; variant_type: string }[] };
+    const newCodeMap = new Map(
+      newCodeRows.map((r) => [r.variant_id, { code: r.album_code, type: r.variant_type }]),
+    );
 
     await client.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
 
@@ -658,16 +664,29 @@ export async function counterTrade(
     const newWantIds  = new Set(newWantItems.map((i) => i.variantId));
 
     function fmtCash(cents: number) { return `CA$${(cents / 100).toFixed(2)}`; }
-    function fmtItem(code: string, qty: number) { return qty > 1 ? `${code} ×${qty}` : code; }
+    // A label like "BRA1 (Blue)" disambiguates rows that share an album code
+    // but differ in variant — e.g., requesting both BRA1 Blue and BRA1 Red
+    // in one counter. Base variants drop the (Base) suffix to keep the
+    // common case concise.
+    function fmtLabel(code: string, variantType: string, qty: number): string {
+      const isBase = variantType === 'base_border' || variantType === 'base_borderless';
+      const head = isBase ? code : `${code} (${variantType})`;
+      return qty > 1 ? `${head} ×${qty}` : head;
+    }
+    function newLabel(variantId: string, qty: number): string {
+      const m = newCodeMap.get(variantId);
+      if (!m) return '?';
+      return fmtLabel(m.code, m.type, qty);
+    }
 
     const addedOffer  = newOfferItems.filter((i) => !oldOfferIds.has(i.variantId))
-      .map((i) => `+${fmtItem(newCodeMap.get(i.variantId) ?? '?', i.quantity)}`);
+      .map((i) => `+${newLabel(i.variantId, i.quantity)}`);
     const removedOffer = oldItemRows.filter((i) => i.direction === 'want' && !newOfferIds.has(i.sticker_variant_id))
-      .map((i) => `−${i.album_code}`);
+      .map((i) => `−${fmtLabel(i.album_code, i.variant_type, i.quantity)}`);
     const addedWant   = newWantItems.filter((i) => !oldWantIds.has(i.variantId))
-      .map((i) => `+${newCodeMap.get(i.variantId) ?? '?'}`);
+      .map((i) => `+${newLabel(i.variantId, i.quantity)}`);
     const removedWant  = oldItemRows.filter((i) => i.direction === 'offer' && !newWantIds.has(i.sticker_variant_id))
-      .map((i) => `−${i.album_code}`);
+      .map((i) => `−${fmtLabel(i.album_code, i.variant_type, i.quantity)}`);
 
     function cashDiff(oldCents: number, newCents: number): string | null {
       if (oldCents === newCents) return null;
@@ -758,14 +777,17 @@ export async function editTrade(
       items.filter((i) => i.direction === 'want').map((i) => i.variantId),
     );
 
-    // Snapshot old items for the diff message
+    // Snapshot old items for the diff message. variant_type tags the rows
+    // so multi-variant trades render unambiguously — see counterTrade for
+    // the matching pattern.
     const { rows: oldItemRows } = await client.query<{
       sticker_variant_id: string;
       direction: string;
       quantity: number;
       album_code: string;
+      variant_type: string;
     }>(
-      `SELECT ti.sticker_variant_id, ti.direction, ti.quantity, s.album_code
+      `SELECT ti.sticker_variant_id, ti.direction, ti.quantity, s.album_code, sv.variant_type
        FROM trade_items ti
        JOIN sticker_variants sv ON sv.id = ti.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id
@@ -775,15 +797,17 @@ export async function editTrade(
 
     const newVariantIds = items.map((i) => i.variantId);
     const { rows: newCodeRows } = newVariantIds.length > 0
-      ? await client.query<{ variant_id: string; album_code: string }>(
-          `SELECT sv.id AS variant_id, s.album_code
+      ? await client.query<{ variant_id: string; album_code: string; variant_type: string }>(
+          `SELECT sv.id AS variant_id, s.album_code, sv.variant_type
            FROM sticker_variants sv
            JOIN stickers s ON s.id = sv.sticker_id
            WHERE sv.id = ANY($1::uuid[])`,
           [newVariantIds],
         )
-      : { rows: [] as { variant_id: string; album_code: string }[] };
-    const newCodeMap = new Map(newCodeRows.map((r) => [r.variant_id, r.album_code]));
+      : { rows: [] as { variant_id: string; album_code: string; variant_type: string }[] };
+    const newCodeMap = new Map(
+      newCodeRows.map((r) => [r.variant_id, { code: r.album_code, type: r.variant_type }]),
+    );
 
     await client.query(`DELETE FROM trade_items WHERE trade_id = $1`, [tradeId]);
 
@@ -820,16 +844,25 @@ export async function editTrade(
     const newWantIds  = new Set(newWantItems.map((i) => i.variantId));
 
     function fmtCash(cents: number) { return `CA$${(cents / 100).toFixed(2)}`; }
-    function fmtItem(code: string, qty: number) { return qty > 1 ? `${code} ×${qty}` : code; }
+    function fmtLabel(code: string, variantType: string, qty: number): string {
+      const isBase = variantType === 'base_border' || variantType === 'base_borderless';
+      const head = isBase ? code : `${code} (${variantType})`;
+      return qty > 1 ? `${head} ×${qty}` : head;
+    }
+    function newLabel(variantId: string, qty: number): string {
+      const m = newCodeMap.get(variantId);
+      if (!m) return '?';
+      return fmtLabel(m.code, m.type, qty);
+    }
 
     const addedOffer   = newOfferItems.filter((i) => !oldOfferIds.has(i.variantId))
-      .map((i) => `+${fmtItem(newCodeMap.get(i.variantId) ?? '?', i.quantity)}`);
+      .map((i) => `+${newLabel(i.variantId, i.quantity)}`);
     const removedOffer = oldItemRows.filter((i) => i.direction === 'offer' && !newOfferIds.has(i.sticker_variant_id))
-      .map((i) => `−${i.album_code}`);
+      .map((i) => `−${fmtLabel(i.album_code, i.variant_type, i.quantity)}`);
     const addedWant    = newWantItems.filter((i) => !oldWantIds.has(i.variantId))
-      .map((i) => `+${newCodeMap.get(i.variantId) ?? '?'}`);
+      .map((i) => `+${newLabel(i.variantId, i.quantity)}`);
     const removedWant  = oldItemRows.filter((i) => i.direction === 'want' && !newWantIds.has(i.sticker_variant_id))
-      .map((i) => `−${i.album_code}`);
+      .map((i) => `−${fmtLabel(i.album_code, i.variant_type, i.quantity)}`);
 
     function cashDiff(oldCents: number, newCents: number): string | null {
       if (oldCents === newCents) return null;

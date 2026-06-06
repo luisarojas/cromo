@@ -696,7 +696,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           We keep this space reserved at all times rather than reflowing on open
           so cards don't slide as the user clicks around. Below xl the rail
           isn't used and the gutter collapses. */}
-      <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4 xl:pr-[22rem]">
+      <div className="max-w-5xl xl:max-w-7xl mx-auto px-4 py-8 flex flex-col gap-4 xl:pr-[22rem]">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">

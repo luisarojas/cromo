@@ -159,6 +159,8 @@ export async function stickersRoutes(fastify: FastifyInstance): Promise<void> {
                     album_code:  { type: 'string' },
                     player_name: { type: 'string', nullable: true },
                     team_name:   { type: 'string', nullable: true },
+                    fifa_code:   { type: 'string', nullable: true },
+                    group_name:  { type: 'string', nullable: true },
                     variants: {
                       type: 'array',
                       items: {

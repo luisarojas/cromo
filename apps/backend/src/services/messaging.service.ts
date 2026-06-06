@@ -84,8 +84,11 @@ export async function sendMessage(
     throw statusError('You are not a participant in this trade.', 403);
   }
 
-  const activeStatuses = ['pending', 'accepted'];
-  if (!activeStatuses.includes(trade.status)) {
+  // Completed trades still allow messaging — collectors often coordinate
+  // pickup, mail status, or post-trade questions after the swap. Only fully
+  // terminal abandonments (declined / cancelled / expired) close the channel.
+  const blockedStatuses = ['declined', 'cancelled', 'expired'];
+  if (blockedStatuses.includes(trade.status)) {
     throw statusError(`Cannot send messages on a trade with status '${trade.status}'.`, 409);
   }
 

@@ -219,6 +219,8 @@ export interface StickerLookup {
   albumCode: string
   playerName: string | null
   teamName: string | null
+  fifaCode: string | null
+  groupName: string | null
   variants: StickerVariant[]
 }
 

@@ -9,7 +9,7 @@ export interface TradeDraft {
   matchUserId: string;
   match: TradeMatch;
   offerVariants: { variantId: string; quantity: number }[];
-  wantVariantIds: string[];
+  wantVariants: { variantId: string; quantity: number }[];
   offerCashCents: number;
   wantCashCents: number;
 }
@@ -27,9 +27,9 @@ export function saveDraft(
       offerVariants: items
         .filter((i) => i.direction === 'offer')
         .map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-      wantVariantIds: items
+      wantVariants: items
         .filter((i) => i.direction === 'want')
-        .map((i) => i.variantId),
+        .map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
       offerCashCents,
       wantCashCents,
     };

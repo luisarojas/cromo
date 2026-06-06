@@ -277,6 +277,8 @@ export interface StickerLookupRow {
   album_code: string;
   player_name: string | null;
   team_name: string | null;
+  fifa_code: string | null;
+  group_name: string | null;
   variants: StickerVariantRow[];
 }
 
@@ -292,18 +294,14 @@ export async function getStickersByAlbumCodes(
 ): Promise<StickerLookupRow[]> {
   if (albumCodes.length === 0) return [];
 
-  const { rows } = await db.query<{
-    id: string;
-    album_code: string;
-    player_name: string | null;
-    team_name: string | null;
-    variants: StickerVariantRow[];
-  }>(
+  const { rows } = await db.query<StickerLookupRow>(
     `SELECT
        s.id,
        s.album_code,
        s.player_name,
        t.name AS team_name,
+       t.fifa_code AS fifa_code,
+       t.group_name AS group_name,
        json_agg(
          json_build_object(
            'id',           sv.id,
@@ -318,7 +316,7 @@ export async function getStickersByAlbumCodes(
      LEFT JOIN teams t ON t.id = s.team_id
      JOIN sticker_variants sv ON sv.sticker_id = s.id
      WHERE s.album_code = ANY($1)
-     GROUP BY s.id, s.album_code, s.player_name, t.name
+     GROUP BY s.id, s.album_code, s.player_name, t.name, t.fifa_code, t.group_name
      ORDER BY s.number`,
     [albumCodes]
   );

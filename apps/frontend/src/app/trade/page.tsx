@@ -45,7 +45,7 @@ interface ProposeModalState {
   offerItems: CollectionItem[];
   offerItemsLoading: boolean;
   draftOfferVariants?: { variantId: string; quantity: number }[];
-  draftWantVariantIds?: string[];
+  draftWantVariants?: { variantId: string; quantity: number }[];
   draftOfferCash?: number;
   draftWantCash?: number;
 }
@@ -341,7 +341,7 @@ function TradePageContent() {
       offerItems: cached ?? [],
       offerItemsLoading: !!selectedAlbumId && cached === undefined,
       draftOfferVariants: draft?.offerVariants,
-      draftWantVariantIds: draft?.wantVariantIds,
+      draftWantVariants: draft?.wantVariants,
       draftOfferCash: draft?.offerCashCents,
       draftWantCash: draft?.wantCashCents,
     });
@@ -364,13 +364,19 @@ function TradePageContent() {
   }
 
   async function handleHideSticker(variantId: string) {
+    await setTradeHiddenFlag(variantId, true);
+  }
+  async function handleUnhideSticker(variantId: string) {
+    await setTradeHiddenFlag(variantId, false);
+  }
+  async function setTradeHiddenFlag(variantId: string, hidden: boolean) {
     if (!user || !token || !selectedAlbumId) return;
     setProposeModal((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         offerItems: prev.offerItems.map((item) =>
-          item.stickerVariantId === variantId ? { ...item, tradeHidden: true } : item,
+          item.stickerVariantId === variantId ? { ...item, tradeHidden: hidden } : item,
         ),
       };
     });
@@ -378,14 +384,14 @@ function TradePageContent() {
     // openProposeModal doesn't show a stale tradeHidden value.
     offerItemsCacheRef.current.delete(selectedAlbumId);
     try {
-      await setTradeFlags(user.id, variantId, { tradeHidden: true }, token, selectedAlbumId);
+      await setTradeFlags(user.id, variantId, { tradeHidden: hidden }, token, selectedAlbumId);
     } catch {
       setProposeModal((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
           offerItems: prev.offerItems.map((item) =>
-            item.stickerVariantId === variantId ? { ...item, tradeHidden: false } : item,
+            item.stickerVariantId === variantId ? { ...item, tradeHidden: !hidden } : item,
           ),
         };
       });
@@ -806,10 +812,11 @@ function TradePageContent() {
           favouriteCodes={favouriteCodes}
           token={token}
           initialOfferVariants={proposeModal.draftOfferVariants}
-          initialWantVariantIds={proposeModal.draftWantVariantIds}
+          initialWantVariants={proposeModal.draftWantVariants}
           initialOfferCash={proposeModal.draftOfferCash}
           initialWantCash={proposeModal.draftWantCash}
           onHideSticker={handleHideSticker}
+          onUnhideSticker={handleUnhideSticker}
           onChange={(items, offerCash, wantCash) => {
             setProposeModal((prev) => {
               if (!prev) return prev;

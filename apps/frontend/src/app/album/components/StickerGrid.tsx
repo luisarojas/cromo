@@ -624,15 +624,24 @@ export default function StickerGrid({
       {/* Vertical jump rail — fixed to the right edge of the viewport, mobile
           only (the grid is narrow enough on desktop that group headers are
           easy to scan without it). Each row is a single label clipped to a
-          few characters so the rail stays under a thumb's width. */}
+          few characters so the rail stays under a thumb's width.
+          Anchored between the sticky FilterBar (~9rem from the top once
+          scrolled — nav h-14 + bar padding) and the MobileTabBar
+          (--cromo-tabbar-h). Centered with margin: auto inside the bounded
+          fixed box so it floats vertically without clipping into the bar
+          when the page is short. z-10 sits below the bar's z-20 on purpose
+          — bar always wins; the rail just lives in the space below it. */}
       {railGroups.length > 1 && (
         <nav
           aria-label="Jump to group"
-          className="md:hidden fixed right-1 z-10 flex flex-col gap-0.5"
+          className="md:hidden fixed right-1 z-10 flex flex-col justify-center items-end gap-0.5"
           style={{
-            top: 'calc(50% - 0px)',
-            transform: 'translateY(-50%)',
-            maxHeight: '70vh',
+            // 13rem ≈ nav (3.5rem) + sticky FilterBar at its tallest 2-row
+            // wrap on narrow phones (~7rem with chips). Picking a tall
+            // constant rather than measuring keeps the rail stable when
+            // the bar re-flows; the rail can scroll internally if needed.
+            top: '13rem',
+            bottom: 'calc(var(--cromo-tabbar-h) + 1rem)',
             overflowY: 'auto',
           }}
         >

@@ -30,12 +30,15 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
   const pct = stats?.percentage ?? 0;
 
   return (
-    <div className="relative flex flex-col gap-3 bg-[var(--cromo-surface-2)] border border-[var(--cromo-border)] rounded-xl p-4">
+    <div className="flex flex-col gap-3 bg-[var(--cromo-surface-2)] border border-[var(--cromo-border)] rounded-xl p-4">
       {onViewDetailedStats && (
+        // Anchored in normal flow rather than absolute-positioned so the
+        // mobile grid-cols-2 stat tiles never sit underneath the button.
+        // Right-aligned with self-end keeps the desktop appearance unchanged.
         <button
           type="button"
           onClick={onViewDetailedStats}
-          className="absolute top-3 right-3 inline-flex items-center gap-1 text-xs text-[var(--cromo-accent)] hover:underline"
+          className="self-end inline-flex items-center gap-1 text-xs text-[var(--cromo-accent)] hover:underline"
         >
           {isViewingDetailedStats ? (
             <>

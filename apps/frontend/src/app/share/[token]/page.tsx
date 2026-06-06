@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchPublicList, type PublicList, type PublicListItem } from '@/lib/api';
+import { variantLabel } from '@/app/album/components/variantMeta';
 
 const LIST_TYPE_LABELS: Record<string, string> = {
   missing: 'Missing Stickers',
@@ -202,7 +203,7 @@ export default function ShareListPage() {
                         {item.stickerType !== 'player' && (
                           <span>{item.stickerType} &middot;</span>
                         )}
-                        <span>{item.variantType}</span>
+                        <span>{variantLabel(item.variantType)}</span>
                       </div>
                     </div>
                     {showQuantity && item.quantity != null && item.quantity > 1 && (

@@ -23,6 +23,7 @@ import {
 } from '@/lib/api';
 import ReportUserModal from '@/components/ReportUserModal';
 import TradeStickerPicker, { type TradePickerItem } from '../components/TradeStickerPicker';
+import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -42,16 +43,30 @@ const STATUS_BADGE: Record<TradeDetail['status'], { label: string; className: st
 
 function ItemCard({ item }: { item: TradeItemDetail }) {
   return (
-    <div className="rounded-lg border border-[var(--cromo-border)] bg-transparent px-3 py-2 text-sm">
-      <div className="font-medium text-[var(--cromo-fg)]">{item.albumCode}</div>
-      <div className="text-xs text-[var(--cromo-fg-muted)] mt-0.5 space-x-1.5">
-        {item.playerName && <span>{item.playerName}</span>}
-        {item.teamName && <span>&middot; {item.teamName}</span>}
-        <span>&middot; {item.variantType}</span>
-        {item.quantity > 1 && (
-          <span className="font-medium text-[var(--cromo-fg)]">&times;{item.quantity}</span>
-        )}
+    <div className="rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-3 py-2 text-sm flex items-center gap-2.5">
+      <span
+        className={`shrink-0 w-2.5 h-2.5 rounded-full border ${variantSwatch(item.variantType)}`}
+        title={variantLabel(item.variantType)}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-semibold text-[var(--cromo-fg)] tabular-nums text-xs">
+            {item.albumCode}
+          </span>
+          {item.playerName && (
+            <span className="text-xs text-[var(--cromo-fg)] truncate">{item.playerName}</span>
+          )}
+        </div>
+        <div className="text-[10px] text-[var(--cromo-fg-subtle)] truncate">
+          {variantLabel(item.variantType)}
+          {item.teamName ? ` · ${item.teamName}` : ''}
+        </div>
       </div>
+      {item.quantity > 1 && (
+        <span className="shrink-0 text-xs font-semibold text-[var(--cromo-fg)] tabular-nums">
+          ×{item.quantity}
+        </span>
+      )}
     </div>
   );
 }
@@ -107,6 +122,7 @@ export default function TradeDetailPage() {
   // Message compose
   const [msgBody, setMsgBody] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   // Counter form
   const [showCounter, setShowCounter] = useState(false);
@@ -425,6 +441,7 @@ export default function TradeDetailPage() {
   async function handleSendMessage() {
     if (!token || !msgBody.trim()) return;
     setSendingMsg(true);
+    setMessageError(null);
     const body = msgBody.trim();
     setMsgBody('');
     // Optimistic append
@@ -450,10 +467,13 @@ export default function TradeDetailPage() {
       // Message-send bumps messageCount on the trade summary row — the My
       // Trades list shows that count, so it should refresh.
       if (user) publishSync({ type: 'trade:changed', userId: user.id, tradeId });
-    } catch {
-      // Remove optimistic message on failure
+    } catch (err) {
+      // Remove optimistic message on failure, restore the text, and surface
+      // why — without the error banner the message just silently disappears,
+      // which collectors interpret as "the chat is broken".
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
       setMsgBody(body);
+      setMessageError(err instanceof Error ? err.message : 'Could not send message. Please try again.');
     } finally {
       setSendingMsg(false);
     }
@@ -524,7 +544,23 @@ export default function TradeDetailPage() {
   const canComplete = (isRequester || isRecipient) && trade.status === 'accepted' && !iHaveConfirmedComplete;
   const canCounter = isRecipient && trade.status === 'pending';
   const canEdit = isRequester && trade.status === 'pending' && trade.counterCount > 0;
+  // `isTerminal` gates the action buttons (accept/counter/cancel/etc). It
+  // does NOT gate messaging — collectors often coordinate after the swap
+  // (pickup time, shipping status, post-trade follow-ups), so the message
+  // channel stays open on completed trades. Only declined / cancelled /
+  // expired close the chat. See `canMessage` below.
   const isTerminal = ['completed', 'declined', 'cancelled', 'expired'].includes(trade.status);
+  const canMessage = !['declined', 'cancelled', 'expired'].includes(trade.status);
+
+  // True for the participant who has NOT yet confirmed completion while their
+  // counterpart has. Used to surface a clear nudge alongside the Mark Complete
+  // button so the second confirmer understands the trade is awaiting their
+  // sign-off, not a brand-new ask.
+  const partnerConfirmedAwaitingMe =
+    trade.status === 'accepted' && !iHaveConfirmedComplete && (
+      (isRequester && trade.recipientCompletedAt !== null) ||
+      (isRecipient && trade.requesterCompletedAt !== null)
+    );
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
@@ -723,7 +759,12 @@ export default function TradeDetailPage() {
             )}
             {iHaveConfirmedComplete && (
               <span className="rounded-md px-4 py-2 text-sm font-medium bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border border-[var(--cromo-warning)]/30">
-                Waiting for other participant to confirm
+                Waiting for @{partnerUsername} to confirm completion
+              </span>
+            )}
+            {partnerConfirmedAwaitingMe && (
+              <span className="rounded-md px-4 py-2 text-sm font-medium bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] border border-[var(--cromo-accent)]/30">
+                @{partnerUsername} confirmed completion — confirm to finalize
               </span>
             )}
             {canCancel && (
@@ -749,7 +790,7 @@ export default function TradeDetailPage() {
                 suggestedWantCodes={offeredItems.map((i) => i.albumCode)}
                 suggestedWantVariantIds={offeredItems.map((i) => i.stickerVariantId)}
                 initialOfferVariants={wantedItems.map((i) => ({ variantId: i.stickerVariantId, quantity: i.quantity }))}
-                initialWantVariantIds={offeredItems.map((i) => i.stickerVariantId)}
+                initialWantVariants={offeredItems.map((i) => ({ variantId: i.stickerVariantId, quantity: i.quantity }))}
                 initialOfferCash={trade.wantCash}
                 initialWantCash={trade.offerCash}
                 token={token}
@@ -796,7 +837,7 @@ export default function TradeDetailPage() {
                 suggestedWantCodes={wantedItems.map((i) => i.albumCode)}
                 suggestedWantVariantIds={wantedItems.map((i) => i.stickerVariantId)}
                 initialOfferVariants={offeredItems.map((i) => ({ variantId: i.stickerVariantId, quantity: i.quantity }))}
-                initialWantVariantIds={wantedItems.map((i) => i.stickerVariantId)}
+                initialWantVariants={wantedItems.map((i) => ({ variantId: i.stickerVariantId, quantity: i.quantity }))}
                 initialOfferCash={trade.offerCash}
                 initialWantCash={trade.wantCash}
                 token={token}
@@ -847,32 +888,39 @@ export default function TradeDetailPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {!isTerminal && (
-          <div className="flex gap-2 pt-3 border-t border-[var(--cromo-border)]">
-            <textarea
-              value={msgBody}
-              onChange={(e) => setMsgBody(e.target.value.slice(0, 2000))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
-              rows={2}
-              placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-              className="flex-1 rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] resize-none"
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={sendingMsg || !msgBody.trim()}
-              className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed self-end transition-colors"
-            >
-              Send
-            </button>
+        {canMessage && (
+          <div className="flex flex-col gap-2 pt-3 border-t border-[var(--cromo-border)]">
+            {messageError && (
+              <div className="rounded-md bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 px-3 py-2 text-xs text-[var(--cromo-danger-text)]">
+                {messageError}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <textarea
+                value={msgBody}
+                onChange={(e) => setMsgBody(e.target.value.slice(0, 2000))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                rows={2}
+                placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+                className="flex-1 rounded-md border border-[var(--cromo-border-strong)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] resize-none"
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={sendingMsg || !msgBody.trim()}
+                className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed self-end transition-colors"
+              >
+                Send
+              </button>
+            </div>
           </div>
         )}
 
-        {isTerminal && (
+        {!canMessage && (
           <p className="text-xs text-[var(--cromo-fg-subtle)] text-center pt-3 border-t border-[var(--cromo-border)]">
             This trade is {trade.status}. Messaging is disabled.
           </p>
