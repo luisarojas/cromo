@@ -34,6 +34,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
+    changes: {},
+  },
+  {
+    version: 'v0.1.4',
+    date: '2026-06-06',
     changes: {
       Added: [
         'Trade picker can sort by code, player, team, country, or group, and filter by country and team group.',
