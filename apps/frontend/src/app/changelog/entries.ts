@@ -26,6 +26,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
+    changes: {},
+  },
+  {
+    version: 'v0.1.2',
+    date: '2026-06-06',
     changes: {
       Added: [
         'Bottom navigation bar on phones with quick access to Album, Trade, Scan, Dashboard, and Profile.',
