@@ -26,6 +26,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
+    changes: {},
+  },
+  {
+    version: 'v0.1.3',
+    date: '2026-06-06',
     changes: {
       Fixed: [
         'Album page no longer crashes when a filter narrows the grid to zero stickers.',
