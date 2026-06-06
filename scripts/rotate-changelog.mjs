@@ -230,6 +230,22 @@ function findEntryByVersion(src, version) {
   fail(`no entry with version '${version}' in ${ENTRIES_REL}`);
 }
 
+// Extract the optional `deprecated: '...'` field from an entry block, if
+// present. Returns the unescaped prose or null. Mirrors the entries.ts
+// convention that this field is plain text (no markdown).
+function parseDeprecated(block) {
+  // Anchor on the entry-block top level so a stray "deprecated:" substring
+  // inside a bullet string can't false-match. The block always starts with
+  // '{' and the field appears at indent 4 spaces ("    deprecated:") at the
+  // entry level — same as version:/date:/changes:. Both single and double
+  // quoted strings are accepted to match the parseChanges convention.
+  const re = /\n\s{4}deprecated:\s*('((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")/;
+  const m = re.exec(block);
+  if (!m) return null;
+  const raw = m[2] !== undefined ? m[2] : m[3];
+  return raw.replace(/\\(.)/g, (_, c) => (c === 'n' ? '\n' : c));
+}
+
 // Extract bullets per category from an entry block's `changes: { ... }`
 // object. Returns { Added: [...], Changed: [...], ... } with only the
 // categories that actually have bullets.
@@ -268,8 +284,19 @@ function parseChanges(block) {
 function notes(version) {
   const src = loadSource();
   const { block } = findEntryByVersion(src, version);
+  const deprecated = parseDeprecated(block);
   const changes = parseChanges(block);
   const parts = [];
+  // Deprecation banner first so anyone landing on the release page sees the
+  // warning before scrolling through Added/Changed/Fixed. Mirrors the
+  // `Known broken` chip + callout on the in-app /changelog page so the two
+  // surfaces never drift from each other (single source: entries.ts).
+  if (deprecated) {
+    parts.push(`> ⚠️ **Known broken release.** ${deprecated}`);
+    parts.push('');
+    parts.push('---');
+    parts.push('');
+  }
   for (const cat of ['Added', 'Changed', 'Fixed', 'Removed', 'Security']) {
     const bullets = changes[cat];
     if (!bullets) continue;
