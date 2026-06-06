@@ -355,10 +355,14 @@ export default function VariantPopover({
         presentation === 'sheet'
           ? 'fixed inset-x-0 bottom-0 z-50 w-full max-h-[92vh] flex flex-col bg-[var(--cromo-surface)] rounded-t-2xl shadow-cromo-lg overflow-y-auto p-3 gap-2'
           : presentation === 'rail'
-            // Desktop persistent rail: fixed to the right edge, top-anchored
-            // beneath the NavBar (h-14) with a small gutter. No backdrop — the
-            // grid remains interactive next to it.
-            ? 'fixed top-16 right-4 z-30 w-80 max-h-[calc(100vh-5rem)] flex flex-col bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] shadow-cromo-lg overflow-y-auto p-3 gap-2'
+            // Desktop persistent rail: fixed, top-anchored beneath the NavBar
+            // (h-14). Horizontal position tracks the album page's centered
+            // max-w-7xl (80rem) container so the rail sits next to the grid on
+            // wide displays instead of hugging the far viewport edge. The
+            // `max(1rem, …)` floor keeps a 1rem gutter on viewports narrower
+            // than 80rem, where the container already fills the width. No
+            // backdrop — the grid remains interactive next to it.
+            ? 'fixed top-16 right-[max(1rem,calc(50vw-39rem))] z-30 w-80 max-h-[calc(100vh-5rem)] flex flex-col bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] shadow-cromo-lg overflow-y-auto p-3 gap-2'
             : 'fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-3 flex flex-col gap-2 overflow-y-auto'
       }
       style={

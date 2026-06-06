@@ -53,6 +53,11 @@ interface Props {
   // suppress them while a modal (album edit, scanner, variant picker) is up.
   // Defaults to true (hotkeys active).
   hotkeysEnabled?: boolean;
+  // Fires when the persistent right-side rail opens or closes so the page can
+  // reserve gutter space only while it's visible (avoids permanent off-centre
+  // layout on desktop). Only fires in xl+ 'rail' presentation; sheet/popover
+  // presentations don't reserve gutter and never call this.
+  onRailVisibleChange?: (visible: boolean) => void;
 }
 
 interface PopoverState {
@@ -83,6 +88,7 @@ export default function StickerGrid({
   onRequestSelectionMode,
   density = 4,
   hotkeysEnabled = true,
+  onRailVisibleChange,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -116,6 +122,15 @@ export default function StickerGrid({
   }, []);
   const presentation: 'sheet' | 'rail' | 'popover' =
     isMobile ? 'sheet' : isWide ? 'rail' : 'popover';
+
+  // Tell the page when the rail is actually visible so it can reserve gutter
+  // space only then. Always emits false when leaving 'rail' presentation or
+  // closing the popover so the page can release the reservation.
+  const railVisible = presentation === 'rail' && popover !== null;
+  useEffect(() => {
+    onRailVisibleChange?.(railVisible);
+  }, [railVisible, onRailVisibleChange]);
+  useEffect(() => () => onRailVisibleChange?.(false), [onRailVisibleChange]);
 
   // Keyboard-focused sticker index (into the flat displayed `stickers` list).
   // Null when the user hasn't engaged the keyboard yet; first key arrow/j/k
