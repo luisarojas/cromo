@@ -187,7 +187,7 @@ git push origin "refs/heads/main:refs/heads/main" "refs/tags/v$VERSION:refs/tags
 # --allow-empty was used); in that case we create the release with no body.
 NOTES="$(node scripts/rotate-changelog.mjs notes "v$VERSION")"
 
-echo "Creating GitHub release v$VERSION…"
+echo "Creating GitHub release v${VERSION}…"
 if [ -n "$NOTES" ]; then
   gh release create "v$VERSION" --title "v$VERSION" --notes "$NOTES"
 else
