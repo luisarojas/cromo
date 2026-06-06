@@ -127,6 +127,7 @@ When you run `./scripts/release.sh X.Y.Z`, the script invokes `scripts/rotate-ch
 You never edit `version` or `date` in `entries.ts` by hand — the script owns those fields, the same way `release.sh` owns the four `package.json` `version` fields.
 
 **Rules to follow:**
+- **Always update `Unreleased` in the same change that ships a user-visible fix or feature.** Appending the bullet is part of the work, not a follow-up. If a change has no user-visible effect (refactor, infra, internal rename), skip the bullet — but make that call explicitly, don't forget. Phrasing is for collectors, not committers.
 - **Do not link `/changelog` from any nav, footer, menu, or in-app banner.** If a future change makes it discoverable, that's a deliberate product decision, not a drive-by edit.
 - **Do not auto-generate entries from git log.** The point of the in-app changelog is that it speaks to collectors in their language; commit subjects are written for reviewers and don't translate. Curate by hand.
 - **Do not parse the root `CHANGELOG.md` at build time.** The two files are independent: `CHANGELOG.md` (if maintained at all) serves git tooling and GitHub Releases; `entries.ts` is the in-app source of truth. Keeping them decoupled means an in-app copy edit doesn't need a repo-wide rebuild story.
