@@ -20,13 +20,25 @@ export interface ChangelogEntry {
   version: string;
   date: string | null;
   changes: Partial<Record<ChangeCategory, string[]>>;
+  // When set, the entry renders with a warning banner at the top — used for
+  // releases that shipped but were later found broken. The string is plain
+  // prose (no markdown); the page renders it inside a styled callout. The
+  // tag itself stays immutable; this field is the in-app equivalent of the
+  // banner we add to a GitHub Release page. `scripts/rotate-changelog.mjs`
+  // does not inspect this field — its matchers only key on `version:`,
+  // `date:`, `changes:` and the category arrays.
+  deprecated?: string;
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
-    changes: {},
+    changes: {
+      Added: [
+        'Known-broken releases are flagged with a warning banner on the changelog page so collectors know to upgrade.',
+      ],
+    },
   },
   {
     version: 'v0.1.3',
@@ -40,6 +52,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'v0.1.2',
     date: '2026-06-06',
+    deprecated: 'This release ships a Rules of Hooks violation that crashes the album page when a filter narrows the grid to zero stickers. Use v0.1.3 or later.',
     changes: {
       Added: [
         'Bottom navigation bar on phones with quick access to Album, Trade, Scan, Dashboard, and Profile.',

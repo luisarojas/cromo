@@ -53,7 +53,22 @@ export default function ChangelogPage() {
                     Unreleased
                   </span>
                 )}
+                {entry.deprecated && (
+                  <span className="inline-flex items-center rounded-full border border-[var(--cromo-warning)]/40 bg-[var(--cromo-warning-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-warning-text)]">
+                    Known broken
+                  </span>
+                )}
               </header>
+
+              {entry.deprecated && (
+                <div
+                  role="alert"
+                  className="mb-4 rounded-md border border-[var(--cromo-warning)]/40 bg-[var(--cromo-warning-soft)] px-3 py-2 text-sm text-[var(--cromo-warning-text)] flex gap-2 items-start"
+                >
+                  <span aria-hidden className="mt-0.5">⚠️</span>
+                  <p className="leading-relaxed">{entry.deprecated}</p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 {CATEGORY_ORDER.filter((cat) => entry.changes[cat]?.length).map((cat) => (
