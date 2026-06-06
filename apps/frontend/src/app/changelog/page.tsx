@@ -33,9 +33,13 @@ export default function ChangelogPage() {
       />
 
       <div className="space-y-6">
-        {CHANGELOG.map((entry) => {
+        {/* Unreleased is a release-script staging area, not a product surface —
+            the page subtitle promises "shipped" changes, so anything still in
+            the Unreleased bucket would be advertising features the running
+            build doesn't have. Filtered out here; entries.ts itself remains
+            the source of truth that release.sh rotates from. */}
+        {CHANGELOG.filter((e) => e.version !== 'Unreleased').map((entry) => {
           const formatted = formatDate(entry.date);
-          const isUnreleased = entry.version === 'Unreleased';
           return (
             <article
               key={entry.version}
@@ -47,11 +51,6 @@ export default function ChangelogPage() {
                 </h2>
                 {formatted && (
                   <span className="text-xs font-mono text-[var(--cromo-fg-subtle)]">{formatted}</span>
-                )}
-                {isUnreleased && (
-                  <span className="inline-flex items-center rounded-full border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface-2)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-fg-muted)]">
-                    Unreleased
-                  </span>
                 )}
                 {entry.deprecated && (
                   <span className="inline-flex items-center rounded-full border border-[var(--cromo-warning)]/40 bg-[var(--cromo-warning-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-warning-text)]">

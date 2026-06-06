@@ -38,6 +38,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       Added: [
         'Known-broken releases are flagged with a warning banner on the changelog page so collectors know to upgrade.',
       ],
+      Changed: [
+        'The changelog page only lists shipped releases now — the in-progress placeholder is hidden.',
+      ],
     },
   },
   {
