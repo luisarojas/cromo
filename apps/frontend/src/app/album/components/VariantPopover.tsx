@@ -34,10 +34,12 @@ interface Props {
   albumsWithSticker?: Array<{ id: string; name: string }>;
   wantedVariantIds: Set<string>;
   onToggleWanted: (variantId: string, stickerId: string) => Promise<void> | void;
-  // Optional full-screen presentation mode for phones. When 'sheet' we ignore
-  // anchorRect, render as a bottom sheet, and expose prev/next nav so the user
-  // can swipe through adjacent stickers without bouncing back to the grid.
-  presentation?: 'popover' | 'sheet';
+  // Presentation mode:
+  //  - 'popover': default, anchored to anchorRect. Desktop click-on-card.
+  //  - 'sheet': mobile bottom sheet covering ~92vh, swipeable prev/next.
+  //  - 'rail': xl+ desktop persistent right-side rail; the grid stays interactive
+  //    behind it and the rail updates as the user clicks new stickers.
+  presentation?: 'popover' | 'sheet' | 'rail';
   onPrev?: () => void;
   onNext?: () => void;
 }
@@ -101,22 +103,28 @@ export default function VariantPopover({
     return () => { cancelled = true; };
   }, [sticker.albumCode, sticker.id, token]);
 
-  // Close on outside click / Esc
+  // Close on outside click / Esc. Rail mode is non-modal — the grid must stay
+  // interactive next to the rail — so we only register outside-click for the
+  // popover and sheet presentations. Escape still works in rail mode so
+  // keyboard users can dismiss it.
   useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    if (presentation === 'rail') {
+      return () => document.removeEventListener('keydown', handleKey);
+    }
     const handleDown = (e: MouseEvent) => {
       if (!ref.current) return;
       if (!ref.current.contains(e.target as Node)) onClose();
     };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     document.addEventListener('mousedown', handleDown);
-    document.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('mousedown', handleDown);
       document.removeEventListener('keydown', handleKey);
     };
-  }, [onClose]);
+  }, [onClose, presentation]);
 
   // Position the popover near the anchor, flipping above when space below is tight
   const spaceBelow = window.innerHeight - anchorRect.bottom - 14;
@@ -225,8 +233,8 @@ export default function VariantPopover({
   const otherUnowned = unownedVariants.filter((v) => v.id !== preferredBaseUnowned?.id);
 
   // Lock the underlying page scroll while the sheet is up — same pattern the
-  // NavBar drawer uses. Otherwise the album grid scrolls behind a half-open
-  // sheet, which both feels wrong and lets a sticky FilterBar peek through.
+  // NavBar drawer uses. Rail mode is non-modal (the grid stays interactive),
+  // so we deliberately don't lock for it.
   useEffect(() => {
     if (presentation !== 'sheet') return;
     const prev = document.body.style.overflow;
@@ -302,7 +310,7 @@ export default function VariantPopover({
     // of its own — keeps the prev/next chevrons flush with the album-code/
     // player-name text and the close button.
     <div className="flex items-center gap-2">
-      {presentation === 'sheet' && onPrev && (
+      {(presentation === 'sheet' || presentation === 'rail') && onPrev && (
         <button
           onClick={onPrev}
           aria-label="Previous sticker"
@@ -315,7 +323,7 @@ export default function VariantPopover({
         <div className="text-sm font-semibold text-[var(--cromo-fg)]">{sticker.albumCode}</div>
         <div className="text-xs text-[var(--cromo-fg-muted)] truncate">{sticker.playerName ?? sticker.teamName ?? '—'}</div>
       </div>
-      {presentation === 'sheet' && onNext && (
+      {(presentation === 'sheet' || presentation === 'rail') && onNext && (
         <button
           onClick={onNext}
           aria-label="Next sticker"
@@ -346,7 +354,12 @@ export default function VariantPopover({
         // looking flush against the rounded top edge.
         presentation === 'sheet'
           ? 'fixed inset-x-0 bottom-0 z-50 w-full max-h-[92vh] flex flex-col bg-[var(--cromo-surface)] rounded-t-2xl shadow-cromo-lg overflow-y-auto p-3 gap-2'
-          : 'fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-3 flex flex-col gap-2 overflow-y-auto'
+          : presentation === 'rail'
+            // Desktop persistent rail: fixed to the right edge, top-anchored
+            // beneath the NavBar (h-14) with a small gutter. No backdrop — the
+            // grid remains interactive next to it.
+            ? 'fixed top-16 right-4 z-30 w-80 max-h-[calc(100vh-5rem)] flex flex-col bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] shadow-cromo-lg overflow-y-auto p-3 gap-2'
+            : 'fixed z-50 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-3 flex flex-col gap-2 overflow-y-auto'
       }
       style={
         presentation === 'sheet'
@@ -356,7 +369,9 @@ export default function VariantPopover({
               transition: sheetSnapping ? 'transform 120ms ease-out' : 'none',
               opacity: Math.max(0.6, 1 - Math.abs(sheetDragX) / 240),
             }
-          : { ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }
+          : presentation === 'rail'
+            ? undefined
+            : { ...posStyle, left, width: POPOVER_WIDTH, maxHeight: maxPopoverHeight }
       }
       onTouchStart={onSheetTouchStart}
       onTouchMove={onSheetTouchMove}
@@ -367,7 +382,7 @@ export default function VariantPopover({
           <span className="h-1 w-10 rounded-full bg-[var(--cromo-border)]" />
         </div>
       )}
-      {presentation === 'sheet' ? sharedHeader : (
+      {(presentation === 'sheet' || presentation === 'rail') ? sharedHeader : (
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold text-[var(--cromo-fg)]">

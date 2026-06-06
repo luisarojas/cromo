@@ -23,6 +23,7 @@ import {
 } from '@/lib/api';
 import ReportUserModal from '@/components/ReportUserModal';
 import TradeStickerPicker, { type TradePickerItem } from '../components/TradeStickerPicker';
+import { publishSync, subscribeSync } from '@/lib/syncBus';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -235,6 +236,31 @@ export default function TradeDetailPage() {
     };
   }, [token, tradeId]);
 
+  // Cross-tab refresh for this specific trade. SSE already covers status
+  // changes, message arrivals, and confirmation timestamps — but counter and
+  // edit mutations change the trade's items without firing an SSE event,
+  // so a second tab with this trade open would stay stale after the user
+  // counter-offered in tab one. We refetch on any trade:changed for this
+  // tradeId; BroadcastChannel does not deliver messages back to the tab that
+  // posted them, so the publishing tab's just-completed local fetch is not
+  // duplicated.
+  useEffect(() => {
+    if (!user || !token || !tradeId) return;
+    return subscribeSync(async (event) => {
+      if (event.type !== 'trade:changed') return;
+      if (event.userId !== user.id) return;
+      if (event.tradeId !== tradeId) return;
+      try {
+        const updated = await fetchTrade(tradeId, token);
+        setTrade(updated);
+        setMessages(updated.messages);
+      } catch {
+        // Fetch failed — leave whatever the SSE channel pushed last and let
+        // the user reload manually if something looks off.
+      }
+    });
+  }, [user, token, tradeId]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -272,6 +298,11 @@ export default function TradeDetailPage() {
       const updated = await fetchTrade(tradeId, token);
       setTrade(updated);
       setMessages(updated.messages);
+      // Tell other tabs the trade row changed shape (status, counts). Listed
+      // here once for every mutation that flows through runAction — accept,
+      // decline, cancel, complete — so My Trades stays consistent without
+      // each handler having to remember to publish.
+      if (user) publishSync({ type: 'trade:changed', userId: user.id, tradeId });
       onSuccess?.();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Action failed');
@@ -330,6 +361,7 @@ export default function TradeDetailPage() {
       setCounterItems([]);
       setCounterOfferCash(0);
       setCounterWantCash(0);
+      if (user) publishSync({ type: 'trade:changed', userId: user.id, tradeId });
     } catch (err) {
       setCounterError(err instanceof Error ? err.message : 'Failed to submit counter offer');
     } finally {
@@ -367,6 +399,7 @@ export default function TradeDetailPage() {
       setEditItems([]);
       setEditOfferCash(0);
       setEditWantCash(0);
+      if (user) publishSync({ type: 'trade:changed', userId: user.id, tradeId });
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'Failed to update counter offer');
     } finally {
@@ -414,6 +447,9 @@ export default function TradeDetailPage() {
         const without = prev.filter((m) => m.id !== optimisticMsg.id && m.id !== sent.id);
         return [...without, sent];
       });
+      // Message-send bumps messageCount on the trade summary row — the My
+      // Trades list shows that count, so it should refresh.
+      if (user) publishSync({ type: 'trade:changed', userId: user.id, tradeId });
     } catch {
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));

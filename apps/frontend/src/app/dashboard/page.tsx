@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/auth';
 import { useAlbumsStore } from '@/store/albums';
 import { Alert, Badge, Button, Card, PageHeader, Stat } from '@/components/ui';
 import { readLastScan, clearLastScan, readStreak, type LastScan } from '@/lib/lastScan';
+import { subscribeSync } from '@/lib/syncBus';
 
 // New users on the dashboard who have never scanned see a one-time card that
 // explains we'll ask for camera access on first scan. Browsers only prompt in
@@ -70,6 +71,9 @@ export default function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  // Bumped by cross-tab sync events; the load effect depends on it so a
+  // mutation in another tab re-fetches dashboard stats here.
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -104,7 +108,19 @@ export default function DashboardPage() {
     void load();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, token, user, router, sortOrder, filterType]);
+  }, [hydrated, token, user, router, sortOrder, filterType, reloadTick]);
+
+  // Cross-tab refresh: a collection change in any tab (album view, scanner)
+  // should reflect on the dashboard's stats and progress bars without the
+  // user having to reload. We only react to events for THIS user.
+  useEffect(() => {
+    if (!user) return;
+    return subscribeSync((event) => {
+      if (event.type !== 'collection:changed') return;
+      if (event.userId !== user.id) return;
+      setReloadTick((n) => n + 1);
+    });
+  }, [user]);
 
   const albumTypes = allAlbumTypeNames;
   const displayedAlbums = albums;

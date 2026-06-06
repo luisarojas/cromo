@@ -24,9 +24,17 @@ interface Props {
   // Caller decides what it means in context — entering selection mode for an
   // owned sticker, adding to wishlist for an unowned one.
   onLongPress?: () => void;
+  // Right-click → context menu. Coords are viewport-relative.
+  onContextMenu?: (clientX: number, clientY: number) => void;
   selectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (shiftKey: boolean) => void;
+  // Keyboard-focused card highlight. When true, render an accent ring so the
+  // user can see which sticker the j/k/+/-/f/w hotkeys will act on.
+  isKeyboardFocused?: boolean;
+  // HTML5 DnD: if provided, the card becomes draggable and `dragPayload` is
+  // serialised into the custom mime type so AlbumDropDock can read it on drop.
+  dragPayload?: string;
 }
 
 const LONG_PRESS_MS = 480;
@@ -57,9 +65,12 @@ export default function StickerCard({
   onOpenPopover,
   onSwipeAdjust,
   onLongPress,
+  onContextMenu,
   selectionMode,
   isSelected,
   onToggleSelect,
+  isKeyboardFocused,
+  dragPayload,
 }: Props) {
   const typeColor =
     TYPE_COLORS[sticker.stickerType] ?? 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]';
@@ -162,10 +173,38 @@ export default function StickerCard({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       onTouchCancel={() => { cancelLongPress(); startRef.current = null; setDragX(0); }}
+      onContextMenu={onContextMenu ? (e) => {
+        e.preventDefault();
+        onContextMenu(e.clientX, e.clientY);
+      } : undefined}
+      draggable={!!dragPayload && !selectionMode}
+      data-cromo-drag={dragPayload}
+      data-sticker-id={sticker.id}
+      onDragStart={dragPayload ? (e) => {
+        // Suppress drag when started on an interactive child (heart, checkbox)
+        // that's marked data-no-drag. Without this, clicking the heart with
+        // even a tiny mouse movement gets interpreted as a drag and the entire
+        // card flies off — destroying the click and confusing the user.
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-no-drag]')) {
+          e.preventDefault();
+          return;
+        }
+        // Custom mime keeps the payload private to the app. text/plain echoes
+        // a human-readable label so dragging into a text field doesn't drop
+        // raw JSON in the user's note.
+        e.dataTransfer.setData('application/x-cromo-sticker', dragPayload);
+        e.dataTransfer.effectAllowed = 'move';
+        try {
+          const parsed = JSON.parse(dragPayload) as { albumCode?: string; playerName?: string | null };
+          e.dataTransfer.setData('text/plain', parsed.playerName ? `${parsed.albumCode} ${parsed.playerName}` : parsed.albumCode ?? '');
+        } catch { /* ignore */ }
+      } : undefined}
       style={dragX !== 0 ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
       className={`
         group relative flex flex-col rounded-lg border p-2.5 text-sm text-left
         transition-all duration-150 select-none w-full touch-pan-y
+        ${isKeyboardFocused ? 'ring-2 ring-[var(--cromo-accent)] ring-offset-2 ring-offset-[var(--cromo-bg)]' : ''}
         ${
           selectionMode && isSelected
             ? 'border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] ring-2 ring-blue-200'
@@ -198,6 +237,7 @@ export default function StickerCard({
       {/* Selection checkbox (selection mode) */}
       {selectionMode ? (
         <span
+          data-no-drag
           className={`absolute top-1.5 left-1.5 flex items-center justify-center w-4.5 h-4.5 rounded border-2 transition-colors ${
             isSelected ? 'bg-[var(--cromo-accent)] border-[var(--cromo-accent)]' : 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)]'
           }`}
@@ -311,6 +351,7 @@ export default function StickerCard({
       {/* Favourite button — hidden in selection mode */}
       {onToggleFavourite && !selectionMode && (
         <span
+          data-no-drag
           role="button"
           tabIndex={0}
           onClick={(e) => {

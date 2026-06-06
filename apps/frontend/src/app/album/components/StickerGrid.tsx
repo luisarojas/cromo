@@ -7,8 +7,10 @@ import { addSticker, patchSticker, moveSticker, setTradeFlags } from '@/lib/api'
 import { useToast } from '@/components/ToastProvider';
 import StickerCard from './StickerCard';
 import VariantPopover, { type OwnedVariantEntry } from './VariantPopover';
+import StickerContextMenu, { type ContextItem } from './StickerContextMenu';
 import { usePreferencesStore } from '@/store/preferences';
 import { haptic, prefersReducedMotion } from '@/lib/haptics';
+import { useHotkeys } from '@/lib/hotkeys';
 export type OwnedVariantMap = Map<string, OwnedVariantEntry>; // variantType -> entry
 
 interface Props {
@@ -43,9 +45,14 @@ interface Props {
   // Lets a long-press on an owned card flip the album page into selection
   // mode (with this sticker pre-selected). Owned by AlbumDetailClient.
   onRequestSelectionMode?: (stickerId: string) => void;
-  // Density override: 2 (cozy), 3 (default mobile-friendly), or 4 (dense).
-  // Wraps differently at sm: 2-col stays 2, 3-col goes to 3, 4-col goes to 4.
-  density?: 2 | 3 | 4;
+  // Density override. 2/3/4 are the classic densities; 5 and 6 exist for wide
+  // desktops where 4 cols of small cards still wastes a lot of horizontal
+  // gutter. On phones we clamp to 2 regardless so cards stay legible.
+  density?: 2 | 3 | 4 | 5 | 6;
+  // External pause for grid hotkeys (j/k/+/-/f/w/space etc.) so the page can
+  // suppress them while a modal (album edit, scanner, variant picker) is up.
+  // Defaults to true (hotkeys active).
+  hotkeysEnabled?: boolean;
 }
 
 interface PopoverState {
@@ -75,6 +82,7 @@ export default function StickerGrid({
   defaultBaseVariant,
   onRequestSelectionMode,
   density = 4,
+  hotkeysEnabled = true,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -82,26 +90,185 @@ export default function StickerGrid({
   const { addToast } = useToast();
   const tradeMatchingEnabled = usePreferencesStore((s) => s.tradeMatchingEnabled);
   const [popover, setPopover] = useState<PopoverState | null>(null);
-  // Mobile viewport flag — drives the popover→sheet swap. Updated on resize
-  // and on initial mount. We default to false so SSR markup matches desktop.
+  // Right-click context menu state. Closes on outside click / escape via the
+  // menu component's own handlers.
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sticker: Sticker } | null>(null);
+  // Viewport flags — drive the popover/sheet/rail presentation choice. We
+  // default both to false so SSR markup matches the desktop popover layout
+  // and the client takes over on hydrate.
   const [isMobile, setIsMobile] = useState(false);
+  const [isWide, setIsWide] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(max-width: 767px)');
-    const update = () => setIsMobile(mq.matches);
+    const mqMobile = window.matchMedia('(max-width: 767px)');
+    const mqWide = window.matchMedia('(min-width: 1280px)'); // xl
+    const update = () => {
+      setIsMobile(mqMobile.matches);
+      setIsWide(mqWide.matches);
+    };
     update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
+    mqMobile.addEventListener('change', update);
+    mqWide.addEventListener('change', update);
+    return () => {
+      mqMobile.removeEventListener('change', update);
+      mqWide.removeEventListener('change', update);
+    };
   }, []);
+  const presentation: 'sheet' | 'rail' | 'popover' =
+    isMobile ? 'sheet' : isWide ? 'rail' : 'popover';
 
-  // COLS drives the row math AND the Tailwind grid class. Keep them in
-  // lockstep — a virtual row that holds fewer items than the grid renders
-  // leaves blank cells; the reverse leaves un-rendered cards.
-  const COLS = density;
+  // Keyboard-focused sticker index (into the flat displayed `stickers` list).
+  // Null when the user hasn't engaged the keyboard yet; first key arrow/j/k
+  // arms it on index 0. We don't auto-scroll on every change — only when the
+  // focused row isn't currently rendered by the virtualizer.
+  const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
+  const focusedSticker = focusedIdx !== null ? stickers[focusedIdx] : null;
+
+  // Reset focus when the underlying list changes (filter/tab swap).
+  useEffect(() => {
+    setFocusedIdx(null);
+  }, [stickers]);
+
+  function moveFocus(delta: number) {
+    if (stickers.length === 0) return;
+    setFocusedIdx((cur) => {
+      const base = cur ?? -1;
+      const next = Math.max(0, Math.min(stickers.length - 1, base + delta));
+      // Auto-scroll the row into view if it's outside the rendered range.
+      const sticker = stickers[next];
+      if (sticker) {
+        // Find the virtual row that contains this sticker.
+        let rowIdx = -1;
+        for (let i = 0; i < virtualRows.length; i++) {
+          const r = virtualRows[i]!;
+          if (r.kind === 'stickers' && next >= r.firstIdx && next < r.firstIdx + r.items.length) {
+            rowIdx = i;
+            break;
+          }
+        }
+        if (rowIdx >= 0) {
+          // Scroll only if the row isn't already visible (within current virtual range).
+          const vis = virtualizer.getVirtualItems();
+          const isRendered = vis.some((vi) => vi.index === rowIdx);
+          if (!isRendered) {
+            virtualizer.scrollToIndex(rowIdx, { align: 'center' });
+          }
+        }
+      }
+      return next;
+    });
+  }
+
+  // ---- Hotkey bindings ------------------------------------------------------
+  // Disable grid hotkeys while any of: a modal owned by the parent is open
+  // (page passes hotkeysEnabled=false), the variant popover/sheet/rail is open
+  // (the user is interacting with a single sticker, not the grid), or the
+  // context menu is up.
+  const hotkeysActive = hotkeysEnabled && !popover && !contextMenu;
+  // When the popover/sheet/rail is open, arrow keys (and j/k) should still
+  // navigate — but to ADJACENT stickers via the popover's prev/next, not the
+  // grid focus. Pre-resolve the neighbours from the open sticker so the
+  // hotkey can fire without poking into the popover render IIFE.
+  const popoverNav = useMemo(() => {
+    if (!popover) return null;
+    const idx = stickers.findIndex((s) => s.id === popover.sticker.id);
+    if (idx < 0) return null;
+    return {
+      prev: idx > 0 ? stickers[idx - 1] ?? null : null,
+      next: idx < stickers.length - 1 ? stickers[idx + 1] ?? null : null,
+    };
+  }, [popover, stickers]);
+  const popoverNavActive = hotkeysEnabled && !!popover && !contextMenu;
+  function navTo(sticker: Sticker | null | undefined) {
+    if (!sticker) return;
+    // anchorRect is ignored by sheet/rail; popover mode recomputes from the
+    // sticker's DOM rect so it lands next to the new card.
+    const el = document.querySelector(`[data-sticker-id="${sticker.id}"]`) as HTMLElement | null;
+    const rect = el?.getBoundingClientRect()
+      ?? new DOMRect(window.innerWidth / 2 - 100, window.innerHeight / 2 - 100, 200, 200);
+    setPopover({ sticker, rect });
+  }
+  useHotkeys(['j', 'arrowright'], () => moveFocus(+1), { enabled: hotkeysActive });
+  useHotkeys(['k', 'arrowleft'], () => moveFocus(-1), { enabled: hotkeysActive });
+  // Popover-open navigation. Lives alongside the grid bindings since both
+  // would clash on the same keys; the enabled gates are disjoint
+  // (hotkeysActive requires !popover, popoverNavActive requires popover).
+  useHotkeys(['arrowright', 'j'], () => navTo(popoverNav?.next), { enabled: popoverNavActive });
+  useHotkeys(['arrowleft', 'k'], () => navTo(popoverNav?.prev), { enabled: popoverNavActive });
+  useHotkeys('arrowdown', () => moveFocus(COLS), { enabled: hotkeysActive });
+  useHotkeys('arrowup', () => moveFocus(-COLS), { enabled: hotkeysActive });
+  useHotkeys('enter', () => {
+    if (!focusedSticker) return;
+    // For popover mode we need the actual DOMRect of the focused card so the
+    // popover anchors against it. The card carries a data-sticker-id; if it
+    // isn't currently rendered (focused row outside the virtual window), we
+    // fall back to a viewport-centre rect so the popover at least lands
+    // somewhere visible. Sheet/rail modes ignore the rect entirely.
+    const el = document.querySelector(`[data-sticker-id="${focusedSticker.id}"]`) as HTMLElement | null;
+    const rect = el?.getBoundingClientRect()
+      ?? new DOMRect(window.innerWidth / 2 - 100, window.innerHeight / 2 - 100, 200, 200);
+    setPopover({ sticker: focusedSticker, rect });
+  }, { enabled: hotkeysActive });
+  useHotkeys('+ | =', () => {
+    // `=` is the unshifted '+' key on US layouts. Both fire the same action so
+    // users don't need to remember to hold shift.
+    if (!focusedSticker) return;
+    handleSwipeAdjust(focusedSticker, 'right');
+  }, { enabled: hotkeysActive });
+  useHotkeys('-', () => {
+    if (!focusedSticker) return;
+    handleSwipeAdjust(focusedSticker, 'left');
+  }, { enabled: hotkeysActive });
+  useHotkeys('f', () => {
+    if (!focusedSticker || !onToggleFavourite) return;
+    onToggleFavourite(focusedSticker.id);
+  }, { enabled: hotkeysActive });
+  useHotkeys('w', () => {
+    if (!focusedSticker?.baseVariantId) return;
+    void onToggleWanted(focusedSticker.baseVariantId, focusedSticker.id);
+  }, { enabled: hotkeysActive });
+  useHotkeys('space', () => {
+    if (!focusedSticker || !onToggleSelect) return;
+    onToggleSelect(focusedSticker.id);
+  }, { enabled: hotkeysActive });
+  useHotkeys('shift+s', () => {
+    if (!focusedSticker) return;
+    onRequestSelectionMode?.(focusedSticker.id);
+  }, { enabled: hotkeysActive });
+
+  // The density choice (2..6) is the user's *preferred* density. The grid
+  // can only honor it at viewports wide enough — 5 and 6 require lg+, and
+  // 3 ramps in at sm. Below those breakpoints we step down to a sensible
+  // floor. Because the virtualizer's row math uses COLS to slice the sticker
+  // list into rows, this number MUST equal the actual rendered column count
+  // at the current viewport — otherwise rows contain extra items that wrap,
+  // and the measured row height stops matching the estimate.
+  const [viewportTier, setViewportTier] = useState<'base' | 'sm' | 'lg'>('base');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const lg = window.matchMedia('(min-width: 1024px)');
+    const sm = window.matchMedia('(min-width: 640px)');
+    const update = () => setViewportTier(lg.matches ? 'lg' : sm.matches ? 'sm' : 'base');
+    update();
+    lg.addEventListener('change', update);
+    sm.addEventListener('change', update);
+    return () => {
+      lg.removeEventListener('change', update);
+      sm.removeEventListener('change', update);
+    };
+  }, []);
+  function effectiveCols(preferred: number, tier: 'base' | 'sm' | 'lg'): number {
+    if (tier === 'base') return 2;
+    if (tier === 'sm') return Math.min(preferred, 4);
+    return preferred; // lg+
+  }
+  const COLS = effectiveCols(density, viewportTier);
   const gridColsClass =
     COLS === 2 ? 'grid-cols-2'
-    : COLS === 3 ? 'grid-cols-2 sm:grid-cols-3'
-    : 'grid-cols-2 sm:grid-cols-4';
+    : COLS === 3 ? 'grid-cols-3'
+    : COLS === 4 ? 'grid-cols-4'
+    : COLS === 5 ? 'grid-cols-5'
+    : 'grid-cols-6';
 
   // Mixed-row model: a virtual row is either a group header (variable, short
   // height) or a row of up to COLS stickers. We don't let a sticker row span
@@ -402,6 +569,14 @@ export default function StickerGrid({
                       isFavourited={favouriteSet?.has(sticker.id)}
                       onToggleFavourite={onToggleFavourite ? () => onToggleFavourite(sticker.id) : undefined}
                       onSwipeAdjust={(direction) => handleSwipeAdjust(sticker, direction)}
+                      isKeyboardFocused={focusedIdx !== null && stickers[focusedIdx]?.id === sticker.id}
+                      onContextMenu={selectionMode ? undefined : (cx, cy) => setContextMenu({ x: cx, y: cy, sticker })}
+                      dragPayload={(ownedMap.get(sticker.id)?.size ?? 0) > 0 ? JSON.stringify({
+                        stickerId: sticker.id,
+                        fromAlbumId: albumId,
+                        albumCode: sticker.albumCode,
+                        playerName: sticker.playerName,
+                      }) : undefined}
                       onLongPress={() => {
                         // Owned → flip to selection mode (caller pre-selects).
                         // Unowned → toggle wishlist on the album's default base
@@ -475,6 +650,60 @@ export default function StickerGrid({
         </nav>
       )}
 
+      {contextMenu && (() => {
+        const s = contextMenu.sticker;
+        const owned = ownedMap.get(s.id);
+        const ownedCount = owned ? Array.from(owned.values()).reduce((sum, e) => sum + e.quantity, 0) : 0;
+        const isFav = favouriteSet?.has(s.id) ?? false;
+        const wantedBaseOn = s.baseVariantId ? wantedVariantIds.has(s.baseVariantId) : false;
+        const items: ContextItem[] = [
+          {
+            label: 'Open details',
+            shortcut: '↵',
+            run: () => {
+              const rect = new DOMRect(0, 0, 0, 0);
+              setPopover({ sticker: s, rect });
+            },
+          },
+          {
+            label: 'Add one of default base',
+            shortcut: '+',
+            disabled: !s.baseVariantId,
+            run: () => handleSwipeAdjust(s, 'right'),
+          },
+          {
+            label: 'Remove one',
+            shortcut: '−',
+            disabled: ownedCount === 0,
+            destructive: ownedCount === 0,
+            run: () => handleSwipeAdjust(s, 'left'),
+          },
+          {
+            label: isFav ? 'Unfavourite' : 'Favourite',
+            shortcut: 'F',
+            disabled: !onToggleFavourite,
+            run: () => onToggleFavourite?.(s.id),
+          },
+          {
+            label: wantedBaseOn ? 'Remove base from wishlist' : 'Add base to wishlist',
+            shortcut: 'W',
+            disabled: !s.baseVariantId,
+            run: () => {
+              if (!s.baseVariantId) return;
+              void onToggleWanted(s.baseVariantId, s.id);
+            },
+          },
+        ];
+        return (
+          <StickerContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
+
       {popover && (() => {
         // Resolve the prev/next stickers from the flat list so the sheet can
         // navigate without reaching back into the grid's row math.
@@ -512,7 +741,7 @@ export default function StickerGrid({
             albumsWithSticker={crossAlbumHasSticker?.get(popover.sticker.albumCode)}
             wantedVariantIds={wantedVariantIds}
             onToggleWanted={onToggleWanted}
-            presentation={isMobile ? 'sheet' : 'popover'}
+            presentation={presentation}
             onPrev={prevSticker ? () => navTo(prevSticker) : undefined}
             onNext={nextSticker ? () => navTo(nextSticker) : undefined}
           />

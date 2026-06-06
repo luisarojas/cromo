@@ -18,6 +18,7 @@ import {
 } from '@/lib/api';
 import { variantLabel } from '@/app/album/components/variantMeta';
 import { rememberLastScan, recordScanDay } from '@/lib/lastScan';
+import { publishSync } from '@/lib/syncBus';
 import { isSpeechSupported, isSpeechMuted, setSpeechMuted, speak } from '@/lib/speech';
 import PackShareCard, { type PackEntry } from '@/components/PackShareCard';
 
@@ -874,6 +875,10 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
         };
         setPackEntries((prev) => prev.some((p) => p.albumCode === entry.albumCode) ? prev : [...prev, entry]);
       }
+      // Tell other tabs the collection moved. AlbumDetailClient subscribes
+      // and reloads its view; without this, a /album/X tab in another
+      // window stays stale after a successful scan-add.
+      publishSync({ type: 'collection:changed', userId: user.id, albumId: album.id });
       onChange?.();
     } catch { /* ignore per-item errors silently */ }
   };
@@ -887,6 +892,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
       setResultCards((prev) => prev.map((c, i) => (i === idx
         ? { ...c, added: false, lastAdd: undefined }
         : c)));
+      publishSync({ type: 'collection:changed', userId: user.id, albumId: album.id });
       onChange?.();
     } catch { /* ignore per-item errors silently */ }
   };

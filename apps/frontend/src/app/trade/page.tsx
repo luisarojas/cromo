@@ -27,20 +27,13 @@ import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
 import CombinedListInput from './components/CombinedListInput';
 import ExternalMatchResult from './components/ExternalMatchResult';
+import TradesList from './components/TradesList';
+import { publishSync, subscribeSync } from '@/lib/syncBus';
 import CityAutocomplete from '@/components/CityAutocomplete';
 
 import { saveDraft, clearDraft, loadDraft } from './draftStorage';
 
 type Tab = 'find' | 'third-party' | 'my';
-
-const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
-  pending: { label: 'Pending', className: 'bg-[var(--cromo-warning-soft)] text-yellow-800' },
-  accepted: { label: 'Accepted', className: 'bg-[var(--cromo-success-soft)] text-green-800' },
-  declined: { label: 'Declined', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-  completed: { label: 'Completed', className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
-  expired: { label: 'Expired', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-};
 
 interface ProposeModalState {
   match: TradeMatch;
@@ -131,6 +124,10 @@ function TradePageContent() {
   const [tradesMoreLoading, setTradesMoreLoading] = useState(false);
   const [tradesCursor, setTradesCursor] = useState<string | null>(null);
   const [tradesError, setTradesError] = useState<string | null>(null);
+  // Cross-tab reload counter — bumped when another tab signals a collection
+  // change. The trades-load effect depends on it so My Trades stays fresh
+  // even if the user accepted/declined in a second window.
+  const [tradesReloadTick, setTradesReloadTick] = useState(0);
 
   // Third-party (external list) state
   const [tpAlbumId, setTpAlbumId] = useState<string>('');
@@ -203,7 +200,20 @@ function TradePageContent() {
     return () => {
       cancelled = true;
     };
-  }, [tab, token]);
+  }, [tab, token, tradesReloadTick]);
+
+  // Cross-tab refresh for My Trades. Listens to the narrowly-scoped
+  // trade:changed event (published from every trade mutation: create,
+  // accept, decline, cancel, complete, message-send) so the list stays
+  // fresh without over-refreshing on every sticker add elsewhere.
+  useEffect(() => {
+    if (!user) return;
+    return subscribeSync((event) => {
+      if (event.type !== 'trade:changed') return;
+      if (event.userId !== user.id) return;
+      setTradesReloadTick((n) => n + 1);
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!selectedAlbumId || !token || !user) {
@@ -432,6 +442,7 @@ function TradePageContent() {
       );
       clearDraft();
       setProposeModal(null);
+      if (user) publishSync({ type: 'trade:changed', userId: user.id, tradeId: result.id });
       router.push(`/trade/${result.id}`);
     } catch (err) {
       setProposeModal((prev) =>
@@ -750,33 +761,13 @@ function TradePageContent() {
 
           {!tradesLoading && trades.length > 0 && (
             <div className="space-y-2">
-              {trades.map((trade) => {
-                const badge = STATUS_BADGE[trade.status];
-                const isRequester = trade.requesterId === user?.id;
-                const otherUser = isRequester ? trade.recipientUsername : trade.requesterUsername;
-                return (
-                  <button
-                    key={trade.id}
-                    onClick={() => router.push(`/trade/${trade.id}`)}
-                    className="w-full text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 hover:border-[var(--cromo-accent)]/30 hover:bg-[var(--cromo-accent-soft)] transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-[var(--cromo-fg)] truncate">
-                          {isRequester ? 'To' : 'From'}: @{otherUser}
-                        </div>
-                        <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
-                          {new Date(trade.createdAt).toLocaleDateString()} &middot;{' '}
-                          {trade.messageCount} {trade.messageCount === 1 ? 'message' : 'messages'}
-                        </div>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+              {user && (
+                <TradesList
+                  trades={trades}
+                  myUserId={user.id}
+                  onOpen={(id) => router.push(`/trade/${id}`)}
+                />
+              )}
               {tradesCursor && (
                 <button
                   onClick={async () => {

@@ -17,6 +17,7 @@ import {
   fetchStickersBulk,
   bulkStickers,
   createUserAlbum,
+  moveSticker,
   updateUserAlbum,
   deleteUserAlbum,
   setDefaultUserAlbum,
@@ -43,6 +44,9 @@ import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import PullToRefresh from '@/components/PullToRefresh';
 import CompletionCelebration from '@/components/CompletionCelebration';
 import FocusInsight from '../components/FocusInsight';
+import AlbumDropDock, { type DragPayload } from '../components/AlbumDropDock';
+import { useHotkeys } from '@/lib/hotkeys';
+import { publishSync, subscribeSync } from '@/lib/syncBus';
 import AlbumFormModal from '../components/AlbumFormModal';
 import MassActionBar from '../components/MassActionBar';
 import VariantPickerModal from '../components/VariantPickerModal';
@@ -129,22 +133,34 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const { tab, filters, setTab, setFilters } = useAlbumUrlState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Grid density (2/3/4 columns) — persisted per browser so the user's
-  // preferred density survives reloads without needing a backend field.
-  const [density, setDensityState] = useState<2 | 3 | 4>(() => {
+  // Grid density (2/3/4/5/6 columns) — persisted per browser. 5 and 6 are
+  // wide-screen densities that clamp to 4 below lg so phones aren't affected.
+  type Density = 2 | 3 | 4 | 5 | 6;
+  const [density, setDensityState] = useState<Density>(() => {
     if (typeof window === 'undefined') return 4;
     try {
       const raw = window.localStorage.getItem('cromo:gridDensity');
       const n = raw ? parseInt(raw, 10) : 0;
-      return n === 2 || n === 3 || n === 4 ? n : 4;
+      return (n >= 2 && n <= 6 ? n : 4) as Density;
     } catch {
       return 4;
     }
   });
-  const setDensity = useCallback((next: 2 | 3 | 4) => {
+  const setDensity = useCallback((next: Density) => {
     setDensityState(next);
     try { window.localStorage.setItem('cromo:gridDensity', String(next)); } catch { /* ignore */ }
   }, []);
+
+  // Album-page hotkey: `/` jumps cursor to the FilterBar search input. The
+  // input's id is the canonical handle; both FilterBar (which renders it) and
+  // this hotkey reference the same string so they don't drift.
+  useHotkeys('/', () => {
+    const input = document.getElementById('filter-search') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
   const [editions, setEditions] = useState<AlbumEditionOption[]>([]);
   const [formats, setFormats] = useState<AlbumFormatOption[]>([]);
   const [editingAlbum, setEditingAlbum] = useState<UserAlbum | null>(null);
@@ -556,8 +572,24 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       // loadView refreshes ownedMap + stats + crossAlbum in one round trip,
       // so the previous `reloadSummaries` knob is no longer meaningful.
       await loadView(tok, usr.id, albumId);
+      // Tell other tabs the user has open that this album's state moved so
+      // they reload instead of showing stale ownership data.
+      publishSync({ type: 'collection:changed', userId: usr.id, albumId });
     }
   }, [albumId, loadView]);
+
+  // Listen for mutations from other tabs and refresh when one lands in scope.
+  // We only react when the message is for *this user* and *this album* (or a
+  // broadcast with null albumId, which means "every album view should refetch").
+  useEffect(() => {
+    if (!user || !token || !albumId) return;
+    return subscribeSync((event) => {
+      if (event.type !== 'collection:changed') return;
+      if (event.userId !== user.id) return;
+      if (event.albumId && event.albumId !== albumId) return;
+      void loadView(token, user.id, albumId);
+    });
+  }, [user, token, albumId, loadView]);
 
   const handleOptimisticAdjust = useCallback(
     (stickerId: string, variantType: string, variantId: string, delta: number) => {
@@ -659,7 +691,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       disabled={showAddModal || editingAlbum !== null || showScanner}
     >
     <div className="min-h-screen bg-[var(--cromo-surface-2)]">
-      <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4">
+      {/* xl+ reserves a 22rem right gutter for the persistent sticker-detail
+          rail (rendered by StickerGrid's VariantPopover in 'rail' presentation).
+          We keep this space reserved at all times rather than reflowing on open
+          so cards don't slide as the user clicks around. Below xl the rail
+          isn't used and the gutter collapses. */}
+      <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-4 xl:pr-[22rem]">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -865,7 +902,12 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             </button>
           ))}
           <button
-            onClick={() => setDensity(density === 4 ? 3 : density === 3 ? 2 : 4)}
+            onClick={() => {
+              // Cycle 2 → 3 → 4 → 5 → 6 → 2. The icon visually grows tighter
+              // as the count increases so the affordance maps to "denser".
+              const next = (density === 6 ? 2 : ((density + 1) as Density));
+              setDensity(next);
+            }}
             aria-label={`Grid density: ${density} columns. Tap to change.`}
             title={`Density: ${density} columns`}
             className="ml-auto shrink-0 px-3 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] transition-colors flex items-center gap-1"
@@ -953,6 +995,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                 setSelectedStickerIds(new Set([stickerId]));
               }}
               density={density}
+              hotkeysEnabled={!showAddModal && !editingAlbum && !showScanner && !variantPicker}
             />
           </div>
         ) : null}
@@ -1030,6 +1073,29 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           onClose={() => setVariantPicker(null)}
         />
       )}
+
+      <AlbumDropDock
+        albums={albums}
+        currentAlbumId={albumId ?? ''}
+        onDropOnAlbum={async (payload: DragPayload, targetAlbumId) => {
+          // Move 1 copy of the first owned variant. Multi-variant moves still
+          // go through the popover where the user can pick which one and how
+          // many. Drag-and-drop is the fast path for "ship one off to album X".
+          if (!user || !token || !albumId) return;
+          const perSticker = ownedMap.get(payload.stickerId);
+          if (!perSticker || perSticker.size === 0) return;
+          const first = perSticker.entries().next().value as [string, OwnedVariantEntry];
+          const [, entry] = first;
+          try {
+            await moveSticker(user.id, albumId, entry.variantId, targetAlbumId, 1, token);
+            addToast(`Moved ${payload.albumCode} to other album`, { type: 'success' });
+            await handleCollectionChange();
+          } catch (err) {
+            console.error('Failed to move sticker via DnD', err);
+            addToast('Failed to move sticker.');
+          }
+        }}
+      />
 
       <CompletionCelebration
         albumId={activeAlbum?.id ?? null}

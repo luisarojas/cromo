@@ -15,6 +15,9 @@ import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 import MobileTabBar from '@/components/MobileTabBar';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import OfflineIndicator from '@/components/OfflineIndicator';
+import HotkeyCheatsheet from '@/components/HotkeyCheatsheet';
+import CommandPalette from '@/components/CommandPalette';
+import GlobalHotkeys from '@/components/GlobalHotkeys';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -83,6 +86,9 @@ export default async function RootLayout({
               <MobileTabBar />
               <PWAInstallPrompt />
               <OfflineIndicator />
+              <HotkeyCheatsheet />
+              <CommandPalette />
+              <GlobalHotkeys />
             </AuthProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
