@@ -134,7 +134,11 @@ CHANGELOG_FILE="apps/frontend/src/app/changelog/entries.ts"
 # leaves the tree clean.
 CHECK_FLAGS=()
 [ "$ALLOW_EMPTY" -eq 1 ] && CHECK_FLAGS+=(--allow-empty)
-node scripts/rotate-changelog.mjs check "${CHECK_FLAGS[@]}"
+# macOS ships bash 3.2 by default; under `set -u`, expanding an empty array
+# with "${arr[@]}" raises "unbound variable". The `${arr[@]+...}` form
+# expands to nothing when the array is unset/empty and to the quoted array
+# otherwise — bash 3.2 safe and a no-op on bash 5+.
+node scripts/rotate-changelog.mjs check ${CHECK_FLAGS[@]+"${CHECK_FLAGS[@]}"}
 
 # In-place rewrite of the top-level "version" field. We use `node` instead of
 # `sed`/`jq` so the existing key order and formatting (2-space indent + trailing
@@ -155,7 +159,7 @@ done
 # Rotate the in-app changelog: Unreleased → v$VERSION + today's UTC date,
 # then a fresh empty Unreleased prepended. The check above already validated
 # the Unreleased shape (and bullet count if --allow-empty was not set).
-node scripts/rotate-changelog.mjs rotate "v$VERSION" "${CHECK_FLAGS[@]}"
+node scripts/rotate-changelog.mjs rotate "v$VERSION" ${CHECK_FLAGS[@]+"${CHECK_FLAGS[@]}"}
 
 git add "${FILES[@]}" "$CHANGELOG_FILE"
 git commit -m "Release v$VERSION"
