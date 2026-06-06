@@ -118,6 +118,8 @@ The user-facing changelog lives at `/changelog` in the frontend. It is a static 
 1. While in development between releases, append bullets to the single `Unreleased` entry at the top of the `CHANGELOG` array, under whichever category fits.
 2. Write bullets for collectors, not committers — describe the user-visible effect, not the implementation. ("Player search matches accented names" beats "Normalize NFD in name lookup".)
 3. Skip changes with no user-visible effect (refactors, infra, internal renames).
+4. Keep each bullet short and scannable — one clause, no nested qualifiers. A collector should be able to read the whole `Unreleased` block in a glance. If a bullet needs a comma-spliced "instead of…" tail to explain itself, the verb is probably wrong; pick a tighter one.
+5. When the `Unreleased` block grows long or starts to repeat a prefix (e.g. five bullets that begin with "Trade picker:"), rewrite and reorder before appending more. Combine bullets that describe the same surface (one sort+filter line is better than two), drop redundant context once a cluster makes the area obvious, and group related items so the reader sees them as one block instead of scattered repetition.
 
 **Workflow — at release time (fully automated by `scripts/release.sh`):**
 When you run `./scripts/release.sh X.Y.Z`, the script invokes `scripts/rotate-changelog.mjs` twice:
