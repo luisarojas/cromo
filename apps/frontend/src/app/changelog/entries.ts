@@ -34,6 +34,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
+    changes: {},
+  },
+  {
+    version: 'v0.1.5',
+    date: '2026-06-08',
     changes: {
       Fixed: [
         'Album page stays centred on large screens, and the variant rail sits next to the grid instead of floating off to the right.',
