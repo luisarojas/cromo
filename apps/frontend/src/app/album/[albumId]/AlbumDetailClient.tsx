@@ -46,6 +46,7 @@ import CompletionCelebration from '@/components/CompletionCelebration';
 import FocusInsight from '../components/FocusInsight';
 import AlbumDropDock, { type DragPayload } from '../components/AlbumDropDock';
 import { useHotkeys } from '@/lib/hotkeys';
+import { foldAccents } from '@/lib/normalize';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
 import AlbumFormModal from '../components/AlbumFormModal';
 import MassActionBar from '../components/MassActionBar';
@@ -401,7 +402,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         }
         if (!recent) return false;
       }
-      if (filters.search && !s.playerName?.toLowerCase().includes(filters.search.toLowerCase()) && !s.albumCode.toLowerCase().includes(filters.search.toLowerCase()) && !s.teamName?.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      if (filters.search) {
+        const q = foldAccents(filters.search);
+        if (!foldAccents(s.playerName ?? '').includes(q) && !foldAccents(s.albumCode).includes(q) && !foldAccents(s.teamName ?? '').includes(q)) return false;
+      }
       return true;
     });
   }, [tabStickers, filters, ownedMap, favouriteSet, wantedStickerIds]);

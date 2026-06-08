@@ -25,6 +25,7 @@ import {
   type AdminReportAttachment,
   type AdminBan,
 } from '@/lib/api';
+import { foldAccents } from '@/lib/normalize';
 import { useAuthStore } from '@/store/auth';
 
 // ---------------------------------------------------------------------------
@@ -158,11 +159,11 @@ function StickersSection({ token }: { token: string }) {
 
   const filtered = stickers.filter((s) => {
     if (!search) return true;
-    const q = search.toLowerCase();
+    const q = foldAccents(search);
     return (
-      s.albumCode.toLowerCase().includes(q) ||
-      (s.playerName?.toLowerCase().includes(q) ?? false) ||
-      (s.teamName?.toLowerCase().includes(q) ?? false)
+      foldAccents(s.albumCode).includes(q) ||
+      foldAccents(s.playerName ?? '').includes(q) ||
+      foldAccents(s.teamName ?? '').includes(q)
     );
   });
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
 import { variantLabel, variantSwatch, isBaseVariant, compareVariantTypes } from '@/app/album/components/variantMeta';
 import { flagUrl } from '@/lib/flags';
+import { foldAccents } from '@/lib/normalize';
 import { HeartIcon } from '@/components/HeartIcon';
 import CashInput from './CashInput';
 import PickerToolbar, { type SortKey } from './PickerToolbar';
@@ -347,13 +348,13 @@ export default function TradeStickerPicker({
       if (offerCountryFilters.length > 0 && !offerCountryFilters.includes(item.fifaCode ?? '')) return false;
       if (offerGroupFilters.length > 0 && !offerGroupFilters.includes(item.groupName ?? '')) return false;
       if (!offerSearch) return true;
-      const q = offerSearch.toLowerCase();
+      const q = foldAccents(offerSearch);
       return (
-        item.albumCode.toLowerCase().includes(q) ||
-        (item.playerName?.toLowerCase().includes(q) ?? false) ||
-        (item.teamName?.toLowerCase().includes(q) ?? false) ||
-        (item.fifaCode?.toLowerCase().includes(q) ?? false) ||
-        (item.groupName?.toLowerCase().includes(q) ?? false)
+        foldAccents(item.albumCode).includes(q) ||
+        foldAccents(item.playerName ?? '').includes(q) ||
+        foldAccents(item.teamName ?? '').includes(q) ||
+        foldAccents(item.fifaCode ?? '').includes(q) ||
+        foldAccents(item.groupName ?? '').includes(q)
       );
     })
     .sort((a, b) => {
@@ -386,13 +387,13 @@ export default function TradeStickerPicker({
       if (wantCountryFilters.length > 0 && !wantCountryFilters.includes(w.fifaCode ?? '')) return false;
       if (wantGroupFilters.length > 0 && !wantGroupFilters.includes(w.groupName ?? '')) return false;
       if (wantSearch) {
-        const q = wantSearch.toLowerCase();
+        const q = foldAccents(wantSearch);
         return (
-          w.albumCode.toLowerCase().includes(q) ||
-          (w.playerName?.toLowerCase().includes(q) ?? false) ||
-          (w.teamName?.toLowerCase().includes(q) ?? false) ||
-          (w.fifaCode?.toLowerCase().includes(q) ?? false) ||
-          (w.groupName?.toLowerCase().includes(q) ?? false)
+          foldAccents(w.albumCode).includes(q) ||
+          foldAccents(w.playerName ?? '').includes(q) ||
+          foldAccents(w.teamName ?? '').includes(q) ||
+          foldAccents(w.fifaCode ?? '').includes(q) ||
+          foldAccents(w.groupName ?? '').includes(q)
         );
       }
       return true;

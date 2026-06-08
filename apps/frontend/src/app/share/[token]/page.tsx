@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchPublicList, type PublicList, type PublicListItem } from '@/lib/api';
+import { foldAccents } from '@/lib/normalize';
 import { variantLabel } from '@/app/album/components/variantMeta';
 
 const LIST_TYPE_LABELS: Record<string, string> = {
@@ -63,12 +64,12 @@ export default function ShareListPage() {
 
   const filteredItems = useMemo(() => {
     if (!list) return [];
-    const q = search.toLowerCase().trim();
+    const q = foldAccents(search.trim());
     if (!q) return list.items;
     return list.items.filter(
       (item) =>
-        item.albumCode.toLowerCase().includes(q) ||
-        (item.playerName?.toLowerCase().includes(q) ?? false),
+        foldAccents(item.albumCode).includes(q) ||
+        foldAccents(item.playerName ?? '').includes(q),
     );
   }, [list, search]);
 

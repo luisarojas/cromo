@@ -37,6 +37,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: {
       Fixed: [
         'Album page stays centred on large screens, and the variant rail sits next to the grid instead of floating off to the right.',
+        'Player search matches accented names — typing "jose" now finds "José".',
       ],
     },
   },

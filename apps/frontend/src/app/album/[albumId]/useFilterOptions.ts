@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { Sticker } from '@/lib/api';
+import { foldAccents } from '@/lib/normalize';
 import type { FilterState } from '../components/FilterBar';
 import { variantLabel, variantSwatch } from '../components/variantMeta';
 
@@ -47,10 +48,10 @@ export function useFilterOptions({ tabBase, filters, ownedMap, favouriteSet, wan
           if (!p || !filters.variant.some((v) => p.has(v))) return false;
         }
         if (exclude !== 'search' && filters.search) {
-          const q = filters.search.toLowerCase();
-          if (!s.playerName?.toLowerCase().includes(q)
-              && !s.albumCode.toLowerCase().includes(q)
-              && !s.teamName?.toLowerCase().includes(q)) return false;
+          const q = foldAccents(filters.search);
+          if (!foldAccents(s.playerName ?? '').includes(q)
+              && !foldAccents(s.albumCode).includes(q)
+              && !foldAccents(s.teamName ?? '').includes(q)) return false;
         }
         return true;
       });
