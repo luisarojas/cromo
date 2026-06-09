@@ -70,11 +70,16 @@ services:
       - ../../pnpm-workspace.yaml:/app/pnpm-workspace.yaml
       - ../../apps/backend/package.json:/app/apps/backend/package.json
       - ../../packages/shared/package.json:/app/packages/shared/package.json
+      - ../../packages/shared/tsconfig.json:/app/packages/shared/tsconfig.json
       # node_modules in named volumes: seeded from the image, then reconciled by
       # the startup `pnpm install`. Keeps installed deps off the host bind mounts.
       - api_root_node_modules:/app/node_modules
       - api_backend_node_modules:/app/apps/backend/node_modules
       - api_shared_node_modules:/app/packages/shared/node_modules
+      # Shared package's compiled output lives in a named volume so the build
+      # step run at container startup persists across restarts, and so the
+      # backend never has to read .ts at runtime.
+      - api_shared_dist:/app/packages/shared/dist
     depends_on:
       db:
         condition: service_healthy
@@ -120,11 +125,14 @@ services:
       - ../../pnpm-workspace.yaml:/app/pnpm-workspace.yaml
       - ../../apps/frontend/package.json:/app/apps/frontend/package.json
       - ../../packages/shared/package.json:/app/packages/shared/package.json
+      - ../../packages/shared/tsconfig.json:/app/packages/shared/tsconfig.json
       # node_modules in named volumes: seeded from the image, then reconciled by
       # the startup `pnpm install`. Keeps installed deps off the host bind mounts.
       - fe_root_node_modules:/app/node_modules
       - fe_frontend_node_modules:/app/apps/frontend/node_modules
       - fe_shared_node_modules:/app/packages/shared/node_modules
+      # Shared package's compiled output (see api service for rationale).
+      - fe_shared_dist:/app/packages/shared/dist
     depends_on:
       api:
         condition: service_healthy
@@ -174,3 +182,5 @@ volumes:
   fe_root_node_modules:
   fe_frontend_node_modules:
   fe_shared_node_modules:
+  api_shared_dist:
+  fe_shared_dist:

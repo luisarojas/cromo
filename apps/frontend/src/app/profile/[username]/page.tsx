@@ -18,6 +18,7 @@ import { flagUrl } from '@/lib/flags';
 import FilterBar, { type FilterState } from '@/app/album/components/FilterBar';
 import TrustBadge from '@/components/TrustBadge';
 import ReportUserModal from '@/components/ReportUserModal';
+import AchievementBadges from '@/components/AchievementBadges';
 
 type InventoryTab = 'offered' | 'wanted';
 type GroupBy = 'team' | 'group' | 'type' | 'variant' | 'none';
@@ -518,6 +519,8 @@ export default function PublicProfilePage() {
           </div>
         </div>
       </div>
+
+      <AchievementBadges username={profile.username} className="mb-6" />
 
       {!hasAlbums && (
         <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-8 text-center">

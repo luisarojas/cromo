@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
@@ -477,11 +478,20 @@ function TradePageContent() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-[var(--cromo-fg)]">Trades</h1>
-        <p className="text-sm text-[var(--cromo-fg-muted)] mt-1">
-          Find trading partners or manage your active trades.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-[var(--cromo-fg)]">Trades</h1>
+          <p className="text-sm text-[var(--cromo-fg-muted)] mt-1">
+            Find trading partners or manage your active trades.
+          </p>
+        </div>
+        <Link
+          href="/trade/live"
+          className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--cromo-accent)] animate-pulse" aria-hidden />
+          Live trade session
+        </Link>
       </div>
 
       <div className="mb-6">

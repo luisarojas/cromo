@@ -1,42 +1,62 @@
 {
-  "_note": "Phase A ships English only. Spanish keys mirror en.json but values are placeholders — replace before launching es as a supported locale.",
   "nav": {
-    "album": "Álbum",
+    "dashboard": "Inicio",
+    "collection": "Colección",
     "trade": "Intercambiar",
+    "tradeMatcher": "Buscar intercambios",
     "scan": "Escanear",
-    "guide": "Guía",
+    "guides": "Guías",
     "settings": "Ajustes",
     "admin": "Admin",
-    "login": "Iniciar sesión",
+    "logIn": "Iniciar sesión",
     "register": "Crear cuenta",
-    "logout": "Cerrar sesión"
+    "logOut": "Cerrar sesión",
+    "clearCache": "limpiar caché",
+    "clearCacheTitle": "Borrar localStorage y recargar",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "home": "Inicio de Cromo"
   },
   "footer": {
-    "tagline": "Cromo — tu colección, completa.",
-    "copyright": "© 2026 Cromo",
+    "tagline": "Rastreador de colección y buscador de intercambios para figuritas, cromos, cartas y todo lo que coleccionas.",
+    "columns": {
+      "product": "Producto",
+      "resources": "Recursos",
+      "account": "Cuenta"
+    },
     "links": {
-      "privacy": "Privacidad",
-      "terms": "Términos",
-      "support": "Soporte"
-    }
+      "dashboard": "Inicio",
+      "collection": "Colección",
+      "trade": "Intercambiar",
+      "scan": "Escanear",
+      "guides": "Guías del coleccionista",
+      "wc2026": "Mundial 2026",
+      "settings": "Ajustes",
+      "signIn": "Iniciar sesión",
+      "createAccount": "Crear cuenta"
+    },
+    "copyrightPrefix": "©",
+    "copyrightSuffix": "Cromo ·",
+    "italicCromo": "cromo",
+    "copyrightTail": ", del español, una figurita de intercambio.",
+    "notAffiliated": "Sin afiliación con Panini S.p.A. ni FIFA. Hecho por coleccionistas.",
+    "versionTitle": "Versión de la app (git describe)"
   },
   "auth": {
     "login": {
       "title": "Bienvenido de nuevo",
+      "promptNew": "¿Nuevo en Cromo?",
+      "createAccount": "Crear una cuenta",
+      "sessionExpired": "Tu sesión expiró. Inicia sesión otra vez para continuar.",
       "emailLabel": "Correo",
+      "emailPlaceholder": "tu@ejemplo.com",
       "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "••••••••",
+      "forgotPassword": "¿Olvidaste tu contraseña?",
       "submit": "Iniciar sesión",
-      "noAccount": "¿No tienes cuenta?",
-      "signUp": "Crear cuenta"
-    },
-    "register": {
-      "title": "Empieza tu álbum",
-      "emailLabel": "Correo",
-      "usernameLabel": "Nombre de usuario",
-      "passwordLabel": "Contraseña",
-      "submit": "Crear cuenta",
-      "haveAccount": "¿Ya tienes cuenta?",
-      "logIn": "Iniciar sesión"
+      "submitting": "Entrando…",
+      "loginFailed": "Error al iniciar sesión",
+      "devTitle": "Dev local — inicio rápido"
     }
   },
   "common": {
@@ -46,7 +66,13 @@
     "loading": "Cargando…",
     "retry": "Reintentar",
     "back": "Atrás",
-    "next": "Siguiente"
+    "next": "Siguiente",
+    "language": "Idioma"
+  },
+  "locale": {
+    "switcherLabel": "Idioma",
+    "english": "English",
+    "spanish": "Español"
   },
   "errors": {
     "notFound": {
@@ -59,7 +85,9 @@
       "code": "500 · algo salió mal",
       "title": "Esta página falló",
       "body": "No eres tú — es un fallo nuestro. Intenta de nuevo; si vuelve a fallar, los detalles abajo nos ayudan a rastrearlo.",
-      "retry": "Reintentar"
+      "ref": "ref:",
+      "retry": "Reintentar",
+      "back": "Volver al álbum"
     }
   }
 }

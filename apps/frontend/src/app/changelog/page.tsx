@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
 import { CHANGELOG, type ChangeCategory } from './entries';
+
+export const metadata: Metadata = {
+  title: 'Changelog',
+  description: 'Release notes for Cromo — every shipped change, in collector-friendly language.',
+  alternates: { canonical: '/changelog' },
+};
 
 const CATEGORY_TONE: Record<ChangeCategory, string> = {
   Added: 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] border-[var(--cromo-success)]/30',

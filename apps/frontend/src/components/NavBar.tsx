@@ -3,14 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { logoutApi } from '@/lib/api';
 import { CromoLogo } from '@/components/CromoLogo';
+import LocaleSwitcher from '@/components/LocaleSwitcher';
 
 export default function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations('nav');
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const resetPreferences = usePreferencesStore((s) => s.reset);
@@ -49,7 +52,7 @@ export default function NavBar() {
         <Link
           href="/"
           className="flex items-center hover:opacity-80 transition-opacity shrink-0"
-          aria-label="Cromo home"
+          aria-label={t('home')}
         >
           <CromoLogo size={26} variant="chrome" />
         </Link>
@@ -58,15 +61,15 @@ export default function NavBar() {
         <div className="hidden md:flex items-center gap-4 text-sm font-medium">
           {user && (
             <>
-              <NavLink href="/dashboard">Dashboard</NavLink>
-              <NavLink href="/album">Collection</NavLink>
-              {tradeMatchingEnabled && <NavLink href="/trade">Trade</NavLink>}
-              <NavLink href="/scan">Scan</NavLink>
+              <NavLink href="/dashboard">{t('dashboard')}</NavLink>
+              <NavLink href="/album">{t('collection')}</NavLink>
+              {tradeMatchingEnabled && <NavLink href="/trade">{t('trade')}</NavLink>}
+              <NavLink href="/scan">{t('scan')}</NavLink>
             </>
           )}
-          {!user && <NavLink href="/trade/match">Trade Matcher</NavLink>}
-          <NavLink href="/guide">Guides</NavLink>
-          {user?.role === 'admin' && <NavLink href="/admin">Admin</NavLink>}
+          {!user && <NavLink href="/trade/match">{t('tradeMatcher')}</NavLink>}
+          <NavLink href="/guide">{t('guides')}</NavLink>
+          {user?.role === 'admin' && <NavLink href="/admin">{t('admin')}</NavLink>}
         </div>
 
         {/* Desktop right cluster */}
@@ -78,11 +81,12 @@ export default function NavBar() {
                 window.location.reload();
               }}
               className="rounded-chip px-2 py-1 text-xs font-mono bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border border-[var(--cromo-warning)]/30 transition-colors"
-              title="Clear localStorage and reload"
+              title={t('clearCacheTitle')}
             >
-              clear cache
+              {t('clearCache')}
             </button>
           )}
+          <LocaleSwitcher />
           {user ? (
             <>
               <Link
@@ -94,22 +98,22 @@ export default function NavBar() {
                 </span>
                 <span className="truncate">{user.displayName ?? `@${user.username}`}</span>
               </Link>
-              <NavLink href="/settings">Settings</NavLink>
+              <NavLink href="/settings">{t('settings')}</NavLink>
               <button
                 onClick={handleLogout}
                 className="text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] transition-colors"
               >
-                Log out
+                {t('logOut')}
               </button>
             </>
           ) : (
             <>
-              <NavLink href="/login">Log in</NavLink>
+              <NavLink href="/login">{t('logIn')}</NavLink>
               <Link
                 href="/register"
                 className="rounded-btn bg-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent-fg)] transition-colors ml-1"
               >
-                Register
+                {t('register')}
               </Link>
             </>
           )}
@@ -120,7 +124,7 @@ export default function NavBar() {
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav-drawer"
             className="flex h-10 w-10 items-center justify-center rounded-btn text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
@@ -147,15 +151,15 @@ export default function NavBar() {
             <div className="px-4 py-4 flex flex-col gap-1">
               {user && (
                 <>
-                  <DrawerLink href="/dashboard">Dashboard</DrawerLink>
-                  <DrawerLink href="/album">Collection</DrawerLink>
-                  {tradeMatchingEnabled && <DrawerLink href="/trade">Trade</DrawerLink>}
-                  <DrawerLink href="/scan">Scan</DrawerLink>
+                  <DrawerLink href="/dashboard">{t('dashboard')}</DrawerLink>
+                  <DrawerLink href="/album">{t('collection')}</DrawerLink>
+                  {tradeMatchingEnabled && <DrawerLink href="/trade">{t('trade')}</DrawerLink>}
+                  <DrawerLink href="/scan">{t('scan')}</DrawerLink>
                 </>
               )}
-              {!user && <DrawerLink href="/trade/match">Trade Matcher</DrawerLink>}
-              <DrawerLink href="/guide">Guides</DrawerLink>
-              {user?.role === 'admin' && <DrawerLink href="/admin">Admin</DrawerLink>}
+              {!user && <DrawerLink href="/trade/match">{t('tradeMatcher')}</DrawerLink>}
+              <DrawerLink href="/guide">{t('guides')}</DrawerLink>
+              {user?.role === 'admin' && <DrawerLink href="/admin">{t('admin')}</DrawerLink>}
 
               <div className="my-2 h-px bg-[var(--cromo-border)]" />
 
@@ -170,25 +174,30 @@ export default function NavBar() {
                     </span>
                     <span className="truncate">{user.displayName ?? `@${user.username}`}</span>
                   </Link>
-                  <DrawerLink href="/settings">Settings</DrawerLink>
+                  <DrawerLink href="/settings">{t('settings')}</DrawerLink>
                   <button
                     onClick={handleLogout}
                     className="text-left rounded-btn px-3 py-3 text-sm font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
                   >
-                    Log out
+                    {t('logOut')}
                   </button>
                 </>
               ) : (
                 <>
-                  <DrawerLink href="/login">Log in</DrawerLink>
+                  <DrawerLink href="/login">{t('logIn')}</DrawerLink>
                   <Link
                     href="/register"
                     className="rounded-btn bg-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-strong)] px-3 py-3 text-sm font-semibold text-[var(--cromo-accent-fg)] text-center transition-colors"
                   >
-                    Register
+                    {t('register')}
                   </Link>
                 </>
               )}
+
+              <div className="my-2 h-px bg-[var(--cromo-border)]" />
+              <div className="px-3 py-1">
+                <LocaleSwitcher />
+              </div>
 
               {isDev && (
                 <>
@@ -199,9 +208,9 @@ export default function NavBar() {
                       window.location.reload();
                     }}
                     className="rounded-btn px-3 py-2 text-xs font-mono bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)] border border-[var(--cromo-warning)]/30 self-start"
-                    title="Clear localStorage and reload"
+                    title={t('clearCacheTitle')}
                   >
-                    clear cache
+                    {t('clearCache')}
                   </button>
                 </>
               )}

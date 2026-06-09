@@ -1,5 +1,13 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '@/components/ui';
+
+export const metadata: Metadata = {
+  title: 'Collector Guides',
+  description:
+    'Friendly handbooks for sticker collectors — editions, rare variants, where to buy, and how to complete the album.',
+  alternates: { canonical: '/guide' },
+};
 
 const GUIDES = [
   {

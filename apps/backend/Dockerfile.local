@@ -25,7 +25,9 @@ WORKDIR /app/apps/backend
 
 EXPOSE 3001
 
-# Reconcile workspace deps against the (bind-mounted) manifests on every boot
-# before starting the dev server, so a stale node_modules volume can never
-# diverge from package.json/pnpm-lock.yaml. A no-op when already in sync.
-CMD ["sh", "-c", "pnpm -C /app install --frozen-lockfile && exec pnpm dev"]
+# Reconcile workspace deps against the (bind-mounted) manifests on every boot,
+# build @cromo/shared so the backend can `import` real .js at runtime (the
+# package no longer ships raw .ts — see packages/shared/package.json), then
+# start the dev server. A background `tsc --watch` keeps shared rebuilt as
+# packages/shared/src changes during development.
+CMD ["sh", "-c", "pnpm -C /app install --frozen-lockfile && pnpm -C /app/packages/shared build && (pnpm -C /app/packages/shared build:watch &) && exec pnpm dev"]

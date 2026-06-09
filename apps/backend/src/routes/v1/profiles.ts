@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import * as sharingService from '../../services/sharing.service.js';
+import * as achievementsService from '../../services/achievements.service.js';
 
 function parseCSV(val: string | undefined): string[] | undefined {
   if (!val?.trim()) return undefined;
@@ -241,4 +242,53 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(200).send(page);
     }
   );
+
+  /**
+   * GET /api/v1/profiles/:username/achievements
+   * Public — returns the user's persisted achievements (no re-evaluation,
+   * since that's the owner's responsibility via the auth'd endpoint).
+   */
+  fastify.get(
+    '/api/v1/profiles/:username/achievements',
+    {
+      config: { rateLimit: PUBLIC_PROFILE_RATE_LIMIT },
+      schema: {
+        tags: ['Profiles'],
+        summary: 'List unlocked achievements for a public profile',
+        params: {
+          type: 'object',
+          required: ['username'],
+          properties: { username: { type: 'string' } },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { username } = request.params as { username: string };
+      const { rows } = await fastify.db.query<{ id: string }>(
+        `SELECT id FROM users WHERE username = $1 AND deleted_at IS NULL LIMIT 1`,
+        [username],
+      );
+      if (!rows[0]) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Profile not found.' });
+      }
+      // Public-read path: no evaluation, just whatever has been persisted.
+      const { rows: achievements } = await fastify.db.query<{ achievement_key: string; unlocked_at: Date }>(
+        `SELECT achievement_key, unlocked_at
+           FROM user_achievements
+          WHERE user_id = $1
+          ORDER BY unlocked_at`,
+        [rows[0].id],
+      );
+      return reply.status(200).send({
+        items: achievements.map((r) => ({
+          key: r.achievement_key,
+          unlockedAt: r.unlocked_at.toISOString(),
+        })),
+      });
+    }
+  );
 }
+
+// Re-export so callers (like users.ts) can trigger the evaluator. Kept here
+// so the route module is the single source of "how to evaluate on read."
+export { achievementsService };

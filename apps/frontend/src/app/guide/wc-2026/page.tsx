@@ -1,4 +1,23 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Panini FIFA World Cup 2026 — collector\'s guide',
+  description:
+    '980 stickers, 48 teams, every variant explained — borders, Crumple parallels, Coca-Cola alternates, Extras. The collector\'s handbook for the Panini FIFA World Cup 2026 album.',
+  alternates: { canonical: '/guide/wc-2026' },
+  keywords: [
+    'Panini',
+    'FIFA World Cup 2026',
+    'sticker album',
+    'sticker checklist',
+    'parallels',
+    'Crumple',
+    'Coca-Cola',
+    'Extra stickers',
+    'figuritas Mundial 2026',
+  ],
+};
 
 export default function WC2026GuidePage() {
   return (

@@ -1,41 +1,62 @@
 {
   "nav": {
-    "album": "Album",
+    "dashboard": "Dashboard",
+    "collection": "Collection",
     "trade": "Trade",
+    "tradeMatcher": "Trade Matcher",
     "scan": "Scan",
-    "guide": "Guide",
+    "guides": "Guides",
     "settings": "Settings",
     "admin": "Admin",
-    "login": "Log in",
-    "register": "Sign up",
-    "logout": "Log out"
+    "logIn": "Log in",
+    "register": "Register",
+    "logOut": "Log out",
+    "clearCache": "clear cache",
+    "clearCacheTitle": "Clear localStorage and reload",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "home": "Cromo home"
   },
   "footer": {
-    "tagline": "Cromo — your collection, complete.",
-    "copyright": "© 2026 Cromo",
+    "tagline": "Collection tracker and trade matchmaker for stickers, cards, and everything you chase.",
+    "columns": {
+      "product": "Product",
+      "resources": "Resources",
+      "account": "Account"
+    },
     "links": {
-      "privacy": "Privacy",
-      "terms": "Terms",
-      "support": "Support"
-    }
+      "dashboard": "Dashboard",
+      "collection": "Collection",
+      "trade": "Trade",
+      "scan": "Scan",
+      "guides": "Collector Guides",
+      "wc2026": "World Cup 2026",
+      "settings": "Settings",
+      "signIn": "Sign in",
+      "createAccount": "Create account"
+    },
+    "copyrightPrefix": "©",
+    "copyrightSuffix": "Cromo ·",
+    "italicCromo": "cromo",
+    "copyrightTail": ", Spanish for trading sticker.",
+    "notAffiliated": "Not affiliated with Panini S.p.A. or FIFA. Built by collectors.",
+    "versionTitle": "App version (git describe)"
   },
   "auth": {
     "login": {
       "title": "Welcome back",
+      "promptNew": "New to Cromo?",
+      "createAccount": "Create an account",
+      "sessionExpired": "Your session expired. Please sign in again to continue.",
       "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
       "passwordLabel": "Password",
-      "submit": "Log in",
-      "noAccount": "Don't have an account?",
-      "signUp": "Sign up"
-    },
-    "register": {
-      "title": "Start your album",
-      "emailLabel": "Email",
-      "usernameLabel": "Username",
-      "passwordLabel": "Password",
-      "submit": "Create account",
-      "haveAccount": "Already have an account?",
-      "logIn": "Log in"
+      "passwordPlaceholder": "••••••••",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "loginFailed": "Login failed",
+      "devTitle": "Local dev — quick login"
     }
   },
   "common": {
@@ -45,7 +66,13 @@
     "loading": "Loading…",
     "retry": "Retry",
     "back": "Back",
-    "next": "Next"
+    "next": "Next",
+    "language": "Language"
+  },
+  "locale": {
+    "switcherLabel": "Language",
+    "english": "English",
+    "spanish": "Español"
   },
   "errors": {
     "notFound": {
@@ -58,7 +85,9 @@
       "code": "500 · something went wrong",
       "title": "This page crashed",
       "body": "It's not you — it's a bug on our side. Try again, and if the same thing happens, the details below help us track it down.",
-      "retry": "Try again"
+      "ref": "ref:",
+      "retry": "Try again",
+      "back": "Back to album"
     }
   }
 }

@@ -34,7 +34,15 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
-    changes: {},
+    changes: {
+      Added: [
+        'Spanish (Español) language support — pick your language from the navbar.',
+        'Site-wide SEO — sitemap, robots, OpenGraph cards, hreflang for EN/ES, and a structured Organization profile for search engines.',
+        'Share progress — generate a 1080×1080 card of your album completion to post on Instagram, TikTok, or WhatsApp.',
+        'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
+        'Live trade sessions — share an invite link with another collector, stage offers, chat in real time, and confirm together. Available from the Trades page.',
+      ],
+    },
   },
   {
     version: 'v0.1.5',

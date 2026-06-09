@@ -1229,6 +1229,115 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
   return apiFetch<PublicProfile>(`/api/v1/profiles/${encodeURIComponent(username)}`);
 }
 
+export interface UnlockedAchievementDto {
+  key: string;
+  unlockedAt: string;
+}
+
+export async function fetchPublicAchievements(username: string): Promise<UnlockedAchievementDto[]> {
+  const { items } = await apiFetch<{ items: UnlockedAchievementDto[] }>(
+    `/api/v1/profiles/${encodeURIComponent(username)}/achievements`,
+  );
+  return items;
+}
+
+export async function evaluateMyAchievements(token: string): Promise<UnlockedAchievementDto[]> {
+  const { items } = await apiFetch<{ items: UnlockedAchievementDto[] }>(
+    '/api/v1/users/me/achievements/evaluate',
+    { method: 'POST' },
+    token,
+  );
+  return items;
+}
+
+// ── Live trade sessions ──────────────────────────────────────────────────────
+
+export interface LiveTradeParticipant {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+export interface LiveTradeSession {
+  id: string;
+  hostUserId: string;
+  guestUserId: string | null;
+  inviteToken: string;
+  status: 'open' | 'joined' | 'confirmed' | 'closed' | 'expired';
+  hostConfirmedAt: string | null;
+  guestConfirmedAt: string | null;
+  createdAt: string;
+  expiresAt: string;
+  closedAt: string | null;
+  host: LiveTradeParticipant;
+  guest: LiveTradeParticipant | null;
+}
+
+export interface LiveTradeAction {
+  id: string;
+  sessionId: string;
+  userId: string;
+  username: string | null;
+  actionType: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export async function createLiveTradeSession(token: string): Promise<LiveTradeSession> {
+  const { session } = await apiFetch<{ session: LiveTradeSession }>(
+    '/api/v1/trade/live',
+    { method: 'POST' },
+    token,
+  );
+  return session;
+}
+
+export async function fetchLiveTradeSession(inviteToken: string, token: string): Promise<LiveTradeSession> {
+  const { session } = await apiFetch<{ session: LiveTradeSession }>(
+    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}`,
+    {},
+    token,
+  );
+  return session;
+}
+
+export async function joinLiveTradeSession(inviteToken: string, token: string): Promise<LiveTradeSession> {
+  const { session } = await apiFetch<{ session: LiveTradeSession }>(
+    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}/join`,
+    { method: 'POST' },
+    token,
+  );
+  return session;
+}
+
+export async function fetchLiveTradeActions(inviteToken: string, token: string): Promise<LiveTradeAction[]> {
+  const { items } = await apiFetch<{ items: LiveTradeAction[] }>(
+    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}/actions`,
+    {},
+    token,
+  );
+  return items;
+}
+
+export async function sendLiveTradeAction(
+  inviteToken: string,
+  actionType: string,
+  payload: Record<string, unknown>,
+  token: string,
+): Promise<LiveTradeAction> {
+  const { action } = await apiFetch<{ action: LiveTradeAction }>(
+    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}/actions`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionType, payload }),
+    },
+    token,
+  );
+  return action;
+}
+
 interface PublicInventoryQueryParams {
   cursor?: number;
   limit?: number;

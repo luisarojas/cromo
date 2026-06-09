@@ -3,6 +3,8 @@ import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
+import { SITE_URL, SITE_NAME, NOINDEX } from '@/lib/seo';
+import { LOCALES } from '@/i18n/config';
 import AuthProvider from '@/components/AuthProvider';
 import NavBar from '@/components/NavBar';
 import Footer from '@/components/Footer';
@@ -39,11 +41,81 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
+const DESCRIPTION =
+  'Track every variant, swap duplicates, complete your album. Cromo is the collector-grade home for stickers, cards, and everything you chase.';
+
 export const metadata: Metadata = {
-  title: 'Cromo',
-  description:
-    'Track every variant, swap duplicates, complete your album. Cromo is the collector-grade home for stickers, cards, and everything you chase.',
-  applicationName: 'Cromo',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    'Panini',
+    'FIFA World Cup 2026',
+    'sticker album',
+    'sticker tracker',
+    'sticker trade',
+    'cromo',
+    'figuritas',
+    'colección',
+    'intercambio',
+  ],
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  alternates: {
+    canonical: '/',
+    languages: Object.fromEntries(LOCALES.map((loc) => [loc, '/'])),
+  },
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: DESCRIPTION,
+    url: SITE_URL,
+    locale: 'en_CA',
+    alternateLocale: ['es_ES'],
+    // images are provided by app/opengraph-image.tsx (file convention)
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_NAME,
+    description: DESCRIPTION,
+    // image provided by app/opengraph-image.tsx
+  },
+  robots: NOINDEX
+    ? { index: false, follow: false }
+    : {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          'max-image-preview': 'large',
+          'max-snippet': -1,
+        },
+      },
+  category: 'sports',
+};
+
+const ORGANIZATION_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: `${SITE_URL}/icon.png`,
+  sameAs: [] as string[],
+};
+
+const WEBSITE_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: SITE_NAME,
+  url: SITE_URL,
+  inLanguage: ['en', 'es'],
 };
 
 export default async function RootLayout({
@@ -63,6 +135,16 @@ export default async function RootLayout({
       <head>
         {/* Set theme attribute before paint to prevent flash */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        {/* Structured data — Organization + WebSite. Crawlers parse this
+            independently of the visual page so it stays in <head>. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSON_LD) }}
+        />
       </head>
       <body className="min-h-screen font-sans antialiased flex flex-col">
         <ServiceWorkerRegistration />

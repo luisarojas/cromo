@@ -1,27 +1,28 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { CromoLogo } from '@/components/CromoLogo';
 
-const PRODUCT_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/album', label: 'Collection' },
-  { href: '/trade', label: 'Trade' },
-  { href: '/scan', label: 'Scan' },
-];
-
-const RESOURCE_LINKS = [
-  { href: '/guide', label: 'Collector Guides' },
-  { href: '/guide/wc-2026', label: 'World Cup 2026' },
-];
-
-const ACCOUNT_LINKS = [
-  { href: '/settings', label: 'Settings' },
-  { href: '/login', label: 'Sign in' },
-  { href: '/register', label: 'Create account' },
-];
-
-export default function Footer() {
+export default async function Footer() {
+  const t = await getTranslations('footer');
+  const tNav = await getTranslations('nav');
   const year = new Date().getFullYear();
   const version = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0-local';
+
+  const productLinks = [
+    { href: '/dashboard', label: t('links.dashboard') },
+    { href: '/album', label: t('links.collection') },
+    { href: '/trade', label: t('links.trade') },
+    { href: '/scan', label: t('links.scan') },
+  ];
+  const resourceLinks = [
+    { href: '/guide', label: t('links.guides') },
+    { href: '/guide/wc-2026', label: t('links.wc2026') },
+  ];
+  const accountLinks = [
+    { href: '/settings', label: t('links.settings') },
+    { href: '/login', label: t('links.signIn') },
+    { href: '/register', label: t('links.createAccount') },
+  ];
 
   return (
     // Bottom padding reserves space below the visible content equal to the
@@ -37,26 +38,27 @@ export default function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="space-y-3">
-            <Link href="/" className="inline-block hover:opacity-80 transition-opacity" aria-label="Cromo home">
+            <Link href="/" className="inline-block hover:opacity-80 transition-opacity" aria-label={tNav('home')}>
               <CromoLogo size={24} variant="chrome" />
             </Link>
             <p className="text-xs leading-relaxed text-[var(--cromo-fg-muted)] max-w-xs">
-              Collection tracker and trade matchmaker for stickers, cards, and everything you chase.
+              {t('tagline')}
             </p>
           </div>
 
-          <FooterColumn title="Product" links={PRODUCT_LINKS} />
-          <FooterColumn title="Resources" links={RESOURCE_LINKS} />
-          <FooterColumn title="Account" links={ACCOUNT_LINKS} />
+          <FooterColumn title={t('columns.product')} links={productLinks} />
+          <FooterColumn title={t('columns.resources')} links={resourceLinks} />
+          <FooterColumn title={t('columns.account')} links={accountLinks} />
         </div>
 
         {/* Hairline */}
         <div className="mt-10 pt-6 border-t border-[var(--cromo-border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs text-[var(--cromo-fg-subtle)]">
-            © {year} Cromo · <span className="italic">cromo</span>, Spanish for trading sticker.
+            {t('copyrightPrefix')} {year} {t('copyrightSuffix')}{' '}
+            <span className="italic">{t('italicCromo')}</span>{t('copyrightTail')}
           </p>
           <p className="text-[11px] text-[var(--cromo-fg-subtle)] font-mono">
-            Not affiliated with Panini S.p.A. or FIFA. Built by collectors. · <span title="App version (git describe)">{version}</span>
+            {t('notAffiliated')} · <span title={t('versionTitle')}>{version}</span>
           </p>
         </div>
       </div>

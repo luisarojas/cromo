@@ -9,6 +9,7 @@ import {
   updateUserAlbum,
   deleteUserAlbum,
   albumDisplayName,
+  evaluateMyAchievements,
   type AlbumStats,
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -16,6 +17,7 @@ import { useAlbumsStore } from '@/store/albums';
 import { Alert, Badge, Button, Card, PageHeader, Stat } from '@/components/ui';
 import { readLastScan, clearLastScan, readStreak, type LastScan } from '@/lib/lastScan';
 import { subscribeSync } from '@/lib/syncBus';
+import ProgressShareCard from '@/components/ProgressShareCard';
 
 // New users on the dashboard who have never scanned see a one-time card that
 // explains we'll ask for camera access on first scan. Browsers only prompt in
@@ -60,6 +62,7 @@ export default function DashboardPage() {
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const [showCameraPrimer, setShowCameraPrimer] = useState(false);
   const [streak, setStreak] = useState(0);
+  const [showShareCard, setShowShareCard] = useState(false);
 
   useEffect(() => {
     setLastScan(readLastScan());
@@ -109,6 +112,17 @@ export default function DashboardPage() {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, token, user, router, sortOrder, filterType, reloadTick]);
+
+  // Re-evaluate achievements when the dashboard mounts and whenever the
+  // collection state changes (via reloadTick). Fire-and-forget — the
+  // profile page reads the persisted set, so any newly unlocked badge
+  // shows up next time the collector visits their profile.
+  useEffect(() => {
+    if (!hydrated || !token) return;
+    void evaluateMyAchievements(token).catch(() => {
+      // Achievements are decorative; a transient failure is fine.
+    });
+  }, [hydrated, token, reloadTick]);
 
   // Cross-tab refresh: a collection change in any tab (album view, scanner)
   // should reflect on the dashboard's stats and progress bars without the
@@ -262,10 +276,40 @@ export default function DashboardPage() {
                 style={{ width: `${defaultAlbumStats.percentage}%` }}
               />
             </div>
-            {insightText && (
-              <p className="text-xs text-[var(--cromo-fg-subtle)]">{insightText}</p>
-            )}
+            <div className="flex items-center justify-between gap-3">
+              {insightText && (
+                <p className="text-xs text-[var(--cromo-fg-subtle)]">{insightText}</p>
+              )}
+              <button
+                onClick={() => setShowShareCard(true)}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)] transition-colors"
+                aria-label="Share progress card"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+                Share progress
+              </button>
+            </div>
           </Card>
+        )}
+
+        {showShareCard && defaultAlbum && defaultAlbumStats && user && (
+          <ProgressShareCard
+            collectorName={user.displayName ?? `@${user.username}`}
+            username={user.username}
+            albumLabel={albumDisplayName(defaultAlbum)}
+            stats={{
+              owned: defaultAlbumStats.owned,
+              total: defaultAlbumStats.total,
+              percentage: defaultAlbumStats.percentage,
+              missing: defaultAlbumStats.missing,
+              duplicates: defaultAlbumStats.duplicates,
+            }}
+            onClose={() => setShowShareCard(false)}
+          />
         )}
 
         {/* Albums */}

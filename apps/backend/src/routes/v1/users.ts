@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { verifyToken } from '../../middleware/auth.js';
 import * as userService from '../../services/user.service.js';
+import * as achievementsService from '../../services/achievements.service.js';
 import { getBanStatus } from '../../services/trust-safety.service.js';
 import { env } from '../../env.js';
 import * as cognitoAdmin from '../../services/cognito-admin.js';
@@ -309,6 +310,31 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
 
       await userService.deleteAccount(fastify.db, request.userId!);
       return reply.status(204).send();
+    }
+  );
+
+  /**
+   * POST /api/v1/users/me/achievements/evaluate
+   * Triggers re-evaluation of every achievement criterion for the caller
+   * and persists any newly met ones. Idempotent — repeated calls just
+   * return the current set without writing again.
+   */
+  fastify.post(
+    '/api/v1/users/me/achievements/evaluate',
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Users'],
+        summary: 'Evaluate and return the caller\'s unlocked achievements',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const items = await achievementsService.evaluateAchievements(
+        fastify.db,
+        request.userId!,
+      );
+      return reply.status(200).send({ items });
     }
   );
 }

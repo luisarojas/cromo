@@ -7,22 +7,10 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
 const config: NextConfig = {
   output: 'standalone',
-  // @cromo/shared ships raw TypeScript and its re-exports use NodeNext-style
-  // `.js` extensions so the backend (module: "NodeNext") can resolve them at
-  // runtime. transpilePackages routes the package through SWC for compilation
-  // and the extensionAlias below teaches webpack to map those `.js` import
-  // specifiers to the actual `.ts` files on disk. Required for any *value*
-  // import from @cromo/shared (type-only imports get erased before webpack
-  // sees them and so don't trigger the resolution).
-  transpilePackages: ['@cromo/shared'],
-  webpack: (cfg) => {
-    cfg.resolve = cfg.resolve ?? {}
-    cfg.resolve.extensionAlias = {
-      ...(cfg.resolve.extensionAlias ?? {}),
-      '.js': ['.ts', '.tsx', '.js'],
-    }
-    return cfg
-  },
+  // @cromo/shared compiles to dist/ at container startup (see
+  // packages/shared/package.json + apps/*/Dockerfile.local) and exposes
+  // standard ESM .js + .d.ts to its consumers, so webpack resolves it like
+  // any other npm package — no transpilePackages or extensionAlias needed.
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
   },

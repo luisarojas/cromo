@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { loginApi, fetchUserPreferences } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
@@ -29,6 +30,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const setFromServer = usePreferencesStore((s) => s.setFromServer);
+  const t = useTranslations('auth.login');
 
   const next = safeNext(searchParams.get('next'));
   const sessionExpired = searchParams.get('reason') === 'session-expired';
@@ -57,7 +59,7 @@ export default function LoginPage() {
       }
       router.push(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : t('loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -75,25 +77,25 @@ export default function LoginPage() {
         <div className="text-center mb-8 flex flex-col items-center">
           <CromoMark size={48} variant="chrome" className="mb-4" />
           <h1 className="font-display font-bold text-2xl text-[var(--cromo-fg)] tracking-tight">
-            Welcome back
+            {t('title')}
           </h1>
           <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">
-            New to Cromo?{' '}
+            {t('promptNew')}{' '}
             <Link href="/register" className="text-[var(--cromo-accent)] hover:underline">
-              Create an account
+              {t('createAccount')}
             </Link>
           </p>
         </div>
 
         {sessionExpired && !error && (
           <div className="mb-4">
-            <Alert tone="info">Your session expired. Please sign in again to continue.</Alert>
+            <Alert tone="info">{t('sessionExpired')}</Alert>
           </div>
         )}
 
         <Card>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Field label="Email" htmlFor="email">
+            <Field label={t('emailLabel')} htmlFor="email">
               <Input
                 id="email"
                 type="email"
@@ -101,19 +103,19 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t('emailPlaceholder')}
               />
             </Field>
 
             <Field
-              label="Password"
+              label={t('passwordLabel')}
               htmlFor="password"
               labelRight={
                 <Link
                   href="/forgot-password"
                   className="text-xs text-[var(--cromo-accent)] hover:underline"
                 >
-                  Forgot password?
+                  {t('forgotPassword')}
                 </Link>
               }
             >
@@ -124,14 +126,14 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                placeholder="••••••••"
+                placeholder={t('passwordPlaceholder')}
               />
             </Field>
 
             {error && <Alert tone="danger">{error}</Alert>}
 
             <Button type="submit" loading={loading} size="lg" className="mt-2">
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? t('submitting') : t('submit')}
             </Button>
           </form>
         </Card>
@@ -139,7 +141,7 @@ export default function LoginPage() {
         {process.env.NEXT_PUBLIC_ENV === 'development' && (
           <Card className="mt-4">
             <p className="text-[11px] font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
-              Local dev — quick login
+              {t('devTitle')}
             </p>
             <div className="flex flex-col gap-1.5">
               {TEST_USERS.map((u) => (
