@@ -75,34 +75,29 @@ export default function AchievementBadges({ username, className }: Props) {
   const lockedDefs = ordered.filter((d) => !unlockedByKey.has(d.key));
 
   const sectionTitle = locale.startsWith('es') ? 'Logros' : 'Achievements';
-  const lockedLabel = locale.startsWith('es') ? 'Bloqueado' : 'Locked';
-  const unlockedLabel = locale.startsWith('es') ? 'Desbloqueado' : 'Unlocked';
 
   return (
     <section className={`rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 ${className ?? ''}`}>
-      <div className="flex items-baseline justify-between mb-4">
+      <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">{sectionTitle}</h2>
         <span className="text-xs font-mono text-[var(--cromo-fg-subtle)]">
           {unlockedDefs.length} / {ACHIEVEMENTS.length}
         </span>
       </div>
-      <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      <ul className="flex flex-wrap gap-2">
         {unlockedDefs.map((def) => {
           const unlock = unlockedByKey.get(def.key)!;
           return (
             <li
               key={def.key}
-              className="rounded-lg border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent)]/5 p-3 flex flex-col gap-1"
-              title={localizedDescription(def, locale)}
+              className="w-9 sm:w-20 rounded-md border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent)]/5 p-1 sm:px-1.5 sm:py-1.5 flex flex-col items-center justify-center text-center gap-1"
+              title={`${localizedTitle(def, locale)} · ${formatDate(unlock.unlockedAt, locale)}\n${localizedDescription(def, locale)}`}
             >
-              <span className="text-2xl leading-none" aria-hidden>
+              <span className="text-lg leading-none" aria-hidden>
                 {def.emoji}
               </span>
-              <span className="text-xs font-semibold text-[var(--cromo-fg)] mt-1">
+              <span className="hidden sm:block text-[10px] font-medium text-[var(--cromo-fg)] leading-tight line-clamp-2 overflow-hidden">
                 {localizedTitle(def, locale)}
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--cromo-accent)]">
-                {unlockedLabel} · {formatDate(unlock.unlockedAt, locale)}
               </span>
             </li>
           );
@@ -110,17 +105,14 @@ export default function AchievementBadges({ username, className }: Props) {
         {lockedDefs.map((def) => (
           <li
             key={def.key}
-            className="rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-3 flex flex-col gap-1 opacity-60"
-            title={localizedDescription(def, locale)}
+            className="w-9 sm:w-20 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-1 sm:px-1.5 sm:py-1.5 flex flex-col items-center justify-center text-center gap-1 opacity-50"
+            title={`${localizedTitle(def, locale)}\n${localizedDescription(def, locale)}`}
           >
-            <span className="text-2xl leading-none grayscale" aria-hidden>
+            <span className="text-lg leading-none grayscale" aria-hidden>
               {def.emoji}
             </span>
-            <span className="text-xs font-semibold text-[var(--cromo-fg-muted)] mt-1">
+            <span className="hidden sm:block text-[10px] font-medium text-[var(--cromo-fg-muted)] leading-tight line-clamp-2 overflow-hidden">
               {localizedTitle(def, locale)}
-            </span>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--cromo-fg-subtle)]">
-              {lockedLabel}
             </span>
           </li>
         ))}
