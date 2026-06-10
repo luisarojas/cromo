@@ -43,6 +43,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Live trade sessions — share an invite link with another collector, stage offers, chat in real time, and confirm together. Available from the Trades page.',
         'One-tap clear (×) button in every search bar.',
       ],
+      Changed: [
+        'Profile "Start a trade" button now shows a disabled state — with a tooltip explaining why — when the collector has trading turned off or no stickers available.',
+      ],
+      Fixed: [
+        'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',
+      ],
       Removed: [
         '"Focus on these" card on the album page.',
       ],

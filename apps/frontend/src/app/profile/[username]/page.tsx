@@ -427,10 +427,15 @@ export default function PublicProfilePage() {
 
   const inventory = profile.tradingInventory;
   const hasAlbums = inventory.length > 0;
+  const hasOfferedStickers = inventory.some((a) => a.offered.length > 0);
   const isOwnProfile = viewer?.id === profile.userId;
   const canInteract = !!viewer && !isOwnProfile;
-  // Owner opted out of trading → no trade button (they can still be reported).
-  const canStartTrade = canInteract && profile.tradingEnabled;
+  const tradeDisabledReason = !profile.tradingEnabled
+    ? `@${profile.username} isn't accepting trades right now.`
+    : !hasOfferedStickers
+      ? `@${profile.username} has no stickers available for trading.`
+      : null;
+  const canStartTrade = canInteract && tradeDisabledReason === null;
 
   const activeState = activeAlbum
     ? (activeTab === 'offered'
@@ -476,13 +481,25 @@ export default function PublicProfilePage() {
           </div>
           <div className="flex flex-col sm:items-end gap-2 sm:shrink-0">
             <div className="flex items-center gap-2 flex-wrap sm:justify-end">
-              {canStartTrade && (
-                <Link
-                  href={`/trade?tab=find&recipient=${encodeURIComponent(profile.username)}`}
-                  className="inline-flex flex-1 sm:flex-none justify-center items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
-                >
-                  Start a trade
-                </Link>
+              {canInteract && (
+                canStartTrade ? (
+                  <Link
+                    href={`/trade?tab=find&recipient=${encodeURIComponent(profile.username)}`}
+                    className="inline-flex flex-1 sm:flex-none justify-center items-center rounded-md bg-[var(--cromo-accent)] px-3 py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
+                  >
+                    Start a trade
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title={tradeDisabledReason ?? undefined}
+                    aria-label={tradeDisabledReason ?? 'Start a trade'}
+                    className="inline-flex flex-1 sm:flex-none justify-center items-center rounded-md bg-[var(--cromo-surface-2)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg-subtle)] border border-[var(--cromo-border)] cursor-not-allowed"
+                  >
+                    Start a trade
+                  </button>
+                )
               )}
               <ShareProfileButton
                 username={profile.username}
