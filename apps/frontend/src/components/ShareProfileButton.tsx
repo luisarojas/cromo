@@ -5,13 +5,20 @@ import { QRCodeSVG } from 'qrcode.react';
 
 interface ShareProfileButtonProps {
   username: string;
-  getListText?: () => string;
+  getListText?: () => Promise<string>;
+  /**
+   * When set, the "Copy list as text" button renders but is disabled, with
+   * this string shown as a native tooltip. Use to explain *why* copying is
+   * unavailable (e.g. the profile has no public trading inventory yet).
+   */
+  listDisabledReason?: string;
 }
 
-export default function ShareProfileButton({ username, getListText }: ShareProfileButtonProps) {
+export default function ShareProfileButton({ username, getListText, listDisabledReason }: ShareProfileButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [listCopied, setListCopied] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
   const [profileUrl, setProfileUrl] = useState('');
   const [canNativeShare, setCanNativeShare] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -50,13 +57,17 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
   }
 
   async function handleCopyList() {
-    if (!getListText) return;
+    if (!getListText || listLoading) return;
+    setListLoading(true);
     try {
-      await navigator.clipboard.writeText(getListText());
+      const text = await getListText();
+      await navigator.clipboard.writeText(text);
       setListCopied(true);
       setTimeout(() => setListCopied(false), 2000);
     } catch {
       // silent fail
+    } finally {
+      setListLoading(false);
     }
   }
 
@@ -144,13 +155,15 @@ export default function ShareProfileButton({ username, getListText }: ShareProfi
               </button>
             </div>
 
-            {/* Copy list as text */}
-            {getListText && (
+            {/* Copy list as text — always rendered; disabled with tooltip when no inventory */}
+            {(getListText || listDisabledReason) && (
               <button
                 onClick={() => void handleCopyList()}
-                className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                disabled={listLoading || !getListText}
+                title={!getListText ? listDisabledReason : undefined}
+                className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[var(--cromo-surface)]"
               >
-                {listCopied ? 'Copied!' : 'Copy list as text'}
+                {listLoading ? 'Preparing…' : listCopied ? 'Copied!' : 'Copy list as text'}
               </button>
             )}
 

@@ -14,6 +14,7 @@ import {
 import { useAuthStore } from '@/store/auth';
 import ShareProfileButton from '@/components/ShareProfileButton';
 import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import { buildAlbumExportText } from '@/lib/profileExport';
 import { flagUrl } from '@/lib/flags';
 import FilterBar, { type FilterState } from '@/app/album/components/FilterBar';
 import TrustBadge from '@/components/TrustBadge';
@@ -369,38 +370,15 @@ export default function PublicProfilePage() {
     !!(filters.type?.length) ||
     !!(filters.variant?.length);
 
-  function buildListText(): string {
-    if (!activeAlbum) return '';
-
-    const albumName = albumLabel(activeAlbum);
-    const profileUrl = `${window.location.origin}/profile/${username}`;
-
-    function formatSection(items: PublicInventoryItem[], isOffered: boolean): string {
-      function itemCode(item: PublicInventoryItem): string {
-        const qty = isOffered && (item.quantity ?? 0) > 1 ? ` ×${item.quantity}` : '';
-        return `${item.albumCode}${qty}`;
-      }
-      if (groupBy === 'none') return items.map(itemCode).join(', ');
-      const grouped = groupItems(items, groupBy);
-      return sortGroupKeys([...grouped.keys()])
-        .map((key) => `${key}: ${(grouped.get(key) ?? []).map(itemCode).join(', ')}`)
-        .join('\n');
-    }
-
-    const parts: string[] = [];
-
-    const offeredItems = offeredByAlbum[activeAlbum.albumId]?.items ?? [];
-    if (offeredItems.length > 0) {
-      parts.push(`Offers | ${albumName}\n${formatSection(offeredItems, true)}`);
-    }
-
-    const wantedItems = wantedByAlbum[activeAlbum.albumId]?.items ?? [];
-    if (wantedItems.length > 0) {
-      parts.push(`Needs | ${albumName}\n${formatSection(wantedItems, false)}`);
-    }
-
-    parts.push(profileUrl);
-    return parts.join('\n\n');
+  function buildListText(): Promise<string> {
+    if (!activeAlbum) return Promise.resolve('');
+    return buildAlbumExportText(
+      username,
+      activeAlbum.albumId,
+      albumLabel(activeAlbum),
+      `${window.location.origin}/profile/${username}`,
+      apiFilters,
+    );
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -506,7 +484,17 @@ export default function PublicProfilePage() {
                   Start a trade
                 </Link>
               )}
-              <ShareProfileButton username={profile.username} getListText={hasAlbums ? buildListText : undefined} />
+              <ShareProfileButton
+                username={profile.username}
+                getListText={hasAlbums ? buildListText : undefined}
+                listDisabledReason={
+                  hasAlbums
+                    ? undefined
+                    : isOwnProfile
+                      ? 'You have no public trading inventory yet.'
+                      : `@${profile.username} has no public trading inventory yet.`
+                }
+              />
             </div>
             {canInteract && viewerToken && (
               <button

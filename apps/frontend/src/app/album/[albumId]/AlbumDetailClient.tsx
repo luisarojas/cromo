@@ -53,6 +53,8 @@ import MassActionBar from '../components/MassActionBar';
 import VariantPickerModal from '../components/VariantPickerModal';
 import type { OwnedVariantEntry } from '../components/VariantPopover';
 import Scanner from '@/app/scan/Scanner';
+import ShareProfileButton from '@/components/ShareProfileButton';
+import { buildAlbumExportText } from '@/lib/profileExport';
 
 type OwnedMap = Map<string, OwnedVariantMap>;
 
@@ -790,6 +792,19 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   </svg>
                   Set default
                 </button>
+              )}
+              {user && (
+                <ShareProfileButton
+                  username={user.username}
+                  getListText={() =>
+                    buildAlbumExportText(
+                      user.username,
+                      activeAlbum.id,
+                      albumDisplayName(activeAlbum),
+                      `${window.location.origin}/profile/${user.username}`,
+                    )
+                  }
+                />
               )}
               <button
                 onClick={() => setEditingAlbum(activeAlbum)}
