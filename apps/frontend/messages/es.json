@@ -72,6 +72,8 @@
     },
     "register": {
       "title": "Crea tu cuenta",
+      "betaBannerTitle": "Beta cerrada — solo por invitación",
+      "betaBanner": "Cromo está en pruebas beta. La creación de cuentas es por invitación.",
       "alreadyCollecting": "¿Ya coleccionas?",
       "signIn": "Inicia sesión",
       "emailLabel": "Correo",

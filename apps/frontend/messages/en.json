@@ -72,6 +72,8 @@
     },
     "register": {
       "title": "Create your account",
+      "betaBannerTitle": "Closed beta — invite only",
+      "betaBanner": "Cromo is in beta testing. Account creation is currently invite-only.",
       "alreadyCollecting": "Already collecting?",
       "signIn": "Sign in",
       "emailLabel": "Email",

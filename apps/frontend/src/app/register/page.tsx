@@ -113,7 +113,11 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      <Card>
+      <Alert tone="info" title={t('betaBannerTitle')}>
+        {t('betaBanner')}
+      </Alert>
+
+      <Card className="mt-4">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Field label={t('emailLabel')} htmlFor="email">
             <Input
