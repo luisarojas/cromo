@@ -314,6 +314,8 @@ export interface TradeSummary {
   wantCash: number
   createdAt: string
   updatedAt: string
+  completedAt: string | null
+  cancelledAt: string | null
   messageCount: number
 }
 
@@ -322,10 +324,8 @@ export interface TradeDetail extends TradeSummary {
   messages: TradeMessage[]
   acceptedAt: string | null
   ratingEligibleAt: string | null
-  completedAt: string | null
   requesterCompletedAt: string | null
   recipientCompletedAt: string | null
-  cancelledAt: string | null
   expiresAt: string | null
 }
 
