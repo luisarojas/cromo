@@ -56,7 +56,7 @@
   },
   "auth": {
     "login": {
-      "title": "Bienvenido de nuevo",
+      "title": "Bienvenido/a de nuevo",
       "promptNew": "¿Nuevo en Cromo?",
       "createAccount": "Crear una cuenta",
       "sessionExpired": "Tu sesión expiró. Inicia sesión otra vez para continuar.",
@@ -146,7 +146,7 @@
   },
   "dashboard": {
     "eyebrow": "Inicio",
-    "welcomeBack": "Bienvenido de nuevo,",
+    "welcomeBack": "Bienvenido/a de nuevo,",
     "emailNotVerified": "Correo no verificado — revisa tu bandeja.",
     "trackingAlbums": "Siguiendo {count, plural, one {# álbum} other {# álbumes}}",
     "addFirstAlbumPrompt": "Agrega tu primer álbum para empezar",
