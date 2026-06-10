@@ -588,7 +588,7 @@ FROM (VALUES
   ( 324, 'TUR15', 'İrfan Can Kahveci', 'İrfan Can Kahveci', 'MID', 'player', false),
   ( 325, 'TUR16', 'Yunus Akgün', 'Yunus Akgün', 'FWD', 'player', false),
   ( 326, 'TUR17', 'Can Uzun', 'Can Uzun', 'FWD', 'player', false),
-  ( 327, 'TUR18', 'Barış Alper Yılmaz', 'Barış Alper Yılmaz', 'FWD', 'player', false),
+  ( 327, 'TUR18', 'Bariş Alper Yılmaz', 'Bariş Alper Yılmaz', 'FWD', 'player', false),
   ( 328, 'TUR19', 'Kerem Aktürkoğlu', 'Kerem Aktürkoğlu', 'FWD', 'player', false),
   ( 329, 'TUR20', 'Kenan Yıldız', 'Kenan Yıldız', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
@@ -1143,7 +1143,7 @@ FROM (VALUES
   ( 624, 'KSA15', 'Marwan Al-Sahafi', 'Marwan Al-Sahafi', 'FWD', 'player', false),
   ( 625, 'KSA16', 'Salem Al-Dawsari', 'Salem Al-Dawsari', 'FWD', 'player', false),
   ( 626, 'KSA17', 'Abdulrahman Al-Aboud', 'Abdulrahman Al-Aboud', 'MID', 'player', false),
-  ( 627, 'KSA18', 'Firas Al-Buraikan', 'Firas Al-Buraikan', 'FWD', 'player', false),
+  ( 627, 'KSA18', 'Feras Al-Buraikan', 'Feras Al-Buraikan', 'FWD', 'player', false),
   ( 628, 'KSA19', 'Saleh Al-Shehri', 'Saleh Al-Shehri', 'FWD', 'player', false),
   ( 629, 'KSA20', 'Abdullah Al-Hamdan', 'Abdullah Al-Hamdan', 'FWD', 'player', false)
 ) AS s(number, album_code, player_name_col, player_name, position, sticker_type, is_foil)
@@ -1473,7 +1473,7 @@ FROM (VALUES
   ( 801, 'JOR12', 'Mohannad Abu Taha', 'Mohannad Abu Taha', 'MID', 'player', false),
   ( 802, 'JOR13', NULL, 'Team Photo - Jordan', NULL, 'team_photo', false),
   ( 803, 'JOR14', 'Amer Jamous', 'Amer Jamous', 'MID', 'player', false),
-  ( 804, 'JOR15', 'Musa Al-Taamari', 'Musa Al-Taamari', 'FWD', 'player', false),
+  ( 804, 'JOR15', 'Mousa Al-Taamari', 'Mousa Al-Taamari', 'FWD', 'player', false),
   ( 805, 'JOR16', 'Yazan Al-Naimat', 'Yazan Al-Naimat', 'FWD', 'player', false),
   ( 806, 'JOR17', 'Mahmoud Al-Mardi', 'Mahmoud Al-Mardi', 'FWD', 'player', false),
   ( 807, 'JOR18', 'Ali Olwan', 'Ali Olwan', 'FWD', 'player', false),
