@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -33,12 +34,12 @@ function formatCash(cents: number): string {
 }
 
 const STATUS_BADGE: Record<TradeDetail['status'], { label: string; className: string }> = {
-  pending: { label: 'Pending', className: 'bg-[var(--cromo-warning-soft)] text-yellow-800' },
-  accepted: { label: 'Accepted', className: 'bg-[var(--cromo-success-soft)] text-green-800' },
-  declined: { label: 'Declined', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-  completed: { label: 'Completed', className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
-  expired: { label: 'Expired', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
+  pending: { label: 'Pending', className: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]' },
+  accepted: { label: 'Accepted', className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
+  declined: { label: 'Declined', className: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]' },
+  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]' },
+  completed: { label: 'Completed', className: 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)]' },
+  expired: { label: 'Expired', className: 'border border-[var(--cromo-border)] text-[var(--cromo-fg-subtle)]' },
 };
 
 function ItemCard({ item }: { item: TradeItemDetail }) {
@@ -587,12 +588,22 @@ export default function TradeDetailPage() {
         <div className="flex gap-6 text-sm">
           <div>
             <div className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-0.5">Requester</div>
-            <div className="font-medium text-[var(--cromo-fg)]">@{trade.requesterUsername}</div>
+            <Link
+              href={`/profile/${encodeURIComponent(trade.requesterUsername)}`}
+              className="font-medium text-[var(--cromo-fg)] hover:text-[var(--cromo-accent)] hover:underline underline-offset-2"
+            >
+              @{trade.requesterUsername}
+            </Link>
           </div>
           <div className="text-[var(--cromo-fg-subtle)] self-center">&harr;</div>
           <div>
             <div className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-0.5">Recipient</div>
-            <div className="font-medium text-[var(--cromo-fg)]">@{trade.recipientUsername}</div>
+            <Link
+              href={`/profile/${encodeURIComponent(trade.recipientUsername)}`}
+              className="font-medium text-[var(--cromo-fg)] hover:text-[var(--cromo-accent)] hover:underline underline-offset-2"
+            >
+              @{trade.recipientUsername}
+            </Link>
           </div>
           <div className="ml-auto flex items-center gap-3">
             {(isRequester || isRecipient) && token && (

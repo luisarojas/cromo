@@ -9,12 +9,12 @@ import type { TradeSummary } from '@/lib/api';
 // only reorders what's already loaded.
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
-  pending:   { label: 'Pending',   className: 'bg-[var(--cromo-warning-soft)] text-yellow-800' },
-  accepted:  { label: 'Accepted',  className: 'bg-[var(--cromo-success-soft)] text-green-800' },
-  declined:  { label: 'Declined',  className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
-  completed: { label: 'Completed', className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
-  expired:   { label: 'Expired',   className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]' },
+  pending:   { label: 'Pending',   className: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]' },
+  accepted:  { label: 'Accepted',  className: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]' },
+  declined:  { label: 'Declined',  className: 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)]' },
+  cancelled: { label: 'Cancelled', className: 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]' },
+  completed: { label: 'Completed', className: 'bg-[var(--cromo-success)] text-[var(--cromo-success-fg)]' },
+  expired:   { label: 'Expired',   className: 'border border-[var(--cromo-border)] text-[var(--cromo-fg-subtle)]' },
 };
 
 // Stable ordering for status so "active" trades cluster at the top when

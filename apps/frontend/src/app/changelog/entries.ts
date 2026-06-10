@@ -45,6 +45,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       ],
       Changed: [
         'Profile "Start a trade" button now shows a disabled state — with a tooltip explaining why — when the collector has trading turned off or no stickers available.',
+        'Trade status badges use distinct colors per state, and "Completed" trades now stand out in solid green.',
+        'Participant names on a trade page link to their profiles.',
       ],
       Fixed: [
         'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',
