@@ -117,14 +117,28 @@ export default function PickerToolbar({
       )}
 
       <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="flex-1 min-w-0 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-2.5 py-2 text-xs focus:outline-none focus:ring-2"
-          style={{ ['--tw-ring-color' as string]: accentSolid }}
-        />
+        <div className="relative flex-1 min-w-0">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-2.5 py-2 pr-7 text-xs focus:outline-none focus:ring-2"
+            style={{ ['--tw-ring-color' as string]: accentSolid }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => onSearchChange('')}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-4 h-4 rounded-full text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]"
+            >
+              <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M5 5l10 10M15 5L5 15" />
+              </svg>
+            </button>
+          )}
+        </div>
         <select
           id={sortId}
           aria-label="Sort"

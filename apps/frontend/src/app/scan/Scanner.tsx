@@ -485,8 +485,21 @@ function ComboBox({
         onFocus={() => { setOpen(true); setQuery(''); }}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full rounded-lg border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] disabled:opacity-60 disabled:cursor-not-allowed"
       />
+      {open && query && !disabled && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setQuery('')}
+          aria-label="Clear search"
+          className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]"
+        >
+          <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M5 5l10 10M15 5L5 15" />
+          </svg>
+        </button>
+      )}
       {open && !disabled && filtered.length > 0 && (
         <ul className="absolute z-20 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg text-sm">
           {filtered.slice(0, 100).map((opt) => (

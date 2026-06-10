@@ -41,6 +41,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Share progress — generate a 1080×1080 card of your album completion to post on Instagram, TikTok, or WhatsApp.',
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
         'Live trade sessions — share an invite link with another collector, stage offers, chat in real time, and confirm together. Available from the Trades page.',
+        'One-tap clear (×) button in every search bar.',
       ],
     },
   },

@@ -119,14 +119,28 @@ export default function MultiSelect({
         {open && (
           <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-lg shadow-cromo-lg py-1 max-h-64 flex flex-col">
             <div className="px-2 py-1.5 border-b border-[var(--cromo-border)] shrink-0 flex items-center gap-2">
-              <input
-                ref={searchRef}
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="flex-1 rounded border border-[var(--cromo-border)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
-              />
+              <div className="relative flex-1">
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full rounded border border-[var(--cromo-border)] px-2 py-1 pr-6 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Clear search"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center w-4 h-4 rounded-full text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]"
+                  >
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M5 5l10 10M15 5L5 15" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               {value.length > 0 && (
                 <button
                   type="button"

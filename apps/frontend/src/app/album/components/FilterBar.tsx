@@ -288,14 +288,28 @@ export default function FilterBar({
 
       {/* Primary row: search + filters toggle + clear */}
       <div className="flex flex-wrap gap-2 items-center">
-        <input
-          id="filter-search"
-          type="text"
-          placeholder="Search player, team, code…"
-          value={searchDraft}
-          onChange={(e) => setSearchDraft(e.target.value)}
-          className="basis-full sm:basis-auto sm:flex-1 min-w-0 rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
-        />
+        <div className="relative basis-full sm:basis-auto sm:flex-1 min-w-0">
+          <input
+            id="filter-search"
+            type="text"
+            placeholder="Search player, team, code…"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+          />
+          {searchDraft && (
+            <button
+              type="button"
+              onClick={() => setSearchDraft('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M5 5l10 10M15 5L5 15" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         <button
           type="button"
