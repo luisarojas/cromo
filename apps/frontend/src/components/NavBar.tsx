@@ -8,7 +8,6 @@ import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { logoutApi } from '@/lib/api';
 import { CromoLogo } from '@/components/CromoLogo';
-import LocaleSwitcher from '@/components/LocaleSwitcher';
 
 export default function NavBar() {
   const router = useRouter();
@@ -86,7 +85,6 @@ export default function NavBar() {
               {t('clearCache')}
             </button>
           )}
-          <LocaleSwitcher />
           {user ? (
             <>
               <Link
@@ -193,11 +191,6 @@ export default function NavBar() {
                   </Link>
                 </>
               )}
-
-              <div className="my-2 h-px bg-[var(--cromo-border)]" />
-              <div className="px-3 py-1">
-                <LocaleSwitcher />
-              </div>
 
               {isDev && (
                 <>

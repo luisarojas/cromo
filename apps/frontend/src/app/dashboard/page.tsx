@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   fetchUserAlbums,
   fetchUserAlbumsWithStats,
@@ -45,6 +46,7 @@ const EDITION_TINTS: Record<string, { dot: string; bar: string }> = {
 };
 
 export default function DashboardPage() {
+  const t = useTranslations('dashboard');
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
@@ -102,7 +104,7 @@ export default function DashboardPage() {
         }
       } catch (err) {
         if (!cancelled)
-          setError(err instanceof Error ? err.message : 'Failed to load');
+          setError(err instanceof Error ? err.message : t('failedToLoad'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -195,7 +197,7 @@ export default function DashboardPage() {
   if (!hydrated || (!token && hydrated)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
-        Loading…
+        {t('loading')}
       </div>
     );
   }
@@ -207,8 +209,8 @@ export default function DashboardPage() {
   let insightText: string | null = null;
   if (defaultAlbum && defaultAlbumStats) {
     insightText = defaultAlbumStats.missing === 0
-      ? `You've completed ${albumDisplayName(defaultAlbum)}!`
-      : `${defaultAlbumStats.missing} stickers left to complete ${albumDisplayName(defaultAlbum)}`;
+      ? t('insightComplete', { album: albumDisplayName(defaultAlbum) })
+      : t('insightLeft', { count: defaultAlbumStats.missing, album: albumDisplayName(defaultAlbum) });
   }
 
   const allSelected = displayedAlbums.length > 0 && selectedIds.size === displayedAlbums.length;
@@ -218,14 +220,14 @@ export default function DashboardPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
 
         <PageHeader
-          eyebrow="Dashboard"
-          title={<>Welcome back, <span className="cromo-chrome-text">{displayName}</span></>}
+          eyebrow={t('eyebrow')}
+          title={<>{t('welcomeBack')} <span className="cromo-chrome-text">{displayName}</span></>}
           subtitle={
             user?.emailVerifiedAt === null
-              ? <span className="text-[var(--cromo-warning-text)]">Email not verified — check your inbox.</span>
+              ? <span className="text-[var(--cromo-warning-text)]">{t('emailNotVerified')}</span>
               : defaultAlbum
-                ? `Tracking ${albums.length} album${albums.length !== 1 ? 's' : ''}`
-                : 'Add your first album to start tracking'
+                ? t('trackingAlbums', { count: albums.length })
+                : t('addFirstAlbumPrompt')
           }
         />
 
@@ -244,16 +246,16 @@ export default function DashboardPage() {
             : (
               <>
                 <StatLink albumId={defaultAlbum?.id} tab="all">
-                  <Stat label="Total" value={defaultAlbumStats?.total ?? 0} tone="chrome" />
+                  <Stat label={t('statTotal')} value={defaultAlbumStats?.total ?? 0} tone="chrome" />
                 </StatLink>
                 <StatLink albumId={defaultAlbum?.id} tab="have">
-                  <Stat label="Owned" value={defaultAlbumStats?.owned ?? 0} tone="success" />
+                  <Stat label={t('statOwned')} value={defaultAlbumStats?.owned ?? 0} tone="success" />
                 </StatLink>
                 <StatLink albumId={defaultAlbum?.id} tab="missing">
-                  <Stat label="Missing" value={defaultAlbumStats?.missing ?? 0} />
+                  <Stat label={t('statMissing')} value={defaultAlbumStats?.missing ?? 0} />
                 </StatLink>
                 <StatLink albumId={defaultAlbum?.id} tab="duplicates">
-                  <Stat label="Duplicates" value={defaultAlbumStats?.duplicates ?? 0} tone="accent" />
+                  <Stat label={t('statDuplicates')} value={defaultAlbumStats?.duplicates ?? 0} tone="accent" />
                 </StatLink>
               </>
             )}
@@ -283,14 +285,14 @@ export default function DashboardPage() {
               <button
                 onClick={() => setShowShareCard(true)}
                 className="shrink-0 inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)] transition-colors"
-                aria-label="Share progress card"
+                aria-label={t('shareProgressAria')}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
                   <polyline points="16 6 12 2 8 6" />
                   <line x1="12" y1="2" x2="12" y2="15" />
                 </svg>
-                Share progress
+                {t('shareProgress')}
               </button>
             </div>
           </Card>
@@ -316,7 +318,7 @@ export default function DashboardPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider">
-              Albums
+              {t('albumsHeading')}
             </h2>
             <div className="flex items-center gap-3">
               {selectMode ? (
@@ -324,7 +326,7 @@ export default function DashboardPage() {
                   onClick={exitSelectMode}
                   className="text-xs text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] font-medium transition-colors"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
               ) : (
                 <>
@@ -333,14 +335,14 @@ export default function DashboardPage() {
                       onClick={() => setSelectMode(true)}
                       className="text-xs text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] font-medium transition-colors"
                     >
-                      Select
+                      {t('select')}
                     </button>
                   )}
                   <Link
                     href="/album"
                     className="text-xs text-[var(--cromo-accent)] hover:underline font-medium"
                   >
-                    Manage →
+                    {t('manage')}
                   </Link>
                 </>
               )}
@@ -353,7 +355,7 @@ export default function DashboardPage() {
               {albumTypes.length > 1 && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <FilterChip active={filterType === 'all'} onClick={() => setFilterType('all')}>
-                    All
+                    {t('filterAll')}
                   </FilterChip>
                   {albumTypes.map((type) => (
                     <FilterChip
@@ -376,7 +378,7 @@ export default function DashboardPage() {
                     : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
                 }`}
               >
-                Completion
+                {t('sortCompletion')}
                 {sortOrder === 'desc' && <span>↓</span>}
                 {sortOrder === 'asc' && <span>↑</span>}
               </button>
@@ -389,10 +391,10 @@ export default function DashboardPage() {
                 onClick={toggleSelectAll}
                 className="text-xs text-[var(--cromo-accent)] hover:underline font-medium"
               >
-                {allSelected ? 'Deselect all' : 'Select all'}
+                {allSelected ? t('deselectAll') : t('selectAll')}
               </button>
               {selectedIds.size > 0 && (
-                <span className="text-xs text-[var(--cromo-fg-subtle)]">{selectedIds.size} selected</span>
+                <span className="text-xs text-[var(--cromo-fg-subtle)]">{t('selectedCount', { count: selectedIds.size })}</span>
               )}
             </div>
           )}
@@ -405,9 +407,9 @@ export default function DashboardPage() {
             </div>
           ) : albums.length === 0 ? (
             <Card className="text-center py-12 border-dashed">
-              <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">No albums yet</p>
+              <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">{t('noAlbumsYet')}</p>
               <Link href="/album">
-                <Button>Add your first album</Button>
+                <Button>{t('addFirstAlbum')}</Button>
               </Link>
             </Card>
           ) : (
@@ -452,7 +454,7 @@ export default function DashboardPage() {
                             className="w-4 h-4 shrink-0 mt-0.5"
                             viewBox="0 0 20 20"
                             fill="var(--cromo-warning)"
-                            aria-label="Default album"
+                            aria-label={t('defaultAlbumAria')}
                           >
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
@@ -463,7 +465,7 @@ export default function DashboardPage() {
                     {st ? (
                       <>
                         <div className="flex justify-between text-xs text-[var(--cromo-fg-muted)] mb-1.5">
-                          <span>{st.owned} owned</span>
+                          <span>{t('ownedCount', { count: st.owned })}</span>
                           <span className="font-mono font-semibold text-[var(--cromo-fg)]">{st.percentage.toFixed(0)}%</span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden mb-2">
@@ -473,7 +475,7 @@ export default function DashboardPage() {
                           />
                         </div>
                         <p className="text-[11px] text-[var(--cromo-fg-subtle)]">
-                          {st.missing} missing · {st.duplicates} duplicates
+                          {t('missingDuplicatesLine', { missing: st.missing, duplicates: st.duplicates })}
                         </p>
                       </>
                     ) : (
@@ -491,7 +493,7 @@ export default function DashboardPage() {
                     onClick={(e) => e.stopPropagation()}
                     className="block px-4 py-2 text-[11px] text-[var(--cromo-accent)] border-t border-[var(--cromo-border)] bg-[var(--cromo-accent-soft)] hover:brightness-110 transition-all"
                   >
-                    View Collection Guide →
+                    {t('viewCollectionGuide')}
                   </Link>
                 );
 
@@ -541,9 +543,9 @@ export default function DashboardPage() {
               </svg>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-[var(--cromo-fg)] leading-tight">Heads-up before your first scan</p>
+              <p className="text-sm font-medium text-[var(--cromo-fg)] leading-tight">{t('primerTitle')}</p>
               <p className="text-xs text-[var(--cromo-fg-muted)] leading-tight mt-1">
-                We&apos;ll ask for camera access the first time you open the scanner. Photos go to the AI identifier only — never stored unless you keep the sticker.
+                {t('primerBody')}
               </p>
             </div>
             <button
@@ -553,7 +555,7 @@ export default function DashboardPage() {
               }}
               className="shrink-0 rounded-btn px-2.5 py-1 text-xs font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]"
             >
-              Got it
+              {t('gotIt')}
             </button>
           </div>
         )}
@@ -564,7 +566,7 @@ export default function DashboardPage() {
         {lastScan && albums.some((a) => a.id === lastScan.albumId) && (
           <div className="mb-8">
             <h2 className="text-xs font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
-              Pick up where you left off
+              {t('pickUpHeading')}
             </h2>
             <div className="flex items-center gap-3 rounded-card border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent-soft)] px-4 py-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)]">
@@ -574,11 +576,11 @@ export default function DashboardPage() {
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[var(--cromo-fg)] leading-tight">Resume scanning</p>
+                <p className="text-sm font-medium text-[var(--cromo-fg)] leading-tight">{t('resumeScanning')}</p>
                 <p className="text-xs text-[var(--cromo-fg-muted)] leading-tight mt-0.5 truncate">{lastScan.albumLabel}</p>
                 {streak >= 2 && (
                   <p className="text-[11px] font-semibold text-[var(--cromo-accent)] mt-0.5">
-                    🔥 {streak}-day scan streak
+                    🔥 {t('scanStreak', { count: streak })}
                   </p>
                 )}
               </div>
@@ -586,10 +588,10 @@ export default function DashboardPage() {
                 href="/scan"
                 className="shrink-0 rounded-btn bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-3 py-1.5 text-xs font-semibold hover:bg-[var(--cromo-accent-strong)] transition-colors"
               >
-                Continue
+                {t('continue')}
               </Link>
               <button
-                aria-label="Dismiss"
+                aria-label={t('dismiss')}
                 onClick={() => { clearLastScan(); setLastScan(null); }}
                 className="shrink-0 text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] p-1"
               >
@@ -605,7 +607,7 @@ export default function DashboardPage() {
         {/* Quick actions */}
         <div>
           <h2 className="text-xs font-semibold text-[var(--cromo-fg-subtle)] uppercase tracking-wider mb-3">
-            Quick Links
+            {t('quickLinks')}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Link
@@ -618,8 +620,8 @@ export default function DashboardPage() {
                 </svg>
               </div>
               <div>
-                <div className="font-display font-semibold text-sm text-[var(--cromo-fg)]">Trade</div>
-                <div className="text-xs text-[var(--cromo-fg-muted)]">Find matches and swap stickers</div>
+                <div className="font-display font-semibold text-sm text-[var(--cromo-fg)]">{t('quickTrade')}</div>
+                <div className="text-xs text-[var(--cromo-fg-muted)]">{t('quickTradeDesc')}</div>
               </div>
             </Link>
 
@@ -633,8 +635,8 @@ export default function DashboardPage() {
                 </svg>
               </div>
               <div>
-                <div className="font-display font-semibold text-sm text-[var(--cromo-fg)]">Settings</div>
-                <div className="text-xs text-[var(--cromo-fg-muted)]">Manage your account and preferences</div>
+                <div className="font-display font-semibold text-sm text-[var(--cromo-fg)]">{t('quickSettings')}</div>
+                <div className="text-xs text-[var(--cromo-fg-muted)]">{t('quickSettingsDesc')}</div>
               </div>
             </Link>
           </div>
@@ -654,30 +656,30 @@ export default function DashboardPage() {
         >
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-[var(--cromo-fg)] mr-auto">
-              {selectedIds.size} album{selectedIds.size > 1 ? 's' : ''} selected
+              {t('bulkSelectedAlbums', { count: selectedIds.size })}
             </span>
             {!confirmBulkDelete ? (
               <>
                 <Button size="sm" variant="secondary" onClick={() => bulkSetTrade(true)} disabled={bulkBusy}>
-                  Make trade public
+                  {t('makeTradePublic')}
                 </Button>
                 <Button size="sm" variant="secondary" onClick={() => bulkSetTrade(false)} disabled={bulkBusy}>
-                  Make trade private
+                  {t('makeTradePrivate')}
                 </Button>
                 <Button size="sm" variant="danger" onClick={() => setConfirmBulkDelete(true)} disabled={bulkBusy}>
-                  Delete
+                  {t('delete')}
                 </Button>
               </>
             ) : (
               <>
                 <span className="text-xs text-[var(--cromo-danger-text)]">
-                  Delete {selectedIds.size} album{selectedIds.size > 1 ? 's' : ''}? This cannot be undone.
+                  {t('bulkDeletePrompt', { count: selectedIds.size })}
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => setConfirmBulkDelete(false)} disabled={bulkBusy}>
-                  Cancel
+                  {t('cancel')}
                 </Button>
                 <Button size="sm" variant="danger" onClick={bulkDelete} loading={bulkBusy}>
-                  {bulkBusy ? 'Deleting…' : 'Confirm delete'}
+                  {bulkBusy ? t('deleting') : t('confirmDelete')}
                 </Button>
               </>
             )}

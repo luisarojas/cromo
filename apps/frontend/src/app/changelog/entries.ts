@@ -36,7 +36,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
-        'Spanish (Español) language support — pick your language from the navbar.',
+        'Spanish (Español) language support — pick your language from the footer.',
         'Site-wide SEO — sitemap, robots, OpenGraph cards, hreflang for EN/ES, and a structured Organization profile for search engines.',
         'Share progress — generate a 1080×1080 card of your album completion to post on Instagram, TikTok, or WhatsApp.',
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',

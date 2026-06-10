@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import {
@@ -52,6 +53,7 @@ interface ProposeModalState {
 }
 
 function TradePageContent() {
+  const t = useTranslations('tradePage');
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
@@ -480,9 +482,9 @@ function TradePageContent() {
     <div className="max-w-4xl mx-auto px-4 py-10">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-[var(--cromo-fg)]">Trades</h1>
+          <h1 className="text-3xl font-bold text-[var(--cromo-fg)]">{t('title')}</h1>
           <p className="text-sm text-[var(--cromo-fg-muted)] mt-1">
-            Find trading partners or manage your active trades.
+            {t('subtitle')}
           </p>
         </div>
         <Link
@@ -490,16 +492,16 @@ function TradePageContent() {
           className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-[var(--cromo-accent)] animate-pulse" aria-hidden />
-          Live trade session
+          {t('liveSession')}
         </Link>
       </div>
 
       <div className="mb-6">
-        <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">Your cities</label>
+        <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">{t('yourCities')}</label>
         <CityAutocomplete cities={myCities} onChange={handleCitiesChange} />
-        {citiesSaving && <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">Saving…</p>}
+        {citiesSaving && <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">{t('saving')}</p>}
         {citiesError && <p className="mt-1.5 text-xs text-[var(--cromo-danger-text)]">{citiesError}</p>}
-        <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">Used to filter trade matches by location.</p>
+        <p className="mt-1.5 text-xs text-[var(--cromo-fg-subtle)]">{t('citiesHint')}</p>
       </div>
 
       {/* Tabs */}
@@ -512,7 +514,7 @@ function TradePageContent() {
               : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
-          Find Trades
+          {t('tabs.find')}
         </button>
         <button
           onClick={() => switchTab('third-party')}
@@ -522,7 +524,7 @@ function TradePageContent() {
               : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
-          Third-Party List
+          {t('tabs.thirdParty')}
         </button>
         <button
           onClick={() => switchTab('my')}
@@ -532,7 +534,7 @@ function TradePageContent() {
               : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
           }`}
         >
-          My Trades
+          {t('tabs.my')}
         </button>
       </div>
 
@@ -540,16 +542,16 @@ function TradePageContent() {
       {tab === 'find' && (
         <div>
           <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 mb-6">
-            <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-3">Find Trading Partners</h2>
+            <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-3">{t('findTradingPartners')}</h2>
             <div className="flex gap-3 items-end flex-wrap">
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">Album</label>
+                <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">{t('album')}</label>
                 <select
                   value={selectedAlbumId}
                   onChange={(e) => setSelectedAlbumId(e.target.value)}
                   className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
                 >
-                  {albums.length === 0 && <option value="">No albums found</option>}
+                  {albums.length === 0 && <option value="">{t('noAlbumsFound')}</option>}
                   {albums.map((album) => (
                     <option key={album.id} value={album.id}>
                       {albumDisplayName(album)}
@@ -562,7 +564,7 @@ function TradePageContent() {
                 disabled={!selectedAlbumId || matchesLoading}
                 className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {matchesLoading ? 'Searching...' : 'Find Matches'}
+                {matchesLoading ? t('searching') : t('findMatches')}
               </button>
             </div>
           </div>
@@ -608,7 +610,7 @@ function TradePageContent() {
                       onChange={(e) => setNearbyOnly(e.target.checked)}
                       className="h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
                     />
-                    <span className="text-sm text-[var(--cromo-fg-muted)]">Nearby only</span>
+                    <span className="text-sm text-[var(--cromo-fg-muted)]">{t('nearbyOnly')}</span>
                   </label>
                 )}
               </div>
@@ -697,7 +699,7 @@ function TradePageContent() {
             </p>
 
             <div className="mb-4">
-              <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">Album</label>
+              <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">{t('album')}</label>
               <select
                 value={tpAlbumId}
                 onChange={(e) => setTpAlbumId(e.target.value)}
@@ -734,7 +736,7 @@ function TradePageContent() {
 
           {tpResult && (
             <ExternalMatchResult
-              title="Optimal trade"
+              title={t('optimalTrade')}
               leftLabel="You"
               leftReceives={tpResult.iGet}
               rightLabel="They"
@@ -765,7 +767,7 @@ function TradePageContent() {
 
           {!tradesLoading && !tradesError && trades.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-sm text-[var(--cromo-fg-muted)]">You have no trades yet.</p>
+              <p className="text-sm text-[var(--cromo-fg-muted)]">{t('noTradesYet')}</p>
               <button
                 onClick={() => switchTab('find')}
                 className="mt-3 text-sm text-[var(--cromo-accent)] hover:underline"

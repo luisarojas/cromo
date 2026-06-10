@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import { patchUserPreferences } from '@/lib/api';
@@ -623,14 +624,8 @@ function AccountSettingsTab() {
 
 type SettingsTab = 'account' | 'privacy' | 'album' | 'appearance';
 
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: 'account', label: 'Account' },
-  { id: 'privacy', label: 'Privacy & Trading' },
-  { id: 'album', label: 'Album Defaults' },
-  { id: 'appearance', label: 'Appearance' },
-];
-
 export default function SettingsPage() {
+  const t = useTranslations('settings');
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
   const router = useRouter();
@@ -641,13 +636,20 @@ export default function SettingsPage() {
     return null;
   }
 
+  const tabs: { id: SettingsTab; label: string }[] = [
+    { id: 'account', label: t('tabs.account') },
+    { id: 'privacy', label: t('tabs.privacy') },
+    { id: 'album', label: t('tabs.album') },
+    { id: 'appearance', label: t('tabs.appearance') },
+  ];
+
   return (
     <div className="min-h-screen py-10 px-4">
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
-        <PageHeader eyebrow="Settings" title="Settings" />
+        <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
         <div className="flex gap-1 border-b border-[var(--cromo-border)]">
-          {TABS.map(({ id, label }) => (
+          {tabs.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}

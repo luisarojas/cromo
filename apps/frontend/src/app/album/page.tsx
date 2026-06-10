@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import {
   fetchUserAlbums,
   fetchAlbumStats,
@@ -36,6 +37,7 @@ const EDITION_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function AlbumsPage() {
+  const t = useTranslations('albumList');
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
@@ -95,7 +97,7 @@ export default function AlbumsPage() {
 
         setAlbumStats(new Map(statsList.map((s) => [s.albumId, s])));
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load albums');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('failedToLoad'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -183,7 +185,7 @@ export default function AlbumsPage() {
   if (!hydrated || (!token && hydrated)) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-[var(--cromo-fg-subtle)] text-sm">
-        Loading…
+        {t('loading')}
       </div>
     );
   }
@@ -193,7 +195,7 @@ export default function AlbumsPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--cromo-fg)]">My Albums</h1>
+            <h1 className="text-2xl font-bold text-[var(--cromo-fg)]">{t('title')}</h1>
           </div>
           {albums.length < MAX_ALBUMS && !loading && (
             <button
@@ -203,7 +205,7 @@ export default function AlbumsPage() {
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
               </svg>
-              New Album
+              {t('newAlbum')}
             </button>
           )}
         </div>
@@ -222,12 +224,12 @@ export default function AlbumsPage() {
           </div>
         ) : albums.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-[var(--cromo-fg-subtle)] mb-4">No albums yet.</p>
+            <p className="text-[var(--cromo-fg-subtle)] mb-4">{t('noAlbumsYet')}</p>
             <button
               onClick={handleOpenAdd}
               className="rounded-lg bg-[var(--cromo-accent)] px-5 py-2.5 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] transition-colors"
             >
-              Add your first album
+              {t('addFirstAlbum')}
             </button>
           </div>
         ) : (
@@ -270,7 +272,7 @@ export default function AlbumsPage() {
                           className="w-4 h-4 text-[var(--cromo-warning-text)] shrink-0 mt-0.5"
                           viewBox="0 0 20 20"
                           fill="currentColor"
-                          aria-label="Default album"
+                          aria-label={t('defaultAlbum')}
                         >
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
@@ -280,7 +282,7 @@ export default function AlbumsPage() {
                     {stats ? (
                       <>
                         <div className="flex justify-between text-xs text-[var(--cromo-fg-muted)] mb-1.5">
-                          <span>{stats.owned} owned</span>
+                          <span>{t('ownedCount', { count: stats.owned })}</span>
                           <span className="font-medium">{stats.percentage.toFixed(0)}%</span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden">
@@ -290,7 +292,7 @@ export default function AlbumsPage() {
                           />
                         </div>
                         <p className="text-xs text-[var(--cromo-fg-subtle)] mt-2.5">
-                          {stats.missing} missing · {stats.duplicates} duplicates
+                          {t('missingDuplicatesLine', { missing: stats.missing, duplicates: stats.duplicates })}
                         </p>
                       </>
                     ) : (
@@ -306,7 +308,7 @@ export default function AlbumsPage() {
                       href={album.albumTypeGuidePath}
                       className="block px-5 py-2 text-[11px] text-[var(--cromo-accent)] hover:underline border-t border-[var(--cromo-border)] bg-[var(--cromo-accent-soft)]/40 hover:bg-[var(--cromo-accent-soft)] transition-colors"
                     >
-                      View Collection Guide →
+                      {t('viewCollectionGuide')}
                     </Link>
                   )}
 
@@ -316,7 +318,7 @@ export default function AlbumsPage() {
                       <button
                         onClick={(e) => { e.preventDefault(); handleSetDefault(album.id); }}
                         className="p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-warning-text)] hover:bg-[var(--cromo-warning-soft)] transition-colors"
-                        title="Set as default"
+                        title={t('setAsDefault')}
                       >
                         <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -326,7 +328,7 @@ export default function AlbumsPage() {
                     <button
                       onClick={(e) => { e.preventDefault(); handleOpenEdit(album); }}
                       className="p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
-                      title="Edit album"
+                      title={t('editAlbum')}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />

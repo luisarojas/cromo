@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/ui';
 import { CHANGELOG, type ChangeCategory } from './entries';
 
@@ -18,11 +19,11 @@ const CATEGORY_TONE: Record<ChangeCategory, string> = {
 
 const CATEGORY_ORDER: ChangeCategory[] = ['Added', 'Changed', 'Fixed', 'Removed', 'Security'];
 
-function formatDate(date: string | null): string | null {
+function formatDate(date: string | null, locale: string): string | null {
   if (!date) return null;
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return date;
-  return parsed.toLocaleDateString(undefined, {
+  return parsed.toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -30,13 +31,22 @@ function formatDate(date: string | null): string | null {
   });
 }
 
-export default function ChangelogPage() {
+export default async function ChangelogPage() {
+  const t = await getTranslations('changelogPage');
+  const locale = await getLocale();
+  const categoryLabel: Record<ChangeCategory, string> = {
+    Added: t('categories.Added'),
+    Changed: t('categories.Changed'),
+    Fixed: t('categories.Fixed'),
+    Removed: t('categories.Removed'),
+    Security: t('categories.Security'),
+  };
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
       <PageHeader
-        eyebrow="Changelog"
-        title="What's New"
-        subtitle="Notable changes shipped to Cromo, newest first."
+        eyebrow={t('eyebrow')}
+        title={t('title')}
+        subtitle={t('subtitle')}
       />
 
       <div className="space-y-6">
@@ -46,7 +56,7 @@ export default function ChangelogPage() {
             build doesn't have. Filtered out here; entries.ts itself remains
             the source of truth that release.sh rotates from. */}
         {CHANGELOG.filter((e) => e.version !== 'Unreleased').map((entry) => {
-          const formatted = formatDate(entry.date);
+          const formatted = formatDate(entry.date, locale);
           return (
             <article
               key={entry.version}
@@ -61,7 +71,7 @@ export default function ChangelogPage() {
                 )}
                 {entry.deprecated && (
                   <span className="inline-flex items-center rounded-full border border-[var(--cromo-warning)]/40 bg-[var(--cromo-warning-soft)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-warning-text)]">
-                    Known broken
+                    {t('knownBroken')}
                   </span>
                 )}
               </header>
@@ -82,7 +92,7 @@ export default function ChangelogPage() {
                     <span
                       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider mb-2 ${CATEGORY_TONE[cat]}`}
                     >
-                      {cat}
+                      {categoryLabel[cat]}
                     </span>
                     <ul className="list-disc list-outside pl-5 space-y-1 text-sm text-[var(--cromo-fg)] leading-relaxed">
                       {entry.changes[cat]!.map((item, i) => (

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { CromoLogo } from '@/components/CromoLogo';
+import LocaleSwitcher from '@/components/LocaleSwitcher';
 
 export default async function Footer() {
   const t = await getTranslations('footer');
@@ -57,9 +58,12 @@ export default async function Footer() {
             {t('copyrightPrefix')} {year} {t('copyrightSuffix')}{' '}
             <span className="italic">{t('italicCromo')}</span>{t('copyrightTail')}
           </p>
-          <p className="text-[11px] text-[var(--cromo-fg-subtle)] font-mono">
-            {t('notAffiliated')} · <span title={t('versionTitle')}>{version}</span>
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <LocaleSwitcher />
+            <p className="text-[11px] text-[var(--cromo-fg-subtle)] font-mono">
+              {t('notAffiliated')} · <span title={t('versionTitle')}>{version}</span>
+            </p>
+          </div>
         </div>
       </div>
     </footer>

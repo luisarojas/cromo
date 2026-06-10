@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { PageHeader } from '@/components/ui';
 
 export const metadata: Metadata = {
@@ -9,29 +10,29 @@ export const metadata: Metadata = {
   alternates: { canonical: '/guide' },
 };
 
-const GUIDES = [
-  {
-    href: '/guide/wc-2026',
-    label: '2026 FIFA World Cup',
-    title: 'Panini Sticker Collection',
-    description:
-      'Your friendly collector’s handbook — picking the right edition, decoding those rare borders, and tracking down the hardest pulls.',
-    meta: '980 stickers · 48 teams · 6 sections',
-    tags: ['Editions', 'Variants', 'Where to buy'],
-  },
-];
+export default async function GuidesIndexPage() {
+  const t = await getTranslations('guideIndex');
+  const guides = [
+    {
+      href: '/guide/wc-2026',
+      label: t('wc2026.label'),
+      title: t('wc2026.title'),
+      description: t('wc2026.description'),
+      meta: t('wc2026.meta'),
+      tags: [t('tags.editions'), t('tags.variants'), t('tags.whereToBuy')],
+    },
+  ];
 
-export default function GuidesIndexPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-10 space-y-8">
       <PageHeader
-        eyebrow="Guides"
-        title="Collector Guides"
-        subtitle="Friendly walkthroughs for every Panini sticker collection Cromo supports."
+        eyebrow={t('eyebrow')}
+        title={t('title')}
+        subtitle={t('subtitle')}
       />
 
       <div className="grid sm:grid-cols-2 gap-4">
-        {GUIDES.map((guide) => (
+        {guides.map((guide) => (
           <Link
             key={guide.href}
             href={guide.href}
@@ -61,7 +62,7 @@ export default function GuidesIndexPage() {
                 ))}
               </div>
               <p className="!mt-6 text-xs font-semibold text-[var(--cromo-accent)] group-hover:translate-x-0.5 transition-transform">
-                Read guide →
+                {t('readGuide')}
               </p>
             </div>
           </Link>

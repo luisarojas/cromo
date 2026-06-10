@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { forgotPasswordApi } from '@/lib/api';
 import { Button, Card, Field, Input, Alert } from '@/components/ui';
 import { CromoMark } from '@/components/CromoLogo';
 
 export default function ForgotPasswordPage() {
+  const t = useTranslations('auth.forgotPassword');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -20,7 +22,7 @@ export default function ForgotPasswordPage() {
       await forgotPasswordApi(email);
       setDone(true);
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError(t('genericError'));
     } finally {
       setLoading(false);
     }
@@ -38,10 +40,10 @@ export default function ForgotPasswordPage() {
         <div className="text-center mb-8 flex flex-col items-center">
           <CromoMark size={48} variant="chrome" className="mb-4" />
           <h1 className="font-display font-bold text-2xl text-[var(--cromo-fg)] tracking-tight">
-            Reset your password
+            {t('title')}
           </h1>
           <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">
-            Enter your email and we&apos;ll send you a reset code.
+            {t('subtitle')}
           </p>
         </div>
 
@@ -49,25 +51,27 @@ export default function ForgotPasswordPage() {
           {done ? (
             <div className="text-center py-2 flex flex-col gap-4">
               <p className="text-sm text-[var(--cromo-fg)]">
-                If an account with that email exists, you&apos;ll receive a reset code shortly.
+                {t('sentBody')}
               </p>
               <Link href={`/reset-password?email=${encodeURIComponent(email)}`}>
-                <Button size="lg" className="w-full">Enter reset code</Button>
+                <Button size="lg" className="w-full">{t('enterCode')}</Button>
               </Link>
               <p className="text-sm text-[var(--cromo-fg-muted)]">
-                Didn&apos;t get it? Check your spam folder or{' '}
-                <button
-                  onClick={() => { setDone(false); setEmail(''); }}
-                  className="text-[var(--cromo-accent)] hover:underline"
-                >
-                  try again
-                </button>
-                .
+                {t.rich('didntGet', {
+                  retry: (chunks) => (
+                    <button
+                      onClick={() => { setDone(false); setEmail(''); }}
+                      className="text-[var(--cromo-accent)] hover:underline"
+                    >
+                      {chunks}
+                    </button>
+                  ),
+                })}
               </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <Field label="Email" htmlFor="email">
+              <Field label={t('emailLabel')} htmlFor="email">
                 <Input
                   id="email"
                   type="email"
@@ -75,14 +79,14 @@ export default function ForgotPasswordPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  placeholder="you@example.com"
+                  placeholder={t('emailPlaceholder')}
                 />
               </Field>
 
               {error && <Alert tone="danger">{error}</Alert>}
 
               <Button type="submit" loading={loading} size="lg" className="mt-2">
-                {loading ? 'Sending…' : 'Send reset link'}
+                {loading ? t('sending') : t('submit')}
               </Button>
             </form>
           )}
@@ -90,7 +94,7 @@ export default function ForgotPasswordPage() {
 
         <p className="mt-6 text-center text-sm text-[var(--cromo-fg-muted)]">
           <Link href="/login" className="text-[var(--cromo-accent)] hover:underline">
-            Back to sign in
+            {t('backToSignIn')}
           </Link>
         </p>
       </div>

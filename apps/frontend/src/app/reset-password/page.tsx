@@ -3,11 +3,13 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { resetPasswordApi } from '@/lib/api';
 import { Button, Card, Field, Input, Alert, Spinner } from '@/components/ui';
 import { CromoMark } from '@/components/CromoLogo';
 
 function ResetPasswordContent() {
+  const t = useTranslations('auth.resetPassword');
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -18,11 +20,12 @@ function ResetPasswordContent() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
   const [done, setDone] = useState(false);
 
   function validatePassword(value: string) {
     if (value.length > 0 && value.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+      setPasswordError(t('passwordTooShort'));
     } else {
       setPasswordError(null);
     }
@@ -31,24 +34,26 @@ function ResetPasswordContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+      setPasswordError(t('passwordTooShort'));
       return;
     }
     if (password !== confirm) {
-      setError('Passwords do not match.');
+      setError(t('passwordsDoNotMatch'));
       return;
     }
     setLoading(true);
     setError(null);
+    setExpired(false);
     try {
       await resetPasswordApi(email, code.trim(), password);
       setDone(true);
     } catch (err) {
       const e = err as Error & { statusCode?: number };
       if (e.statusCode === 410) {
-        setError('This reset code has expired. Please request a new one.');
+        setExpired(true);
+        setError(t('codeExpired'));
       } else {
-        setError(e.message ?? 'Something went wrong. Please try again.');
+        setError(e.message ?? t('genericError'));
       }
     } finally {
       setLoading(false);
@@ -57,17 +62,17 @@ function ResetPasswordContent() {
 
   if (done) {
     return (
-      <Shell>
+      <Shell title={t('title')}>
         <Card className="text-center">
           <div className="text-3xl mb-4">✅</div>
           <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
-            Password updated
+            {t('successTitle')}
           </h1>
           <p className="text-sm text-[var(--cromo-fg-muted)] mb-6">
-            Your password has been reset. Sign in with your new password.
+            {t('successBody')}
           </p>
           <Button size="lg" onClick={() => router.push('/login')}>
-            Sign in
+            {t('signIn')}
           </Button>
         </Card>
       </Shell>
@@ -75,10 +80,10 @@ function ResetPasswordContent() {
   }
 
   return (
-    <Shell>
+    <Shell title={t('title')}>
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Field label="Email" htmlFor="email">
+          <Field label={t('emailLabel')} htmlFor="email">
             <Input
               id="email"
               type="email"
@@ -86,11 +91,11 @@ function ResetPasswordContent() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t('emailPlaceholder')}
             />
           </Field>
 
-          <Field label="Reset code" htmlFor="code">
+          <Field label={t('codeLabel')} htmlFor="code">
             <Input
               id="code"
               inputMode="numeric"
@@ -102,7 +107,7 @@ function ResetPasswordContent() {
             />
           </Field>
 
-          <Field label="New password" htmlFor="password" error={passwordError ?? undefined}>
+          <Field label={t('newPasswordLabel')} htmlFor="password" error={passwordError ?? undefined}>
             <Input
               id="password"
               type="password"
@@ -112,11 +117,11 @@ function ResetPasswordContent() {
               required
               minLength={8}
               autoComplete="new-password"
-              placeholder="At least 8 characters"
+              placeholder={t('newPasswordPlaceholder')}
             />
           </Field>
 
-          <Field label="Confirm new password" htmlFor="confirm">
+          <Field label={t('confirmPasswordLabel')} htmlFor="confirm">
             <Input
               id="confirm"
               type="password"
@@ -131,19 +136,19 @@ function ResetPasswordContent() {
           {error && (
             <div className="flex flex-col gap-2">
               <Alert tone="danger">{error}</Alert>
-              {error.includes('expired') && (
+              {expired && (
                 <Link
                   href="/forgot-password"
                   className="text-sm text-center text-[var(--cromo-accent)] hover:underline"
                 >
-                  Request a new reset link
+                  {t('requestNewCode')}
                 </Link>
               )}
             </div>
           )}
 
           <Button type="submit" loading={loading} size="lg" className="mt-2">
-            {loading ? 'Updating…' : 'Set new password'}
+            {loading ? t('updating') : t('submit')}
           </Button>
         </form>
       </Card>
@@ -151,7 +156,7 @@ function ResetPasswordContent() {
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, title }: { children: React.ReactNode; title: string }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
       <div
@@ -163,7 +168,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="text-center mb-8 flex flex-col items-center">
           <CromoMark size={48} variant="chrome" className="mb-4" />
           <h1 className="font-display font-bold text-2xl text-[var(--cromo-fg)] tracking-tight">
-            Set a new password
+            {title}
           </h1>
         </div>
         {children}

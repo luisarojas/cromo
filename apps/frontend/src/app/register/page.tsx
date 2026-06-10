@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { registerApi } from '@/lib/api';
 import { Alert, Button, Card, Field, Input } from '@/components/ui';
 import { CromoMark } from '@/components/CromoLogo';
 
 export default function RegisterPage() {
+  const t = useTranslations('auth.register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,7 +19,7 @@ export default function RegisterPage() {
 
   function validatePassword(value: string) {
     if (value.length > 0 && value.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+      setPasswordError(t('passwordTooShort'));
     } else {
       setPasswordError(null);
     }
@@ -28,12 +30,12 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
     if (password.length < 8) {
-      setPasswordError('Password must be at least 8 characters.');
+      setPasswordError(t('passwordTooShort'));
       setLoading(false);
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordsDoNotMatch'));
       setLoading(false);
       return;
     }
@@ -44,7 +46,7 @@ export default function RegisterPage() {
       });
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+      setError(err instanceof Error ? err.message : t('registrationFailed'));
     } finally {
       setLoading(false);
     }
@@ -56,36 +58,39 @@ export default function RegisterPage() {
         <Card className="text-center">
           <div className="text-3xl mb-4">📬</div>
           <h1 className="font-display font-bold text-xl text-[var(--cromo-fg)] mb-2">
-            Check your email
+            {t('checkEmailTitle')}
           </h1>
           <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">
-            We sent a 6-digit verification code to{' '}
-            <strong className="text-[var(--cromo-fg)]">{email}</strong>. Enter it to activate your
-            account.
+            {t.rich('checkEmailBody', {
+              email,
+              strong: (chunks) => <strong className="text-[var(--cromo-fg)]">{chunks}</strong>,
+            })}
           </p>
           {process.env.NODE_ENV === 'development' && (
             <p className="text-xs text-[var(--cromo-fg-subtle)]">
-              Running locally?{' '}
-              <a
-                href="http://localhost:8025"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[var(--cromo-accent)] hover:underline"
-              >
-                Open Mailpit
-              </a>{' '}
-              to view your email.
+              {t.rich('mailpitHint', {
+                link: (chunks) => (
+                  <a
+                    href="http://localhost:8025"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--cromo-accent)] hover:underline"
+                  >
+                    {chunks}
+                  </a>
+                ),
+              })}
             </p>
           )}
           <div className="mt-6 flex flex-col gap-3">
             <Link href={`/verify-email?email=${encodeURIComponent(email)}`}>
-              <Button size="lg">Enter verification code</Button>
+              <Button size="lg">{t('enterCode')}</Button>
             </Link>
             <Link
               href="/login"
               className="text-sm text-[var(--cromo-accent)] hover:underline"
             >
-              Back to sign in
+              {t('backToSignIn')}
             </Link>
           </div>
         </Card>
@@ -98,19 +103,19 @@ export default function RegisterPage() {
       <div className="text-center mb-8 flex flex-col items-center">
         <CromoMark size={48} variant="chrome" className="mb-4" />
         <h1 className="font-display font-bold text-2xl text-[var(--cromo-fg)] tracking-tight">
-          Create your account
+          {t('title')}
         </h1>
         <p className="mt-1.5 text-sm text-[var(--cromo-fg-muted)]">
-          Already collecting?{' '}
+          {t('alreadyCollecting')}{' '}
           <Link href="/login" className="text-[var(--cromo-accent)] hover:underline">
-            Sign in
+            {t('signIn')}
           </Link>
         </p>
       </div>
 
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Field label="Email" htmlFor="email">
+          <Field label={t('emailLabel')} htmlFor="email">
             <Input
               id="email"
               type="email"
@@ -118,11 +123,11 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder={t('emailPlaceholder')}
             />
           </Field>
 
-          <Field label="Password" htmlFor="password" error={passwordError ?? undefined}>
+          <Field label={t('passwordLabel')} htmlFor="password" error={passwordError ?? undefined}>
             <Input
               id="password"
               type="password"
@@ -133,11 +138,11 @@ export default function RegisterPage() {
               minLength={8}
               maxLength={128}
               autoComplete="new-password"
-              placeholder="At least 8 characters"
+              placeholder={t('passwordPlaceholder')}
             />
           </Field>
 
-          <Field label="Confirm password" htmlFor="confirmPassword">
+          <Field label={t('confirmPasswordLabel')} htmlFor="confirmPassword">
             <Input
               id="confirmPassword"
               type="password"
@@ -147,14 +152,14 @@ export default function RegisterPage() {
               minLength={8}
               maxLength={128}
               autoComplete="new-password"
-              placeholder="Re-enter your password"
+              placeholder={t('confirmPasswordPlaceholder')}
             />
           </Field>
 
           {error && <Alert tone="danger">{error}</Alert>}
 
           <Button type="submit" loading={loading} size="lg" className="mt-2">
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading ? t('submitting') : t('submit')}
           </Button>
         </form>
       </Card>

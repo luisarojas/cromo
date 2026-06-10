@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
 export const metadata: Metadata = {
   title: 'Panini FIFA World Cup 2026 — collector\'s guide',
@@ -19,7 +20,8 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function WC2026GuidePage() {
+export default async function WC2026GuidePage() {
+  const t = await getTranslations('wc2026Guide');
   return (
     <div className="max-w-4xl mx-auto px-4 py-10 space-y-8">
 
@@ -28,7 +30,7 @@ export default function WC2026GuidePage() {
         href="/guide"
         className="inline-flex items-center gap-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] transition-colors"
       >
-        <span aria-hidden>←</span> All guides
+        <span aria-hidden>←</span> {t('allGuides')}
       </Link>
 
       {/* Hero */}
@@ -38,35 +40,33 @@ export default function WC2026GuidePage() {
           className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full opacity-25 blur-3xl cromo-chrome-fill"
         />
         <span className="relative inline-flex items-center rounded-full cromo-chrome-fill px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#0E1117] mb-4">
-          2026 FIFA World Cup
+          {t('badge')}
         </span>
         <h1 className="relative font-display text-3xl font-bold leading-tight tracking-tight cromo-chrome-text">
-          Panini Sticker Collection
+          {t('heroTitle')}
         </h1>
         <p className="relative mt-1 text-lg font-medium text-[var(--cromo-fg-muted)]">
-          Your collector&apos;s handbook
+          {t('heroSubtitle')}
         </p>
         <p className="relative mt-4 max-w-xl text-sm leading-relaxed text-[var(--cromo-fg-muted)]">
-          Everything you need to know to chase the 2026 album — which edition to buy, what those
-          fancy borders actually mean, what&apos;s tucked inside the 980 slots, and the best places
-          to track down the rare stuff.
+          {t('heroBody')}
         </p>
       </div>
 
       {/* TOC */}
       <nav className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--cromo-fg-subtle)] mb-3">
-          In this guide
+          {t('tocHeading')}
         </p>
         <ol className="grid sm:grid-cols-2 gap-0.5">
           {(
             [
-              ['#editions', 'Which edition should you buy?'],
-              ['#formats', 'Softcover, hardcover & beyond'],
-              ['#variants', 'The fancy sticker variants'],
-              ['#breakdown', "What's actually in the album"],
-              ['#coca-cola', 'The Coca-Cola section'],
-              ['#where-to-buy', 'Where to grab some packs'],
+              ['#editions', t('toc.editions')],
+              ['#formats', t('toc.formats')],
+              ['#variants', t('toc.variants')],
+              ['#breakdown', t('toc.breakdown')],
+              ['#coca-cola', t('toc.cocaCola')],
+              ['#where-to-buy', t('toc.whereToBuy')],
             ] as const
           ).map(([href, label], i) => (
             <li key={href}>

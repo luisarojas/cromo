@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/store/auth';
 import { fetchUserAlbums, albumDisplayName, type UserAlbum } from '@/lib/api';
 import Scanner from './Scanner';
 import { readLastScan } from '@/lib/lastScan';
 
 export default function ScanPage() {
+  const t = useTranslations('scanPage');
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
 
@@ -39,7 +41,7 @@ export default function ScanPage() {
   if (!user) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center text-sm text-[var(--cromo-fg-muted)]">
-        Please log in to use the sticker scanner.
+        {t('loginRequired')}
       </div>
     );
   }
@@ -47,7 +49,7 @@ export default function ScanPage() {
   if (albums === null) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center text-sm text-[var(--cromo-fg-subtle)]">
-        Loading…
+        {t('loading')}
       </div>
     );
   }
@@ -55,15 +57,15 @@ export default function ScanPage() {
   if (albums.length === 0) {
     return (
       <main className="max-w-lg mx-auto px-4 py-10 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-[var(--cromo-fg)]">Scan Stickers</h1>
+        <h1 className="text-2xl font-bold text-[var(--cromo-fg)]">{t('title')}</h1>
         <p className="text-sm text-[var(--cromo-fg-muted)]">
-          You need an album before you can scan stickers into your collection.
+          {t('needAlbum')}
         </p>
         <Link
           href="/album"
           className="inline-block rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-5 py-2.5 text-sm font-medium hover:bg-[var(--cromo-accent-strong)]"
         >
-          Create your first album
+          {t('createFirstAlbum')}
         </Link>
       </main>
     );
@@ -71,9 +73,9 @@ export default function ScanPage() {
 
   return (
     <main className="max-w-lg mx-auto px-4 py-10">
-      <h1 className="text-2xl font-bold text-[var(--cromo-fg)] mb-1">Scan Stickers</h1>
+      <h1 className="text-2xl font-bold text-[var(--cromo-fg)] mb-1">{t('title')}</h1>
       <p className="text-sm text-[var(--cromo-fg-muted)] mb-6">
-        Upload one or more sticker photos and AI will identify them for you.
+        {t('subtitle')}
       </p>
 
       {selectedAlbum ? (
@@ -96,12 +98,13 @@ function AlbumPicker({
   albums: UserAlbum[];
   onPick: (album: UserAlbum) => void;
 }) {
+  const t = useTranslations('scanPage');
   // Surface the default first; everything else in the order returned by the API.
   const sorted = [...albums].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-[var(--cromo-fg)]">Which album are these stickers for?</p>
+      <p className="text-sm font-medium text-[var(--cromo-fg)]">{t('pickAlbum')}</p>
       <ul className="space-y-2">
         {sorted.map((album) => (
           <li key={album.id}>
@@ -113,11 +116,11 @@ function AlbumPicker({
                 <p className="text-sm font-medium text-[var(--cromo-fg)] truncate">
                   {albumDisplayName(album)}
                   {album.isDefault && (
-                    <span className="ml-2 text-[11px] font-normal text-[var(--cromo-warning-text)]">· Default</span>
+                    <span className="ml-2 text-[11px] font-normal text-[var(--cromo-warning-text)]">· {t('default')}</span>
                   )}
                 </p>
                 <p className="text-xs text-[var(--cromo-fg-subtle)] truncate">
-                  {album.editionName} Edition · {album.formatName}
+                  {t('editionLine', { edition: album.editionName, format: album.formatName })}
                 </p>
               </div>
               <svg className="w-4 h-4 text-[var(--cromo-fg-subtle)] shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
