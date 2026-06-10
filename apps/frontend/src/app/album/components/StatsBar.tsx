@@ -34,15 +34,14 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
       {onViewDetailedStats && (
         // Anchored in normal flow rather than absolute-positioned so the
         // mobile grid-cols-2 stat tiles never sit underneath the button.
-        // Right-aligned with self-end keeps the desktop appearance unchanged.
         <button
           type="button"
           onClick={onViewDetailedStats}
-          className="self-end inline-flex items-center gap-1 text-xs text-[var(--cromo-accent)] hover:underline"
+          className="self-end inline-flex items-center gap-1.5 rounded-full bg-[var(--cromo-accent-soft)] px-3.5 py-1.5 text-sm font-semibold text-[var(--cromo-accent)] transition hover:opacity-90"
         >
           {isViewingDetailedStats ? (
             <>
-              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M12 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               Back to album
@@ -50,7 +49,7 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
           ) : (
             <>
               View detailed stats
-              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </>
