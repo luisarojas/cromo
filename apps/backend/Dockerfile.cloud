@@ -18,6 +18,10 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared/ ./packages/shared/
 COPY apps/backend/ ./apps/backend/
 
+# Build @cromo/shared first — its package.json exports point at ./dist/, so
+# the backend's tsc can't resolve its types until the shared package is built.
+RUN pnpm --filter @cromo/shared build
+
 # Compile TypeScript → dist/. Backend imports from @cromo/shared are type-only,
 # so tsc strips them at build time and runtime needs no shared JS artefact.
 RUN pnpm --filter @cromo/backend build

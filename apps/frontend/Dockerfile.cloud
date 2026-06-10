@@ -16,6 +16,10 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared/ ./packages/shared/
 COPY apps/frontend/ ./apps/frontend/
 
+# Build @cromo/shared first — its package.json exports point at ./dist/, so
+# Next.js can't resolve it as a normal package until the shared package is built.
+RUN pnpm --filter @cromo/shared build
+
 # NEXT_PUBLIC_* are baked at build time, so they must be ARG'd in.
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_ENV=production
