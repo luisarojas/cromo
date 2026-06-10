@@ -964,7 +964,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             {t('loadingStickers')}
           </div>
         ) : tab === 'stats' ? (
-          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} />
+          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} favouriteSet={favouriteSet} />
         ) : albumId ? (
           <div className={selectionMode ? 'pb-20' : ''}>
             <StickerGrid
