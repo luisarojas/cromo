@@ -173,10 +173,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [massWorking, setMassWorking] = useState(false);
   const [variantPicker, setVariantPicker] = useState<'add' | 'remove' | null>(null);
   const [showScanner, setShowScanner] = useState(false);
-  // True while StickerGrid's persistent right rail is open (xl+ only). Drives
-  // the conditional `pr-[22rem]` so the page doesn't sit visually off-centre
-  // when no sticker is selected.
-  const [railVisible, setRailVisible] = useState(false);
 
   const tokenRef = useRef(token);
   const userRef = useRef(user);
@@ -701,13 +697,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       disabled={showAddModal || editingAlbum !== null || showScanner}
     >
     <div className="min-h-screen bg-[var(--cromo-surface-2)]">
-      {/* xl+ reserves a 22rem right gutter for the persistent sticker-detail
-          rail (rendered by StickerGrid's VariantPopover in 'rail' presentation),
-          but only while the rail is actually open. With no sticker selected the
-          gutter collapses so the page stays visually centered; opening the
-          rail reflows the grid once and then it stays put. Below xl the rail
-          isn't used and the gutter is never reserved. */}
-      <div className={`max-w-5xl xl:max-w-7xl mx-auto px-4 py-8 flex flex-col gap-4 transition-[padding] duration-150 ${railVisible ? 'xl:pr-[22rem]' : ''}`}>
+      <div className="max-w-5xl xl:max-w-7xl mx-auto px-4 py-8 flex flex-col gap-4">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1007,7 +997,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               }}
               density={density}
               hotkeysEnabled={!showAddModal && !editingAlbum && !showScanner && !variantPicker}
-              onRailVisibleChange={setRailVisible}
             />
           </div>
         ) : null}

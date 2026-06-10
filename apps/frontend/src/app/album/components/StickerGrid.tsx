@@ -53,11 +53,6 @@ interface Props {
   // suppress them while a modal (album edit, scanner, variant picker) is up.
   // Defaults to true (hotkeys active).
   hotkeysEnabled?: boolean;
-  // Fires when the persistent right-side rail opens or closes so the page can
-  // reserve gutter space only while it's visible (avoids permanent off-centre
-  // layout on desktop). Only fires in xl+ 'rail' presentation; sheet/popover
-  // presentations don't reserve gutter and never call this.
-  onRailVisibleChange?: (visible: boolean) => void;
 }
 
 interface PopoverState {
@@ -88,7 +83,6 @@ export default function StickerGrid({
   onRequestSelectionMode,
   density = 4,
   hotkeysEnabled = true,
-  onRailVisibleChange,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
@@ -99,38 +93,23 @@ export default function StickerGrid({
   // Right-click context menu state. Closes on outside click / escape via the
   // menu component's own handlers.
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sticker: Sticker } | null>(null);
-  // Viewport flags — drive the popover/sheet/rail presentation choice. We
-  // default both to false so SSR markup matches the desktop popover layout
-  // and the client takes over on hydrate.
+  // Viewport flag — drives the popover/sheet presentation choice. Defaults to
+  // false so SSR markup matches the desktop popover layout; the client takes
+  // over on hydrate.
   const [isMobile, setIsMobile] = useState(false);
-  const [isWide, setIsWide] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mqMobile = window.matchMedia('(max-width: 767px)');
-    const mqWide = window.matchMedia('(min-width: 1280px)'); // xl
     const update = () => {
       setIsMobile(mqMobile.matches);
-      setIsWide(mqWide.matches);
     };
     update();
     mqMobile.addEventListener('change', update);
-    mqWide.addEventListener('change', update);
     return () => {
       mqMobile.removeEventListener('change', update);
-      mqWide.removeEventListener('change', update);
     };
   }, []);
-  const presentation: 'sheet' | 'rail' | 'popover' =
-    isMobile ? 'sheet' : isWide ? 'rail' : 'popover';
-
-  // Tell the page when the rail is actually visible so it can reserve gutter
-  // space only then. Always emits false when leaving 'rail' presentation or
-  // closing the popover so the page can release the reservation.
-  const railVisible = presentation === 'rail' && popover !== null;
-  useEffect(() => {
-    onRailVisibleChange?.(railVisible);
-  }, [railVisible, onRailVisibleChange]);
-  useEffect(() => () => onRailVisibleChange?.(false), [onRailVisibleChange]);
+  const presentation: 'sheet' | 'popover' = isMobile ? 'sheet' : 'popover';
 
   // Keyboard-focused sticker index (into the flat displayed `stickers` list).
   // Null when the user hasn't engaged the keyboard yet; first key arrow/j/k
@@ -176,11 +155,11 @@ export default function StickerGrid({
 
   // ---- Hotkey bindings ------------------------------------------------------
   // Disable grid hotkeys while any of: a modal owned by the parent is open
-  // (page passes hotkeysEnabled=false), the variant popover/sheet/rail is open
+  // (page passes hotkeysEnabled=false), the variant popover/sheet is open
   // (the user is interacting with a single sticker, not the grid), or the
   // context menu is up.
   const hotkeysActive = hotkeysEnabled && !popover && !contextMenu;
-  // When the popover/sheet/rail is open, arrow keys (and j/k) should still
+  // When the popover/sheet is open, arrow keys (and j/k) should still
   // navigate — but to ADJACENT stickers via the popover's prev/next, not the
   // grid focus. Pre-resolve the neighbours from the open sticker so the
   // hotkey can fire without poking into the popover render IIFE.
@@ -196,7 +175,7 @@ export default function StickerGrid({
   const popoverNavActive = hotkeysEnabled && !!popover && !contextMenu;
   function navTo(sticker: Sticker | null | undefined) {
     if (!sticker) return;
-    // anchorRect is ignored by sheet/rail; popover mode recomputes from the
+    // anchorRect is ignored by sheet mode; popover mode recomputes from the
     // sticker's DOM rect so it lands next to the new card.
     const el = document.querySelector(`[data-sticker-id="${sticker.id}"]`) as HTMLElement | null;
     const rect = el?.getBoundingClientRect()
@@ -218,7 +197,7 @@ export default function StickerGrid({
     // popover anchors against it. The card carries a data-sticker-id; if it
     // isn't currently rendered (focused row outside the virtual window), we
     // fall back to a viewport-centre rect so the popover at least lands
-    // somewhere visible. Sheet/rail modes ignore the rect entirely.
+    // somewhere visible. Sheet mode ignores the rect entirely.
     const el = document.querySelector(`[data-sticker-id="${focusedSticker.id}"]`) as HTMLElement | null;
     const rect = el?.getBoundingClientRect()
       ?? new DOMRect(window.innerWidth / 2 - 100, window.innerHeight / 2 - 100, 200, 200);
