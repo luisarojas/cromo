@@ -183,7 +183,7 @@ export default function PickerToolbar({
       </div>
 
       {filtersOpen && (
-        <div className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-2.5 flex flex-col gap-2.5">
+        <div className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-2.5 flex flex-col gap-2.5 max-h-[40vh] overflow-y-auto">
           {sortedVariantOptions.length > 0 && (
             <FilterGroup
               label="Variant"
