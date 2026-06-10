@@ -1,0 +1,1 @@
+CREATE INDEX "idx_stickers_album_type_id_album_code" ON "stickers" USING btree ("album_type_id","album_code");

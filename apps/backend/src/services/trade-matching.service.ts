@@ -100,7 +100,13 @@ export async function getTradeMatches(
        FROM user_wanted_variants uwv
        WHERE uwv.album_id = $2
        UNION
-       -- Stickers with no explicit want and no owned variants: accept any variant
+       -- Stickers with no explicit want and no owned variants: accept any variant.
+       --
+       -- Coca-Cola caveat: CC album_codes can map to multiple stickers (regional
+       -- alternates — see CLAUDE.md §5). Album completion is per album_code, so
+       -- owning ANY CC9 alternate fills the CC9 slot. The owned-check below
+       -- therefore widens to "no variant of any sticker sharing this album_code"
+       -- when sticker_type = 'coca_cola_special'; otherwise it stays per sticker_id.
        SELECT sv.id AS variant_id
        FROM sticker_variants sv
        JOIN stickers s ON s.id = sv.sticker_id
@@ -113,7 +119,15 @@ export async function getTradeMatches(
          AND NOT EXISTS (
            SELECT 1 FROM user_stickers us2
            JOIN sticker_variants sv3 ON sv3.id = us2.sticker_variant_id
-           WHERE us2.album_id = $2 AND sv3.sticker_id = s.id AND us2.quantity > 0
+           JOIN stickers s2 ON s2.id = sv3.sticker_id
+           WHERE us2.album_id = $2
+             AND us2.quantity > 0
+             AND (
+               s2.id = s.id
+               OR (s.sticker_type = 'coca_cola_special'
+                   AND s2.album_type_id = s.album_type_id
+                   AND s2.album_code = s.album_code)
+             )
          )
      ),
      my_duplicates AS (
@@ -126,11 +140,11 @@ export async function getTradeMatches(
      candidate_albums AS (
        SELECT DISTINCT ON (ua.user_id) ua.id AS album_id, ua.user_id
        FROM user_albums ua
-       JOIN user_settings us2 ON us2.user_id = ua.user_id
+       LEFT JOIN user_settings us2 ON us2.user_id = ua.user_id
        JOIN users u ON u.id = ua.user_id
        WHERE ua.user_id != $1
          AND ua.album_type_id = (SELECT album_type_id FROM requester_album)
-         AND us2.trade_matching_enabled = true
+         AND COALESCE(us2.trade_matching_enabled, true) = true
          AND u.deleted_at IS NULL
          AND NOT EXISTS (
            SELECT 1 FROM user_bans ub
@@ -164,7 +178,9 @@ export async function getTradeMatches(
              AND uwv.sticker_variant_id = md.variant_id
          )
          OR (
-           -- No explicit want for this sticker AND they don't own any variant of it
+           -- No explicit want for this sticker AND they don't own any variant of it.
+           -- See my_missing for the Coca-Cola caveat — owned-check widens to
+           -- album_code for CC alternates so a filled CC slot isn't re-offered.
            NOT EXISTS (
              SELECT 1 FROM user_wanted_variants uwv2
              JOIN sticker_variants sv2 ON sv2.id = uwv2.sticker_variant_id
@@ -173,9 +189,15 @@ export async function getTradeMatches(
            AND NOT EXISTS (
              SELECT 1 FROM user_stickers uss2
              JOIN sticker_variants sv3 ON sv3.id = uss2.sticker_variant_id
+             JOIN stickers s2 ON s2.id = sv3.sticker_id
              WHERE uss2.album_id = ca.album_id
-               AND sv3.sticker_id = s.id
                AND uss2.quantity > 0
+               AND (
+                 s2.id = s.id
+                 OR (s.sticker_type = 'coca_cola_special'
+                     AND s2.album_type_id = s.album_type_id
+                     AND s2.album_code = s.album_code)
+               )
            )
          )
        )
@@ -186,6 +208,10 @@ export async function getTradeMatches(
        WHERE thm.user_id IN (SELECT user_id FROM i_have_their_missing)
      ),
      they_have_all_dupes AS (
+       -- Expand within a sticker to every variant the candidate has spares of,
+       -- but only those that actually satisfy my_missing. Otherwise we'd echo
+       -- back variants the requester never asked for (e.g. a blue parallel when
+       -- they only want the base), which misleads the trade UI.
        SELECT DISTINCT thm.user_id, sv_all.id AS variant_id
        FROM they_have_my_missing thm
        JOIN sticker_variants sv_base ON sv_base.id = thm.variant_id
@@ -194,6 +220,7 @@ export async function getTradeMatches(
          AND uss.album_id = thm.album_id
          AND (uss.quantity > 1 OR uss.trade_forced)
          AND NOT uss.trade_hidden
+       WHERE sv_all.id IN (SELECT variant_id FROM my_missing)
      ),
      overlap_counts AS (
        SELECT
@@ -207,6 +234,12 @@ export async function getTradeMatches(
        LEFT JOIN they_have_all_dupes thad ON thad.user_id = mu.user_id
        LEFT JOIN i_have_their_missing ihm ON ihm.user_id = mu.user_id
        GROUP BY mu.user_id
+     ),
+     -- Population-wide total, computed before the cursor filter so the count
+     -- doesn't shrink page-by-page. A windowed COUNT(*) over the filtered set
+     -- would report "remaining from this cursor forward", which misleads the UI.
+     total_pop AS (
+       SELECT COUNT(*)::bigint AS total FROM overlap_counts
      )
      SELECT
        oc.user_id,
@@ -218,11 +251,18 @@ export async function getTradeMatches(
        COALESCE(oc.they_have_variant_ids, ARRAY[]::text[]) AS they_have_variant_ids,
        COALESCE(oc.you_have, ARRAY[]::text[]) AS you_have,
        COALESCE(us3.cities, '[]'::jsonb) AS cities,
-       COUNT(*) OVER () AS total_count
+       tp.total AS total_count
      FROM overlap_counts oc
      JOIN users u ON u.id = oc.user_id
      LEFT JOIN user_settings us3 ON us3.user_id = oc.user_id
-     WHERE ($3::int IS NULL OR (oc.mutual_overlap, oc.user_id) < ($3::int, $4::uuid))
+     CROSS JOIN total_pop tp
+     -- Cursor predicate is hand-expanded rather than a tuple comparison because
+     -- ORDER BY mixes directions (overlap DESC, user_id ASC). Postgres tuple
+     -- comparison (a, b) < (c, d) only matches all-ASC or all-DESC orderings;
+     -- using it here would skip and duplicate users on the overlap-tie boundary.
+     WHERE $3::int IS NULL
+        OR oc.mutual_overlap < $3::int
+        OR (oc.mutual_overlap = $3::int AND oc.user_id > $4::uuid)
      ORDER BY oc.mutual_overlap DESC, oc.user_id ASC
      LIMIT $5`,
     [userId, albumId, cursorOverlap, cursorUserId, limit + 1]

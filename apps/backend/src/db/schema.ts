@@ -259,6 +259,11 @@ export const stickers = pgTable('stickers', {
 }, (table) => ({
   albumTypeNumberUnique: unique('stickers_album_type_id_number_unique').on(table.albumTypeId, table.number),
   albumTypeIdx: index('idx_stickers_album_type_id').on(table.albumTypeId),
+  // Composite (album_type_id, album_code) supports the Coca-Cola widening in
+  // getTradeMatches, which joins stickers by album_code within an album_type
+  // to treat regional CC alternates as a single slot. album_code is not unique
+  // (CC slots have multiple alternates) so a plain unique constraint won't do.
+  albumTypeCodeIdx: index('idx_stickers_album_type_id_album_code').on(table.albumTypeId, table.albumCode),
   teamIdx: index('idx_stickers_team_id').on(table.teamId),
   numberCheck: check('stickers_number_check', sql`${table.number} BETWEEN 0 AND 9999`),
 }));
