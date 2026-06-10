@@ -43,6 +43,9 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Live trade sessions — share an invite link with another collector, stage offers, chat in real time, and confirm together. Available from the Trades page.',
         'One-tap clear (×) button in every search bar.',
       ],
+      Removed: [
+        '"Focus on these" card on the album page.',
+      ],
     },
   },
   {

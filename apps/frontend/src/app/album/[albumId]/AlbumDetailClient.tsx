@@ -44,7 +44,6 @@ import StatsBar from '../components/StatsBar';
 import StickerGrid, { type OwnedVariantMap } from '../components/StickerGrid';
 import PullToRefresh from '@/components/PullToRefresh';
 import CompletionCelebration from '@/components/CompletionCelebration';
-import FocusInsight from '../components/FocusInsight';
 import AlbumDropDock, { type DragPayload } from '../components/AlbumDropDock';
 import { useHotkeys } from '@/lib/hotkeys';
 import { foldAccents } from '@/lib/normalize';
@@ -832,21 +831,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           }
           isViewingDetailedStats={tab === 'stats'}
         />
-
-        {tab !== 'stats' && !loading && (
-          <FocusInsight
-            stickers={settingsFilteredStickers}
-            ownedMap={ownedMap as unknown as Map<string, unknown>}
-            onSelectGroup={(group) => {
-              // Pivot to "missing" so the grid shows exactly the stickers the
-              // user needs to finish that group. Filter chips for wantedOnly /
-              // favouritesOnly are cleared because they'd narrow further past
-              // what the insight implied.
-              setTab('missing');
-              setFilters({ ...filters, group: [group], wantedOnly: undefined, favouritesOnly: undefined });
-            }}
-          />
-        )}
 
         {tab !== 'stats' && (
           // Pin the filter bar to the top while scrolling the (often very long)
