@@ -238,14 +238,14 @@ export default async function WC2026GuidePage() {
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
                   Global — supermarkets, newsstands, most retailers
                 </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">~$4.99 / £4.99 / €5 / CHF 4.90</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">~CAD$6.99</td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Hardcover</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
                   Global — Amazon Collectors Bundle and select retailers
                 </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">~$14.99 / £12.99</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">~CAD$19.99</td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Metallised Softcover</td>
