@@ -22,15 +22,9 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'any',
       },
       {
-        src: '/icon.png',
-        sizes: '192x192',
-        type: 'image/png',
-        purpose: 'maskable',
-      },
-      {
-        src: '/icon-512.png',
-        sizes: '512x512',
-        type: 'image/png',
+        src: '/cromo-mark-maskable.svg',
+        sizes: 'any',
+        type: 'image/svg+xml',
         purpose: 'maskable',
       },
     ],
