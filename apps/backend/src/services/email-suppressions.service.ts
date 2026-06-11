@@ -1,10 +1,11 @@
 import type { Pool } from 'pg';
 
-// Addresses that have hard-bounced or generated a complaint. The SNS webhook in
-// routes/v1/ses-notifications.ts writes here on every bounce/complaint event;
-// the email sender (email.service.ts) calls isSuppressed before every send.
-// Keeping the read fast and unconditional is what protects us from sending to
-// a known-bad address a second time — the failure mode SES penalises.
+// Addresses that have hard-bounced or generated a complaint. The SQS poller
+// in services/ses-poller.service.ts writes here on every bounce/complaint
+// event; the email sender (email.service.ts) calls isSuppressed before every
+// send. Keeping the read fast and unconditional is what protects us from
+// sending to a known-bad address a second time — the failure mode SES
+// penalises.
 
 export async function isSuppressed(db: Pool, email: string): Promise<boolean> {
   const result = await db.query<{ exists: boolean }>(

@@ -218,9 +218,8 @@ export const consentRecords = pgTable('consent_records', {
 
 // ─── email_suppressions ──────────────────────────────────────────────────────
 // Addresses we will never send to again. Populated automatically from SES
-// bounce/complaint notifications delivered via SNS (see
-// services/email-suppressions.service.ts and the SNS webhook in
-// routes/v1/ses-notifications.ts). The email sender checks this table before
+// bounce/complaint events delivered via SES → SNS → SQS → the poller in
+// services/ses-poller.service.ts. The email sender checks this table before
 // every send and skips suppressed recipients — this is the primary protection
 // against the bounce/complaint rates that get SES senders throttled or paused.
 

@@ -29,7 +29,7 @@ import { profileRoutes } from './routes/v1/profiles.js';
 import { trustSafetyRoutes } from './routes/v1/trust-safety.js';
 import { scanRoutes } from './routes/v1/scan.js';
 import { pushRoutes } from './routes/v1/push.js';
-import { sesNotificationsRoutes } from './routes/v1/ses-notifications.js';
+import { startSesPoller } from './services/ses-poller.service.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -106,6 +106,15 @@ export async function buildApp(): Promise<FastifyInstance> {
       error: (err, msg) => fastify.log.error({ err }, msg ?? '[jobs]'),
     });
     fastify.addHook('onClose', async () => { await stopWorker(); });
+
+    // SES bounce/complaint poller — long-polls the SQS queue populated by
+    // SES via SNS. No-op when SES_QUEUE_URL is unset (local dev).
+    const stopSesPoller = startSesPoller(fastify.db, {
+      info: (msg, fields) => fastify.log.info(fields ?? {}, msg),
+      warn: (msg, fields) => fastify.log.warn(fields ?? {}, msg),
+      error: (err, msg) => fastify.log.error({ err }, msg ?? '[ses-poller]'),
+    });
+    fastify.addHook('onClose', async () => { await stopSesPoller(); });
   }
 
   // ── Scheduled jobs (node-cron, §34 catalog) ──────────────────────────────
@@ -141,7 +150,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(trustSafetyRoutes);
   await fastify.register(scanRoutes);
   await fastify.register(pushRoutes);
-  await fastify.register(sesNotificationsRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   // Standard HTTP labels per status code, so every route returns a consistent

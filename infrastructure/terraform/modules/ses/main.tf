@@ -178,9 +178,8 @@ resource "aws_sesv2_configuration_set_event_destination" "complaints" {
   }
 }
 
-# Per-env HTTPS subscriptions on these topics are NOT defined here — they
-# live in env/dev/main.tf and env/prod/main.tf because the endpoint URL is
-# environment-specific (dev.cromotrade.ca vs cromotrade.ca) and the
-# subscription only works once the env's backend is live to confirm the
-# SNS handshake. The backend webhook auto-confirms on first POST (see
-# routes/v1/ses-notifications.ts).
+# Per-env consumers (SQS queues that subscribe to these topics) live in
+# modules/ses-consumer, instantiated by each env's main.tf. Keeping them
+# per-env gives clean IAM isolation between dev and prod and lets the
+# bounce queue survive backend rolls — see the SES pipeline section in
+# CLAUDE.md for the design rationale.

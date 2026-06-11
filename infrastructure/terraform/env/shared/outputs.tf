@@ -22,3 +22,8 @@ output "ses_complaint_topic_arn" {
 output "ses_configuration_set_name" {
   value = module.ses.configuration_set_name
 }
+
+output "tf_runner_role_arn" {
+  description = "Set this as the GitHub repo secret AWS_TF_RUNNER_ROLE_ARN."
+  value       = module.terraform_runner.role_arn
+}

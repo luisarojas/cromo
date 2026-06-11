@@ -162,10 +162,9 @@ module "secrets" {
     FRONTEND_URL = "https://${local.hostname}"
     CORS_ORIGIN  = "https://${local.hostname}"
 
-    # SES bounce/complaint SNS topic ARNs — the webhook in
-    # routes/v1/ses-notifications.ts enforces an allow-list against these.
-    SES_BOUNCE_TOPIC_ARN    = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-bounces"
-    SES_COMPLAINT_TOPIC_ARN = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-complaints"
+    # SES bounce/complaint SQS queue URL. The backend's SES poller (see
+    # services/ses-poller.service.ts) long-polls this queue.
+    SES_QUEUE_URL = module.ses_consumer.queue_url
 
     SCAN_PROVIDER  = var.scan_provider
     GEMINI_API_KEY = var.gemini_api_key # consulted when scan_provider='gemini'
@@ -226,21 +225,17 @@ module "scheduling" {
   db_arn        = module.database.arn
 }
 
-# ─── SES bounce/complaint SNS HTTPS subscriptions ─────────────────────────────
-# See env/dev/main.tf for the same pattern. Topics are created in env/shared.
+# ─── SES bounce/complaint consumer (SQS) ──────────────────────────────────────
+# SNS topics live in env/shared. This per-env queue subscribes to both,
+# survives backend restarts/deploys, and is read by the in-process poller
+# in apps/backend/src/services/ses-poller.service.ts.
 
-resource "aws_sns_topic_subscription" "ses_bounces_webhook" {
-  topic_arn              = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-bounces"
-  protocol               = "https"
-  endpoint               = "https://${local.hostname}/api/v1/internal/ses/notifications"
-  endpoint_auto_confirms = true
-}
-
-resource "aws_sns_topic_subscription" "ses_complaints_webhook" {
-  topic_arn              = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-complaints"
-  protocol               = "https"
-  endpoint               = "https://${local.hostname}/api/v1/internal/ses/notifications"
-  endpoint_auto_confirms = true
+module "ses_consumer" {
+  source              = "../../modules/ses-consumer"
+  env                 = local.env
+  bounce_topic_arn    = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-bounces"
+  complaint_topic_arn = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-complaints"
+  consumer_role_name  = module.compute.iam_role_name
 }
 
 # ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────

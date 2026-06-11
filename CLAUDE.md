@@ -141,7 +141,7 @@ You never edit `version` or `date` in `entries.ts` by hand — the script owns t
 
 Operator authentication to the AWS account uses a two-tier IAM model, both Terraform-managed where possible:
 
-- **`cromo` profile** → `cromo-admin` IAM user (`AdministratorAccess`). Use only for `terraform plan` / `apply` / `destroy` and one-off ops that genuinely need broad permissions. No longer pinned in the Terraform backend or provider blocks — both pick credentials up from the standard AWS chain (env vars first), so you must `eval "$(./scripts/aws-mfa-session.sh --profile cromo)"` in your shell before running Terraform. The previous `profile = "cromo"` pin broke MFA — the explicit `profile` ignored env vars and sourced the long-lived access key directly, which has no MFA claim and gets denied by `cromo-shared-require-mfa`.
+- **`cromo` profile** → `cromo-admin` IAM user (`AdministratorAccess`). Use **only** for break-glass / bootstrap ops that genuinely can't go through the CI pipeline (initial account bootstrap, recovering a broken state lock, etc.). Normal `terraform plan` / `apply` runs through GitHub Actions OIDC via the `cromo-tf-runner` role — see "Terraform — GitHub Actions OIDC" below. When you do need this profile locally, the Terraform backend and provider blocks no longer pin `profile = "cromo"`; both pick credentials up from the standard AWS chain (env vars first), so `eval "$(./scripts/aws-mfa-session.sh --profile cromo)"` in your shell is the gate that satisfies `cromo-shared-require-mfa`.
 - **`cromo-dev` profile** → an operator IAM user (e.g. `luisa`) created by `modules/dev-access`. Scoped to `ec2:DescribeInstances`, `ssm:StartSession` to the `cromo-dev-app` instance, `secretsmanager:GetSecretValue` on `cromo/dev/app`, and self-MFA management. Use for everything else (seeding through SSM port-forward, reading secrets, ad-hoc psql).
 
 Both users carry the customer-managed policy `cromo-{shared,dev}-require-mfa` (`modules/iam-mfa-enforcement`) that **denies every sensitive action unless `aws:MultiFactorAuthPresent = true`**, so long-lived access keys are useless without first calling `sts:GetSessionToken` with an MFA token. The deny condition is `BoolIfExists` not `Bool`.
@@ -155,6 +155,55 @@ The operator workflow (mint creds via `scripts/aws-mfa-session.sh`, port-forward
 - **Never set `custom:username` on a `aws_cognito_user` resource in `modules/auth`.** The AWS provider has a read/write asymmetry on custom Cognito schema attributes whose name (`username`) collides with a built-in field, which surfaces as permanent plan drift. The backend's `deriveUsername()` in `apps/backend/src/services/cognito-auth.service.ts` synthesises the same value from the email local part on first login — bootstrapping the attribute is behaviour-neutral, so don't do it.
 - **Don't propose AWS IAM Identity Center** unless asked. It was considered and intentionally deferred until the team grows past one person; the MFA-required policy closes the same threat at lower complexity.
 - **The dev RDS is `publicly_accessible = false`.** Any command targeting it from a laptop must go through the SSM port-forward documented in `docs/runbooks/aws-access.md` §5 — direct connections will time out (or fall back to `/tmp/.s.PGSQL.5432` if `DATABASE_URL` is malformed).
+
+### Terraform — GitHub Actions OIDC
+
+`terraform plan` and `terraform apply` run through `.github/workflows/terraform.yml`, not from a developer's laptop. The workflow assumes the `cromo-tf-runner` IAM role (`modules/terraform-runner`, instantiated once in `env/shared`) via GitHub OIDC, with `AdministratorAccess` attached. Trust is constrained by the OIDC token's `sub` claim, which must match one of three patterns gated by GitHub Environment:
+
+| GitHub Environment | Scope                   | Approval                                  |
+| ------------------ | ----------------------- | ----------------------------------------- |
+| `tf-shared`        | `env/shared/`           | Auto-applies on push to `main`            |
+| `tf-dev`           | `env/dev/`              | Auto-applies on push to `main`            |
+| `tf-prod`          | `env/prod/`             | Required Reviewer protection rule in GH UI |
+
+The role is **not** subject to `cromo-shared-require-mfa` because that policy attaches to IAM users (`aws_iam_user_policy_attachment`), not roles. Short-lived OIDC sessions don't need the MFA gate — the trust policy already restricts them to specific GitHub Environments in this specific repo.
+
+**Workflow behaviour:**
+- **PR** → runs `terraform plan` for all three stacks in parallel; posts each diff as a PR comment so the reviewer sees what would change.
+- **Push to `main`** → applies `shared` first, then `dev` and `prod` in parallel. `prod` pauses for required-reviewer approval in the GitHub UI before applying.
+- **`workflow_dispatch`** → manual single-stack apply (handy for one-off recoveries).
+
+**Required repo configuration** (one-time, not in Terraform):
+- Secret `AWS_TF_RUNNER_ROLE_ARN` = output of `module.terraform_runner.role_arn` from `env/shared`.
+- Variable `AWS_REGION` = `ca-central-1`.
+- GitHub Environments named `tf-shared`, `tf-dev`, `tf-prod` created in repo settings, with the Required Reviewers protection rule enabled on `tf-prod`.
+
+**Rules to follow:**
+- **Never run `terraform apply` from a laptop for routine changes.** It bypasses the PR review, the plan comment, and the prod approval gate. Local apply stays available for genuine emergencies (break-glass) via the `cromo` profile + MFA.
+- **Never widen `tf_runner_sub_patterns` to include branch-ref patterns** like `refs/heads/main`. The GitHub Environment subject is the only thing GitHub's Required Reviewer protection enforces — a bare branch pattern would silently bypass prod approval.
+- **The role intentionally has `AdministratorAccess`.** Terraform needs to manage every resource in the account; scoping it further means a different IAM error every time you add a service. The defence is the trust policy + GitHub Environment protection, not a narrow permission set.
+- **Local `terraform state` operations** (`mv`, `rm`, `push`, `force-unlock`) still happen from the laptop via the `cromo` profile — they're recovery operations, not routine flow. The workflow has no business doing them.
+
+### SES Bounce/Complaint Pipeline — SES → SNS → SQS → Poller
+
+Bounce and complaint events from Amazon SES are routed to an in-process poller, not a webhook. The pipeline:
+
+1. **SES** → events emitted to the `cromo-default` SESv2 configuration set's event destinations (`modules/ses`).
+2. **SNS topics** `cromo-ses-bounces` and `cromo-ses-complaints` in `env/shared` — one publisher per event type, account-scoped.
+3. **SQS queue** `cromo-{env}-ses-events` per environment (`modules/ses-consumer`). Each env's queue subscribes to both shared SNS topics with `raw_message_delivery = true`, so messages arrive as plain SES event JSON, not wrapped in SNS envelopes.
+4. **Backend poller** at `apps/backend/src/services/ses-poller.service.ts` — long-polls the queue from `app.ts` alongside the Redis job worker; parses each SES event via `services/ses-event-handler.ts`; writes the affected addresses into the `email_suppressions` table.
+
+The previous design used SNS HTTPS subscriptions delivering to a Fastify route at `/api/v1/internal/ses/notifications`. That created a chicken-and-egg: every fresh environment apply required the backend to be live with the new route deployed before `terraform apply` could finish, because Terraform waited for the `SubscriptionConfirmation` handshake. SQS removes that ordering constraint entirely — Terraform creates the queue and subscriptions independently of the backend's deploy state, and bounces queue safely for up to 14 days if the backend is rolling.
+
+**Why per-env SQS queues** (vs one shared queue): IAM scoping is cleaner — each env's EC2 role only sees its own queue, so a dev-environment code bug can't drain or corrupt prod's bounce stream. Cost is negligible (free tier covers any realistic bounce volume).
+
+**Why no per-message signature verification**: the queue policy (`modules/ses-consumer/main.tf`) only allows the two specific SES topics to publish, and the EC2 role only allows `sqs:ReceiveMessage` on this specific queue. The IAM/queue policy layer does what the SNS signature check did in the old webhook.
+
+**Rules to follow:**
+- **Don't reintroduce the HTTPS webhook** unless you have a hard requirement for sub-second latency on bounce handling. SES bounce volume tolerates polling latency well, and the webhook's operational sharp edges (chicken-and-egg on apply, subscription drift on hostname change, manual confirmation re-sends on dropped containers) cost real time.
+- **Both transient and permanent bounces flow through the queue**, but only permanent bounces are suppressed. Transient bounces are SES's retry signal; suppressing them costs real users their mail. The filter lives in `ses-event-handler.ts`.
+- **The queue's `redrive_policy` sends messages to a DLQ after 5 receive attempts.** Anything in the DLQ is a code bug — debug, fix, and either replay or drop. Don't quiet the DLQ by raising `maxReceiveCount`.
+- **When wiring SES into a new environment, the only env variable the backend needs is `SES_QUEUE_URL`.** Unset = poller is a no-op (correct behaviour for local dev and tests). The poller treats this as a feature flag.
 
 ### AI Scan Provider — Env-Driven, Multi-Backend
 

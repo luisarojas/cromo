@@ -49,3 +49,15 @@ module "mfa_enforcement" {
   user_names  = var.mfa_enforced_user_names
   policy_name = "cromo-shared-require-mfa"
 }
+
+# ─── GitHub Actions OIDC role for Terraform plan/apply ───────────────────────
+# Lives in shared because (a) the IAM role is account-scoped, and (b) it
+# manages all three stacks (shared/dev/prod) — there's no reason to mint
+# three roles when one with three sub patterns does the same job. The
+# required-reviewer protection on prod lives in the GitHub Environment
+# settings, not in IAM.
+
+module "terraform_runner" {
+  source              = "../../modules/terraform-runner"
+  github_sub_patterns = var.tf_runner_sub_patterns
+}

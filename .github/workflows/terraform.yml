@@ -1,0 +1,197 @@
+# Terraform plan/apply via GitHub Actions OIDC.
+#
+# Replaces the local-laptop `aws-mfa-session.sh → terraform apply` flow with
+# CI-driven applies. Each Terraform stack (shared / dev / prod) maps to a
+# GitHub Environment whose name encodes the AWS scope:
+#
+#   tf-shared → env/shared  (account-level: hosted zone, SES, IAM)
+#   tf-dev    → env/dev     (the dev application stack)
+#   tf-prod   → env/prod    (the prod application stack — protected)
+#
+# Protections live in the GitHub Environment settings, not in IAM:
+#   - tf-prod has Required Reviewers → apply needs human approval in the UI.
+#   - tf-dev auto-applies on push to main.
+#   - tf-shared auto-applies on push to main but changes there are rare.
+#
+# Required GitHub repo secrets/vars:
+#   secrets.AWS_TF_RUNNER_ROLE_ARN — terraform_runner module's role_arn
+#                                    (one role serves all three environments,
+#                                    discriminated by the sub-claim).
+#   vars.AWS_REGION                — e.g. ca-central-1
+
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infrastructure/terraform/**'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/terraform/**'
+      - '.github/workflows/terraform.yml'
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: 'Which stack to apply'
+        required: true
+        type: choice
+        options: [shared, dev, prod]
+
+concurrency:
+  # Serialise per-stack so two PRs touching the same state can't race.
+  group: terraform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write    # required to mint the OIDC token AWS verifies
+  contents: read
+  pull-requests: write  # for posting plan comments
+
+jobs:
+  # ─── Plan on every PR ───────────────────────────────────────────────────
+  # Comments the diff for each stack so the reviewer can see what would
+  # change. Runs against shared/dev/prod in parallel; failure on one
+  # doesn't block the others.
+  plan:
+    if: github.event_name == 'pull_request'
+    name: Plan ${{ matrix.stack }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [shared, dev, prod]
+    environment: tf-${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.4
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TF_RUNNER_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-tf-plan-${{ matrix.stack }}-${{ github.run_id }}
+
+      - name: terraform init
+        working-directory: infrastructure/terraform/env/${{ matrix.stack }}
+        run: terraform init -input=false
+
+      - name: terraform plan
+        id: plan
+        working-directory: infrastructure/terraform/env/${{ matrix.stack }}
+        run: |
+          set +e
+          terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+          exit_code=${PIPESTATUS[0]}
+          # Trim to last 60kB so we don't bust GitHub's comment size limit.
+          tail -c 60000 plan.txt > plan-trimmed.txt
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit $exit_code
+
+      - name: comment plan on PR
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              const plan = fs.readFileSync(
+                'infrastructure/terraform/env/${{ matrix.stack }}/plan-trimmed.txt',
+                'utf8'
+              );
+              const status = '${{ steps.plan.outputs.exit_code }}' === '0' ? 'ok' : 'failed';
+              body = [
+                `### Terraform plan — \`env/${{ matrix.stack }}\` (${status})`,
+                '<details><summary>Plan output</summary>',
+                '',
+                '```',
+                plan,
+                '```',
+                '</details>',
+              ].join('\n');
+            } catch (e) {
+              body = `### Terraform plan — \`env/${{ matrix.stack }}\` failed before plan output was captured.`;
+            }
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+  # ─── Apply on push to main ──────────────────────────────────────────────
+  # Order: shared → dev → prod. Prod requires reviewer approval via the
+  # tf-prod environment protection rule (configured in GitHub UI).
+  apply-shared:
+    if: github.event_name == 'push' || github.event.inputs.stack == 'shared'
+    name: Apply shared
+    runs-on: ubuntu-latest
+    environment: tf-shared
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.4
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TF_RUNNER_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-tf-apply-shared-${{ github.run_id }}
+      - working-directory: infrastructure/terraform/env/shared
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+  apply-dev:
+    if: github.event_name == 'push' || github.event.inputs.stack == 'dev'
+    name: Apply dev
+    needs: [apply-shared]
+    runs-on: ubuntu-latest
+    environment: tf-dev
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.4
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TF_RUNNER_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-tf-apply-dev-${{ github.run_id }}
+      - working-directory: infrastructure/terraform/env/dev
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+  apply-prod:
+    if: github.event_name == 'push' || github.event.inputs.stack == 'prod'
+    name: Apply prod
+    needs: [apply-shared]
+    runs-on: ubuntu-latest
+    # tf-prod environment in the GitHub UI must have a Required Reviewer
+    # protection rule. The workflow pauses here until you approve.
+    environment: tf-prod
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.4
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TF_RUNNER_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-tf-apply-prod-${{ github.run_id }}
+      - working-directory: infrastructure/terraform/env/prod
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve

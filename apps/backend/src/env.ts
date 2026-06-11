@@ -36,12 +36,11 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().int().default(1025),
   EMAIL_FROM: z.string().email().default('noreply@cromo.local'),
 
-  // SES bounce/complaint SNS topic ARNs. The /api/v1/internal/ses/notifications
-  // webhook only accepts messages whose TopicArn matches one of these. Empty
-  // = webhook refuses every incoming message, which is the right behaviour
-  // in environments where SES isn't wired up.
-  SES_BOUNCE_TOPIC_ARN: z.string().optional(),
-  SES_COMPLAINT_TOPIC_ARN: z.string().optional(),
+  // SES bounce/complaint SQS queue URL. The poller in
+  // services/ses-poller.service.ts long-polls this queue and writes events
+  // into email_suppressions. Unset = poller is disabled (local dev,
+  // tests, environments where SES isn't wired up yet).
+  SES_QUEUE_URL: z.string().url().optional(),
 
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3000'),

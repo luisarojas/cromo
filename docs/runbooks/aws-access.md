@@ -100,6 +100,24 @@ any subsequent CLI calls, so you don't need to keep passing `--profile`.
 Override the default 8 h session: `--duration 14400` for 4 h, etc. The max
 for an IAM user (vs an assumed role) is 8 h.
 
+## 4a. Terraform — normal path is GitHub Actions
+
+For routine infra changes the laptop flow above is **not** what you should use.
+`terraform plan` runs on every PR (posted as a comment) and `terraform apply`
+runs on push to `main` via `.github/workflows/terraform.yml`, assuming the
+`cromo-tf-runner` IAM role through GitHub OIDC. Prod waits on a Required
+Reviewer protection rule in the `tf-prod` GitHub Environment.
+
+Use the local `cromo` profile only for genuine break-glass: recovering a
+state lock the workflow left behind, importing a resource the workflow can't,
+manual `terraform state` surgery, or bootstrapping the very first apply when
+the OIDC role doesn't exist yet. Everything else goes through the PR.
+
+When you do need a local apply: re-eval the MFA script (this section), `cd`
+into the relevant `env/{shared,dev,prod}/` directory, and apply. The
+backend and provider blocks no longer pin `profile = "cromo"`, so your
+MFA-protected env vars are picked up automatically.
+
 ## 5. Tunneling into the dev RDS
 
 Dev RDS is `publicly_accessible = false`

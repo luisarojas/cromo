@@ -19,3 +19,13 @@ variable "mfa_enforced_user_names" {
   type        = list(string)
   default     = ["cromo-admin"]
 }
+
+variable "tf_runner_sub_patterns" {
+  description = "GitHub OIDC sub-claim patterns the cromo-tf-runner role accepts. One pattern per GitHub Environment the Terraform workflow uses."
+  type        = list(string)
+  default = [
+    "repo:Luisarojas/cromo:environment:tf-shared",
+    "repo:Luisarojas/cromo:environment:tf-dev",
+    "repo:Luisarojas/cromo:environment:tf-prod",
+  ]
+}
