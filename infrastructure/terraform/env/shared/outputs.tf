@@ -10,3 +10,15 @@ output "route53_nameservers" {
 output "ses_identity_arn" {
   value = module.ses.identity_arn
 }
+
+output "ses_bounce_topic_arn" {
+  value = module.ses.bounce_topic_arn
+}
+
+output "ses_complaint_topic_arn" {
+  value = module.ses.complaint_topic_arn
+}
+
+output "ses_configuration_set_name" {
+  value = module.ses.configuration_set_name
+}

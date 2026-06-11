@@ -29,6 +29,7 @@ import { profileRoutes } from './routes/v1/profiles.js';
 import { trustSafetyRoutes } from './routes/v1/trust-safety.js';
 import { scanRoutes } from './routes/v1/scan.js';
 import { pushRoutes } from './routes/v1/push.js';
+import { sesNotificationsRoutes } from './routes/v1/ses-notifications.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -100,7 +101,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Single in-process consumer drains Redis-backed job queue. Tests skip the
   // worker since they never enqueue, and SMTP transport would dangle.
   if (env.NODE_ENV !== 'test') {
-    const stopWorker = startWorker(fastify.redis, {
+    const stopWorker = startWorker(fastify.redis, fastify.db, {
       info: (msg) => fastify.log.info(msg),
       error: (err, msg) => fastify.log.error({ err }, msg ?? '[jobs]'),
     });
@@ -140,6 +141,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(trustSafetyRoutes);
   await fastify.register(scanRoutes);
   await fastify.register(pushRoutes);
+  await fastify.register(sesNotificationsRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   // Standard HTTP labels per status code, so every route returns a consistent

@@ -17,3 +17,4 @@ variable "dmarc_report_email" {
   description = "Aggregate DMARC reports recipient."
   type        = string
 }
+

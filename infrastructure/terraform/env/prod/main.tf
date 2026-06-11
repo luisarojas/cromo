@@ -162,6 +162,11 @@ module "secrets" {
     FRONTEND_URL = "https://${local.hostname}"
     CORS_ORIGIN  = "https://${local.hostname}"
 
+    # SES bounce/complaint SNS topic ARNs — the webhook in
+    # routes/v1/ses-notifications.ts enforces an allow-list against these.
+    SES_BOUNCE_TOPIC_ARN    = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-bounces"
+    SES_COMPLAINT_TOPIC_ARN = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-complaints"
+
     SCAN_PROVIDER  = var.scan_provider
     GEMINI_API_KEY = var.gemini_api_key # consulted when scan_provider='gemini'
     GROQ_API_KEY   = var.groq_api_key   # consulted when scan_provider='groq'
@@ -219,6 +224,23 @@ module "scheduling" {
   asg_name      = module.compute.asg_name
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
+}
+
+# ─── SES bounce/complaint SNS HTTPS subscriptions ─────────────────────────────
+# See env/dev/main.tf for the same pattern. Topics are created in env/shared.
+
+resource "aws_sns_topic_subscription" "ses_bounces_webhook" {
+  topic_arn              = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-bounces"
+  protocol               = "https"
+  endpoint               = "https://${local.hostname}/api/v1/internal/ses/notifications"
+  endpoint_auto_confirms = true
+}
+
+resource "aws_sns_topic_subscription" "ses_complaints_webhook" {
+  topic_arn              = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-complaints"
+  protocol               = "https"
+  endpoint               = "https://${local.hostname}/api/v1/internal/ses/notifications"
+  endpoint_auto_confirms = true
 }
 
 # ─── CI/CD deploy role for GitHub Actions ─────────────────────────────────────

@@ -216,6 +216,27 @@ export const consentRecords = pgTable('consent_records', {
   userTypeIdx: index('idx_consent_records_user_id_type').on(table.userId, table.consentType),
 }));
 
+// ─── email_suppressions ──────────────────────────────────────────────────────
+// Addresses we will never send to again. Populated automatically from SES
+// bounce/complaint notifications delivered via SNS (see
+// services/email-suppressions.service.ts and the SNS webhook in
+// routes/v1/ses-notifications.ts). The email sender checks this table before
+// every send and skips suppressed recipients — this is the primary protection
+// against the bounce/complaint rates that get SES senders throttled or paused.
+
+export const emailSuppressions = pgTable('email_suppressions', {
+  email: text('email').primaryKey(),
+  reason: text('reason').notNull(),
+  bounceType: text('bounce_type'),
+  bounceSubtype: text('bounce_subtype'),
+  diagnosticCode: text('diagnostic_code'),
+  notificationPayload: jsonb('notification_payload'),
+  suppressedAt: timestamp('suppressed_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  reasonCheck: check('email_suppressions_reason_check', sql`${table.reason} IN ('bounce', 'complaint', 'manual')`),
+  suppressedAtIdx: index('idx_email_suppressions_suppressed_at').on(table.suppressedAt),
+}));
+
 // ─── email_verification_tokens ────────────────────────────────────────────────
 
 // Token at rest is SHA-256(cleartext). The cleartext only exists in the

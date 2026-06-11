@@ -1,4 +1,5 @@
 import type { Redis } from 'ioredis';
+import type { Pool } from 'pg';
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -36,16 +37,16 @@ export async function enqueue(redis: Redis, job: Job): Promise<void> {
   await redis.lpush(QUEUE_KEY, JSON.stringify(entry));
 }
 
-async function runJob(job: Job): Promise<void> {
+async function runJob(db: Pool, job: Job): Promise<void> {
   switch (job.type) {
     case 'email:verify':
-      await sendVerificationEmail(job.email, job.username, job.code);
+      await sendVerificationEmail(db, job.email, job.username, job.code);
       return;
     case 'email:reset':
-      await sendPasswordResetEmail(job.email, job.username, job.code);
+      await sendPasswordResetEmail(db, job.email, job.username, job.code);
       return;
     case 'email:rating-reminder':
-      await sendRatingReminderEmail(job.email, job.username, job.tradeId);
+      await sendRatingReminderEmail(db, job.email, job.username, job.tradeId);
       return;
   }
 }
@@ -57,6 +58,7 @@ async function runJob(job: Job): Promise<void> {
  */
 export function startWorker(
   redis: Redis,
+  db: Pool,
   log: { info: (msg: string) => void; error: (err: unknown, msg?: string) => void },
 ): () => Promise<void> {
   // Disable commandTimeout on the consumer: BRPOP intentionally blocks for
@@ -81,7 +83,7 @@ export function startWorker(
         }
 
         try {
-          await runJob(entry.job);
+          await runJob(db, entry.job);
         } catch (err) {
           entry.attempts += 1;
           if (entry.attempts < MAX_ATTEMPTS) {
