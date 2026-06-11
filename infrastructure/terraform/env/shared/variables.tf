@@ -21,11 +21,20 @@ variable "mfa_enforced_user_names" {
 }
 
 variable "tf_runner_sub_patterns" {
-  description = "GitHub OIDC sub-claim patterns the cromo-tf-runner role accepts. One pattern per GitHub Environment the Terraform workflow uses."
+  description = <<-EOT
+    GitHub OIDC sub-claim patterns the cromo-tf-runner role accepts.
+
+    tf-shared and tf-dev apply on push to `main` and have no extra ref
+    constraint. tf-prod combines `environment:tf-prod` with
+    `ref:refs/tags/v*` so even a misconfigured workflow can't apply
+    prod without a v-prefix tag pushed by `scripts/release.sh`. This
+    is the IAM-level equivalent of a Required Reviewer protection
+    rule (which the Free plan doesn't expose on private repos).
+  EOT
   type        = list(string)
   default = [
     "repo:Luisarojas/cromo:environment:tf-shared",
     "repo:Luisarojas/cromo:environment:tf-dev",
-    "repo:Luisarojas/cromo:environment:tf-prod",
+    "repo:Luisarojas/cromo:environment:tf-prod:ref:refs/tags/v*",
   ]
 }

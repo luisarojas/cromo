@@ -8,10 +8,19 @@
 #   tf-dev    → env/dev     (the dev application stack)
 #   tf-prod   → env/prod    (the prod application stack — protected)
 #
-# Protections live in the GitHub Environment settings, not in IAM:
-#   - tf-prod has Required Reviewers → apply needs human approval in the UI.
-#   - tf-dev auto-applies on push to main.
-#   - tf-shared auto-applies on push to main but changes there are rare.
+# Protections:
+#   - tf-shared and tf-dev auto-apply on push to `main`.
+#   - tf-prod is gated on git tags, not on a GitHub Environment Required
+#     Reviewer protection rule (which isn't available on the GitHub Free
+#     plan for private repos). The human gate is `scripts/release.sh
+#     X.Y.Z && git push origin main --tags` — the tag push is what
+#     triggers a prod apply. Same security property as a UI approval,
+#     plus an immutable git tag tied to every prod deploy.
+#
+#   The OIDC trust on the cromo-tf-runner role tightens this in IAM: the
+#   tf-prod sub-claim pattern includes `ref:refs/tags/v*`, so even a
+#   workflow bug or hand-edited dispatch can't apply prod without an
+#   underlying v-prefix tag.
 #
 # Required GitHub repo secrets/vars:
 #   secrets.AWS_TF_RUNNER_ROLE_ARN — terraform_runner module's role_arn
@@ -28,7 +37,10 @@ on:
       - 'infrastructure/terraform/**'
       - '.github/workflows/terraform.yml'
   push:
+    # `tags` and `branches` are OR'd. A push to main fires the workflow
+    # AND a tag push fires it. Tag pushes are what trigger prod applies.
     branches: [main]
+    tags: ['v*']
     paths:
       - 'infrastructure/terraform/**'
       - '.github/workflows/terraform.yml'
@@ -130,7 +142,11 @@ jobs:
   # Order: shared → dev → prod. Prod requires reviewer approval via the
   # tf-prod environment protection rule (configured in GitHub UI).
   apply-shared:
-    if: github.event_name == 'push' || github.event.inputs.stack == 'shared'
+    # Apply on push to main, but NOT on a tag push (tags are the prod
+    # gate; shared changes go through a normal main merge).
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'shared')
     name: Apply shared
     runs-on: ubuntu-latest
     environment: tf-shared
@@ -151,7 +167,9 @@ jobs:
           terraform apply -input=false -auto-approve
 
   apply-dev:
-    if: github.event_name == 'push' || github.event.inputs.stack == 'dev'
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'dev')
     name: Apply dev
     needs: [apply-shared]
     runs-on: ubuntu-latest
@@ -173,12 +191,20 @@ jobs:
           terraform apply -input=false -auto-approve
 
   apply-prod:
-    if: github.event_name == 'push' || github.event.inputs.stack == 'prod'
+    # Prod applies ONLY on a v* tag push. The act of cutting a release
+    # (`scripts/release.sh X.Y.Z && git push origin main --tags`) is the
+    # human gate — release.sh enforces clean tree + valid semver + unique
+    # tag, and the OIDC trust policy on cromo-tf-runner requires the
+    # ref:refs/tags/v* sub-claim, so even a forced workflow_dispatch
+    # without a tag won't be allowed by STS.
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'prod')
     name: Apply prod
-    needs: [apply-shared]
+    # Doesn't depend on apply-shared because shared only applies on a main
+    # push, while prod only applies on a tag push — they never run in the
+    # same workflow run.
     runs-on: ubuntu-latest
-    # tf-prod environment in the GitHub UI must have a Required Reviewer
-    # protection rule. The workflow pauses here until you approve.
     environment: tf-prod
     steps:
       - uses: actions/checkout@v6

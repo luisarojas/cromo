@@ -160,27 +160,28 @@ The operator workflow (mint creds via `scripts/aws-mfa-session.sh`, port-forward
 
 `terraform plan` and `terraform apply` run through `.github/workflows/terraform.yml`, not from a developer's laptop. The workflow assumes the `cromo-tf-runner` IAM role (`modules/terraform-runner`, instantiated once in `env/shared`) via GitHub OIDC, with `AdministratorAccess` attached. Trust is constrained by the OIDC token's `sub` claim, which must match one of three patterns gated by GitHub Environment:
 
-| GitHub Environment | Scope                   | Approval                                  |
-| ------------------ | ----------------------- | ----------------------------------------- |
-| `tf-shared`        | `env/shared/`           | Auto-applies on push to `main`            |
-| `tf-dev`           | `env/dev/`              | Auto-applies on push to `main`            |
-| `tf-prod`          | `env/prod/`             | Required Reviewer protection rule in GH UI |
+| GitHub Environment | Scope                   | Gate                                          |
+| ------------------ | ----------------------- | --------------------------------------------- |
+| `tf-shared`        | `env/shared/`           | Auto-applies on push to `main`                |
+| `tf-dev`           | `env/dev/`              | Auto-applies on push to `main`                |
+| `tf-prod`          | `env/prod/`             | Applies only on a `v*` tag push (release tag) |
 
 The role is **not** subject to `cromo-shared-require-mfa` because that policy attaches to IAM users (`aws_iam_user_policy_attachment`), not roles. Short-lived OIDC sessions don't need the MFA gate — the trust policy already restricts them to specific GitHub Environments in this specific repo.
 
 **Workflow behaviour:**
 - **PR** → runs `terraform plan` for all three stacks in parallel; posts each diff as a PR comment so the reviewer sees what would change.
-- **Push to `main`** → applies `shared` first, then `dev` and `prod` in parallel. `prod` pauses for required-reviewer approval in the GitHub UI before applying.
-- **`workflow_dispatch`** → manual single-stack apply (handy for one-off recoveries).
+- **Push to `main`** → applies `shared` and `dev`. Prod is **not** applied — push a `v*` tag to apply prod.
+- **Push of a `v*` tag** → applies `prod`. Cut releases the usual way: `./scripts/release.sh X.Y.Z && git push origin main --tags`. The release script already enforces clean tree + valid semver + unique tag, so the act of cutting a release IS the prod-deploy gate.
+- **`workflow_dispatch`** → manual single-stack apply (handy for one-off recoveries). Prod via dispatch still requires an underlying `v*` tag because the OIDC trust policy enforces it.
 
 **Required repo configuration** (one-time, not in Terraform):
-- Secret `AWS_TF_RUNNER_ROLE_ARN` = output of `module.terraform_runner.role_arn` from `env/shared`.
-- Variable `AWS_REGION` = `ca-central-1`.
-- GitHub Environments named `tf-shared`, `tf-dev`, `tf-prod` created in repo settings, with the Required Reviewers protection rule enabled on `tf-prod`.
+- Repo **secret** `AWS_TF_RUNNER_ROLE_ARN` = output of `module.terraform_runner.role_arn` from `env/shared`.
+- Repo **variable** `AWS_REGION` = `ca-central-1`. (Workflow reads it as `vars.AWS_REGION`, not `secrets.AWS_REGION` — these are different namespaces in GitHub Actions.)
+- GitHub Environments named `tf-shared`, `tf-dev`, `tf-prod` created in repo settings. No protection rules required on the Free plan — prod is gated at the OIDC-trust + workflow-condition layer instead.
 
 **Rules to follow:**
 - **Never run `terraform apply` from a laptop for routine changes.** It bypasses the PR review, the plan comment, and the prod approval gate. Local apply stays available for genuine emergencies (break-glass) via the `cromo` profile + MFA.
-- **Never widen `tf_runner_sub_patterns` to include branch-ref patterns** like `refs/heads/main`. The GitHub Environment subject is the only thing GitHub's Required Reviewer protection enforces — a bare branch pattern would silently bypass prod approval.
+- **Never widen the `tf-prod` sub-pattern** to drop the `:ref:refs/tags/v*` suffix. That suffix is what stops a workflow misconfig from applying prod without a release tag. The `environment:tf-prod` part alone is not a sufficient gate on the Free plan.
 - **The role intentionally has `AdministratorAccess`.** Terraform needs to manage every resource in the account; scoping it further means a different IAM error every time you add a service. The defence is the trust policy + GitHub Environment protection, not a narrow permission set.
 - **Local `terraform state` operations** (`mv`, `rm`, `push`, `force-unlock`) still happen from the laptop via the `cromo` profile — they're recovery operations, not routine flow. The workflow has no business doing them.
 
