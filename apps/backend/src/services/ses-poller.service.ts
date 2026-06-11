@@ -44,7 +44,7 @@ export function startSesPoller(
     let event: SesEvent;
     try {
       event = JSON.parse(msg.Body) as SesEvent;
-    } catch (err) {
+    } catch {
       // Malformed bodies will hit the DLQ after maxReceiveCount tries.
       // Don't delete here — let the redrive policy do its job.
       log.warn('[ses-poller] malformed message body, leaving for redrive', {

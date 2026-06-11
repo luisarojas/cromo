@@ -30,7 +30,7 @@ scan_model     = ""
 
 # GitHub repo slug allowed to assume the prod deploy role (OIDC). Only v*
 # tag pushes from this repo can deploy to prod.
-github_repo = "Luisarojas/cromo"
+github_repo = "luisarojas/cromo"
 
 # Bootstrapped admin(s). Each email is created in the Cognito pool and added to
 # the 'admin' group (→ role=admin in the backend). On first login the admin

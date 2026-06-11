@@ -9,9 +9,9 @@ variable "github_sub_patterns" {
     these patterns is rejected by STS. Wildcards (`*`) are matched via
     StringLike. Examples:
 
-      ["repo:Luisarojas/cromo:ref:refs/heads/main"]      # dev: main branch only
-      ["repo:Luisarojas/cromo:ref:refs/tags/v*"]         # prod: v-prefix tags only
-      ["repo:Luisarojas/cromo:environment:prod"]         # gate via GitHub environment
+      ["repo:luisarojas/cromo:ref:refs/heads/main"]      # dev: main branch only
+      ["repo:luisarojas/cromo:ref:refs/tags/v*"]         # prod: v-prefix tags only
+      ["repo:luisarojas/cromo:environment:prod"]         # gate via GitHub environment
 
     See https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims
   EOT

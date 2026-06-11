@@ -5,9 +5,9 @@ variable "github_sub_patterns" {
     is rejected by STS. Use GitHub Environments (which support required
     reviewers + protection rules) rather than raw branch refs:
 
-      ["repo:Luisarojas/cromo:environment:tf-dev",
-       "repo:Luisarojas/cromo:environment:tf-prod",
-       "repo:Luisarojas/cromo:environment:tf-shared"]
+      ["repo:luisarojas/cromo:environment:tf-dev",
+       "repo:luisarojas/cromo:environment:tf-prod",
+       "repo:luisarojas/cromo:environment:tf-shared"]
 
     Required-reviewer gating then happens in the GitHub UI per environment,
     not in IAM — which is the cleaner separation of concerns.

@@ -33,8 +33,8 @@ variable "tf_runner_sub_patterns" {
   EOT
   type        = list(string)
   default = [
-    "repo:Luisarojas/cromo:environment:tf-shared",
-    "repo:Luisarojas/cromo:environment:tf-dev",
-    "repo:Luisarojas/cromo:environment:tf-prod:ref:refs/tags/v*",
+    "repo:luisarojas/cromo:environment:tf-shared",
+    "repo:luisarojas/cromo:environment:tf-dev",
+    "repo:luisarojas/cromo:environment:tf-prod:ref:refs/tags/v*",
   ]
 }
