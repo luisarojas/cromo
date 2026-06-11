@@ -40,13 +40,14 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Site-wide SEO — sitemap, robots, OpenGraph cards, hreflang for EN/ES, and a structured Organization profile for search engines.',
         'Share progress — generate a 1080×1080 card of your album completion to post on Instagram, TikTok, or WhatsApp.',
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
-        'Live trade sessions — share an invite link with another collector, stage offers, chat in real time, and confirm together. Available from the Trades page.',
+        'Trade in person — generate a QR code from the Trades page; the other collector scans it and lands straight in the propose-trade flow with you as the partner.',
         'One-tap clear (×) button in every search bar.',
       ],
       Changed: [
         'Profile "Start a trade" button now shows a disabled state — with a tooltip explaining why — when the collector has trading turned off or no stickers available.',
         'Trade status badges use distinct colors per state, and "Completed" trades now stand out in solid green.',
         'Participant names on a trade page link to their profiles.',
+        'My Trades shows open trades by default, with closed trades collapsed into an expandable section. Table gains an "Opened" and "Closed" date column, both sortable.',
       ],
       Fixed: [
         'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',

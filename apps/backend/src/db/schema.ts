@@ -618,54 +618,27 @@ export const bannedEmails = pgTable('banned_emails', {
   createdBy: uuid('created_by'),
 });
 
-// ─── live_trade_sessions ──────────────────────────────────────────────────────
-// Ephemeral co-presence room two collectors share to negotiate a trade in
-// real time. Host creates the row and gets back an `invite_token` URL to
-// share; an authenticated guest joins by hitting that URL, which sets
-// `guest_user_id`. Actions (messages, staged offers, confirmations) land
-// in `live_trade_actions` as an append-only log that the SSE stream
-// replays. Sessions expire after 30 minutes of inactivity — the cleanup
-// is read-time (status returns 'expired' if expires_at < now()), so we
-// don't need a sweeper job for v1.
+// ─── trade_invites ────────────────────────────────────────────────────────────
+// Single-use, short-lived link a collector can hand to someone in person
+// (via QR code or shared URL) to drop the scanner into the existing
+// propose-trade flow with this user pre-selected as the partner. The
+// scanner authenticates, POSTs /api/v1/trade/invites/:token/redeem, and
+// is redirected to the same `/trade?tab=find&recipient=<username>` entry
+// the profile's "Start a trade" button uses. Tokens default to a 30-min
+// TTL and are consumed atomically — once `redeemed_at` is set, further
+// redemptions return 409.
 
-export const liveTradeSessions = pgTable('live_trade_sessions', {
+export const tradeInvites = pgTable('trade_invites', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   hostUserId: uuid('host_user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
-  guestUserId: uuid('guest_user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
-  inviteToken: text('invite_token').notNull().unique(),
-  status: text('status').notNull().default('open'),
-  hostConfirmedAt: timestamp('host_confirmed_at', { withTimezone: true }),
-  guestConfirmedAt: timestamp('guest_confirmed_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  token: text('token').notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull().default(sql`now() + interval '30 minutes'`),
-  closedAt: timestamp('closed_at', { withTimezone: true }),
-}, (table) => ({
-  statusCheck: check(
-    'live_trade_sessions_status_check',
-    sql`${table.status} IN ('open','joined','confirmed','closed','expired')`
-  ),
-  hostIdx: index('idx_live_trade_sessions_host').on(table.hostUserId),
-  guestIdx: index('idx_live_trade_sessions_guest').on(table.guestUserId),
-}));
-
-// Append-only event stream for a live session. The SSE handler replays
-// from `created_at > $lastSeen` so a client can reconnect and catch any
-// actions it missed. `payload` is a free-form jsonb blob whose shape
-// depends on `action_type` (validated at the service layer).
-
-export const liveTradeActions = pgTable('live_trade_actions', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: uuid('session_id').notNull().references(() => liveTradeSessions.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  actionType: text('action_type').notNull(),
-  payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+  redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+  redeemedByUserId: uuid('redeemed_by_user_id').references(() => users.id, { onDelete: 'set null', onUpdate: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
-  sessionCreatedIdx: index('idx_live_trade_actions_session_created').on(table.sessionId, table.createdAt),
-  typeCheck: check(
-    'live_trade_actions_type_check',
-    sql`${table.actionType} IN ('join','leave','message','stage_offer','unstage_offer','confirm','unconfirm','close')`
-  ),
+  hostIdx: index('idx_trade_invites_host_user_id').on(table.hostUserId),
+  expiresIdx: index('idx_trade_invites_expires_at').on(table.expiresAt),
 }));
 
 // ─── user_achievements ────────────────────────────────────────────────────────
@@ -722,7 +695,5 @@ export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
 export type AuditLogEntry = typeof auditLog.$inferSelect;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type NewUserAchievement = typeof userAchievements.$inferInsert;
-export type LiveTradeSession = typeof liveTradeSessions.$inferSelect;
-export type NewLiveTradeSession = typeof liveTradeSessions.$inferInsert;
-export type LiveTradeAction = typeof liveTradeActions.$inferSelect;
-export type NewLiveTradeAction = typeof liveTradeActions.$inferInsert;
+export type TradeInvite = typeof tradeInvites.$inferSelect;
+export type NewTradeInvite = typeof tradeInvites.$inferInsert;

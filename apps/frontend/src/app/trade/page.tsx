@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { QRCodeSVG } from 'qrcode.react';
 import { useAuthStore } from '@/store/auth';
 import { usePreferencesStore } from '@/store/preferences';
 import {
@@ -14,6 +15,7 @@ import {
   fetchFavourites,
   fetchPublicProfile,
   createTrade,
+  createTradeInvite,
   setTradeFlags,
   patchUserPreferences,
   matchAgainstMe,
@@ -24,6 +26,7 @@ import {
   type CollectionItem,
   type City,
   type MatchAgainstMeResult,
+  type TradeInvite,
 } from '@/lib/api';
 import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
@@ -143,6 +146,44 @@ function TradePageContent() {
   // Propose modal
   const [proposeModal, setProposeModal] = useState<ProposeModalState | null>(null);
   const draftRestoredRef = useRef(false);
+
+  // QR invite modal — minted on open so the host can hand someone an
+  // in-person link. The whole rest of the trade flow is unchanged; the
+  // scanner just lands at /trade/invite/<token> and gets bounced to the
+  // same recipient-prefilled propose flow the profile button uses.
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrInvite, setQrInvite] = useState<TradeInvite | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrCopied, setQrCopied] = useState(false);
+
+  const handleOpenQr = async () => {
+    if (!token) return;
+    setQrOpen(true);
+    setQrCopied(false);
+    if (qrInvite) return;
+    setQrLoading(true);
+    setQrError(null);
+    try {
+      const invite = await createTradeInvite(token);
+      setQrInvite(invite);
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : t('qrError'));
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const handleCopyQrLink = async () => {
+    if (!qrInvite) return;
+    try {
+      await navigator.clipboard.writeText(qrInvite.url);
+      setQrCopied(true);
+      setTimeout(() => setQrCopied(false), 2000);
+    } catch {
+      // clipboard refused — URL is visible in the modal
+    }
+  };
 
   useEffect(() => {
     if (!hydrated) return;
@@ -487,13 +528,15 @@ function TradePageContent() {
             {t('subtitle')}
           </p>
         </div>
-        <Link
-          href="/trade/live"
+        <button
+          onClick={handleOpenQr}
           className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--cromo-accent)] animate-pulse" aria-hidden />
-          {t('liveSession')}
-        </Link>
+          <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+            <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm6-2h6v6h-6V3zm2 2v2h2V5h-2zM3 11h6v6H3v-6zm2 2v2h2v-2H5zm6 0h2v-2h2v2h2v2h-2v2h-2v-2h-2v2h-2v-4h2v-2zm4 4h2v-2h-2v2z" />
+          </svg>
+          {t('tradeInPerson')}
+        </button>
       </div>
 
       <div className="mb-6">
@@ -839,6 +882,60 @@ function TradePageContent() {
           onCancel={() => { clearDraft(); setProposeModal(null); }}
           onSend={handleSendTradeRequest}
         />
+      )}
+
+      {qrOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setQrOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-6 flex flex-col items-center gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-semibold text-[var(--cromo-fg)]">
+              {t('qrModalTitle')}
+            </h2>
+            <p className="text-xs text-[var(--cromo-fg-muted)] text-center">
+              {t('qrModalHint')}
+            </p>
+            {qrLoading && (
+              <p className="text-sm text-[var(--cromo-fg-subtle)] italic py-12">
+                {t('qrGenerating')}
+              </p>
+            )}
+            {qrError && (
+              <p className="text-sm text-[var(--cromo-danger-text)] py-4">{qrError}</p>
+            )}
+            {qrInvite && !qrError && (
+              <>
+                <div className="rounded-lg bg-white p-4">
+                  <QRCodeSVG value={qrInvite.url} size={224} />
+                </div>
+                <p className="text-xs font-mono text-[var(--cromo-fg-muted)] text-center break-all px-2">
+                  {qrInvite.url}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider text-[var(--cromo-fg-subtle)]">
+                  {t('qrModalExpires')}
+                </p>
+                <div className="flex items-center gap-2 w-full">
+                  <button
+                    onClick={handleCopyQrLink}
+                    className="flex-1 rounded-btn border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface-2)] px-3 py-2 text-xs font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
+                  >
+                    {qrCopied ? t('qrCopied') : t('qrCopyLink')}
+                  </button>
+                  <button
+                    onClick={() => setQrOpen(false)}
+                    className="flex-1 rounded-btn bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-3 py-2 text-xs font-semibold"
+                  >
+                    {t('qrDone')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

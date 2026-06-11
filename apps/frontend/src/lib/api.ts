@@ -1252,90 +1252,36 @@ export async function evaluateMyAchievements(token: string): Promise<UnlockedAch
 
 // ── Live trade sessions ──────────────────────────────────────────────────────
 
-export interface LiveTradeParticipant {
+export interface TradeInvite {
   id: string;
-  username: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-}
-
-export interface LiveTradeSession {
-  id: string;
-  hostUserId: string;
-  guestUserId: string | null;
-  inviteToken: string;
-  status: 'open' | 'joined' | 'confirmed' | 'closed' | 'expired';
-  hostConfirmedAt: string | null;
-  guestConfirmedAt: string | null;
-  createdAt: string;
+  token: string;
   expiresAt: string;
-  closedAt: string | null;
-  host: LiveTradeParticipant;
-  guest: LiveTradeParticipant | null;
+  url: string;
 }
 
-export interface LiveTradeAction {
-  id: string;
-  sessionId: string;
-  userId: string;
-  username: string | null;
-  actionType: string;
-  payload: Record<string, unknown>;
-  createdAt: string;
-}
-
-export async function createLiveTradeSession(token: string): Promise<LiveTradeSession> {
-  const { session } = await apiFetch<{ session: LiveTradeSession }>(
-    '/api/v1/trade/live',
+export async function createTradeInvite(token: string): Promise<TradeInvite> {
+  const { invite } = await apiFetch<{ invite: TradeInvite }>(
+    '/api/v1/trade/invites',
     { method: 'POST' },
     token,
   );
-  return session;
+  return invite;
 }
 
-export async function fetchLiveTradeSession(inviteToken: string, token: string): Promise<LiveTradeSession> {
-  const { session } = await apiFetch<{ session: LiveTradeSession }>(
-    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}`,
-    {},
-    token,
-  );
-  return session;
+export interface RedeemedTradeInvite {
+  hostUserId: string;
+  hostUsername: string;
 }
 
-export async function joinLiveTradeSession(inviteToken: string, token: string): Promise<LiveTradeSession> {
-  const { session } = await apiFetch<{ session: LiveTradeSession }>(
-    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}/join`,
-    { method: 'POST' },
-    token,
-  );
-  return session;
-}
-
-export async function fetchLiveTradeActions(inviteToken: string, token: string): Promise<LiveTradeAction[]> {
-  const { items } = await apiFetch<{ items: LiveTradeAction[] }>(
-    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}/actions`,
-    {},
-    token,
-  );
-  return items;
-}
-
-export async function sendLiveTradeAction(
+export async function redeemTradeInvite(
   inviteToken: string,
-  actionType: string,
-  payload: Record<string, unknown>,
   token: string,
-): Promise<LiveTradeAction> {
-  const { action } = await apiFetch<{ action: LiveTradeAction }>(
-    `/api/v1/trade/live/${encodeURIComponent(inviteToken)}/actions`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actionType, payload }),
-    },
+): Promise<RedeemedTradeInvite> {
+  return apiFetch<RedeemedTradeInvite>(
+    `/api/v1/trade/invites/${encodeURIComponent(inviteToken)}/redeem`,
+    { method: 'POST' },
     token,
   );
-  return action;
 }
 
 interface PublicInventoryQueryParams {
