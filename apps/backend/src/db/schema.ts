@@ -192,9 +192,13 @@ export const userSettings = pgTable('user_settings', {
   marketingConsentVersion: text('marketing_consent_version'),
   showTrustScorePublic: boolean('show_trust_score_public').notNull().default(true),
   duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(true),
-  cities: jsonb('cities').$type<{ label: string; placeId: number }[]>().notNull().default(sql`'[]'::jsonb`),
+  cities: jsonb('cities').$type<{ label: string; placeId: number; lat: number | null; lng: number | null }[]>().notNull().default(sql`'[]'::jsonb`),
+  // Radius (km) for the "find trades" filter. Bounded to keep the
+  // distance-priority weight meaningful; the UI clamps the slider.
+  searchRadiusKm: integer('search_radius_km').notNull().default(50),
 }, (table) => ({
   profileVisibilityCheck: check('user_settings_profile_visibility_check', sql`${table.profileVisibility} IN ('private', 'public')`),
+  searchRadiusCheck: check('user_settings_search_radius_check', sql`${table.searchRadiusKm} BETWEEN 5 AND 1000`),
 }));
 
 // ─── consent_records ──────────────────────────────────────────────────────────

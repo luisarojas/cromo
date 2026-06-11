@@ -255,3 +255,19 @@ input::placeholder, textarea::placeholder {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--cromo-fg-subtle);
 }
+
+/* Leaflet map pins — Leaflet renders divIcons as raw <div>s, so we style
+   them with global selectors. Brand colours match --cromo-accent variants. */
+.cromo-map-pin-dot {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.cromo-map-pin-dot--me {
+  background: #0E7490;
+}
+.cromo-map-pin-dot--match {
+  background: #F59E0B;
+}

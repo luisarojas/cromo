@@ -114,9 +114,13 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           required: ['albumId'],
           properties: {
-            albumId: { type: 'string' },
-            cursor:  { type: 'string' },
-            limit:   { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            albumId:  { type: 'string' },
+            cursor:   { type: 'string' },
+            limit:    { type: 'integer', minimum: 1, maximum: 200, default: 50 },
+            // When 'true', candidates outside the user's search radius are
+            // included (still ranked lower via the distance penalty).
+            // Default false applies the configured radius as a hard filter.
+            showAll:  { type: 'boolean', default: false },
           },
         },
         response: {
@@ -145,13 +149,15 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const q = request.query as { albumId?: string; cursor?: string; limit?: number };
+      const q = request.query as { albumId?: string; cursor?: string; limit?: number; showAll?: boolean | string };
       if (!q.albumId) {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'albumId is required.' });
       }
+      // querystring may stringify booleans depending on client; accept both.
+      const showAll = q.showAll === true || q.showAll === 'true';
       const page = await getTradeMatches(
         fastify.db, fastify.redis, request.userId!, q.albumId,
-        { cursor: q.cursor, limit: q.limit },
+        { cursor: q.cursor, limit: q.limit, applyRadius: !showAll },
       );
       return reply.status(200).send(page);
     }

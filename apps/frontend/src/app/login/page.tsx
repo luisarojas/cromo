@@ -55,7 +55,7 @@ export default function LoginPage() {
         const prefs = await fetchUserPreferences(accessToken);
         setFromServer(prefs);
       } catch {
-        setFromServer({ duplicatesCountAllVariants: true, cities: [], profileVisibility: 'public', tradeMatchingEnabled: true });
+        setFromServer({ duplicatesCountAllVariants: true, cities: [], profileVisibility: 'public', tradeMatchingEnabled: true, searchRadiusKm: 50 });
       }
       router.push(next);
     } catch (err) {

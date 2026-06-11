@@ -113,6 +113,13 @@
       "when": 1781712000000,
       "tag": "0015_drop_live_add_trade_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781856000000,
+      "tag": "0016_search_radius_and_city_coords",
+      "breakpoints": true
     }
   ]
 }

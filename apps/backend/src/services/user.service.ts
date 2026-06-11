@@ -135,6 +135,8 @@ export async function updatePassword(db: Pool, userId: string): Promise<void> {
 export interface City {
   label: string;
   placeId: number;
+  lat: number | null;
+  lng: number | null;
 }
 
 export type ProfileVisibility = 'public' | 'private';
@@ -144,6 +146,7 @@ export interface UserPreferences {
   cities: City[];
   profileVisibility: ProfileVisibility;
   tradeMatchingEnabled: boolean;
+  searchRadiusKm: number;
 }
 
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
@@ -152,9 +155,10 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
     cities: City[];
     profile_visibility: ProfileVisibility;
     trade_matching_enabled: boolean;
+    search_radius_km: number;
   }>(
     `SELECT duplicates_count_all_variants, cities,
-            profile_visibility, trade_matching_enabled
+            profile_visibility, trade_matching_enabled, search_radius_km
      FROM user_settings WHERE user_id = $1`,
     [userId]
   );
@@ -165,15 +169,24 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
       cities: [],
       profileVisibility: 'public',
       tradeMatchingEnabled: true,
+      searchRadiusKm: 50,
     };
   }
 
   const row = result.rows[0]!;
   return {
     duplicatesCountAllVariants: row.duplicates_count_all_variants,
-    cities: row.cities ?? [],
+    // Defensive: legacy rows may lack lat/lng on individual cities. Coerce
+    // missing fields to null so the wire type is stable downstream.
+    cities: (row.cities ?? []).map((c) => ({
+      label: c.label,
+      placeId: c.placeId,
+      lat: typeof c.lat === 'number' ? c.lat : null,
+      lng: typeof c.lng === 'number' ? c.lng : null,
+    })),
     profileVisibility: row.profile_visibility,
     tradeMatchingEnabled: row.trade_matching_enabled,
+    searchRadiusKm: Number(row.search_radius_km),
   };
 }
 
@@ -203,6 +216,10 @@ export async function updatePreferences(
     setClauses.push(`trade_matching_enabled = $${idx++}`);
     values.push(patch.tradeMatchingEnabled);
   }
+  if (patch.searchRadiusKm !== undefined) {
+    setClauses.push(`search_radius_km = $${idx++}`);
+    values.push(patch.searchRadiusKm);
+  }
 
   if (setClauses.length === 0) return getPreferences(db, userId);
 
@@ -222,6 +239,17 @@ export async function updatePreferences(
       [userId]
     );
     await invalidateUserCaches(redis, userId);
+  }
+
+  // Cities and radius are inputs to the trade-matches CTE (distance scoring,
+  // radius filter). Bust any cached pages so the next /trade/matches read
+  // reflects the new preference immediately.
+  if (patch.cities !== undefined || patch.searchRadiusKm !== undefined) {
+    const indexKey = `trade:matches:idx:${userId}`;
+    const cacheKeys = await redis.smembers(indexKey);
+    if (cacheKeys.length > 0) {
+      await redis.del(...cacheKeys, indexKey);
+    }
   }
 
   return getPreferences(db, userId);

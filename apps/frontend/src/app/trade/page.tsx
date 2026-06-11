@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -38,6 +39,11 @@ import CityAutocomplete from '@/components/CityAutocomplete';
 
 import { saveDraft, clearDraft, loadDraft } from './draftStorage';
 
+// Leaflet pulls in `window` at module load — must not render server-side.
+const MatchesMap = dynamic(() => import('./components/MatchesMap'), { ssr: false });
+
+const RADIUS_PRESETS_KM = [10, 25, 50, 100, 250, 500];
+
 type Tab = 'find' | 'third-party' | 'my';
 
 interface ProposeModalState {
@@ -65,9 +71,13 @@ function TradePageContent() {
 
   const myCities = usePreferencesStore((s) => s.cities);
   const setCities = usePreferencesStore((s) => s.setCities);
+  const searchRadiusKm = usePreferencesStore((s) => s.searchRadiusKm);
+  const setSearchRadiusKm = usePreferencesStore((s) => s.setSearchRadiusKm);
 
   const [citiesSaving, setCitiesSaving] = useState(false);
   const [citiesError, setCitiesError] = useState<string | null>(null);
+  const [selectedMatchUserId, setSelectedMatchUserId] = useState<string | null>(null);
+  const radiusSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleCitiesChange(next: City[]) {
     if (!token) return;
@@ -83,13 +93,28 @@ function TradePageContent() {
     }
   }
 
+  // Slider fires onChange continuously; debounce the network write so dragging
+  // doesn't fire one PATCH per integer step. The store update is immediate so
+  // the map redraws while the user is still scrubbing.
+  function handleRadiusChange(next: number) {
+    setSearchRadiusKm(next);
+    if (radiusSaveTimerRef.current) clearTimeout(radiusSaveTimerRef.current);
+    radiusSaveTimerRef.current = setTimeout(() => {
+      if (!token) return;
+      patchUserPreferences({ searchRadiusKm: next }, token).catch(() => {});
+    }, 400);
+  }
+
   const rawTab = searchParams.get('tab');
   const initialTab: Tab =
     rawTab === 'my' ? 'my'
     : rawTab === 'third-party' ? 'third-party'
     : 'find';
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [nearbyOnly, setNearbyOnly] = useState(false);
+  // When true, candidates outside the search radius are included (ranked
+  // lower via the distance penalty). When false, the backend applies the
+  // radius as a hard filter.
+  const [showAll, setShowAll] = useState(false);
 
   // Deep link: /trade?recipient=<username> opens the propose modal for that
   // user. If the viewer has an album selected we also run Find Matches in
@@ -304,6 +329,7 @@ function TradePageContent() {
           theyHaveVariantIds: [],
           youHave: [],
           cities: [],
+          distanceKm: null,
         });
       })
       .catch(() => setRecipientNotFound(true));
@@ -331,6 +357,22 @@ function TradePageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matches, matchesSearched, recipientHint, recipientProfile, selectedAlbumId]);
 
+  // Re-run the search when the radius filter toggle flips (or radius changes),
+  // but only after the user has already kicked off the first search — otherwise
+  // we'd fire a Find Matches just from arriving at the page.
+  useEffect(() => {
+    if (!matchesSearched) return;
+    void handleFindMatches();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAll]);
+
+  // Scroll the selected match card into view when a map pin is clicked.
+  useEffect(() => {
+    if (!selectedMatchUserId) return;
+    const el = document.getElementById(`match-${selectedMatchUserId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [selectedMatchUserId]);
+
   async function handleFindMatches() {
     if (!token || !selectedAlbumId) return;
     setMatchesLoading(true);
@@ -340,7 +382,7 @@ function TradePageContent() {
     setMatchesTotal(0);
     setMatchesSearched(false);
     try {
-      const page = await fetchTradeMatches(selectedAlbumId, token);
+      const page = await fetchTradeMatches(selectedAlbumId, token, { showAll });
       setMatches(page.items);
       setMatchesCursor(page.nextCursor);
       setMatchesTotal(page.total);
@@ -356,7 +398,7 @@ function TradePageContent() {
     if (!token || !selectedAlbumId || !matchesCursor || matchesMoreLoading) return;
     setMatchesMoreLoading(true);
     try {
-      const page = await fetchTradeMatches(selectedAlbumId, token, { cursor: matchesCursor });
+      const page = await fetchTradeMatches(selectedAlbumId, token, { cursor: matchesCursor, showAll });
       setMatches((prev) => [...prev, ...page.items]);
       setMatchesCursor(page.nextCursor);
     } catch (err) {
@@ -507,9 +549,11 @@ function TradePageContent() {
     }
   }
 
-  const visibleMatches = nearbyOnly && myCities.length > 0
-    ? matches.filter((m) => m.cities.some((c) => myCities.some((mc) => mc.placeId === c.placeId)))
-    : matches;
+  // The backend now does the distance filtering + ordering, so the page just
+  // renders whatever it returned. Kept as a named local so the JSX still reads
+  // as a "visible matches" loop.
+  const visibleMatches = matches;
+  const hasGeocodedCity = myCities.some((c) => typeof c.lat === 'number' && typeof c.lng === 'number');
 
   if (!hydrated || (!token && hydrated)) {
     return (
@@ -640,28 +684,67 @@ function TradePageContent() {
 
           {!matchesLoading && matches.length > 0 && (
             <div className="space-y-3">
+              {hasGeocodedCity && (
+                <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-3 justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1 min-w-[240px]">
+                      <label className="flex items-center gap-2 flex-1 min-w-[200px]">
+                        <span className="text-xs font-medium text-[var(--cromo-fg-muted)] whitespace-nowrap">
+                          Radius: <span className="font-semibold text-[var(--cromo-fg)]">{searchRadiusKm} km</span>
+                        </span>
+                        <input
+                          type="range"
+                          min={5}
+                          max={500}
+                          step={5}
+                          value={Math.min(searchRadiusKm, 500)}
+                          onChange={(e) => handleRadiusChange(Number(e.target.value))}
+                          className="flex-1 accent-[var(--cromo-accent)]"
+                          aria-label="Search radius in kilometres"
+                        />
+                      </label>
+                      <div className="flex gap-1 flex-wrap">
+                        {RADIUS_PRESETS_KM.map((km) => (
+                          <button
+                            key={km}
+                            type="button"
+                            onClick={() => handleRadiusChange(km)}
+                            className={`text-xs px-2 py-0.5 rounded border ${
+                              searchRadiusKm === km
+                                ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)]'
+                                : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
+                            }`}
+                          >
+                            {km}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showAll}
+                        onChange={(e) => setShowAll(e.target.checked)}
+                        className="h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+                      />
+                      <span className="text-sm text-[var(--cromo-fg-muted)]">Show all (ignore radius)</span>
+                    </label>
+                  </div>
+                  <MatchesMap
+                    myCities={myCities}
+                    radiusKm={searchRadiusKm}
+                    matches={visibleMatches}
+                    onSelectMatch={setSelectedMatchUserId}
+                    selectedUserId={selectedMatchUserId}
+                  />
+                </div>
+              )}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-sm text-[var(--cromo-fg-muted)]">
                   Found {matches.length} potential {matches.length === 1 ? 'partner' : 'partners'}
-                  {nearbyOnly && myCities.length > 0 && ` · ${visibleMatches.length} nearby`}
+                  {hasGeocodedCity && !showAll && ` within ${searchRadiusKm} km`}
                 </p>
-                {myCities.length > 0 && (
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={nearbyOnly}
-                      onChange={(e) => setNearbyOnly(e.target.checked)}
-                      className="h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
-                    />
-                    <span className="text-sm text-[var(--cromo-fg-muted)]">{t('nearbyOnly')}</span>
-                  </label>
-                )}
               </div>
-              {visibleMatches.length === 0 && nearbyOnly && (
-                <p className="text-sm text-[var(--cromo-fg-muted)] text-center py-6">
-                  No matches share your cities. Try disabling &quot;Nearby only&quot; or add more cities in Settings.
-                </p>
-              )}
               {matchesTotal > matches.length && (
                 <p className="text-xs text-[var(--cromo-fg-subtle)]">
                   Showing {matches.length} of {matchesTotal}
@@ -670,7 +753,12 @@ function TradePageContent() {
               {visibleMatches.map((match) => (
                 <div
                   key={match.userId}
-                  className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 flex items-center gap-4"
+                  id={`match-${match.userId}`}
+                  className={`rounded-xl border bg-[var(--cromo-surface)] p-4 flex items-center gap-4 transition-colors ${
+                    selectedMatchUserId === match.userId
+                      ? 'border-[var(--cromo-accent)] ring-2 ring-[var(--cromo-accent)]/30'
+                      : 'border-[var(--cromo-border)]'
+                  }`}
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-sm font-bold text-[var(--cromo-accent-fg)]">
                     {(match.displayName ?? match.username).charAt(0).toUpperCase()}
@@ -686,6 +774,13 @@ function TradePageContent() {
                       </span>
                       <span>They have {match.theyHave.length} you need</span>
                       <span>You have {match.youHave.length} they need</span>
+                      {match.distanceKm !== null && (
+                        <span title="Distance to your nearest city">
+                          {match.distanceKm < 10
+                            ? `${match.distanceKm.toFixed(1)} km away`
+                            : `${Math.round(match.distanceKm)} km away`}
+                        </span>
+                      )}
                     </div>
                     {match.cities.length > 0 && (
                       <div className="mt-1 flex gap-1 flex-wrap">

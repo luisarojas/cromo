@@ -985,7 +985,7 @@ export interface TradeMatchesPage {
 export async function fetchTradeMatches(
   albumId: string,
   token: string,
-  opts?: { cursor?: string; limit?: number },
+  opts?: { cursor?: string; limit?: number; showAll?: boolean },
 ): Promise<TradeMatchesPage> {
   const qs = toQueryString({ albumId, ...(opts ?? {}) });
   return apiFetch<TradeMatchesPage>(`/api/v1/trade/matches${qs}`, {}, token);

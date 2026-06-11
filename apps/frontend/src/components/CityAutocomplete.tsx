@@ -6,6 +6,10 @@ import type { City } from '@/lib/api';
 interface NominatimResult {
   place_id: number;
   display_name: string;
+  // Nominatim returns lat/lon as strings ("47.3769"); parseFloat at capture
+  // time so the stored shape matches our backend type.
+  lat: string;
+  lon: string;
   address: {
     city?: string;
     town?: string;
@@ -81,7 +85,14 @@ export default function CityAutocomplete({ cities, onChange, maxCities = 5 }: Pr
         for (const r of results) {
           if (!seen.has(r.place_id)) {
             seen.add(r.place_id);
-            items.push({ label: formatCity(r), placeId: r.place_id });
+            const lat = Number.parseFloat(r.lat);
+            const lng = Number.parseFloat(r.lon);
+            items.push({
+              label: formatCity(r),
+              placeId: r.place_id,
+              lat: Number.isFinite(lat) ? lat : null,
+              lng: Number.isFinite(lng) ? lng : null,
+            });
           }
         }
         setSuggestions(items);

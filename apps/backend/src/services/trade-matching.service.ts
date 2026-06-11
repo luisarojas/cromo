@@ -11,7 +11,11 @@ export interface TradeMatch {
   they_have: string[];
   they_have_variant_ids: string[];
   you_have: string[];
-  cities: { label: string; placeId: number }[];
+  cities: { label: string; placeId: number; lat: number | null; lng: number | null }[];
+  // Great-circle distance (km) to the requester's nearest geocoded city.
+  // null when either side has no usable coordinates — those candidates bypass
+  // the radius filter and sort last among results with the same overlap.
+  distance_km: number | null;
 }
 
 export interface TradeMatchesPage {
@@ -23,6 +27,12 @@ export interface TradeMatchesPage {
 const TRADE_MATCHES_DEFAULT_LIMIT = 50;
 const TRADE_MATCHES_MAX_LIMIT = 200;
 const TRADE_MATCHES_TTL_SECONDS = 120;
+// Priority = mutual_overlap - PRIORITY_DISTANCE_WEIGHT * distance_km.
+// 0.05 means each 20 km of distance discounts one overlap point — close
+// matches with slightly fewer mutual stickers still beat distant matches
+// with many. Tuned to make city-vs-neighbouring-city ordering feel right;
+// raise to favour proximity more aggressively.
+const PRIORITY_DISTANCE_WEIGHT = 0.05;
 // Buffer keeps the index alive well past the longest cache entry it tracks,
 // so a write that races near the TTL boundary still finds the membership row
 // and can invalidate the in-flight cache. 300s ≫ 120s cache lifetime.
@@ -41,39 +51,64 @@ export function matchesIndexKey(userId: string): string {
 
 /**
  * getTradeMatches — find users with mutual sticker overlap for trading.
- * Cursor-paginated by (mutual_overlap DESC, user_id ASC) so the heavy CTE
- * query runs once and large match sets stream in chunks. Cached for 2 min.
+ * Cursor-paginated by (priority DESC, user_id ASC) where priority blends
+ * mutual_overlap and great-circle distance to the requester's nearest city.
+ * The heavy CTE runs once and large match sets stream in chunks; cached 2 min.
+ *
+ * Radius filter:
+ *   - applyRadius=true (default) drops candidates whose nearest city is
+ *     farther than the requester's configured radius. Candidates with no
+ *     geocoded city OR a requester with no geocoded city bypass the filter
+ *     (we can't measure distance, so we can't honestly exclude them).
+ *   - applyRadius=false returns everyone — used when the UI's "show all
+ *     outside radius" toggle is on.
  */
 export async function getTradeMatches(
   db: Pool,
   redis: Redis,
   userId: string,
   albumId: string,
-  opts: { cursor?: string; limit?: number } = {},
+  opts: { cursor?: string; limit?: number; applyRadius?: boolean } = {},
 ): Promise<TradeMatchesPage> {
-  // If the requester has opted out of trade matching, they get no matches —
-  // mirrors how they're excluded as a candidate for everyone else.
-  const { rows: settingRows } = await db.query<{ trade_matching_enabled: boolean }>(
-    `SELECT trade_matching_enabled FROM user_settings WHERE user_id = $1`,
+  // Requester's settings: trade-matching opt-out AND search radius/cities for
+  // distance scoring. Single round-trip so we don't pay for two SELECTs.
+  const { rows: settingRows } = await db.query<{
+    trade_matching_enabled: boolean;
+    search_radius_km: number;
+    cities: { label: string; placeId: number; lat: number | null; lng: number | null }[] | null;
+  }>(
+    `SELECT trade_matching_enabled, search_radius_km, cities
+       FROM user_settings WHERE user_id = $1`,
     [userId],
   );
   if (settingRows.length > 0 && settingRows[0]!.trade_matching_enabled === false) {
     return { items: [], nextCursor: null, total: 0 };
   }
+  const requesterSettings = settingRows[0];
+  const requesterRadiusKm = requesterSettings?.search_radius_km ?? 50;
+  // Only cities with usable coordinates participate in distance scoring.
+  const requesterCoords = (requesterSettings?.cities ?? [])
+    .filter((c): c is { label: string; placeId: number; lat: number; lng: number } =>
+      typeof c.lat === 'number' && typeof c.lng === 'number',
+    )
+    .map((c) => ({ lat: c.lat, lng: c.lng }));
+  const applyRadius = opts.applyRadius !== false;
 
   const limit = Math.min(opts.limit ?? TRADE_MATCHES_DEFAULT_LIMIT, TRADE_MATCHES_MAX_LIMIT);
-  // Cursor is the opaque `${overlap}:${userId}` from the previous page.
-  let cursorOverlap: number | null = null;
+  // Cursor is the opaque `${priorityX1000}:${userId}` from the previous page.
+  // Priority is a float, but multiplying by 1000 and rounding gives a stable
+  // integer cursor that survives JSON round-trips without precision drift.
+  let cursorPriority: number | null = null;
   let cursorUserId: string | null = null;
   if (opts.cursor) {
-    const [o, u] = opts.cursor.split(':');
-    const n = Number.parseInt(o ?? '', 10);
+    const [p, u] = opts.cursor.split(':');
+    const n = Number.parseInt(p ?? '', 10);
     if (Number.isFinite(n) && u) {
-      cursorOverlap = n;
+      cursorPriority = n;
       cursorUserId = u;
     }
   }
-  const cacheKey = `trade:matches:${userId}:${albumId}:${opts.cursor ?? 'start'}:${limit}`;
+  const cacheKey = `trade:matches:${userId}:${albumId}:${opts.cursor ?? 'start'}:${limit}:r${applyRadius ? requesterRadiusKm : 'all'}`;
   const cached = await redis.get(cacheKey);
   if (cached) {
     return JSON.parse(cached) as TradeMatchesPage;
@@ -88,7 +123,9 @@ export async function getTradeMatches(
     they_have: string[];
     they_have_variant_ids: string[];
     you_have: string[];
-    cities: { label: string; placeId: number }[];
+    cities: { label: string; placeId: number; lat: number | null; lng: number | null }[];
+    distance_km: number | null;
+    priority: number;
     total_count: string;
   }>(
     `WITH requester_album AS (
@@ -235,37 +272,103 @@ export async function getTradeMatches(
        LEFT JOIN i_have_their_missing ihm ON ihm.user_id = mu.user_id
        GROUP BY mu.user_id
      ),
-     -- Population-wide total, computed before the cursor filter so the count
-     -- doesn't shrink page-by-page. A windowed COUNT(*) over the filtered set
-     -- would report "remaining from this cursor forward", which misleads the UI.
+     -- Requester's own cities, projected from the JSON parameter into a
+     -- regular table so we can JOIN/cross-apply against candidate cities and
+     -- run Haversine in SQL. Skipping the unnest entirely when the requester
+     -- has no geocoded cities keeps the planner from materialising an empty
+     -- relation that produces NULL distances for everyone.
+     my_coords AS (
+       SELECT (c->>'lat')::double precision AS lat,
+              (c->>'lng')::double precision AS lng
+         FROM jsonb_array_elements($6::jsonb) AS c
+        WHERE (c->>'lat') IS NOT NULL AND (c->>'lng') IS NOT NULL
+     ),
+     -- Min Haversine distance between any requester city and any candidate
+     -- city. NULL when either side has no geocoded city — those rows skip
+     -- the radius filter (we can't measure, so we can't honestly exclude).
+     -- 6371 = Earth radius (km); the inner expression is the standard
+     -- spherical-law-of-cosines form, which is accurate to a few metres at
+     -- the city-pair scale we care about and avoids the asin() of Haversine.
+     candidate_distances AS (
+       SELECT us3.user_id,
+              MIN(
+                6371.0 * acos(
+                  GREATEST(-1.0, LEAST(1.0,
+                    sin(radians(mc.lat)) * sin(radians((cc->>'lat')::double precision)) +
+                    cos(radians(mc.lat)) * cos(radians((cc->>'lat')::double precision)) *
+                    cos(radians((cc->>'lng')::double precision - mc.lng))
+                  ))
+                )
+              ) AS distance_km
+         FROM user_settings us3
+         CROSS JOIN jsonb_array_elements(us3.cities) AS cc
+         CROSS JOIN my_coords mc
+        WHERE (cc->>'lat') IS NOT NULL AND (cc->>'lng') IS NOT NULL
+          AND us3.user_id IN (SELECT user_id FROM overlap_counts)
+        GROUP BY us3.user_id
+     ),
+     scored AS (
+       SELECT
+         oc.user_id,
+         oc.mutual_overlap,
+         oc.they_have,
+         oc.they_have_variant_ids,
+         oc.you_have,
+         cd.distance_km,
+         -- Priority: high overlap beats low overlap; ties broken by closer
+         -- distance. NULL distance → no penalty (treated as 0) so candidates
+         -- without coordinates can still appear, ranked by overlap alone.
+         oc.mutual_overlap - $7::float * COALESCE(cd.distance_km, 0) AS priority
+       FROM overlap_counts oc
+       LEFT JOIN candidate_distances cd ON cd.user_id = oc.user_id
+     ),
+     -- Radius filter applied here, before the population count, so the total
+     -- the UI shows matches the candidates the user can actually page through.
+     filtered AS (
+       SELECT * FROM scored
+        WHERE $8::boolean = false
+           OR distance_km IS NULL
+           OR distance_km <= $9::float
+     ),
      total_pop AS (
-       SELECT COUNT(*)::bigint AS total FROM overlap_counts
+       SELECT COUNT(*)::bigint AS total FROM filtered
      )
      SELECT
-       oc.user_id,
+       f.user_id,
        u.username,
        u.display_name,
        u.avatar_url,
-       oc.mutual_overlap,
-       COALESCE(oc.they_have, ARRAY[]::text[]) AS they_have,
-       COALESCE(oc.they_have_variant_ids, ARRAY[]::text[]) AS they_have_variant_ids,
-       COALESCE(oc.you_have, ARRAY[]::text[]) AS you_have,
+       f.mutual_overlap,
+       COALESCE(f.they_have, ARRAY[]::text[]) AS they_have,
+       COALESCE(f.they_have_variant_ids, ARRAY[]::text[]) AS they_have_variant_ids,
+       COALESCE(f.you_have, ARRAY[]::text[]) AS you_have,
        COALESCE(us3.cities, '[]'::jsonb) AS cities,
+       f.distance_km,
+       f.priority,
        tp.total AS total_count
-     FROM overlap_counts oc
-     JOIN users u ON u.id = oc.user_id
-     LEFT JOIN user_settings us3 ON us3.user_id = oc.user_id
+     FROM filtered f
+     JOIN users u ON u.id = f.user_id
+     LEFT JOIN user_settings us3 ON us3.user_id = f.user_id
      CROSS JOIN total_pop tp
-     -- Cursor predicate is hand-expanded rather than a tuple comparison because
-     -- ORDER BY mixes directions (overlap DESC, user_id ASC). Postgres tuple
-     -- comparison (a, b) < (c, d) only matches all-ASC or all-DESC orderings;
-     -- using it here would skip and duplicate users on the overlap-tie boundary.
+     -- Cursor predicate is hand-expanded rather than tuple comparison because
+     -- ORDER BY mixes directions (priority DESC, user_id ASC). Cursor stores
+     -- priority * 1000 as an int to avoid float round-trip drift.
      WHERE $3::int IS NULL
-        OR oc.mutual_overlap < $3::int
-        OR (oc.mutual_overlap = $3::int AND oc.user_id > $4::uuid)
-     ORDER BY oc.mutual_overlap DESC, oc.user_id ASC
+        OR (f.priority * 1000)::int < $3::int
+        OR ((f.priority * 1000)::int = $3::int AND f.user_id > $4::uuid)
+     ORDER BY f.priority DESC, f.user_id ASC
      LIMIT $5`,
-    [userId, albumId, cursorOverlap, cursorUserId, limit + 1]
+    [
+      userId,
+      albumId,
+      cursorPriority,
+      cursorUserId,
+      limit + 1,
+      JSON.stringify(requesterCoords),
+      PRIORITY_DISTANCE_WEIGHT,
+      applyRadius && requesterCoords.length > 0,
+      requesterRadiusKm,
+    ],
   );
 
   const total = rows[0] ? Number(rows[0].total_count ?? 0) : 0;
@@ -281,9 +384,12 @@ export async function getTradeMatches(
     they_have_variant_ids: r.they_have_variant_ids ?? [],
     you_have: r.you_have ?? [],
     cities: r.cities ?? [],
+    distance_km: r.distance_km === null ? null : Number(r.distance_km),
   }));
   const last = pageRows[pageRows.length - 1];
-  const nextCursor = hasMore && last ? `${last.mutual_overlap}:${last.user_id}` : null;
+  const nextCursor = hasMore && last
+    ? `${Math.round(Number(last.priority) * 1000)}:${last.user_id}`
+    : null;
 
   const result: TradeMatchesPage = { items, nextCursor, total };
   const indexKey = matchesIndexKey(userId);

@@ -364,7 +364,7 @@ function LocationSection() {
   return (
     <SectionCard
       title="Your Locations"
-      description="Add cities where you're based or frequently visit. Trade matches can be filtered to show only nearby partners."
+      description="Add cities where you're based or frequently visit. Trade matches are ranked by overlap and proximity to your nearest city."
     >
       <div className="flex flex-col gap-3">
         <CityAutocomplete cities={cities} onChange={handleCitiesChange} />

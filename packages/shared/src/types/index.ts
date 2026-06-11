@@ -253,15 +253,25 @@ export interface DuplicateItem {
 export interface City {
   label: string
   placeId: number
+  // Coordinates from Nominatim, used for radius filtering and the trade-page
+  // map. Nullable so legacy rows written before the lat/lng columns existed
+  // still parse — those rows are excluded from distance calculations.
+  lat: number | null
+  lng: number | null
 }
 
 export type ProfileVisibility = 'public' | 'private'
+
+export const DEFAULT_SEARCH_RADIUS_KM = 50
+export const MIN_SEARCH_RADIUS_KM = 5
+export const MAX_SEARCH_RADIUS_KM = 1000
 
 export interface UserPreferences {
   duplicatesCountAllVariants: boolean
   cities: City[]
   profileVisibility: ProfileVisibility
   tradeMatchingEnabled: boolean
+  searchRadiusKm: number
 }
 
 // ─── Trade wire types ──────────────────────────────────────────────────────
@@ -276,6 +286,10 @@ export interface TradeMatch {
   theyHaveVariantIds: string[]
   youHave: string[]
   cities: City[]
+  // Great-circle distance in km to the requester's nearest registered city.
+  // null when either side has no geocoded city (no filter possible — the
+  // candidate still shows up because the radius filter is skipped).
+  distanceKm: number | null
 }
 
 export interface TradeItemDetail {

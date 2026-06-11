@@ -10,6 +10,8 @@ import * as cognitoAdmin from '../../services/cognito-admin.js';
 const CitySchema = z.object({
   label: z.string().min(1).max(200),
   placeId: z.number().int().positive(),
+  lat: z.number().min(-90).max(90).nullable(),
+  lng: z.number().min(-180).max(180).nullable(),
 });
 
 const PatchPreferencesBody = z.object({
@@ -17,6 +19,7 @@ const PatchPreferencesBody = z.object({
   cities: z.array(CitySchema).max(10).optional(),
   profileVisibility: z.enum(['public', 'private']).optional(),
   tradeMatchingEnabled: z.boolean().optional(),
+  searchRadiusKm: z.number().int().min(5).max(1000).optional(),
 });
 
 const UpdateUsernameBody = z.object({
@@ -59,7 +62,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               duplicatesCountAllVariants: { type: 'boolean' },
-              cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
+              cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' }, lat: { type: ['number', 'null'] }, lng: { type: ['number', 'null'] } } } },
+            searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             },
           },
         },
@@ -86,7 +90,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           type: 'object',
           properties: {
             duplicatesCountAllVariants: { type: 'boolean' },
-            cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
+            cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' }, lat: { type: ['number', 'null'] }, lng: { type: ['number', 'null'] } } } },
+            searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             profileVisibility: { type: 'string', enum: ['public', 'private'] },
             tradeMatchingEnabled: { type: 'boolean' },
           },
@@ -96,7 +101,8 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             type: 'object',
             properties: {
               duplicatesCountAllVariants: { type: 'boolean' },
-              cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' } } } },
+              cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' }, lat: { type: ['number', 'null'] }, lng: { type: ['number', 'null'] } } } },
+            searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             },
           },
         },
