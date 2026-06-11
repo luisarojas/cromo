@@ -4,3 +4,14 @@
 # specific environment — nuking dev or prod doesn't touch them.
 
 dmarc_report_email = "alerts@example.com"
+
+# ─── Zoho Mail (optional inbound mailboxes for cromotrade.ca) ─────────────────
+# Leave both empty to skip the Zoho module entirely (no MX, no SPF include,
+# no DKIM record — apex SPF stays SES-only). When you've signed up at Zoho
+# and added the domain in their admin UI, set zoho_verification_token to
+# the zb<digits> prefix they show you and apply. After DKIM is enabled in
+# Zoho's UI, paste the public key into zoho_dkim_public_key and apply again.
+#
+# zoho_verification_token = "zb12345678"        # CNAME prefix from Zoho admin → Domain Verification → CNAME Method
+# zoho_data_center        = "com"               # com (US, default) | eu | in | com_au
+# zoho_dkim_public_key    = "MIGfMA0GCSq..."    # base64 body only, from Zoho admin → DKIM

@@ -24,9 +24,11 @@ resource "aws_route53_zone" "apex" {
   name = var.apex_domain
 }
 
-# ─── SES domain identity + DKIM + SPF + DMARC + MAIL FROM ─────────────────────
+# ─── SES domain identity + DKIM + DMARC + MAIL FROM ──────────────────────────
 # Account-wide (SES identities are account-scoped). dev and prod reference the
 # resulting identity ARN by deterministic format — no cross-state lookup.
+# Apex SPF is owned below, not by this module, so multiple providers can
+# compose into the single TXT record RFC 7208 requires.
 
 module "ses" {
   source             = "../../modules/ses"
@@ -34,6 +36,47 @@ module "ses" {
   route53_zone_id    = aws_route53_zone.apex.zone_id
   region             = var.region
   dmarc_report_email = var.dmarc_report_email
+}
+
+# ─── Zoho Mail (inbound mailboxes on cromotrade.ca) ──────────────────────────
+# Free-tier mailboxes for support@, dmarc@, etc. Three-step bootstrap:
+# sign up at Zoho → set zoho_verification_token in tfvars → apply →
+# enable DKIM in Zoho UI → set zoho_dkim_public_key → apply again.
+# See modules/zoho-mail/main.tf for the full sequence.
+#
+# count=0 keeps this disabled until Zoho is signed up. Toggle by setting
+# zoho_verification_token to a real value in terraform.tfvars; the module
+# then bootstraps the verification TXT + MX + (optional) DKIM records.
+
+module "zoho_mail" {
+  count               = var.zoho_verification_token == "" ? 0 : 1
+  source              = "../../modules/zoho-mail"
+  domain              = var.apex_domain
+  route53_zone_id     = aws_route53_zone.apex.zone_id
+  verification_token  = var.zoho_verification_token
+  data_center         = var.zoho_data_center
+  dkim_public_key     = var.zoho_dkim_public_key
+}
+
+# ─── Apex SPF — composed from every active sender ────────────────────────────
+# RFC 7208: exactly one v=spf1 record per name. SES is always included;
+# zoho.com (or .eu/.in) is included only when the Zoho module is active.
+# Any future provider goes in this same list — never as a second TXT.
+
+locals {
+  spf_includes = concat(
+    ["amazonses.com"],
+    length(module.zoho_mail) > 0 ? [module.zoho_mail[0].spf_include] : [],
+  )
+  apex_spf_record = "v=spf1 ${join(" ", [for d in local.spf_includes : "include:${d}"])} -all"
+}
+
+resource "aws_route53_record" "apex_spf" {
+  zone_id = aws_route53_zone.apex.zone_id
+  name    = var.apex_domain
+  type    = "TXT"
+  ttl     = 600
+  records = [local.apex_spf_record]
 }
 
 # ─── MFA enforcement on the bootstrap admin ───────────────────────────────────

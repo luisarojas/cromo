@@ -23,14 +23,11 @@ resource "aws_route53_record" "dkim" {
   records = ["${aws_ses_domain_dkim.main.dkim_tokens[count.index]}.dkim.amazonses.com"]
 }
 
-# SPF — minimal "allow SES" record. Adjust if you also send mail from other providers.
-resource "aws_route53_record" "spf" {
-  zone_id = var.route53_zone_id
-  name    = var.domain
-  type    = "TXT"
-  ttl     = 600
-  records = ["v=spf1 include:amazonses.com -all"]
-}
+# Apex SPF is NOT owned here — it's owned by env/shared so multiple
+# providers (SES + a separate inbound provider like Zoho) can compose
+# into the single TXT record RFC 7208 requires. The MAIL FROM subdomain
+# SPF further down stays in this module because mail.cromotrade.ca is
+# SES-specific by definition.
 
 # DMARC — start in `quarantine; pct=10` so a small slice of failing mail is
 # quarantined while we observe aggregate reports. Tighten to p=quarantine

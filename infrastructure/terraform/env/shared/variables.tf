@@ -20,6 +20,33 @@ variable "mfa_enforced_user_names" {
   default     = ["cromo-admin"]
 }
 
+variable "zoho_verification_token" {
+  description = <<-EOT
+    The zb<digits> token Zoho shows in its admin UI after you add
+    cromotrade.ca during signup. Leave empty to disable the Zoho module
+    entirely (no MX, no SPF include, no DKIM). Setting this is what
+    "turns on" the module — count=0 → count=1 in the env/shared instantiation.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "zoho_data_center" {
+  description = "Zoho data centre region (com / eu / in / com_au). Must match what you picked during signup, otherwise inbound mail bounces."
+  type        = string
+  default     = "com"
+}
+
+variable "zoho_dkim_public_key" {
+  description = <<-EOT
+    Base64 public key from Zoho's "Email Authentication → DKIM" page.
+    Leave empty on the first apply (before DKIM is enabled in Zoho UI);
+    set after enabling DKIM and re-apply to publish the DKIM TXT.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "tf_runner_sub_patterns" {
   description = <<-EOT
     GitHub OIDC sub-claim patterns the cromo-tf-runner role accepts.
