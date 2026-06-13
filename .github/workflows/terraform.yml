@@ -22,11 +22,13 @@
 #   workflow bug or hand-edited dispatch can't apply prod without an
 #   underlying v-prefix tag.
 #
-# Required GitHub repo secrets/vars:
-#   secrets.AWS_TF_RUNNER_ROLE_ARN — terraform_runner module's role_arn
-#                                    (one role serves all three environments,
-#                                    discriminated by the sub-claim).
-#   vars.AWS_REGION                — e.g. ca-central-1
+# Required GitHub config — see the inventory in CLAUDE.md / the chat history
+# for exact values, but at minimum:
+#   Repo-level secrets: AWS_TF_RUNNER_ROLE_ARN
+#   Repo-level vars:    AWS_REGION
+#   Per-env vars/secrets feed TF_VAR_* into the stack's variables.tf. The
+#   list below is set across all three jobs because Terraform ignores
+#   TF_VAR_<name> for variables that don't exist in the loaded stack.
 
 name: Terraform
 
@@ -84,9 +86,17 @@ jobs:
     #   vars:    non-sensitive config (emails, public DKIM key, region)
     env:
       # Non-sensitive (vars):
+      # Shared stack:
       TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
       TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_enable_namecheap_mail:     ${{ vars.ENABLE_NAMECHEAP_MAIL }}
+      TF_VAR_namecheap_dkim_selector:   ${{ vars.NAMECHEAP_DKIM_SELECTOR }}
+      # Dev + prod stacks:
       TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      TF_VAR_scan_provider:             ${{ vars.SCAN_PROVIDER }}
+      TF_VAR_admin_emails:              ${{ vars.ADMIN_EMAILS }}
+      # Dev stack only:
+      TF_VAR_developer_iam_users:       ${{ vars.DEVELOPER_IAM_USERS }}
       # Sensitive (secrets):
       TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
       TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
@@ -169,9 +179,17 @@ jobs:
     # See the plan job for why this env block covers all three stacks.
     env:
       # Non-sensitive (vars):
+      # Shared stack:
       TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
       TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_enable_namecheap_mail:     ${{ vars.ENABLE_NAMECHEAP_MAIL }}
+      TF_VAR_namecheap_dkim_selector:   ${{ vars.NAMECHEAP_DKIM_SELECTOR }}
+      # Dev + prod stacks:
       TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      TF_VAR_scan_provider:             ${{ vars.SCAN_PROVIDER }}
+      TF_VAR_admin_emails:              ${{ vars.ADMIN_EMAILS }}
+      # Dev stack only:
+      TF_VAR_developer_iam_users:       ${{ vars.DEVELOPER_IAM_USERS }}
       # Sensitive (secrets):
       TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
       TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
@@ -203,9 +221,17 @@ jobs:
     environment: tf-dev
     env:
       # Non-sensitive (vars):
+      # Shared stack:
       TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
       TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_enable_namecheap_mail:     ${{ vars.ENABLE_NAMECHEAP_MAIL }}
+      TF_VAR_namecheap_dkim_selector:   ${{ vars.NAMECHEAP_DKIM_SELECTOR }}
+      # Dev + prod stacks:
       TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      TF_VAR_scan_provider:             ${{ vars.SCAN_PROVIDER }}
+      TF_VAR_admin_emails:              ${{ vars.ADMIN_EMAILS }}
+      # Dev stack only:
+      TF_VAR_developer_iam_users:       ${{ vars.DEVELOPER_IAM_USERS }}
       # Sensitive (secrets):
       TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
       TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
@@ -245,9 +271,17 @@ jobs:
     environment: tf-prod
     env:
       # Non-sensitive (vars):
+      # Shared stack:
       TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
       TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_enable_namecheap_mail:     ${{ vars.ENABLE_NAMECHEAP_MAIL }}
+      TF_VAR_namecheap_dkim_selector:   ${{ vars.NAMECHEAP_DKIM_SELECTOR }}
+      # Dev + prod stacks:
       TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      TF_VAR_scan_provider:             ${{ vars.SCAN_PROVIDER }}
+      TF_VAR_admin_emails:              ${{ vars.ADMIN_EMAILS }}
+      # Dev stack only:
+      TF_VAR_developer_iam_users:       ${{ vars.DEVELOPER_IAM_USERS }}
       # Sensitive (secrets):
       TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
       TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
