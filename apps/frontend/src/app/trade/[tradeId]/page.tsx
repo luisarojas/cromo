@@ -24,7 +24,7 @@ import {
 } from '@/lib/api';
 import ReportUserModal from '@/components/ReportUserModal';
 import TradeStickerPicker, { type TradePickerItem } from '../components/TradeStickerPicker';
-import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import { variantLabel, variantSwatch } from '@/app/collection/components/variantMeta';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';

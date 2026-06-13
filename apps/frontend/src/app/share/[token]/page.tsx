@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { fetchPublicList, type PublicList, type PublicListItem } from '@/lib/api';
 import { foldAccents } from '@/lib/normalize';
-import { variantLabel } from '@/app/album/components/variantMeta';
+import { variantLabel } from '@/app/collection/components/variantMeta';
 
 function groupByTeam(items: PublicListItem[], otherLabel: string): Map<string, PublicListItem[]> {
   const grouped = new Map<string, PublicListItem[]>();

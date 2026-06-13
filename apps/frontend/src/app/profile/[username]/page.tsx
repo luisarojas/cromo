@@ -13,10 +13,10 @@ import {
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import ShareProfileButton from '@/components/ShareProfileButton';
-import { variantLabel, variantSwatch } from '@/app/album/components/variantMeta';
+import { variantLabel, variantSwatch } from '@/app/collection/components/variantMeta';
 import { buildAlbumExportText } from '@/lib/profileExport';
 import { flagUrl } from '@/lib/flags';
-import FilterBar, { type FilterState } from '@/app/album/components/FilterBar';
+import FilterBar, { type FilterState } from '@/app/collection/components/FilterBar';
 import TrustBadge from '@/components/TrustBadge';
 import ReportUserModal from '@/components/ReportUserModal';
 import AchievementBadges from '@/components/AchievementBadges';

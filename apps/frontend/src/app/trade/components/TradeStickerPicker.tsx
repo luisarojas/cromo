@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchStickersBulk, type StickerVariant, type CollectionItem } from '@/lib/api';
-import { variantLabel, variantSwatch, isBaseVariant, compareVariantTypes } from '@/app/album/components/variantMeta';
+import { variantLabel, variantSwatch, isBaseVariant, compareVariantTypes } from '@/app/collection/components/variantMeta';
 import { flagUrl } from '@/lib/flags';
 import { foldAccents } from '@/lib/normalize';
 import { HeartIcon } from '@/components/HeartIcon';

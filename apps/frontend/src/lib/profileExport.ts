@@ -3,7 +3,7 @@ import {
   fetchPublicWanted,
   type PublicInventoryItem,
 } from '@/lib/api';
-import { isBaseVariant, variantShort } from '@/app/album/components/variantMeta';
+import { isBaseVariant, variantShort } from '@/app/collection/components/variantMeta';
 
 export interface ExportFilters {
   stickerTypes?: string[];

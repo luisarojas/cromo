@@ -16,7 +16,7 @@ import {
   type StickerVariant,
   type UserAlbum,
 } from '@/lib/api';
-import { variantLabel } from '@/app/album/components/variantMeta';
+import { variantLabel } from '@/app/collection/components/variantMeta';
 import { rememberLastScan, recordScanDay } from '@/lib/lastScan';
 import { publishSync } from '@/lib/syncBus';
 import { isSpeechSupported, isSpeechMuted, setSpeechMuted, speak } from '@/lib/speech';

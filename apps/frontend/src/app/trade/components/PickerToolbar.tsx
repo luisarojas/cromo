@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useMemo, useState } from 'react';
-import { variantLabel, variantSwatch, compareVariantTypes } from '@/app/album/components/variantMeta';
+import { variantLabel, variantSwatch, compareVariantTypes } from '@/app/collection/components/variantMeta';
 
 export type SortKey = 'code' | 'player' | 'team' | 'country' | 'group' | 'variant';
 
