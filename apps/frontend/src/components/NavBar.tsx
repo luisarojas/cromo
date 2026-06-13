@@ -61,7 +61,7 @@ export default function NavBar() {
           {user && (
             <>
               <NavLink href="/dashboard">{t('dashboard')}</NavLink>
-              <NavLink href="/album">{t('collection')}</NavLink>
+              <NavLink href="/collection">{t('collection')}</NavLink>
               {tradeMatchingEnabled && <NavLink href="/trade">{t('trade')}</NavLink>}
               <NavLink href="/scan">{t('scan')}</NavLink>
             </>
@@ -150,7 +150,7 @@ export default function NavBar() {
               {user && (
                 <>
                   <DrawerLink href="/dashboard">{t('dashboard')}</DrawerLink>
-                  <DrawerLink href="/album">{t('collection')}</DrawerLink>
+                  <DrawerLink href="/collection">{t('collection')}</DrawerLink>
                   {tradeMatchingEnabled && <DrawerLink href="/trade">{t('trade')}</DrawerLink>}
                   <DrawerLink href="/scan">{t('scan')}</DrawerLink>
                 </>

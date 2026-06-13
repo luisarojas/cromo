@@ -13,7 +13,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           '/admin',
           '/dashboard',
-          '/album',
+          '/collection',
           '/scan',
           '/settings',
           '/profile/',

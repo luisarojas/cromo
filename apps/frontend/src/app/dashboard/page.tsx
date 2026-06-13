@@ -339,7 +339,7 @@ export default function DashboardPage() {
                     </button>
                   )}
                   <Link
-                    href="/album"
+                    href="/collection"
                     className="text-xs text-[var(--cromo-accent)] hover:underline font-medium"
                   >
                     {t('manage')}
@@ -408,7 +408,7 @@ export default function DashboardPage() {
           ) : albums.length === 0 ? (
             <Card className="text-center py-12 border-dashed">
               <p className="text-sm text-[var(--cromo-fg-muted)] mb-4">{t('noAlbumsYet')}</p>
-              <Link href="/album">
+              <Link href="/collection">
                 <Button>{t('addFirstAlbum')}</Button>
               </Link>
             </Card>
@@ -520,7 +520,7 @@ export default function DashboardPage() {
                     key={album.id}
                     className="group rounded-card border border-[var(--cromo-border)] bg-[var(--cromo-surface)] hover:border-[var(--cromo-border-strong)] transition-colors overflow-hidden"
                   >
-                    <Link href={`/album/${album.id}`} className="block p-4">
+                    <Link href={`/collection/${album.id}`} className="block p-4">
                       {cardContent}
                     </Link>
                     {guideLink}
@@ -702,7 +702,7 @@ function StatLink({
   if (!albumId) return <>{children}</>;
   return (
     <Link
-      href={`/album/${albumId}?tab=${tab}`}
+      href={`/collection/${albumId}?tab=${tab}`}
       className="block rounded-card transition-transform hover:-translate-y-0.5 hover:shadow-cromo focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)]"
     >
       {children}

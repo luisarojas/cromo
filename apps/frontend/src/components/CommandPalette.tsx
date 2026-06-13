@@ -56,7 +56,7 @@ export default function CommandPalette() {
   const commands = useMemo<Command[]>(() => {
     const base: Command[] = [
       { id: 'nav:dashboard', label: 'Go to dashboard',  badge: 'Nav', keywords: 'home overview', run: () => router.push('/dashboard') },
-      { id: 'nav:album',     label: 'Go to album list', badge: 'Nav', keywords: 'collection', run: () => router.push('/album') },
+      { id: 'nav:album',     label: 'Go to album list', badge: 'Nav', keywords: 'collection', run: () => router.push('/collection') },
       { id: 'nav:scan',      label: 'Open scanner',     badge: 'Nav', keywords: 'identify camera', run: () => router.push('/scan') },
       { id: 'nav:trade',     label: 'Go to trade',      badge: 'Nav', keywords: 'swap match', run: () => router.push('/trade') },
       { id: 'nav:guide',     label: 'Open guides',      badge: 'Nav', keywords: 'docs help', run: () => router.push('/guide') },
@@ -75,7 +75,7 @@ export default function CommandPalette() {
         label: albumDisplayName(a),
         badge: a.isDefault ? 'Album · default' : 'Album',
         keywords: `${a.editionName} ${a.formatName}`,
-        run: () => router.push(`/album/${a.id}`),
+        run: () => router.push(`/collection/${a.id}`),
       });
     }
     base.push({

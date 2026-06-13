@@ -11,7 +11,7 @@ export default async function Footer() {
 
   const productLinks = [
     { href: '/dashboard', label: t('links.dashboard') },
-    { href: '/album', label: t('links.collection') },
+    { href: '/collection', label: t('links.collection') },
     { href: '/trade', label: t('links.trade') },
     { href: '/scan', label: t('links.scan') },
   ];

@@ -47,9 +47,9 @@ export default function MobileTabBar() {
       ),
     },
     {
-      href: '/album',
+      href: '/collection',
       label: 'Album',
-      match: matchPath('/album'),
+      match: matchPath('/collection'),
       icon: (active) => (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.4 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-5 w-5">
           <rect x="4" y="4" width="16" height="16" rx="2" />

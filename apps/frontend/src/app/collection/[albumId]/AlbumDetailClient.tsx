@@ -251,7 +251,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
         const album = userAlbums.find((a) => a.id === albumId);
         if (!album) {
-          router.replace('/album');
+          router.replace('/collection');
           return;
         }
 
@@ -631,7 +631,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       if (!tok || !usr) throw new Error('Not authenticated');
       const newAlbum = await createUserAlbum(usr.id, data, tok);
       upsertAlbum(newAlbum);
-      router.push(`/album/${newAlbum.id}`);
+      router.push(`/collection/${newAlbum.id}`);
     },
     [upsertAlbum, router]
   );
@@ -653,7 +653,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
     await deleteUserAlbum(usr.id, editingAlbum.id, tok);
     removeAlbum(editingAlbum.id);
-    router.replace('/album');
+    router.replace('/collection');
   }, [editingAlbum, removeAlbum, router]);
 
   const handleSetDefault = useCallback(async () => {
@@ -705,7 +705,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           <div className="flex items-start gap-3">
             {albums.length > 1 && (
               <Link
-                href="/album"
+                href="/collection"
                 className="mt-1 p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors shrink-0"
                 aria-label={t('backToAlbums')}
               >

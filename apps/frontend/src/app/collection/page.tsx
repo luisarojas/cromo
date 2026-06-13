@@ -91,7 +91,7 @@ export default function AlbumsPage() {
         setFormats(formatList);
 
         if (userAlbums.length === 1) {
-          router.replace(`/album/${userAlbums[0].id}`);
+          router.replace(`/collection/${userAlbums[0].id}`);
           return;
         }
 
@@ -242,7 +242,7 @@ export default function AlbumsPage() {
                   key={album.id}
                   className="relative group bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] hover:border-[var(--cromo-border-strong)] hover:border-[var(--cromo-accent)]/30 transition-all overflow-hidden"
                 >
-                  <Link href={`/album/${album.id}`} className="block p-5">
+                  <Link href={`/collection/${album.id}`} className="block p-5">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex-1 min-w-0">
                         <h2 className="font-semibold text-[var(--cromo-fg)] truncate leading-snug">

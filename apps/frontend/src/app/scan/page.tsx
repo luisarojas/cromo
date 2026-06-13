@@ -62,7 +62,7 @@ export default function ScanPage() {
           {t('needAlbum')}
         </p>
         <Link
-          href="/album"
+          href="/collection"
           className="inline-block rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-5 py-2.5 text-sm font-medium hover:bg-[var(--cromo-accent-strong)]"
         >
           {t('createFirstAlbum')}

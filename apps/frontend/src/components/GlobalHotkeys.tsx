@@ -18,7 +18,7 @@ export default function GlobalHotkeys() {
   const authed = !!user;
 
   useHotkeys('g d', () => router.push('/dashboard'), { enabled: authed });
-  useHotkeys('g a', () => router.push('/album'),     { enabled: authed });
+  useHotkeys('g a', () => router.push('/collection'),     { enabled: authed });
   useHotkeys('g s', () => router.push('/scan'),      { enabled: authed });
   useHotkeys('g t', () => router.push('/trade'),     { enabled: authed });
   useHotkeys('g p', () => user && router.push(`/profile/${user.username}`), { enabled: authed });
