@@ -71,7 +71,7 @@ Same conceptual stack in both themes — `bg` (deepest) → `surface` (cards/mod
 | `--cromo-tier-rare` | `#F87171` | Rare (red, 1 in 25) |
 | `--cromo-tier-very-rare` | `#A78BFA` | Very Rare (purple, 1 in 200) |
 | `--cromo-tier-ultra-rare` | `#34D399` | Ultra Rare (green, 1 in 1,400) |
-| `--cromo-tier-masterpiece` | _chrome gradient_ | 1-of-1 (black/black-crumple) |
+| `--cromo-tier-unique` | _chrome gradient_ | 1-of-1 (black/black-crumple) |
 
 ### Status (same decoupled-token model as accent)
 
@@ -90,7 +90,7 @@ Same reason as accent: light-mode status colors need to be vibrant for **fills**
 ### Chrome — the signature material
 The iridescent gradient is what makes Cromo _feel_ like Cromo. Use it for:
 - The logo mark on dark surfaces
-- Masterpiece (1-of-1) rarity treatments
+- Unique (1-of-1) rarity treatments
 - Primary CTAs on the marketing landing only — never on every internal button
 - Hero text accents on the landing page
 
@@ -109,7 +109,7 @@ The iridescent gradient is what makes Cromo _feel_ like Cromo. Use it for:
 
 **Static, always.** Chrome surfaces never animate. The `.cromo-shimmer` class is reserved as a no-op for future opt-in motion; animated backgrounds compete with reading and are disallowed on every text-bearing surface.
 
-**Never decorative.** Chrome belongs on _something_: the logo mark, the masterpiece tier swatch, a hero CTA, a 100%-completion celebration. It does not belong on neutral page chrome — no rules, dividers, or accent stripes purely as ornament. If chrome shows up on a page, it should be marking something meaningful.
+**Never decorative.** Chrome belongs on _something_: the logo mark, the unique tier swatch, a hero CTA, a 100%-completion celebration. It does not belong on neutral page chrome — no rules, dividers, or accent stripes purely as ornament. If chrome shows up on a page, it should be marking something meaningful.
 
 ## 5. Typography
 

@@ -214,7 +214,7 @@ type BadgeTone =
   | 'rare'
   | 'very-rare'
   | 'ultra-rare'
-  | 'masterpiece';
+  | 'unique';
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: BadgeTone;
@@ -232,7 +232,7 @@ const badgeTones: Record<BadgeTone, string> = {
   rare: 'bg-[var(--cromo-tier-rare)]/10 text-[var(--cromo-tier-rare)] border-[var(--cromo-tier-rare)]/30',
   'very-rare': 'bg-[var(--cromo-tier-very-rare)]/10 text-[var(--cromo-tier-very-rare)] border-[var(--cromo-tier-very-rare)]/30',
   'ultra-rare': 'bg-[var(--cromo-tier-ultra-rare)]/10 text-[var(--cromo-tier-ultra-rare)] border-[var(--cromo-tier-ultra-rare)]/30',
-  masterpiece: 'cromo-chrome-fill text-[#0E1117] border-transparent',
+  unique: 'cromo-chrome-fill text-[#0E1117] border-transparent',
 };
 
 export function Badge({ tone = 'neutral', size = 'sm', className, children, ...rest }: BadgeProps) {

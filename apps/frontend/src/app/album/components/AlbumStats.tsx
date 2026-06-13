@@ -21,8 +21,8 @@ const COUNTRY_PREVIEW_COUNT = 10;
 // omitted because every base sticker is in it and the line would just say
 // "(N owned)" — not a trophy. Tiers a user never owns are also hidden.
 const TROPHY_TIER_ORDER = [
-  'Masterpiece',
-  'iCollect Masterpiece',
+  'Unique',
+  'iCollect Unique',
   'Ultra Rare',
   'iCollect Ultra Rare',
   'Very Rare',
@@ -41,7 +41,7 @@ const RARITY_TIER_COLORS: Record<string, string> = {
   Rare: '#ef4444',
   'Very Rare': '#a855f7',
   'Ultra Rare': '#22c55e',
-  Masterpiece: '#111827',
+  Unique: '#111827',
   Exclusive: '#f97316',
   'Base Extra': '#d8b4fe',
   'Swiss Edition': '#10b981',
@@ -49,7 +49,7 @@ const RARITY_TIER_COLORS: Record<string, string> = {
   'iCollect Rare': '#fb7185',
   'iCollect Very Rare': '#c084fc',
   'iCollect Ultra Rare': '#86efac',
-  'iCollect Masterpiece': '#475569',
+  'iCollect Unique': '#475569',
 };
 
 interface CountryRow {

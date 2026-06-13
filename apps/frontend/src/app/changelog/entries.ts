@@ -44,6 +44,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'One-tap clear (×) button in every search bar.',
       ],
       Changed: [
+        'Renamed the 1-of-1 Black rarity tier to "Unique".',
         'Profile "Start a trade" button now shows a disabled state — with a tooltip explaining why — when the collector has trading turned off or no stickers available.',
         'Trade status badges use distinct colors per state, and "Completed" trades now stand out in solid green.',
         'Participant names on a trade page link to their profiles.',

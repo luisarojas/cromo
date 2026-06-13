@@ -92,7 +92,7 @@ Panini ships the base sticker in two regional layouts. Both are Common (rarity 1
 | Red | 1 in 25 packs | Rare | Standard parallel. |
 | Purple | 1 in 200 packs | Very Rare | Standard parallel. |
 | Green | 1 in 1,400 packs | Ultra Rare | Standard parallel — vivid emerald/grass green. |
-| Black | 1-of-1 | Masterpiece | Only one unique copy exists per player. |
+| Black | 1-of-1 | Unique | Only one copy exists per player. |
 
 #### Crumple Parallels — Panini iCollect online-exclusive boxes only
 

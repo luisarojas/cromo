@@ -265,7 +265,7 @@ Panini ships the standard base in two regional layouts. In regions with colored 
 | **Red** | 1 in 25 packs | **Rare** | `red` |
 | **Purple** | 1 in 200 packs | **Very Rare** | `purple` |
 | **Green** | 1 in 1,400 packs | **Ultra Rare** — vivid emerald/grass green. | `green` |
-| **Black** | 1-of-1 | **Masterpiece** — only one unique copy exists per player. | `black` |
+| **Black** | 1-of-1 | **Unique** — only one copy exists per player. | `black` |
 
 #### 2. "Crumple" Parallels (Panini iCollect online-exclusive boxes)
 
