@@ -20,28 +20,29 @@ variable "mfa_enforced_user_names" {
   default     = ["cromo-admin"]
 }
 
-variable "zoho_verification_token" {
+variable "enable_namecheap_mail" {
   description = <<-EOT
-    The zb<digits> token Zoho shows in its admin UI after you add
-    cromotrade.ca during signup. Leave empty to disable the Zoho module
-    entirely (no MX, no SPF include, no DKIM). Setting this is what
-    "turns on" the module — count=0 → count=1 in the env/shared instantiation.
+    Toggle the Namecheap Private Email DNS module on/off. Flip to true
+    after buying Private Email Starter at Namecheap. When true, the
+    module publishes MX + autodiscover records and the apex SPF picks
+    up `include:spf.privateemail.com` automatically.
   EOT
-  type        = string
-  default     = ""
+  type        = bool
+  default     = false
 }
 
-variable "zoho_data_center" {
-  description = "Zoho data centre region (com / eu / in / com_au). Must match what you picked during signup, otherwise inbound mail bounces."
+variable "namecheap_dkim_selector" {
+  description = "DKIM selector Namecheap Private Email's admin UI shows when you enable DKIM. Default `default` matches Namecheap's convention; override if their UI shows something else."
   type        = string
-  default     = "com"
+  default     = "default"
 }
 
-variable "zoho_dkim_public_key" {
+variable "namecheap_dkim_public_key" {
   description = <<-EOT
-    Base64 public key from Zoho's "Email Authentication → DKIM" page.
-    Leave empty on the first apply (before DKIM is enabled in Zoho UI);
-    set after enabling DKIM and re-apply to publish the DKIM TXT.
+    Base64 public key from Namecheap Private Email admin → Email
+    Authentication → DKIM. Leave empty on the first apply (before
+    DKIM is enabled there); set after enabling DKIM and re-apply
+    to publish the DKIM TXT.
   EOT
   type        = string
   default     = ""

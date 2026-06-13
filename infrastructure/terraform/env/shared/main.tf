@@ -38,35 +38,41 @@ module "ses" {
   dmarc_report_email = var.dmarc_report_email
 }
 
-# ─── Zoho Mail (inbound mailboxes on cromotrade.ca) ──────────────────────────
-# Free-tier mailboxes for support@, dmarc@, etc. Three-step bootstrap:
-# sign up at Zoho → set zoho_verification_token in tfvars → apply →
-# enable DKIM in Zoho UI → set zoho_dkim_public_key → apply again.
-# See modules/zoho-mail/main.tf for the full sequence.
+# ─── Namecheap Private Email (inbound mailboxes on cromotrade.ca) ────────────
+# Paid mailbox hosting for support@, dmarc@, etc., bought from the same
+# vendor that holds the domain registration. Two-step bootstrap:
+#   1. Buy Private Email Starter in the Namecheap account, set
+#      enable_namecheap_mail = true in tfvars, apply → publishes MX +
+#      autodiscover records. Namecheap auto-verifies the domain once it
+#      sees the MX point at privateemail.com.
+#   2. Enable DKIM in Namecheap's Private Email admin, paste the
+#      selector + public key into tfvars, apply again → publishes the
+#      DKIM TXT.
+# See modules/namecheap-mail/main.tf for the full sequence.
 #
-# count=0 keeps this disabled until Zoho is signed up. Toggle by setting
-# zoho_verification_token to a real value in terraform.tfvars; the module
-# then bootstraps the verification TXT + MX + (optional) DKIM records.
+# The zoho-mail module on disk is intentionally left in place but
+# disabled, in case the operator ever wants to switch back to Zoho. The
+# Namecheap toggle (this one) is the active configuration.
 
-module "zoho_mail" {
-  count               = var.zoho_verification_token == "" ? 0 : 1
-  source              = "../../modules/zoho-mail"
-  domain              = var.apex_domain
-  route53_zone_id     = aws_route53_zone.apex.zone_id
-  verification_token  = var.zoho_verification_token
-  data_center         = var.zoho_data_center
-  dkim_public_key     = var.zoho_dkim_public_key
+module "namecheap_mail" {
+  count           = var.enable_namecheap_mail ? 1 : 0
+  source          = "../../modules/namecheap-mail"
+  domain          = var.apex_domain
+  route53_zone_id = aws_route53_zone.apex.zone_id
+  dkim_selector   = var.namecheap_dkim_selector
+  dkim_public_key = var.namecheap_dkim_public_key
 }
 
 # ─── Apex SPF — composed from every active sender ────────────────────────────
 # RFC 7208: exactly one v=spf1 record per name. SES is always included;
-# zoho.com (or .eu/.in) is included only when the Zoho module is active.
-# Any future provider goes in this same list — never as a second TXT.
+# spf.privateemail.com is included only when the Namecheap module is
+# active. Any future provider goes in this same list — never as a
+# second TXT.
 
 locals {
   spf_includes = concat(
     ["amazonses.com"],
-    length(module.zoho_mail) > 0 ? [module.zoho_mail[0].spf_include] : [],
+    length(module.namecheap_mail) > 0 ? [module.namecheap_mail[0].spf_include] : [],
   )
   apex_spf_record = "v=spf1 ${join(" ", [for d in local.spf_includes : "include:${d}"])} -all"
 }
