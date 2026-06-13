@@ -147,6 +147,12 @@ export interface UserPreferences {
   profileVisibility: ProfileVisibility;
   tradeMatchingEnabled: boolean;
   searchRadiusKm: number;
+  // Per-channel email opt-outs. Verification and password-reset bypass
+  // these (security-critical). Defaults match the schema defaults:
+  // trade-related are on, marketing is off.
+  emailTradeRequests: boolean;
+  emailTradeMessages: boolean;
+  emailMarketing: boolean;
 }
 
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
@@ -156,9 +162,13 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
     profile_visibility: ProfileVisibility;
     trade_matching_enabled: boolean;
     search_radius_km: number;
+    email_trade_requests: boolean;
+    email_trade_messages: boolean;
+    email_marketing: boolean;
   }>(
     `SELECT duplicates_count_all_variants, cities,
-            profile_visibility, trade_matching_enabled, search_radius_km
+            profile_visibility, trade_matching_enabled, search_radius_km,
+            email_trade_requests, email_trade_messages, email_marketing
      FROM user_settings WHERE user_id = $1`,
     [userId]
   );
@@ -170,6 +180,9 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
       profileVisibility: 'public',
       tradeMatchingEnabled: true,
       searchRadiusKm: 50,
+      emailTradeRequests: true,
+      emailTradeMessages: true,
+      emailMarketing: false,
     };
   }
 
@@ -187,6 +200,9 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
     profileVisibility: row.profile_visibility,
     tradeMatchingEnabled: row.trade_matching_enabled,
     searchRadiusKm: Number(row.search_radius_km),
+    emailTradeRequests: row.email_trade_requests,
+    emailTradeMessages: row.email_trade_messages,
+    emailMarketing: row.email_marketing,
   };
 }
 
@@ -219,6 +235,18 @@ export async function updatePreferences(
   if (patch.searchRadiusKm !== undefined) {
     setClauses.push(`search_radius_km = $${idx++}`);
     values.push(patch.searchRadiusKm);
+  }
+  if (patch.emailTradeRequests !== undefined) {
+    setClauses.push(`email_trade_requests = $${idx++}`);
+    values.push(patch.emailTradeRequests);
+  }
+  if (patch.emailTradeMessages !== undefined) {
+    setClauses.push(`email_trade_messages = $${idx++}`);
+    values.push(patch.emailTradeMessages);
+  }
+  if (patch.emailMarketing !== undefined) {
+    setClauses.push(`email_marketing = $${idx++}`);
+    values.push(patch.emailMarketing);
   }
 
   if (setClauses.length === 0) return getPreferences(db, userId);

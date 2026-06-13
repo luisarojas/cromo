@@ -148,7 +148,7 @@ module "secrets" {
     COGNITO_REGION       = var.region
     COGNITO_TOKEN_USE    = "access"
 
-    EMAIL_FROM = "no-reply@${var.apex_domain}"
+    EMAIL_FROM = "Cromo <no-reply@${var.apex_domain}>"
     # SES uses the IAM role rather than SMTP creds — leave SMTP_* unset so
     # the SES transport is selected at the nodemailer layer.
     FRONTEND_URL = "https://${local.hostname}"

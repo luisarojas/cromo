@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { env } from '../env.js';
 import { isSuppressed } from './email-suppressions.service.js';
+import { mintUnsubToken } from './email-unsubscribe.service.js';
 
 let _transporter: Transporter | null = null;
 
@@ -75,12 +76,17 @@ export async function sendVerificationEmail(
 // unsubscribe headers. Mailbox providers (Gmail, Yahoo) downgrade reputation
 // on senders that omit these on bulk-ish transactional traffic, and SES
 // reviewers explicitly look for them when assessing production-access
-// requests. Account-deletion plus the per-channel toggles on /settings are
-// the underlying unsubscribe mechanism — the URL below routes there.
-function unsubscribeHeaders(toEmail: string): Record<string, string> {
-  const unsubscribeUrl = `${env.FRONTEND_URL}/settings?unsubscribe=email`;
+// requests.
+//
+// The List-Unsubscribe URL points at /api/v1/unsubscribe with a per-user
+// signed token (services/email-unsubscribe.service.ts). One-click POSTs
+// from Gmail/Yahoo flip user_settings columns directly; the user doesn't
+// need to be logged in to opt out.
+function unsubscribeHeaders(userId: string): Record<string, string> {
+  const token = mintUnsubToken(userId, 'trade-messages');
+  const unsubscribeUrl = `${env.FRONTEND_URL}/api/v1/unsubscribe?t=${token}`;
   return {
-    'List-Unsubscribe': `<${unsubscribeUrl}>, <mailto:unsubscribe@${new URL(env.FRONTEND_URL).hostname}?subject=unsubscribe%20${encodeURIComponent(toEmail)}>`,
+    'List-Unsubscribe': `<${unsubscribeUrl}>`,
     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
   };
 }
@@ -90,15 +96,17 @@ export async function sendRatingReminderEmail(
   toEmail: string,
   username: string,
   tradeId: string,
+  userId: string,
 ): Promise<void> {
   if (await shouldSkip(db, toEmail)) return;
   const tradeUrl = `${env.FRONTEND_URL}/trade/${tradeId}`;
+  const unsubscribeUrl = `${env.FRONTEND_URL}/api/v1/unsubscribe?t=${mintUnsubToken(userId, 'trade-messages')}`;
 
   await getTransporter().sendMail({
     from: env.EMAIL_FROM,
     to: toEmail,
     subject: 'Rate your recent trade on Cromo',
-    headers: unsubscribeHeaders(toEmail),
+    headers: unsubscribeHeaders(userId),
     text: [
       `Hi ${username},`,
       '',
@@ -108,7 +116,8 @@ export async function sendRatingReminderEmail(
       '',
       'You have up to 14 days from when the trade completed to leave a rating.',
       '',
-      `To stop receiving these reminders, visit ${env.FRONTEND_URL}/settings or reply to this email with "unsubscribe".`,
+      `To stop receiving these reminders, click here: ${unsubscribeUrl}`,
+      `Or manage all email preferences at ${env.FRONTEND_URL}/settings.`,
     ].join('\n'),
     html: `
       <p>Hi <strong>${username}</strong>,</p>
@@ -116,7 +125,7 @@ export async function sendRatingReminderEmail(
       <p><a href="${tradeUrl}">Rate this trade</a></p>
       <p>You have up to <strong>14 days</strong> from when the trade completed to leave a rating.</p>
       <hr>
-      <p style="font-size:12px;color:#666;">To stop receiving these reminders, <a href="${env.FRONTEND_URL}/settings">manage your email preferences</a> or reply with "unsubscribe".</p>
+      <p style="font-size:12px;color:#666;"><a href="${unsubscribeUrl}">Unsubscribe from rating reminders</a> · <a href="${env.FRONTEND_URL}/settings">manage all email preferences</a></p>
     `,
   });
 }

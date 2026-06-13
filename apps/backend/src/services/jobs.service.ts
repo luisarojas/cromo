@@ -18,7 +18,7 @@ const MAX_ATTEMPTS = 3;
 export type Job =
   | { type: 'email:verify'; email: string; username: string; code: string }
   | { type: 'email:reset'; email: string; username: string; code: string }
-  | { type: 'email:rating-reminder'; email: string; username: string; tradeId: string };
+  | { type: 'email:rating-reminder'; email: string; username: string; tradeId: string; userId: string };
 
 interface QueueEntry {
   id: string;
@@ -46,7 +46,7 @@ async function runJob(db: Pool, job: Job): Promise<void> {
       await sendPasswordResetEmail(db, job.email, job.username, job.code);
       return;
     case 'email:rating-reminder':
-      await sendRatingReminderEmail(db, job.email, job.username, job.tradeId);
+      await sendRatingReminderEmail(db, job.email, job.username, job.tradeId, job.userId);
       return;
   }
 }

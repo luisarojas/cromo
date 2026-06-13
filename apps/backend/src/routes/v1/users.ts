@@ -20,6 +20,9 @@ const PatchPreferencesBody = z.object({
   profileVisibility: z.enum(['public', 'private']).optional(),
   tradeMatchingEnabled: z.boolean().optional(),
   searchRadiusKm: z.number().int().min(5).max(1000).optional(),
+  emailTradeRequests: z.boolean().optional(),
+  emailTradeMessages: z.boolean().optional(),
+  emailMarketing: z.boolean().optional(),
 });
 
 const UpdateUsernameBody = z.object({
@@ -94,6 +97,9 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
             searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             profileVisibility: { type: 'string', enum: ['public', 'private'] },
             tradeMatchingEnabled: { type: 'boolean' },
+            emailTradeRequests: { type: 'boolean' },
+            emailTradeMessages: { type: 'boolean' },
+            emailMarketing: { type: 'boolean' },
           },
         },
         response: {

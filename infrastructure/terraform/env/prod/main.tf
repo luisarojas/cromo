@@ -158,7 +158,7 @@ module "secrets" {
     COGNITO_REGION       = var.region
     COGNITO_TOKEN_USE    = "access"
 
-    EMAIL_FROM   = "no-reply@${var.apex_domain}"
+    EMAIL_FROM   = "Cromo <no-reply@${var.apex_domain}>"
     FRONTEND_URL = "https://${local.hostname}"
     CORS_ORIGIN  = "https://${local.hostname}"
 

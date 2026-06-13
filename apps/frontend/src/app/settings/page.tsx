@@ -15,7 +15,7 @@ import {
   logoutApi,
 } from '@/lib/api';
 import CityAutocomplete from '@/components/CityAutocomplete';
-import type { City } from '@/lib/api';
+import type { City, UserPreferences } from '@/lib/api';
 import ThemeToggle from '@/components/ThemeToggle';
 import { PageHeader } from '@/components/ui';
 
@@ -540,6 +540,108 @@ function PrivacySettingsTab() {
   );
 }
 
+// ─── Email tab ────────────────────────────────────────────────────────────────
+
+function EmailSettingsTab() {
+  const token = useAuthStore((s) => s.token);
+  const emailTradeRequests = usePreferencesStore((s) => s.emailTradeRequests);
+  const setEmailTradeRequests = usePreferencesStore((s) => s.setEmailTradeRequests);
+  const emailTradeMessages = usePreferencesStore((s) => s.emailTradeMessages);
+  const setEmailTradeMessages = usePreferencesStore((s) => s.setEmailTradeMessages);
+  const emailMarketing = usePreferencesStore((s) => s.emailMarketing);
+  const setEmailMarketing = usePreferencesStore((s) => s.setEmailMarketing);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function patch<K extends 'emailTradeRequests' | 'emailTradeMessages' | 'emailMarketing'>(
+    key: K,
+    setter: (v: boolean) => void,
+    previous: boolean,
+    next: boolean,
+  ) {
+    if (!token) return;
+    setSaveError(null);
+    setter(next);
+    try {
+      await patchUserPreferences({ [key]: next } as Partial<UserPreferences>, token);
+    } catch {
+      setter(previous);
+      setSaveError('Failed to save preference. Please try again.');
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {saveError && <StatusMessage type="error" message={saveError} />}
+
+      <SectionCard
+        title="Account security"
+        description="Verification and password-reset emails are always sent — they're required for account security and cannot be disabled."
+      >
+        <p className="text-xs text-[var(--cromo-fg-muted)]">
+          You will continue to receive these regardless of the settings below.
+        </p>
+      </SectionCard>
+
+      <SectionCard
+        title="Trade activity"
+        description="Optional notifications related to your trade activity."
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={emailTradeRequests}
+            onChange={(e) => patch('emailTradeRequests', setEmailTradeRequests, emailTradeRequests, e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-[var(--cromo-fg)]">Trade requests</span>
+            <span className="text-xs text-[var(--cromo-fg-muted)]">
+              Notify me by email when another collector opens or updates a trade with me.
+            </span>
+          </div>
+        </label>
+
+        <label className="flex items-start gap-3 cursor-pointer mt-4">
+          <input
+            type="checkbox"
+            checked={emailTradeMessages}
+            onChange={(e) => patch('emailTradeMessages', setEmailTradeMessages, emailTradeMessages, e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-[var(--cromo-fg)]">Trade reminders</span>
+            <span className="text-xs text-[var(--cromo-fg-muted)]">
+              Periodic reminders to rate a recently completed trade. Disabling this also turns off
+              the one-click unsubscribe link footer in those emails.
+            </span>
+          </div>
+        </label>
+      </SectionCard>
+
+      <SectionCard
+        title="Marketing"
+        description="Occasional product announcements (off by default — turn on if you want them)."
+      >
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={emailMarketing}
+            onChange={(e) => patch('emailMarketing', setEmailMarketing, emailMarketing, e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+          />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm font-medium text-[var(--cromo-fg)]">Product announcements</span>
+            <span className="text-xs text-[var(--cromo-fg-muted)]">
+              Email me when significant new features ship. Currently off; Cromo doesn&apos;t
+              send marketing email unless you explicitly opt in.
+            </span>
+          </div>
+        </label>
+      </SectionCard>
+    </div>
+  );
+}
+
 // ─── Album tab ────────────────────────────────────────────────────────────────
 
 function AlbumSettingsTab() {
@@ -622,7 +724,7 @@ function AccountSettingsTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'privacy' | 'album' | 'appearance';
+type SettingsTab = 'account' | 'privacy' | 'email' | 'album' | 'appearance';
 
 export default function SettingsPage() {
   const t = useTranslations('settings');
@@ -639,6 +741,7 @@ export default function SettingsPage() {
   const tabs: { id: SettingsTab; label: string }[] = [
     { id: 'account', label: t('tabs.account') },
     { id: 'privacy', label: t('tabs.privacy') },
+    { id: 'email', label: 'Email' },
     { id: 'album', label: t('tabs.album') },
     { id: 'appearance', label: t('tabs.appearance') },
   ];
@@ -666,6 +769,7 @@ export default function SettingsPage() {
 
         {activeTab === 'account' && <AccountSettingsTab />}
         {activeTab === 'privacy' && <PrivacySettingsTab />}
+        {activeTab === 'email' && <EmailSettingsTab />}
         {activeTab === 'album' && <AlbumSettingsTab />}
         {activeTab === 'appearance' && <AppearanceSettingsTab />}
       </div>

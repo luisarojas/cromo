@@ -89,14 +89,23 @@ export async function autoFlagSweep({ db, log }: JobDeps): Promise<JobResult> {
 }
 
 export async function ratingReminderEmail({ db, redis, log }: JobDeps): Promise<JobResult> {
-  // Find completed trades 24h+ old where the participant has not rated.
+  // Find completed trades 24h+ old where the participant has not rated AND
+  // we haven't already reminded anyone on this trade in the last 6 days.
+  // The 6-day cadence yields at most ~3 reminders per user across the 14-day
+  // rating window (~day 1, day 7, day 13) instead of the original 13.
+  // The email_trade_messages preference is a per-user opt-out: when the
+  // user has flipped it off in /settings, they are skipped without affecting
+  // their trade partner's reminders.
   const { rows } = await db.query<{ user_id: string; email: string; username: string; trade_id: string }>(
     `SELECT u.id AS user_id, u.email, u.username, tr.id AS trade_id
        FROM trade_requests tr
        JOIN users u ON u.id IN (tr.requester_id, tr.recipient_id)
+       LEFT JOIN user_settings us ON us.user_id = u.id
       WHERE tr.status = 'completed'
         AND tr.completed_at < now() - INTERVAL '24 hours'
         AND tr.completed_at > now() - INTERVAL '14 days'
+        AND (tr.last_reminded_at IS NULL OR tr.last_reminded_at < now() - INTERVAL '6 days')
+        AND COALESCE(us.email_trade_messages, TRUE) = TRUE
         AND NOT EXISTS (
           SELECT 1 FROM trade_ratings r
            WHERE r.trade_id = tr.id AND r.rater_id = u.id
@@ -106,10 +115,20 @@ export async function ratingReminderEmail({ db, redis, log }: JobDeps): Promise<
     // Reuse the async queue rather than blocking on SMTP here.
     await redis.lpush('jobs:queue', JSON.stringify({
       id: crypto.randomUUID(),
-      job: { type: 'email:rating-reminder', email: row.email, username: row.username, tradeId: row.trade_id },
+      job: { type: 'email:rating-reminder', email: row.email, username: row.username, tradeId: row.trade_id, userId: row.user_id },
       attempts: 0,
       enqueuedAt: new Date().toISOString(),
     }));
+  }
+  // Stamp the trades we just enqueued for, so the same trades are skipped on
+  // tomorrow's cron run. The 6-day filter above will reopen them eventually
+  // (or the trade falls out of the 14-day rating window first).
+  if (rows.length > 0) {
+    const tradeIds = Array.from(new Set(rows.map((r) => r.trade_id)));
+    await db.query(
+      `UPDATE trade_requests SET last_reminded_at = now() WHERE id = ANY($1::uuid[])`,
+      [tradeIds],
+    );
   }
   log.info('rating-reminder-email complete', { queued: rows.length });
   return { affected: rows.length };

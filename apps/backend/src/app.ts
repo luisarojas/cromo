@@ -29,6 +29,7 @@ import { profileRoutes } from './routes/v1/profiles.js';
 import { trustSafetyRoutes } from './routes/v1/trust-safety.js';
 import { scanRoutes } from './routes/v1/scan.js';
 import { pushRoutes } from './routes/v1/push.js';
+import { unsubscribeRoutes } from './routes/v1/unsubscribe.js';
 import { startSesPoller } from './services/ses-poller.service.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -150,6 +151,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(trustSafetyRoutes);
   await fastify.register(scanRoutes);
   await fastify.register(pushRoutes);
+  await fastify.register(unsubscribeRoutes);
 
   // ── Global error handler ──────────────────────────────────────────────────
   // Standard HTTP labels per status code, so every route returns a consistent

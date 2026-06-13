@@ -272,6 +272,10 @@ export interface UserPreferences {
   profileVisibility: ProfileVisibility
   tradeMatchingEnabled: boolean
   searchRadiusKm: number
+  // Per-channel email opt-outs. Verification + password-reset bypass these.
+  emailTradeRequests: boolean
+  emailTradeMessages: boolean
+  emailMarketing: boolean
 }
 
 // ─── Trade wire types ──────────────────────────────────────────────────────

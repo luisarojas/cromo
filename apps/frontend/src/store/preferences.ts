@@ -7,6 +7,9 @@ interface PreferencesState {
   profileVisibility: ProfileVisibility;
   tradeMatchingEnabled: boolean;
   searchRadiusKm: number;
+  emailTradeRequests: boolean;
+  emailTradeMessages: boolean;
+  emailMarketing: boolean;
   loaded: boolean;
 
   setFromServer: (prefs: UserPreferences) => void;
@@ -15,6 +18,9 @@ interface PreferencesState {
   setProfileVisibility: (value: ProfileVisibility) => void;
   setTradeMatchingEnabled: (value: boolean) => void;
   setSearchRadiusKm: (value: number) => void;
+  setEmailTradeRequests: (value: boolean) => void;
+  setEmailTradeMessages: (value: boolean) => void;
+  setEmailMarketing: (value: boolean) => void;
   reset: () => void;
 }
 
@@ -24,6 +30,9 @@ const DEFAULTS = {
   profileVisibility: 'public' as ProfileVisibility,
   tradeMatchingEnabled: true,
   searchRadiusKm: 50,
+  emailTradeRequests: true,
+  emailTradeMessages: true,
+  emailMarketing: false,
 };
 
 export const usePreferencesStore = create<PreferencesState>((set) => ({
@@ -37,6 +46,9 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
       profileVisibility: prefs.profileVisibility,
       tradeMatchingEnabled: prefs.tradeMatchingEnabled,
       searchRadiusKm: prefs.searchRadiusKm,
+      emailTradeRequests: prefs.emailTradeRequests,
+      emailTradeMessages: prefs.emailTradeMessages,
+      emailMarketing: prefs.emailMarketing,
       loaded: true,
     }),
   setDuplicatesCountAllVariants: (value) => set({ duplicatesCountAllVariants: value }),
@@ -44,5 +56,8 @@ export const usePreferencesStore = create<PreferencesState>((set) => ({
   setProfileVisibility: (value) => set({ profileVisibility: value }),
   setTradeMatchingEnabled: (value) => set({ tradeMatchingEnabled: value }),
   setSearchRadiusKm: (value) => set({ searchRadiusKm: value }),
+  setEmailTradeRequests: (value) => set({ emailTradeRequests: value }),
+  setEmailTradeMessages: (value) => set({ emailTradeMessages: value }),
+  setEmailMarketing: (value) => set({ emailMarketing: value }),
   reset: () => set({ ...DEFAULTS, loaded: false }),
 }));

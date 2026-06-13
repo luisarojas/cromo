@@ -400,6 +400,10 @@ export const tradeRequests = pgTable('trade_requests', {
   recipientCompletedAt: timestamp('recipient_completed_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  // Most recent time the rating-reminder cron emitted any reminder for this
+  // trade. Re-checked by the cron to avoid re-sending the same reminder
+  // every 24h until the 14-day rating window closes — see jobs/handlers.ts.
+  lastRemindedAt: timestamp('last_reminded_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => ({
