@@ -419,6 +419,15 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     !!filters.wantedOnly ||
     !!(filters.recentMinutes && filters.recentMinutes > 0);
 
+  // Copy-as-text emits Offers (duplicates) + Needs (wanted) for this album.
+  // If neither set has anything, there's nothing meaningful to copy.
+  const hasTradeInventory = useMemo(() => {
+    for (const p of ownedMap.values()) {
+      if (isDuplicateSticker(p, duplicatesCountAllVariants)) return true;
+    }
+    return wantedStickerIds.size > 0;
+  }, [ownedMap, duplicatesCountAllVariants, wantedStickerIds]);
+
   // ---------------------------------------------------------------------------
   // Selection helpers
   // ---------------------------------------------------------------------------
@@ -796,13 +805,21 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               {user && (
                 <ShareProfileButton
                   username={user.username}
-                  getListText={() =>
-                    buildAlbumExportText(
-                      user.username,
-                      activeAlbum.id,
-                      albumDisplayName(activeAlbum),
-                      `${window.location.origin}/profile/${user.username}`,
-                    )
+                  getListText={
+                    hasTradeInventory
+                      ? () =>
+                          buildAlbumExportText(
+                            user.username,
+                            activeAlbum.id,
+                            albumDisplayName(activeAlbum),
+                            `${window.location.origin}/profile/${user.username}`,
+                          )
+                      : undefined
+                  }
+                  listDisabledReason={
+                    hasTradeInventory
+                      ? undefined
+                      : 'You have no stickers to trade in this album yet.'
                   }
                 />
               )}

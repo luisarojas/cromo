@@ -49,6 +49,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Trade status badges use distinct colors per state, and "Completed" trades now stand out in solid green.',
         'Participant names on a trade page link to their profiles.',
         'My Trades shows open trades by default, with closed trades collapsed into an expandable section. Table gains an "Opened" and "Closed" date column, both sortable.',
+        'Album share modal\'s "Copy list as text" button is disabled — with a tooltip — when the album has no duplicates or wanted stickers to share.',
       ],
       Fixed: [
         'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',
