@@ -93,111 +93,51 @@ export default async function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             1
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Which edition should you buy?</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">{t('editions.heading')}</h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          Panini makes the same 980-sticker album for the whole world, but they dress it up a bit
-          differently depending on where you live — a different cover, your local language, and
-          sometimes a few exclusive stickers you can&apos;t get anywhere else. If you&apos;re
-          chasing a specific rare border, it really does matter which version of the packs you
-          buy.
+          {t('editions.intro')}
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-transparent border-b border-[var(--cromo-border)]">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)] whitespace-nowrap">
-                  Region
+                  {t('editions.thRegion')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Edition Name
+                  {t('editions.thName')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Key Traits
+                  {t('editions.thTraits')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--cromo-border)]">
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">
-                  USA / Canada
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">North America (NA)</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  White-bordered stickers; six border parallels (Blue, Red, Purple, Green, Black,
-                  Orange)
-                </td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">Mexico</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">Mexico Edition</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Spanish-language; dedicated Mexican cover variant
-                </td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">
-                  International
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">Global (Standard)</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  No white border on stickers; 20 bonus elite-player stickers in
-                  Purple / Bronze / Silver / Gold (no album slot — collectibles only)
-                </td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">UK</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">UK Edition</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">UK-specific Coca-Cola sticker lineup</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">
-                  Latin America
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">LATAM Edition</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  LATAM-specific Coca-Cola sticker lineup
-                </td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">
-                  Switzerland
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">United Edition (United 2026)</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Thicker paper; metallised softcover; exclusive Green parallel stickers; numbered
-                  Treasure Box hardcover (1–5000)
-                </td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">Belgium</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">Belgium Edition</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Silver parallel (players only) exclusive to Special Blister packs
-                </td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">Serbia</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">Serbia Edition</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">Unique Coca-Cola sticker subset</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">
-                  Brazil, France, Germany, Spain, Italy, Colombia, and more
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg)]">Country-specific covers</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Same base content; regional cover art; France also has Silver and Gold premium
-                  hardcover editions
-                </td>
-              </tr>
+              {([
+                ['rowNaRegion', 'rowNaName', 'rowNaTraits'],
+                ['rowMxRegion', 'rowMxName', 'rowMxTraits'],
+                ['rowIntlRegion', 'rowIntlName', 'rowIntlTraits'],
+                ['rowUkRegion', 'rowUkName', 'rowUkTraits'],
+                ['rowLatamRegion', 'rowLatamName', 'rowLatamTraits'],
+                ['rowChRegion', 'rowChName', 'rowChTraits'],
+                ['rowBeRegion', 'rowBeName', 'rowBeTraits'],
+                ['rowRsRegion', 'rowRsName', 'rowRsTraits'],
+                ['rowOtherRegion', 'rowOtherName', 'rowOtherTraits'],
+              ] as const).map(([rKey, nKey, tKey]) => (
+                <tr key={rKey} className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-[var(--cromo-fg)] whitespace-nowrap">
+                    {t(`editions.${rKey}`)}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--cromo-fg)]">{t(`editions.${nKey}`)}</td>
+                  <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t(`editions.${tKey}`)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
         <p className="text-xs text-[var(--cromo-fg-subtle)] leading-relaxed">
-          The team pages aren&apos;t in the same order in every album — your home country usually
-          gets a spot near the front. North American albums lead with Canada, Mexico, and the USA;
-          LATAM editions put Brazil and Argentina up first.
+          {t('editions.footnote')}
         </p>
       </section>
 
@@ -210,75 +150,48 @@ export default async function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             2
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Softcover, hardcover &amp; beyond</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">{t('formats.heading')}</h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          The album comes in a few different flavours depending on where you shop. The stickers
-          inside are always the same 980 — what changes is the cover (paperback, hardcover, fancy
-          metallic) and how easy it is to actually find.
+          {t('formats.intro')}
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-transparent border-b border-[var(--cromo-border)]">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Format
+                  {t('formats.thFormat')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Availability
+                  {t('formats.thAvailability')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Approx. Price
+                  {t('formats.thPrice')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--cromo-border)]">
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Softcover</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Global — supermarkets, newsstands, most retailers
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">~CAD$6.99</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Hardcover</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Global — Amazon Collectors Bundle and select retailers
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">~CAD$19.99</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Metallised Softcover</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">Switzerland only — United Edition</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">CHF 4.90</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">
-                  Limited Hardcover (Treasure Box)
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Switzerland only — numbered 1/5000 to 5000/5000
-                </td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">CHF premium</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Silver Hardcover</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">France only — premium tier</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">€ premium</td>
-              </tr>
-              <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Gold Hardcover</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">France only — premium tier</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">€ premium</td>
-              </tr>
+              {([
+                ['softFormat', 'softAvail', 'softPrice'],
+                ['hardFormat', 'hardAvail', 'hardPrice'],
+                ['metalFormat', 'metalAvail', 'metalPrice'],
+                ['treasureFormat', 'treasureAvail', 'treasurePrice'],
+                ['silverFormat', 'silverAvail', 'silverPrice'],
+                ['goldFormat', 'goldAvail', 'goldPrice'],
+              ] as const).map(([fKey, aKey, pKey]) => (
+                <tr key={fKey} className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t(`formats.${fKey}`)}</td>
+                  <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t(`formats.${aKey}`)}</td>
+                  <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t(`formats.${pKey}`)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
         <div className="flex items-start gap-2.5 rounded-lg bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 px-4 py-3">
           <span className="text-[var(--cromo-warning-text)] shrink-0 mt-0.5 text-base leading-none">⚠</span>
           <p className="text-xs text-[var(--cromo-warning-text)] leading-relaxed">
-            Heads up: there&apos;s no such thing as a &ldquo;Platinum&rdquo; edition. If you see
-            one listed online, it&apos;s a fake — don&apos;t pay extra for it.
+            {t('formats.platinumWarning')}
           </p>
         </div>
       </section>
@@ -292,55 +205,52 @@ export default async function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             3
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">The fancy sticker variants</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">{t('variants.heading')}</h2>
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">The basics: matte vs. foil</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">{t('variants.basicsHeading')}</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-1.5 list-disc list-inside">
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Matte</span> — your everyday
-              stickers. Most of what you&apos;ll pull will be these.
+              <span className="font-medium text-[var(--cromo-fg)]">{t('variants.matteLabel')}</span>{' '}
+              {t('variants.matteDesc')}
             </li>
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Foil (shiny)</span> — the
-              eye-catching ones. There are 49 in total: the &ldquo;We Are Panini&rdquo; sticker{' '}
-              <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">00</code>,
-              the eight World Cup branding stickers (FWC-1 to FWC-8), and the team emblem for each
-              of the 48 nations.
+              <span className="font-medium text-[var(--cromo-fg)]">{t('variants.foilLabel')}</span>{' '}
+              {t('variants.foilDesc')}{' '}
+              <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">00</code>
+              {t('variants.foilDescTail')}
             </li>
           </ul>
         </div>
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">
-            Coloured borders (North America only)
+            {t('variants.bordersHeading')}
           </h3>
           <p className="text-xs text-[var(--cromo-fg-muted)]">
-            If you buy packs in the US or Canada, you&apos;ll occasionally get stickers with
-            coloured borders instead of plain white. The rarer the colour, the bigger the brag. Foil
-            stickers always come with the regular border — they don&apos;t get the colour treatment.
+            {t('variants.bordersIntro')}
           </p>
           <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-transparent border-b border-[var(--cromo-border)]">
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                    Parallel
+                    {t('variants.thParallel')}
                   </th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                    Pull Rate
+                    {t('variants.thPullRate')}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--cromo-border)]">
                 {[
-                  { color: 'bg-[var(--cromo-accent)]', label: 'Blue Border', rate: '1 in 2 packs' },
-                  { color: 'bg-[var(--cromo-danger)]', label: 'Red Border', rate: '1 in 25 packs' },
-                  { color: 'bg-[var(--cromo-tier-very-rare)]', label: 'Purple Border', rate: '1 in 200 packs' },
-                  { color: 'bg-[var(--cromo-success)]', label: 'Green Border', rate: '1 in 1,400 packs' },
-                  { color: 'bg-gray-900', label: 'Black Border', rate: '1 of 1 — unique' },
-                  { color: 'bg-orange-400', label: 'Orange Border', rate: 'Amazon 50-pack box exclusive' },
+                  { color: 'bg-[var(--cromo-accent)]', label: t('variants.blueBorder'), rate: t('variants.blueBorderRate') },
+                  { color: 'bg-[var(--cromo-danger)]', label: t('variants.redBorder'), rate: t('variants.redBorderRate') },
+                  { color: 'bg-[var(--cromo-tier-very-rare)]', label: t('variants.purpleBorder'), rate: t('variants.purpleBorderRate') },
+                  { color: 'bg-[var(--cromo-success)]', label: t('variants.greenBorder'), rate: t('variants.greenBorderRate') },
+                  { color: 'bg-gray-900', label: t('variants.blackBorder'), rate: t('variants.blackBorderRate') },
+                  { color: 'bg-orange-400', label: t('variants.orangeBorder'), rate: t('variants.orangeBorderRate') },
                 ].map(({ color, label, rate }) => (
                   <tr key={label} className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                     <td className="px-4 py-3 text-[var(--cromo-fg)]">
@@ -359,33 +269,31 @@ export default async function WC2026GuidePage() {
 
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">
-            &ldquo;Crumple&rdquo; stickers (Panini iCollect)
+            {t('variants.crumpleHeading')}
           </h3>
           <p className="text-xs text-[var(--cromo-fg-muted)]">
-            These are the wrinkled metallic ones — a totally separate line you can only get through
-            Panini America&apos;s iCollect online store. You won&apos;t find them in any physical
-            pack from a shop.
+            {t('variants.crumpleIntro')}
           </p>
           <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-transparent border-b border-[var(--cromo-border)]">
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                    Parallel
+                    {t('variants.thParallel')}
                   </th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                    Pull Rate
+                    {t('variants.thPullRate')}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--cromo-border)]">
                 {[
-                  { color: 'bg-yellow-400', label: 'Gold Flood Crumple', rate: '6 per iCollect pack' },
-                  { color: 'bg-[var(--cromo-accent)]', label: 'Blue Crumple', rate: '1 in 2' },
-                  { color: 'bg-[var(--cromo-danger)]', label: 'Red Crumple', rate: '1 in 26' },
-                  { color: 'bg-[var(--cromo-tier-very-rare)]', label: 'Purple Crumple', rate: '1 in 285' },
-                  { color: 'bg-[var(--cromo-success)]', label: 'Green Crumple', rate: '1 in 1,529' },
-                  { color: 'bg-gray-900', label: 'Black Crumple', rate: '1 of 1 — unique' },
+                  { color: 'bg-yellow-400', label: t('variants.goldCrumple'), rate: t('variants.goldCrumpleRate') },
+                  { color: 'bg-[var(--cromo-accent)]', label: t('variants.blueCrumple'), rate: t('variants.blueCrumpleRate') },
+                  { color: 'bg-[var(--cromo-danger)]', label: t('variants.redCrumple'), rate: t('variants.redCrumpleRate') },
+                  { color: 'bg-[var(--cromo-tier-very-rare)]', label: t('variants.purpleCrumple'), rate: t('variants.purpleCrumpleRate') },
+                  { color: 'bg-[var(--cromo-success)]', label: t('variants.greenCrumple'), rate: t('variants.greenCrumpleRate') },
+                  { color: 'bg-gray-900', label: t('variants.blackCrumple'), rate: t('variants.blackCrumpleRate') },
                 ].map(({ color, label, rate }) => (
                   <tr key={label} className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                     <td className="px-4 py-3 text-[var(--cromo-fg)]">
@@ -403,15 +311,15 @@ export default async function WC2026GuidePage() {
         </div>
 
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">A few more regional surprises</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">{t('variants.regionalHeading')}</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-1.5 list-disc list-inside">
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Green border</span> — only in
-              Switzerland&apos;s &ldquo;Panini United 2026&rdquo; packs
+              <span className="font-medium text-[var(--cromo-fg)]">{t('variants.swissLabel')}</span>{' '}
+              {t('variants.swissDesc')}
             </li>
             <li>
-              <span className="font-medium text-[var(--cromo-fg)]">Silver border (players only)</span> —
-              Belgium-exclusive, hidden inside the Special Blister packs
+              <span className="font-medium text-[var(--cromo-fg)]">{t('variants.belgiumLabel')}</span>{' '}
+              {t('variants.belgiumDesc')}
             </li>
           </ul>
         </div>
@@ -419,10 +327,8 @@ export default async function WC2026GuidePage() {
         <div className="flex items-start gap-2.5 rounded-lg bg-[var(--cromo-accent-soft)] border border-[var(--cromo-accent)]/30 px-4 py-3">
           <span className="text-[var(--cromo-accent)] shrink-0 mt-0.5 text-base leading-none">ℹ</span>
           <p className="text-xs text-[var(--cromo-accent)] leading-relaxed">
-            <span className="font-semibold">About those bonus &ldquo;Extra&rdquo; stickers:</span>{' '}
-            International packs sometimes throw in a bonus sticker of one of 20 superstars in
-            Purple, Bronze, Silver, or Gold — about once every 100 packs. They&apos;re fun to pull,
-            but they don&apos;t go in the album. Think of them as a side collection.
+            <span className="font-semibold">{t('variants.extrasTitle')}</span>{' '}
+            {t('variants.extrasBody')}
           </p>
         </div>
       </section>
@@ -437,88 +343,84 @@ export default async function WC2026GuidePage() {
             4
           </span>
           <h2 className="text-lg font-bold text-[var(--cromo-fg)]">
-            What&apos;s actually in the album{' '}
-            <span className="font-normal text-[var(--cromo-fg-muted)] text-base">(all 980 of them)</span>
+            {t('breakdown.heading')}{' '}
+            <span className="font-normal text-[var(--cromo-fg-muted)] text-base">{t('breakdown.headingSuffix')}</span>
           </h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          Every album has the same 980 spots to fill, laid out across 112 pages. Here&apos;s how
-          they break down:
+          {t('breakdown.intro')}
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-transparent border-b border-[var(--cromo-border)]">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Section
+                  {t('breakdown.thSection')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Slots
+                  {t('breakdown.thSlots')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Codes
+                  {t('breakdown.thCodes')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Notes
+                  {t('breakdown.thNotes')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--cromo-border)]">
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">We Are Panini</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t('breakdown.weAreSection')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">1</td>
                 <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">00</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">Foil</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('breakdown.weAreNotes')}</td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">World Cup Branding</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t('breakdown.brandingSection')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">5</td>
                 <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">FWC-1 to FWC-5</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Emblem ×2, Mascot, Slogan, Ball — all Foil
+                  {t('breakdown.brandingNotes')}
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Host Countries</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t('breakdown.hostsSection')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">3</td>
                 <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">FWC-6 to FWC-8</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Canada, Mexico, USA emblems — all Foil
+                  {t('breakdown.hostsNotes')}
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Past Champions</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t('breakdown.champsSection')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">11</td>
                 <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">FWC-9 to FWC-19</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Team photos of past World Cup winners (back of album). Some champions
-                  (e.g. Italy &apos;38, Brazil &apos;58, England &apos;66) are printed directly
-                  in the album and are not collectible sticker slots.
+                  {t('breakdown.champsNotes')}
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">48 Teams</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t('breakdown.teamsSection')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">48 × 20 = 960</td>
                 <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">
-                  e.g. ARG-1 to ARG-20
+                  {t('breakdown.teamsCodes')}
                 </td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Per team: 1 Foil emblem + 18 player stickers + 1 team photo
+                  {t('breakdown.teamsNotes')}
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
-                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">Coca-Cola Special</td>
+                <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">{t('breakdown.ccSection')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg)]">12</td>
                 <td className="px-4 py-3 font-mono text-xs text-[var(--cromo-fg-muted)]">CC1 to CC12</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Double-page spread in the middle of the album. Not in standard packs — see
-                  section 5.
+                  {t('breakdown.ccNotes')}
                 </td>
               </tr>
             </tbody>
             <tfoot>
               <tr className="bg-transparent border-t-2 border-[var(--cromo-border)]">
-                <td className="px-4 py-3 font-bold text-[var(--cromo-fg)]">Total</td>
+                <td className="px-4 py-3 font-bold text-[var(--cromo-fg)]">{t('breakdown.totalLabel')}</td>
                 <td className="px-4 py-3 font-bold text-[var(--cromo-fg)]">980</td>
                 <td className="px-4 py-3" colSpan={2} />
               </tr>
@@ -536,56 +438,54 @@ export default async function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             5
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">The Coca-Cola section</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">{t('cocaCola.heading')}</h2>
         </div>
         <p className="text-sm text-[var(--cromo-fg-muted)] leading-relaxed">
-          In the middle of every album there&apos;s a special two-page spread for stickers{' '}
-          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC1</code> to{' '}
-          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC13</code> —
-          a Panini × Coca-Cola crossover featuring some of the tournament&apos;s biggest names. The
-          slots are the same everywhere, but who fills them depends on which corner of the world
-          your packs come from. Some slots even change player by region — CC9 alone has Davies in
-          North America, Saliba in Europe, and Ayew in the Rest of World.
+          {t('cocaCola.intro1')}{' '}
+          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC1</code>{' '}
+          {t('cocaCola.intro2')}{' '}
+          <code className="text-xs bg-[var(--cromo-surface-2)] px-1.5 py-0.5 rounded font-mono">CC13</code>
+          {t('cocaCola.intro3')}
         </p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cromo-border)]">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-transparent border-b border-[var(--cromo-border)]">
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Regional Set
+                  {t('cocaCola.thSet')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Distributed In
+                  {t('cocaCola.thDistribution')}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
-                  Notable Players
+                  {t('cocaCola.thPlayers')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--cromo-border)]">
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">NAOU</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">USA, Canada</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('cocaCola.naouCountries')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  Antonee Robinson (USA), Alphonso Davies (Canada)
+                  {t('cocaCola.naouPlayers')}
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">EUR</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">UK, Germany, France, Spain, Serbia</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('cocaCola.eurCountries')}</td>
                 <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">
-                  William Saliba (France), Eduardo Camavinga (some variants)
+                  {t('cocaCola.eurPlayers')}
                 </td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">LATAM</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">Latin America</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">LATAM-specific player selection</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('cocaCola.latamCountries')}</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('cocaCola.latamPlayers')}</td>
               </tr>
               <tr className="hover:bg-[var(--cromo-surface-2)]/50 transition-colors">
                 <td className="px-4 py-3 font-medium text-[var(--cromo-fg)]">RoW</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">Rest of World</td>
-                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">Jordan Ayew (Ghana)</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('cocaCola.rowCountries')}</td>
+                <td className="px-4 py-3 text-[var(--cromo-fg-muted)]">{t('cocaCola.rowPlayers')}</td>
               </tr>
             </tbody>
           </table>
@@ -601,37 +501,19 @@ export default async function WC2026GuidePage() {
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cromo-accent)] text-xs font-bold text-[var(--cromo-accent-fg)]">
             6
           </span>
-          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">Where to grab some packs</h2>
+          <h2 className="text-lg font-bold text-[var(--cromo-fg)]">{t('whereToBuy.heading')}</h2>
         </div>
 
         <div className="space-y-1.5">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">In stores and online</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">{t('whereToBuy.inStores')}</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-2 mt-2">
             {[
-              {
-                name: 'Supermarkets & newsstands',
-                desc: 'The easiest place to start. Walmart, Target, Tesco, Carrefour — you’ll find the regular softcover album and loose packs (about 5 stickers a pack) right next to the checkout.',
-              },
-              {
-                name: 'Amazon',
-                desc: 'The Collectors Bundle comes with a hardcover album. In the US and Canada you can also grab the Amazon-exclusive box of packs — that’s where the orange-border stickers live.',
-              },
-              {
-                name: 'Panini’s own stores',
-                desc: 'paniniamerica.net, panini.co.uk, panini.de, and so on. Good for starter packs, blister packs, bigger bundles, and country-specific goodies.',
-              },
-              {
-                name: 'Sports card & hobby shops',
-                desc: 'If you want to go big, these shops carry full boxes and premium bundles. They’re also where you’ll find live box-break events and the harder-to-pull stuff.',
-              },
-              {
-                name: 'Switzerland — Panini United 2026',
-                desc: 'Sold through Swiss Panini sellers and panini.ch. The numbered Treasure Box hardcover (only 5,000 made) is exclusive to here.',
-              },
-              {
-                name: 'France — Silver & Gold Hardcovers',
-                desc: 'Check Fnac, Leclerc, or the Panini France online store.',
-              },
+              { name: t('whereToBuy.supermarketsName'), desc: t('whereToBuy.supermarketsDesc') },
+              { name: t('whereToBuy.amazonName'), desc: t('whereToBuy.amazonDesc') },
+              { name: t('whereToBuy.paniniName'), desc: t('whereToBuy.paniniDesc') },
+              { name: t('whereToBuy.hobbyName'), desc: t('whereToBuy.hobbyDesc') },
+              { name: t('whereToBuy.swissName'), desc: t('whereToBuy.swissDesc') },
+              { name: t('whereToBuy.franceName'), desc: t('whereToBuy.franceDesc') },
             ].map(({ name, desc }) => (
               <li key={name} className="flex gap-2">
                 <span className="mt-1 text-[var(--cromo-fg-subtle)] shrink-0">›</span>
@@ -644,21 +526,12 @@ export default async function WC2026GuidePage() {
         </div>
 
         <div className="space-y-1.5">
-          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Going digital</h3>
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">{t('whereToBuy.digital')}</h3>
           <ul className="text-sm text-[var(--cromo-fg-muted)] space-y-2 mt-2">
             {[
-              {
-                name: 'Panini America iCollect',
-                desc: 'Digital-only packs at icollect.paniniamerica.net. This is the only place to get those Crumple stickers — nothing ships to your door.',
-              },
-              {
-                name: 'FIFA Panini Collection app',
-                desc: 'The official companion app. Handy for keeping tabs on what you’ve collected and seeing the album layout for your region.',
-              },
-              {
-                name: 'eBay, Mercado Libre, Vinted',
-                desc: 'Where most collectors buy and sell singles, sealed packs, and rare borders. Prices are all over the map — shop around before you commit.',
-              },
+              { name: t('whereToBuy.icollectName'), desc: t('whereToBuy.icollectDesc') },
+              { name: t('whereToBuy.appName'), desc: t('whereToBuy.appDesc') },
+              { name: t('whereToBuy.ebayName'), desc: t('whereToBuy.ebayDesc') },
             ].map(({ name, desc }) => (
               <li key={name} className="flex gap-2">
                 <span className="mt-1 text-[var(--cromo-fg-subtle)] shrink-0">›</span>
@@ -673,10 +546,7 @@ export default async function WC2026GuidePage() {
         <div className="flex items-start gap-2.5 rounded-lg bg-transparent border border-[var(--cromo-border)] px-4 py-3">
           <span className="text-[var(--cromo-fg-subtle)] shrink-0 mt-0.5 text-base leading-none">ℹ</span>
           <p className="text-xs text-[var(--cromo-fg-muted)] leading-relaxed">
-            Prices and stock listed above are rough as of May 2026 — they bounce around a lot
-            between countries and shops. And remember: page numbers shift between regional editions,
-            so if you&apos;re looking for a specific spot, the table of contents in your own album
-            (or the FIFA Panini Collection app) is your best friend.
+            {t('whereToBuy.priceFootnote')}
           </p>
         </div>
       </section>

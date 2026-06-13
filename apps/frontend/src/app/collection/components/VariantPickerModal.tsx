@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { VARIANT_META, compareVariantTypes, variantSwatch } from './variantMeta';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function VariantPickerModal({ mode, availableTypes, onConfirm, onClose }: Props) {
+  const t = useTranslations('variantPicker');
   const orderedTypes = [...availableTypes].sort(compareVariantTypes);
   const [selected, setSelected] = useState<string>(orderedTypes[0] ?? '');
 
@@ -23,7 +25,7 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">
-            {mode === 'add' ? 'Add Variant' : 'Remove Variant'}
+            {mode === 'add' ? t('addTitle') : t('removeTitle')}
           </h2>
           <button onClick={onClose} className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-lg leading-none px-1">
             ×
@@ -31,13 +33,11 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
         </div>
 
         <p className="text-xs text-[var(--cromo-fg-muted)] -mt-1">
-          {mode === 'add'
-            ? "Pick a variant type to add to all selected stickers that don't already own it."
-            : 'Pick a variant type to remove from all selected stickers that own it.'}
+          {mode === 'add' ? t('addHelp') : t('removeHelp')}
         </p>
 
         {orderedTypes.length === 0 ? (
-          <p className="text-xs text-[var(--cromo-fg-subtle)] italic py-2 text-center">No variants available.</p>
+          <p className="text-xs text-[var(--cromo-fg-subtle)] italic py-2 text-center">{t('noVariants')}</p>
         ) : (
           <div className="flex flex-col gap-1 max-h-56 overflow-y-auto -mx-1 px-1">
             {orderedTypes.map((type) => {
@@ -72,14 +72,14 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
             onClick={onClose}
             className="flex-1 rounded-lg border border-[var(--cromo-border)] py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             onClick={() => { if (selected) onConfirm(selected); }}
             disabled={!selected || orderedTypes.length === 0}
             className="flex-1 rounded-lg bg-[var(--cromo-accent)] py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {mode === 'add' ? 'Add' : 'Remove'}
+            {mode === 'add' ? t('add') : t('remove')}
           </button>
         </div>
       </div>

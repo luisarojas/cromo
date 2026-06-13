@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { HeartIcon } from '@/components/HeartIcon';
 
 interface ActionBtnProps {
@@ -62,6 +63,7 @@ export default function MassActionBar({
   onExit,
   isWorking,
 }: Props) {
+  const t = useTranslations('massAction');
   const noneSelected = selectedCount === 0;
 
   return (
@@ -75,7 +77,7 @@ export default function MassActionBar({
         {/* Checkbox + count */}
         <button
           onClick={allDisplayedSelected ? onDeselectAll : onSelectAll}
-          title={allDisplayedSelected ? 'Deselect all' : `Select all ${totalDisplayed}`}
+          title={allDisplayedSelected ? t('deselectAllTitle') : t('selectAllTitle', { count: totalDisplayed })}
           className="flex items-center justify-center w-5 h-5 rounded border-2 border-[var(--cromo-accent)] flex-shrink-0 transition-colors"
         >
           {allDisplayedSelected ? (
@@ -88,7 +90,7 @@ export default function MassActionBar({
         </button>
 
         <span className="text-sm font-medium text-[var(--cromo-fg)] whitespace-nowrap">
-          {noneSelected ? 'None' : selectedCount}
+          {noneSelected ? t('none') : selectedCount}
           <span className="text-[var(--cromo-fg-subtle)] font-normal"> / {totalDisplayed}</span>
         </span>
 
@@ -100,16 +102,16 @@ export default function MassActionBar({
             <svg className="w-4 h-4 animate-spin text-[var(--cromo-accent)]" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" />
             </svg>
-            Working…
+            {t('working')}
           </div>
         ) : (
           <div className="flex items-center gap-0.5 flex-wrap">
             <ActionBtn
               onClick={onDelete}
               disabled={noneSelected || !hasAnyOwned}
-              title="Delete all variants of selected stickers from collection"
+              title={t('deleteTitle')}
               colorClass="text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-danger-soft)]"
-              label="Delete"
+              label={t('deleteLabel')}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -121,9 +123,9 @@ export default function MassActionBar({
             <ActionBtn
               onClick={onToggleFavourite}
               disabled={noneSelected}
-              title={favouriteState === 'all' ? 'Remove from favourites' : 'Add to favourites'}
+              title={favouriteState === 'all' ? t('removeFavTitle') : t('addFavTitle')}
               colorClass={favouriteState === 'all' ? 'text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-danger-soft)]' : 'text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface-2)]'}
-              label={favouriteState === 'all' ? 'Unfav' : 'Fav'}
+              label={favouriteState === 'all' ? t('unfavLabel') : t('favLabel')}
             >
               <HeartIcon filled={favouriteState === 'all'} className="w-4 h-4" />
             </ActionBtn>
@@ -133,9 +135,9 @@ export default function MassActionBar({
             <ActionBtn
               onClick={onAddVariant}
               disabled={noneSelected}
-              title="Add a variant type to selected stickers"
+              title={t('addVariantTitle')}
               colorClass="text-[var(--cromo-success-text)] hover:bg-[var(--cromo-success-soft)]"
-              label="Add Variant"
+              label={t('addVariantLabel')}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -145,9 +147,9 @@ export default function MassActionBar({
             <ActionBtn
               onClick={onRemoveVariant}
               disabled={noneSelected || !hasAnyOwned}
-              title="Remove a variant type from selected stickers"
+              title={t('removeVariantTitle')}
               colorClass="text-orange-500 hover:bg-orange-50"
-              label="Rem Variant"
+              label={t('removeVariantLabel')}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
@@ -159,9 +161,9 @@ export default function MassActionBar({
             <ActionBtn
               onClick={onTradeHide}
               disabled={noneSelected || !hasAnyOwned}
-              title="Force hide from trade (all variants of selected)"
+              title={t('tradeHideTitle')}
               colorClass="text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]"
-              label="Hide Trade"
+              label={t('tradeHideLabel')}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
@@ -171,9 +173,9 @@ export default function MassActionBar({
             <ActionBtn
               onClick={onTradeShow}
               disabled={noneSelected || !hasAnyOwned}
-              title="Force show in trade (all variants of selected)"
+              title={t('tradeShowTitle')}
               colorClass="text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-soft)]"
-              label="Force Trade"
+              label={t('tradeShowLabel')}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
@@ -183,9 +185,9 @@ export default function MassActionBar({
             <ActionBtn
               onClick={onTradeReset}
               disabled={noneSelected || !hasAnyOwned}
-              title="Reset trade flags (clear hide and force) for selected"
+              title={t('tradeResetTitle')}
               colorClass="text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface-2)]"
-              label="Reset Trade"
+              label={t('tradeResetLabel')}
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
@@ -197,7 +199,7 @@ export default function MassActionBar({
         {/* Exit */}
         <button
           onClick={onExit}
-          title="Exit selection mode"
+          title={t('exitTitle')}
           className="ml-auto flex-shrink-0 p-1.5 rounded-lg text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
         >
           <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">

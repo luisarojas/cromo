@@ -490,8 +490,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       }
       return {
         ops,
-        successMessage: (n) => `Removed ${n} sticker variant${n === 1 ? '' : 's'} from collection`,
-        failMessage: 'Failed to delete stickers. Please try again.',
+        successMessage: (n) => t('removedToast', { count: n }),
+        failMessage: t('removeFailedToast'),
       };
     });
     setSelectedStickerIds(new Set());
@@ -507,7 +507,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         (s) => selectedStickerIds.has(s.id) && !ownedMap.get(s.id)?.has(variantType),
       );
       if (selectedStickerList.length === 0) {
-        addToast('All selected stickers already own that variant.');
+        addToast(t('allOwnThatVariantToast'));
         return;
       }
       // fetchStickersBulk is keyed by album_code on the server. For regional
@@ -530,10 +530,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       if (ops.length === 0) return;
       await bulkStickers(usr.id, albumId, ops, tok);
       await loadView(tok, usr.id, albumId);
-      addToast(`Added ${variantType} variant to ${ops.length} sticker${ops.length === 1 ? '' : 's'}`);
+      addToast(t('addedVariantToast', { variant: variantType, count: ops.length }));
     } catch (err) {
       console.error('Mass add variant failed', err);
-      addToast('Failed to add variants. Please try again.');
+      addToast(t('addVariantFailedToast'));
     } finally {
       setMassWorking(false);
     }
@@ -548,8 +548,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       }
       return {
         ops,
-        successMessage: (n) => `Removed ${variantType} from ${n} sticker${n === 1 ? '' : 's'}`,
-        failMessage: 'Failed to remove variants. Please try again.',
+        successMessage: (n) => t('removedVariantToast', { variant: variantType, count: n }),
+        failMessage: t('removeVariantFailedToast'),
       };
     });
   }, [selectedStickerIds, ownedMap, runMassAction]);
@@ -572,8 +572,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       }
       return {
         ops,
-        successMessage: (n) => `Updated trade flags for ${n} sticker variant${n === 1 ? '' : 's'}`,
-        failMessage: 'Failed to update trade flags. Please try again.',
+        successMessage: (n) => t('updatedFlagsToast', { count: n }),
+        failMessage: t('updateFlagsFailedToast'),
       };
     });
   }, [selectedStickerIds, ownedMap, runMassAction]);
@@ -799,7 +799,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
-                  Set default
+                  {t('setDefault')}
                 </button>
               )}
               {user && (
@@ -819,7 +819,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   listDisabledReason={
                     hasTradeInventory
                       ? undefined
-                      : 'You have no stickers to trade in this album yet.'
+                      : t('noTradeInventory')
                   }
                 />
               )}
@@ -830,7 +830,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                 <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                 </svg>
-                Edit
+                {t('edit')}
               </button>
               {albums.length < 10 && (
                 <button
@@ -840,7 +840,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
-                  New Album
+                  {t('newAlbum')}
                 </button>
               )}
             </div>
@@ -925,8 +925,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               const next = (density === 6 ? 2 : ((density + 1) as Density));
               setDensity(next);
             }}
-            aria-label={`Grid density: ${density} columns. Tap to change.`}
-            title={`Density: ${density} columns`}
+            aria-label={t('densityAria', { count: density })}
+            title={t('densityTitle', { count: density })}
             className="ml-auto shrink-0 px-3 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] transition-colors flex items-center gap-1"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
@@ -1046,7 +1046,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })}
           className={`fixed ${selectionMode ? 'bottom-20' : 'bottom-6'} right-6 z-50 p-3 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)] transition-all`}
-          aria-label="Scroll to top"
+          aria-label={t('scrollToTop')}
         >
           <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -1105,11 +1105,11 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           const [, entry] = first;
           try {
             await moveSticker(user.id, albumId, entry.variantId, targetAlbumId, 1, token);
-            addToast(`Moved ${payload.albumCode} to other album`, { type: 'success' });
+            addToast(t('movedToast', { code: payload.albumCode }), { type: 'success' });
             await handleCollectionChange();
           } catch (err) {
             console.error('Failed to move sticker via DnD', err);
-            addToast('Failed to move sticker.');
+            addToast(t('moveFailedToast'));
           }
         }}
       />
@@ -1129,7 +1129,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             className="w-full max-w-lg bg-[var(--cromo-surface-2)] sm:rounded-2xl shadow-cromo-lg p-4 sm:p-6 min-h-screen sm:min-h-0"
             role="dialog"
             aria-modal="true"
-            aria-label="Scan stickers"
+            aria-label={t('scanStickersAria')}
           >
             <Scanner
               album={activeAlbum}

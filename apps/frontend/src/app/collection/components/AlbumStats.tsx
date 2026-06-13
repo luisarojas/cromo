@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
 import { VARIANT_META, variantLabel } from './variantMeta';
@@ -121,6 +122,7 @@ function ProgressRing({
 type CountrySort = 'most' | 'least';
 
 export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) {
+  const t = useTranslations('albumStats');
   const [showAllCountries, setShowAllCountries] = useState(false);
   const [countrySort, setCountrySort] = useState<CountrySort>('most');
 
@@ -268,11 +270,11 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
         {/* ─── Favourites — centered ring hero, stretches to row height ─── */}
         <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col lg:col-span-1">
           <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
-            Favourites Owned
+            {t('favouritesOwned')}
           </h3>
           {favouriteStats.inAlbum === 0 ? (
             <p className="flex-1 flex items-center justify-center text-xs text-[var(--cromo-fg-subtle)] text-center py-8">
-              Star a sticker on the album to start tracking favourites.
+              {t('noFavourites')}
             </p>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 py-4">
@@ -282,17 +284,17 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
                     {favouriteStats.pct}%
                   </span>
                   <span className="mt-1 text-[10px] uppercase tracking-wider text-[var(--cromo-fg-subtle)]">
-                    owned
+                    {t('ownedSmall')}
                   </span>
                 </div>
               </ProgressRing>
               <div className="flex flex-col items-center gap-0.5">
                 <span className="text-sm font-medium text-[var(--cromo-fg)] tabular-nums">
-                  {favouriteStats.owned} of {favouriteStats.inAlbum} favourites
+                  {t('ownedOfFavourites', { owned: favouriteStats.owned, total: favouriteStats.inAlbum })}
                 </span>
                 {favouriteStats.missing > 0 && (
                   <span className="text-xs text-[var(--cromo-fg-muted)] tabular-nums">
-                    {favouriteStats.missing} still missing
+                    {t('missingStill', { count: favouriteStats.missing })}
                   </span>
                 )}
               </div>
@@ -305,18 +307,18 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
           <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div className="flex items-baseline gap-3 flex-wrap">
               <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
-                Completion by Country
+                {t('completionByCountry')}
               </h3>
               <span className="text-[10px] text-[var(--cromo-fg-subtle)]">
                 {showAllCountries
-                  ? `all ${byCountry.length} teams`
-                  : `${visibleCountries.length} of ${byCountry.length} teams`}
+                  ? t('allTeamsCount', { count: byCountry.length })
+                  : t('teamsCount', { shown: visibleCountries.length, total: byCountry.length })}
               </span>
             </div>
             <div
               className="inline-flex rounded-md border border-[var(--cromo-border)] overflow-hidden text-[10px]"
               role="group"
-              aria-label="Sort country completion"
+              aria-label={t('completionByCountry')}
             >
               <button
                 type="button"
@@ -328,7 +330,7 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
                     : 'text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                 }`}
               >
-                Most complete
+                {t('mostComplete')}
               </button>
               <button
                 type="button"
@@ -340,13 +342,13 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
                     : 'text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
                 }`}
               >
-                Least complete
+                {t('leastComplete')}
               </button>
             </div>
           </div>
           {byCountry.length === 0 ? (
             <p className="text-xs text-[var(--cromo-fg-subtle)] text-center py-8">
-              No team stickers in this album.
+              {t('noTeamStickers')}
             </p>
           ) : (
             <>
@@ -367,7 +369,7 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
                   onClick={() => setShowAllCountries((v) => !v)}
                   className="mt-3 text-xs text-[var(--cromo-accent)] hover:underline"
                 >
-                  {showAllCountries ? 'Show less' : `Show all ${byCountry.length} teams →`}
+                  {showAllCountries ? t('showLess') : t('showAllTeams', { count: byCountry.length })}
                 </button>
               )}
             </>
@@ -381,15 +383,15 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
         <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
           <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
             <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
-              Top 5 Tradeable Duplicates
+              {t('topDuplicates')}
             </h3>
             <span className="text-[10px] text-[var(--cromo-fg-subtle)]">
-              excludes hidden
+              {t('excludesHidden')}
             </span>
           </div>
           {topDuplicates.length === 0 ? (
             <p className="text-xs text-[var(--cromo-fg-subtle)] text-center py-8">
-              No tradeable duplicates yet.
+              {t('noDuplicates')}
             </p>
           ) : (
             // Two-line rows with divide-y and py-2.5 to match the rhythm of
@@ -428,10 +430,10 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-baseline gap-3 min-w-0">
             <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
-              Packs Opened
+              {t('packsOpened')}
             </h3>
             <p className="text-[10px] text-[var(--cromo-fg-subtle)]">
-              estimate · {packCopies.toLocaleString()} pack sticker{packCopies === 1 ? '' : 's'} ÷ {STICKERS_PER_PACK}
+              {t('packsEstimate', { count: packCopies, per: STICKERS_PER_PACK })}
             </p>
           </div>
           <div className="text-2xl font-extrabold text-[var(--cromo-accent)] leading-none tabular-nums">
@@ -479,19 +481,20 @@ function CountryRowItem({ c }: { c: CountryRow }) {
 }
 
 function RarePulls({ trophy }: { trophy: TrophyTier[] }) {
+  const t = useTranslations('albumStats');
   return (
     <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
       <div className="flex items-baseline justify-between gap-3 mb-4 flex-wrap">
         <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
-          Rare Pulls
+          {t('rarePulls')}
         </h3>
         <span className="text-[10px] text-[var(--cromo-fg-subtle)]">
-          everything above Common, rarest first
+          {t('rarePullsOrder')}
         </span>
       </div>
       {trophy.length === 0 ? (
         <p className="text-xs text-[var(--cromo-fg-subtle)] text-center py-8">
-          No parallels yet — keep ripping packs.
+          {t('noParallels')}
         </p>
       ) : (
         <ul className="divide-y divide-[var(--cromo-border)]">
@@ -510,12 +513,12 @@ function RarePulls({ trophy }: { trophy: TrophyTier[] }) {
                   />
                   <span className="text-sm font-semibold text-[var(--cromo-fg)]">{tier}</span>
                   <span className="text-xs tabular-nums text-[var(--cromo-fg-muted)] ml-auto">
-                    {entries.length} owned
+                    {t('ownedCount', { count: entries.length })}
                   </span>
                 </div>
                 <p className="text-xs text-[var(--cromo-fg-subtle)] pl-4 leading-relaxed">
                   {shown.map((e) => e.playerName).join(', ')}
-                  {hidden > 0 && <span> +{hidden} more</span>}
+                  {hidden > 0 && <span>{t('morePulls', { count: hidden })}</span>}
                 </p>
               </li>
             );

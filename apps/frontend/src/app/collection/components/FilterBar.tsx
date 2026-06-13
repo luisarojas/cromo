@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import MultiSelect from './MultiSelect';
 import { HeartIcon } from '@/components/HeartIcon';
 
@@ -40,6 +41,7 @@ export default function FilterBar({
   showRecent = true,
   extraControls,
 }: Props) {
+  const t = useTranslations('filterBar');
   const [expanded, setExpanded] = useState(false);
 
   // Local-state echo for the search input. The committed `filters.search` flows
@@ -131,26 +133,26 @@ export default function FilterBar({
   }
   if (filters.favouritesOnly) {
     activeChips.push({
-      label: 'Favourites',
+      label: t('favouritesChip'),
       onRemove: () => onChange({ ...filters, favouritesOnly: undefined }),
     });
   }
   if (filters.wantedOnly) {
     activeChips.push({
-      label: 'Wanted',
+      label: t('wantedChip'),
       onRemove: () => onChange({ ...filters, wantedOnly: undefined }),
     });
   }
   if (showRecent && filters.recentMinutes && filters.recentMinutes > 0) {
     activeChips.push({
-      label: `Updated < ${filters.recentMinutes} min`,
+      label: t('updatedChip', { minutes: filters.recentMinutes }),
       onRemove: () => onChange({ ...filters, recentMinutes: undefined }),
     });
   }
   (filters.group ?? []).forEach((v) => {
     const opt = groupOptions.find((o) => o.value === v);
     activeChips.push({
-      label: opt?.label ?? `Group ${v}`,
+      label: opt?.label ?? t('groupFallback', { value: v }),
       onRemove: () => updateMulti('group', (filters.group ?? []).filter((x) => x !== v)),
     });
   });
@@ -185,48 +187,48 @@ export default function FilterBar({
       {groupOptions.length > 0 && (
         <MultiSelect
           id="filter-group"
-          label="Group"
+          label={t('groupLabel')}
           options={groupOptions}
           value={filters.group ?? []}
           onChange={(v) => updateMulti('group', v)}
-          placeholder="All groups"
+          placeholder={t('allGroups')}
         />
       )}
       {teamOptions.length > 0 && (
         <MultiSelect
           id="filter-team"
-          label="Team"
+          label={t('teamLabel')}
           options={teamOptions}
           value={filters.team ?? []}
           onChange={(v) => updateMulti('team', v)}
-          placeholder="All teams"
+          placeholder={t('allTeams')}
         />
       )}
       {typeOptions.length > 0 && (
         <MultiSelect
           id="filter-type"
-          label="Type"
+          label={t('typeLabel')}
           options={typeOptions}
           value={filters.type ?? []}
           onChange={(v) => updateMulti('type', v)}
-          placeholder="All types"
+          placeholder={t('allTypes')}
         />
       )}
       {variantOptions.length > 0 && (
         <MultiSelect
           id="filter-variant"
-          label="Variant"
+          label={t('variantLabel')}
           options={variantOptions}
           value={filters.variant ?? []}
           onChange={(v) => updateMulti('variant', v)}
-          placeholder="Any variant"
+          placeholder={t('anyVariant')}
           className="min-w-52"
         />
       )}
 
       {showFavourites && (
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Favourites</span>
+          <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">{t('favouritesLabel')}</span>
           <button
             type="button"
             onClick={() => onChange({ ...filters, favouritesOnly: filters.favouritesOnly ? undefined : true })}
@@ -237,13 +239,13 @@ export default function FilterBar({
             }`}
           >
             <HeartIcon filled={filters.favouritesOnly} className="w-3.5 h-3.5" />
-            Only
+            {t('only')}
           </button>
         </div>
       )}
       {showWanted && (
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Wishlist</span>
+          <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">{t('wishlistLabel')}</span>
           <button
             type="button"
             onClick={() => onChange({ ...filters, wantedOnly: filters.wantedOnly ? undefined : true })}
@@ -255,14 +257,14 @@ export default function FilterBar({
             aria-pressed={filters.wantedOnly ?? false}
           >
             <span aria-hidden>{filters.wantedOnly ? '★' : '☆'}</span>
-            Wanted
+            {t('wanted')}
           </button>
         </div>
       )}
       {showRecent && (
         <div className="flex flex-col gap-1">
           <label htmlFor="filter-recent" className="text-xs font-medium text-[var(--cromo-fg-muted)]">
-            Updated in last
+            {t('updatedInLast')}
           </label>
           <div className="flex items-center gap-1.5">
             <input
@@ -276,7 +278,7 @@ export default function FilterBar({
               onChange={(e) => setRecentDraft(e.target.value.replace(/[^\d]/g, ''))}
               className="w-16 rounded-md border border-[var(--cromo-border-strong)] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
             />
-            <span className="text-xs text-[var(--cromo-fg-muted)]">min</span>
+            <span className="text-xs text-[var(--cromo-fg-muted)]">{t('min')}</span>
           </div>
         </div>
       )}
@@ -292,7 +294,7 @@ export default function FilterBar({
           <input
             id="filter-search"
             type="text"
-            placeholder="Search player, team, code…"
+            placeholder={t('searchPlaceholder')}
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
             className="w-full rounded-md border border-[var(--cromo-border-strong)] px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
@@ -301,7 +303,7 @@ export default function FilterBar({
             <button
               type="button"
               onClick={() => setSearchDraft('')}
-              aria-label="Clear search"
+              aria-label={t('clearSearch')}
               className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)]"
             >
               <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -323,7 +325,7 @@ export default function FilterBar({
           <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3 5a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm2 5a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
           </svg>
-          Filters
+          {t('filtersBtn')}
           {nonSearchActiveCount > 0 && (
             <span className="flex items-center justify-center rounded-full bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-[10px] font-bold w-4 h-4 leading-none">
               {nonSearchActiveCount}
@@ -342,7 +344,7 @@ export default function FilterBar({
               : 'text-gray-200 cursor-default'
           }`}
         >
-          Clear all
+          {t('clearAll')}
         </button>
       </div>
 
@@ -353,11 +355,11 @@ export default function FilterBar({
         </div>
       )}
       {expanded && (
-        <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-label="Filter stickers">
+        <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-label={t('filterDialogAria')}>
           {/* Scrim — taps close. */}
           <button
             type="button"
-            aria-label="Close filters"
+            aria-label={t('closeFilters')}
             onClick={() => setExpanded(false)}
             className="absolute inset-0 bg-black/50"
           />
@@ -371,11 +373,11 @@ export default function FilterBar({
             }}
           >
             <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-4 py-3">
-              <span className="text-sm font-semibold text-[var(--cromo-fg)]">Filters</span>
+              <span className="text-sm font-semibold text-[var(--cromo-fg)]">{t('filtersTitle')}</span>
               <button
                 type="button"
                 onClick={() => setExpanded(false)}
-                aria-label="Close"
+                aria-label={t('closeAria')}
                 className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] p-1"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -392,14 +394,14 @@ export default function FilterBar({
                 disabled={!hasActiveFilter}
                 className="flex-1 rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg-muted)] text-sm font-medium py-2 disabled:opacity-50"
               >
-                Clear all
+                {t('clearAll')}
               </button>
               <button
                 type="button"
                 onClick={() => setExpanded(false)}
                 className="flex-1 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-sm font-semibold py-2 hover:bg-[var(--cromo-accent-strong)]"
               >
-                Done
+                {t('done')}
               </button>
             </div>
           </div>
@@ -419,7 +421,7 @@ export default function FilterBar({
                 type="button"
                 onClick={chip.onRemove}
                 className="hover:text-blue-900 transition-colors leading-none"
-                aria-label={`Remove filter ${chip.label}`}
+                aria-label={t('removeFilterAria', { label: chip.label })}
               >
                 ×
               </button>

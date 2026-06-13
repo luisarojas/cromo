@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { CollectionStats } from '@/lib/api';
 
 interface Props {
@@ -27,6 +28,7 @@ function StatTile({
 }
 
 export default function StatsBar({ stats, loading, onViewDetailedStats, isViewingDetailedStats }: Props) {
+  const t = useTranslations('statsBar');
   const pct = stats?.percentage ?? 0;
 
   return (
@@ -44,11 +46,11 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M12 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              Back to album
+              {t('backToAlbum')}
             </>
           ) : (
             <>
-              View detailed stats
+              {t('viewDetailedStats')}
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -67,22 +69,22 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
         ) : (
           <>
             <StatTile
-              label="Total"
+              label={t('total')}
               value={stats?.total ?? 0}
               color="text-[var(--cromo-fg)]"
             />
             <StatTile
-              label="Owned"
+              label={t('owned')}
               value={stats?.owned ?? 0}
               color="text-[var(--cromo-success-text)]"
             />
             <StatTile
-              label="Missing"
+              label={t('missing')}
               value={stats?.missing ?? 0}
               color="text-[var(--cromo-danger-text)]"
             />
             <StatTile
-              label="Duplicates"
+              label={t('duplicates')}
               value={stats?.duplicates ?? 0}
               color="text-[var(--cromo-warning-text)]"
             />
@@ -93,7 +95,7 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
       {/* Progress bar */}
       <div>
         <div className="flex items-center justify-between text-xs text-[var(--cromo-fg-muted)] mb-1">
-          <span>Collection progress</span>
+          <span>{t('collectionProgress')}</span>
           <span>{loading ? '…' : `${pct.toFixed(1)}%`}</span>
         </div>
         <div className="h-2.5 w-full rounded-full bg-[var(--cromo-surface)] overflow-hidden">

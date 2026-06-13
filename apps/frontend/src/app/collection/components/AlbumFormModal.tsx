@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import type { AlbumEditionOption, AlbumFormatOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
@@ -67,6 +68,7 @@ export default function AlbumFormModal({
   onDelete,
   onClose,
 }: Props) {
+  const t = useTranslations('albumForm');
   const firstEditionKey = editions[0]?.key ?? '';
   const [alias, setAlias] = useState(album?.alias ?? '');
   const [notes, setNotes] = useState(album?.notes ?? '');
@@ -167,7 +169,7 @@ export default function AlbumFormModal({
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save album');
+      setError(err instanceof Error ? err.message : t('failedSave'));
     } finally {
       setBusy(false);
     }
@@ -181,16 +183,16 @@ export default function AlbumFormModal({
       await onDelete();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete album');
+      setError(err instanceof Error ? err.message : t('failedDelete'));
       setConfirmDelete(false);
     } finally {
       setBusy(false);
     }
   }
 
-  const title = mode === 'create' ? 'Add New Album' : 'Edit Album';
-  const submitLabel = mode === 'create' ? 'Create Album' : 'Save Changes';
-  const busyLabel = mode === 'create' ? 'Creating…' : 'Saving…';
+  const title = mode === 'create' ? t('createTitle') : t('editTitle');
+  const submitLabel = mode === 'create' ? t('createSubmit') : t('editSubmit');
+  const busyLabel = mode === 'create' ? t('creating') : t('saving');
 
   const node = (
     <div
@@ -208,7 +210,7 @@ export default function AlbumFormModal({
           <button
             onClick={onClose}
             className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-xl leading-none"
-            aria-label="Close"
+            aria-label={t('close')}
           >
             ×
           </button>
@@ -217,14 +219,14 @@ export default function AlbumFormModal({
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-[var(--cromo-fg-muted)]" htmlFor="album-alias">
-              Alias <span className="font-normal text-[var(--cromo-fg-subtle)]">(optional)</span>
+              {t('aliasLabel')} <span className="font-normal text-[var(--cromo-fg-subtle)]">{t('optional')}</span>
             </label>
             <input
               id="album-alias"
               ref={inputRef}
               type="text"
               maxLength={100}
-              placeholder="e.g. My second album, Gift for Max…"
+              placeholder={t('aliasPlaceholder')}
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
               className="rounded-lg border border-[var(--cromo-border)] px-3 py-2 text-sm text-[var(--cromo-fg)] placeholder-[var(--cromo-fg-subtle)] focus:border-[var(--cromo-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent-soft)]"
@@ -233,7 +235,7 @@ export default function AlbumFormModal({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-[var(--cromo-fg-muted)]" htmlFor="album-edition">
-              Edition
+              {t('editionLabel')}
             </label>
             <select
               id="album-edition"
@@ -249,7 +251,7 @@ export default function AlbumFormModal({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-[var(--cromo-fg-muted)]" htmlFor="album-format">
-              Format
+              {t('formatLabel')}
             </label>
             <select
               id="album-format"
@@ -259,7 +261,7 @@ export default function AlbumFormModal({
               className="rounded-lg border border-[var(--cromo-border)] px-3 py-2 text-sm text-[var(--cromo-fg)] focus:border-[var(--cromo-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent-soft)] disabled:bg-[var(--cromo-surface-2)] disabled:text-[var(--cromo-fg-subtle)]"
             >
               {availableFormats.length === 0 ? (
-                <option value="">No formats available for this edition</option>
+                <option value="">{t('noFormatsAvailable')}</option>
               ) : (
                 availableFormats.map((f) => (
                   <option key={f.key} value={f.key}>{f.name}</option>
@@ -270,13 +272,13 @@ export default function AlbumFormModal({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-[var(--cromo-fg-muted)]" htmlFor="album-notes">
-              Notes <span className="font-normal text-[var(--cromo-fg-subtle)]">(optional)</span>
+              {t('notesLabel')} <span className="font-normal text-[var(--cromo-fg-subtle)]">{t('optional')}</span>
             </label>
             <input
               id="album-notes"
               type="text"
               maxLength={500}
-              placeholder="e.g. Limited Hardcover serial 1234/5000"
+              placeholder={t('notesPlaceholder')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="rounded-lg border border-[var(--cromo-border)] px-3 py-2 text-sm text-[var(--cromo-fg)] placeholder-[var(--cromo-fg-subtle)] focus:border-[var(--cromo-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent-soft)]"
@@ -284,11 +286,11 @@ export default function AlbumFormModal({
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Sticker visibility</span>
+            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">{t('stickerVisibility')}</span>
             {(
               [
-                { key: 'includeExtras',   label: 'Extra stickers' },
-                { key: 'includeCocaCola', label: 'Coca-Cola stickers' },
+                { key: 'includeExtras',   label: t('extraStickers') },
+                { key: 'includeCocaCola', label: t('cocaColaStickers') },
               ] as { key: 'includeExtras' | 'includeCocaCola'; label: string }[]
             ).map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -310,7 +312,7 @@ export default function AlbumFormModal({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-[var(--cromo-fg-muted)]" htmlFor="album-default-base">
-              Default Base variant
+              {t('defaultBaseVariant')}
             </label>
             <select
               id="album-default-base"
@@ -318,16 +320,16 @@ export default function AlbumFormModal({
               onChange={(e) => setSettings((s) => ({ ...s, defaultBaseVariant: e.target.value as AlbumSettings['defaultBaseVariant'] }))}
               className="rounded-lg border border-[var(--cromo-border)] px-3 py-2 text-sm text-[var(--cromo-fg)] focus:border-[var(--cromo-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent-soft)]"
             >
-              <option value="base_borderless">Base (Borderless) — International packs</option>
-              <option value="base_border">Base (White Border) — North American packs</option>
+              <option value="base_borderless">{t('baseBorderlessOption')}</option>
+              <option value="base_border">{t('baseBorderOption')}</option>
             </select>
             <p className="text-[11px] text-[var(--cromo-fg-subtle)]">
-              Pre-selected when the scanner can&apos;t tell which Base layout a sticker has. You can still pick the other variant per scan.
+              {t('baseVariantHelp')}
             </p>
           </div>
 
           <div className="flex flex-col gap-2 border-t border-[var(--cromo-border)] pt-4">
-            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">Public trading inventory</span>
+            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">{t('publicTradeInventory')}</span>
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -336,9 +338,9 @@ export default function AlbumFormModal({
                 className="mt-0.5 w-4 h-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
               />
               <span className="text-sm text-[var(--cromo-fg)]">
-                Show this album&apos;s offered &amp; wanted stickers on my public profile
+                {t('publicTradeLabel')}
                 <span className="block text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
-                  Per-sticker force hide / force show rules still apply.
+                  {t('publicTradeHint')}
                 </span>
               </span>
             </label>
@@ -355,7 +357,7 @@ export default function AlbumFormModal({
               disabled={busy}
               className="px-4 py-2 text-sm font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] disabled:opacity-50"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"
@@ -375,12 +377,12 @@ export default function AlbumFormModal({
                 disabled={busy}
                 className="w-full text-sm text-[var(--cromo-danger-text)] hover:text-[var(--cromo-danger-text)] font-medium disabled:opacity-50 text-left"
               >
-                Delete this album…
+                {t('deleteThisAlbum')}
               </button>
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-xs text-[var(--cromo-fg-muted)]">
-                  This will permanently delete the album and all its stickers.
+                  {t('deleteWarning')}
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -388,14 +390,14 @@ export default function AlbumFormModal({
                     disabled={busy}
                     className="flex-1 px-3 py-2 text-sm font-medium text-[var(--cromo-fg-muted)] border border-[var(--cromo-border)] rounded-lg hover:bg-[var(--cromo-surface-2)] disabled:opacity-50 transition-colors"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     onClick={handleDelete}
                     disabled={busy}
                     className="flex-1 px-3 py-2 text-sm font-medium bg-[var(--cromo-danger)] text-[var(--cromo-danger-fg)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors"
                   >
-                    {busy ? 'Deleting…' : 'Delete Album'}
+                    {busy ? t('deleting') : t('deleteAlbum')}
                   </button>
                 </div>
               </div>
