@@ -274,18 +274,33 @@ export default function StickerGrid({
     | { kind: 'header'; name: string }
     | { kind: 'stickers'; items: Sticker[]; firstIdx: number };
 
+  // Coca-Cola and Extra stickers have a team_id (so their joined groupName is
+  // the corresponding country's WC group letter), but the user-mental-model
+  // section for them is "Coca-Cola" / "Extras", not "Group C". sticker_type
+  // takes precedence over groupName for the bonus subsets, so they collapse
+  // into a single coherent section at the tail of the grid rather than
+  // re-opening team group letters one sticker at a time.
+  const sectionOf = (s: Sticker): string => {
+    switch (s.stickerType) {
+      case 'intro': return 'Intro / FWC';
+      case 'coca_cola_special': return 'Coca-Cola';
+      case 'extra': return 'Extras';
+      default: return s.groupName ?? 'Other';
+    }
+  };
+
   const { virtualRows, headerRowIndexByGroup } = useMemo(() => {
     const out: VRow[] = [];
     const idxByGroup = new Map<string, number>();
     let i = 0;
     while (i < stickers.length) {
-      const groupName = stickers[i]!.groupName ?? 'Other';
+      const section = sectionOf(stickers[i]!);
       // Header.
-      idxByGroup.set(groupName, out.length);
-      out.push({ kind: 'header', name: groupName });
-      // Find the run length for this group.
+      idxByGroup.set(section, out.length);
+      out.push({ kind: 'header', name: section });
+      // Find the run length for this section.
       let j = i;
-      while (j < stickers.length && (stickers[j]!.groupName ?? 'Other') === groupName) j++;
+      while (j < stickers.length && sectionOf(stickers[j]!) === section) j++;
       // Slice into COLS-sized rows.
       for (let r = i; r < j; r += COLS) {
         out.push({ kind: 'stickers', items: stickers.slice(r, Math.min(r + COLS, j)), firstIdx: r });
@@ -293,6 +308,8 @@ export default function StickerGrid({
       i = j;
     }
     return { virtualRows: out, headerRowIndexByGroup: idxByGroup };
+    // sectionOf is a pure helper that only reads its argument; no deps beyond stickers/COLS.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stickers, COLS]);
 
   const virtualizer = useWindowVirtualizer({
