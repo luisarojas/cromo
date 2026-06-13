@@ -6,8 +6,8 @@ export interface VariantMeta {
 }
 
 export const VARIANT_META: Record<string, VariantMeta> = {
-  base_border:          { label: 'Base (White Border)',     short: 'Base (White)',   swatch: 'bg-[var(--cromo-surface)] border-[var(--cromo-border-strong)]',    rarity: 'Common' },
-  base_borderless:      { label: 'Base (Borderless)',       short: 'Base (Intl.)', swatch: 'bg-[var(--cromo-surface-2)] border-[var(--cromo-border-strong)]', rarity: 'Common' },
+  base_border:          { label: 'Base (White Border)',     short: 'Base (White)',   swatch: 'bg-white border-[var(--cromo-border-strong)]',    rarity: 'Common' },
+  base_borderless:      { label: 'Base (Borderless)',       short: 'Base (Intl.)', swatch: 'bg-white border-[var(--cromo-border-strong)]', rarity: 'Common' },
   blue:                 { label: 'Blue parallel',           short: 'Blue',      swatch: 'bg-blue-900',              rarity: 'Uncommon' },
   red:                  { label: 'Red parallel',            short: 'Red',       swatch: 'bg-[var(--cromo-danger)]',               rarity: 'Rare' },
   purple:               { label: 'Purple parallel',         short: 'Purple',    swatch: 'bg-[var(--cromo-tier-very-rare)]',            rarity: 'Very Rare' },
