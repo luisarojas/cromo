@@ -36,9 +36,13 @@ provider "aws" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
 locals {
-  env      = "prod"
-  hostname = var.apex_domain # production lives at the apex (cromotrade.ca)
+  env          = "prod"
+  hostname     = var.apex_domain # production lives at the apex (cromotrade.ca)
+  account_id   = var.account_id != "" ? var.account_id : data.aws_caller_identity.current.account_id
+  ecr_registry = var.ecr_registry != "" ? var.ecr_registry : "${local.account_id}.dkr.ecr.${var.region}.amazonaws.com"
 }
 
 # ─── myApplications (AWS console cost / metrics dashboard) ────────────────────
@@ -104,7 +108,7 @@ module "cache" {
 module "storage" {
   source               = "../../modules/storage"
   env                  = local.env
-  account_id           = var.account_id
+  account_id           = local.account_id
   cors_allowed_origins = ["https://${local.hostname}"]
   deletion_protection  = true
 }
@@ -130,7 +134,7 @@ module "auth" {
   source              = "../../modules/auth"
   env                 = local.env
   from_email          = "no-reply@${var.apex_domain}"
-  ses_identity_arn    = "arn:aws:ses:${var.region}:${var.account_id}:identity/${var.apex_domain}"
+  ses_identity_arn    = "arn:aws:ses:${var.region}:${local.account_id}:identity/${var.apex_domain}"
   admin_emails        = var.admin_emails
   admin_temp_password = var.admin_temp_password
   deletion_protection = true
@@ -196,7 +200,7 @@ module "compute" {
   uploads_bucket      = module.storage.uploads_bucket
   uploads_bucket_arn  = module.storage.uploads_bucket_arn
   user_pool_arn       = module.auth.user_pool_arn
-  ecr_registry        = var.ecr_registry
+  ecr_registry        = local.ecr_registry
   instance_type       = "t3.medium" # one tier up from dev's t3.small
   deletion_protection = true
 }
@@ -233,8 +237,8 @@ module "scheduling" {
 module "ses_consumer" {
   source              = "../../modules/ses-consumer"
   env                 = local.env
-  bounce_topic_arn    = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-bounces"
-  complaint_topic_arn = "arn:aws:sns:${var.region}:${var.account_id}:cromo-ses-complaints"
+  bounce_topic_arn    = "arn:aws:sns:${var.region}:${local.account_id}:cromo-ses-bounces"
+  complaint_topic_arn = "arn:aws:sns:${var.region}:${local.account_id}:cromo-ses-complaints"
   consumer_role_name  = module.compute.iam_role_name
 }
 

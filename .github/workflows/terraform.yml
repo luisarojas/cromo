@@ -76,6 +76,22 @@ jobs:
       matrix:
         stack: [shared, dev, prod]
     environment: tf-${{ matrix.stack }}
+    # TF_VAR_* env vars feed values into root-module variables that don't
+    # have defaults (and shouldn't — they're real config). Terraform ignores
+    # TF_VAR_<name> for variables that don't exist in the current stack, so
+    # one block covers all three matrix legs. Sources:
+    #   secrets: sensitive material (JWT signing key, AWS role ARN)
+    #   vars:    non-sensitive config (emails, public DKIM key, region)
+    env:
+      # Non-sensitive (vars):
+      TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
+      TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      # Sensitive (secrets):
+      TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
+      TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
+      TF_VAR_groq_api_key:              ${{ secrets.GROQ_API_KEY }}
+      TF_VAR_admin_temp_password:       ${{ secrets.ADMIN_TEMP_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
 
@@ -150,6 +166,17 @@ jobs:
     name: Apply shared
     runs-on: ubuntu-latest
     environment: tf-shared
+    # See the plan job for why this env block covers all three stacks.
+    env:
+      # Non-sensitive (vars):
+      TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
+      TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      # Sensitive (secrets):
+      TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
+      TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
+      TF_VAR_groq_api_key:              ${{ secrets.GROQ_API_KEY }}
+      TF_VAR_admin_temp_password:       ${{ secrets.ADMIN_TEMP_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
       - uses: hashicorp/setup-terraform@v3
@@ -174,6 +201,16 @@ jobs:
     needs: [apply-shared]
     runs-on: ubuntu-latest
     environment: tf-dev
+    env:
+      # Non-sensitive (vars):
+      TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
+      TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      # Sensitive (secrets):
+      TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
+      TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
+      TF_VAR_groq_api_key:              ${{ secrets.GROQ_API_KEY }}
+      TF_VAR_admin_temp_password:       ${{ secrets.ADMIN_TEMP_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
       - uses: hashicorp/setup-terraform@v3
@@ -206,6 +243,16 @@ jobs:
     # same workflow run.
     runs-on: ubuntu-latest
     environment: tf-prod
+    env:
+      # Non-sensitive (vars):
+      TF_VAR_dmarc_report_email:        ${{ vars.DMARC_REPORT_EMAIL }}
+      TF_VAR_namecheap_dkim_public_key: ${{ vars.NAMECHEAP_DKIM_PUBLIC_KEY }}
+      TF_VAR_alert_email:               ${{ vars.ALERT_EMAIL }}
+      # Sensitive (secrets):
+      TF_VAR_jwt_secret:                ${{ secrets.JWT_SECRET }}
+      TF_VAR_gemini_api_key:            ${{ secrets.GEMINI_API_KEY }}
+      TF_VAR_groq_api_key:              ${{ secrets.GROQ_API_KEY }}
+      TF_VAR_admin_temp_password:       ${{ secrets.ADMIN_TEMP_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
       - uses: hashicorp/setup-terraform@v3

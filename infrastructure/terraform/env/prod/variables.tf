@@ -4,8 +4,9 @@ variable "region" {
 }
 
 variable "account_id" {
-  description = "AWS account ID — used to disambiguate S3 bucket names and reference the shared SES identity ARN."
+  description = "AWS account ID — used to disambiguate S3 bucket names and reference the shared SES identity ARN. Empty string (default) triggers automatic lookup via aws_caller_identity."
   type        = string
+  default     = ""
 }
 
 variable "apex_domain" {
@@ -15,8 +16,9 @@ variable "apex_domain" {
 }
 
 variable "ecr_registry" {
-  description = "Account ECR registry URL — e.g. 123456789.dkr.ecr.ca-central-1.amazonaws.com"
+  description = "Account ECR registry URL. Empty string (default) derives it from account_id + region at apply time."
   type        = string
+  default     = ""
 }
 
 variable "alert_email" {
@@ -76,4 +78,5 @@ variable "admin_temp_password" {
 variable "github_repo" {
   description = "GitHub repo slug (`owner/name`) that's allowed to assume the deploy role via OIDC."
   type        = string
+  default     = "luisarojas/cromo"
 }
