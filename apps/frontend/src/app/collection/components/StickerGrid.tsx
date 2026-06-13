@@ -416,12 +416,17 @@ export default function StickerGrid({
   // (or stack +1 on top of whatever is owned). Left = -1 of the first owned
   // variant. Falls back silently when there's no actionable variant id, so a
   // swipe on, say, a Coca-Cola sticker without a baseVariantId is a no-op.
+  // Foil stickers (team logos, FWC intro) only ship as base_border, so even
+  // when the album default is base_borderless we key the optimistic update
+  // under the variant that actually exists — otherwise the local map would
+  // briefly carry a base_borderless row that the server will never confirm.
   const handleSwipeAdjust = useCallback(
     (sticker: Sticker, direction: 'left' | 'right') => {
       const owned = ownedMap.get(sticker.id);
       if (direction === 'right') {
         if (sticker.baseVariantId) {
-          void handleAdjust(sticker, sticker.baseVariantId, defaultBaseVariant, 1, true);
+          const variantType = sticker.isFoil ? 'base_border' : defaultBaseVariant;
+          void handleAdjust(sticker, sticker.baseVariantId, variantType, 1, true);
           return;
         }
         const first = owned ? owned.entries().next().value : undefined;

@@ -20,10 +20,15 @@ ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 -- colored parallels that the white border was designed to match.
 -- Coca-Cola stickers reuse the same base_borderless variant type (distinguished by
 -- sticker_type = 'coca_cola_special'); they are seeded separately.
+-- Foil stickers (team logos sticker_type='badge', FWC intro sticker_type='intro')
+-- are printed in only the white-bordered foil layout in every region — there is
+-- no borderless international version of a team badge or an FWC emblem. Exclude
+-- them so the catalog matches the physical product.
 INSERT INTO sticker_variants (sticker_id, variant_type, rarity_rank, availability)
 SELECT id, 'base_borderless', 1, 'retail'
 FROM stickers
 WHERE sticker_type NOT IN ('coca_cola_special', 'extra')
+  AND is_foil = false
 ON CONFLICT (sticker_id, variant_type) DO NOTHING;
 
 -- Step 2: Retail parallel variants — non-foil CORE stickers only

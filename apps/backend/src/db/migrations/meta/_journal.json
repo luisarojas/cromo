@@ -134,6 +134,13 @@
       "when": 1781999000000,
       "tag": "0018_trade_reminder_cadence",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782085400000,
+      "tag": "0019_foil_stickers_white_border_only",
+      "breakpoints": true
     }
   ]
 }
