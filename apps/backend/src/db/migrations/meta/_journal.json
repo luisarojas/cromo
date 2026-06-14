@@ -141,6 +141,13 @@
       "when": 1782085400000,
       "tag": "0019_foil_stickers_white_border_only",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781442853888,
+      "tag": "0020_mean_storm",
+      "breakpoints": true
     }
   ]
 }

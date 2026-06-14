@@ -128,7 +128,7 @@ export type { AlbumSettings };
 
 export const userAlbums = pgTable('user_albums', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   albumTypeId: uuid('album_type_id').notNull().references(() => albumTypes.id),
   albumEditionId: uuid('album_edition_id').notNull(),
   albumFormatId: uuid('album_format_id').notNull(),
@@ -242,7 +242,7 @@ export const emailSuppressions = pgTable('email_suppressions', {
 // outgoing email link; even a DB read can't yield a usable token.
 export const emailVerificationTokens = pgTable('email_verification_tokens', {
   tokenHash: text('token_hash').primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull().default(
     sql`now() + INTERVAL '24 hours'`
   ),
@@ -371,7 +371,7 @@ export const userStickerFavourites = pgTable('user_sticker_favourites', {
 
 export const userWantedVariants = pgTable('user_wanted_variants', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   stickerVariantId: uuid('sticker_variant_id').notNull().references(() => stickerVariants.id),
   albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
@@ -463,7 +463,7 @@ export const tradeMessages = pgTable('trade_messages', {
 
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   endpoint: text('endpoint').notNull(),
   p256dh: text('p256dh').notNull(),
   auth: text('auth').notNull(),
@@ -493,7 +493,7 @@ export const publicLists = pgTable('public_lists', {
 // See emailVerificationTokens for the at-rest hashing rationale.
 export const passwordResetTokens = pgTable('password_reset_tokens', {
   tokenHash: text('token_hash').primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull().default(
     sql`now() + INTERVAL '1 hour'`
   ),
