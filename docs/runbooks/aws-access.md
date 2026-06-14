@@ -129,6 +129,26 @@ through the dev EC2 app instance via SSM Session Manager.
 `brew install --cask session-manager-plugin`), `jq`, and the `cromo-dev` profile
 with MFA temp creds exported (`§4`).
 
+### Easy path: `scripts/dev-db-tunnel.sh`
+
+After MFA creds are exported, this one wraps the whole flow — resolves the
+instance, fetches `DATABASE_URL` from Secrets Manager, parses the RDS host out
+of it, opens the SSM port-forward in the background, and drops into psql with
+`DATABASE_URL` rewritten to `localhost:15432`. Tunnel is torn down on exit.
+
+```bash
+eval "$(./scripts/aws-mfa-session.sh --profile cromo-dev)"
+
+./scripts/dev-db-tunnel.sh                 # tunnel + psql
+./scripts/dev-db-tunnel.sh --tunnel-only   # tunnel only; prints LOCAL_URL
+./scripts/dev-db-tunnel.sh -- pg_dump …    # run any command with DATABASE_URL set
+```
+
+The long form below is the manual equivalent — useful for debugging tunnel
+failures or running the steps from a non-bash shell.
+
+### Manual flow
+
 ```bash
 # 1. Find the dev API instance ID.
 INSTANCE_ID=$(aws ec2 describe-instances \
