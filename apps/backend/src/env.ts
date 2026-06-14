@@ -34,7 +34,7 @@ const envSchema = z.object({
   // When SMTP_HOST is unset (production), the SES transport is used instead.
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().default(1025),
-  EMAIL_FROM: z.string().email().default('noreply@cromo.local'),
+  EMAIL_FROM: z.string().min(1).default('noreply@cromo.local'),
 
   // SES bounce/complaint SQS queue URL. The poller in
   // services/ses-poller.service.ts long-polls this queue and writes events
