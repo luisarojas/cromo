@@ -3,59 +3,56 @@
 ## Project Rules
 
 ### Docker-First Development Environment
-The application always runs inside Docker containers via docker-compose. Never suggest running services, installing dependencies, or executing build/seed/migration commands directly on the host machine. All such operations must go through docker-compose.
+The app always runs inside Docker via `infrastructure/docker/docker-compose.yml`. Never suggest running services, installing deps, or executing build/seed/migration commands directly on the host — everything goes through `docker compose`.
 
-The compose file is at `infrastructure/docker/docker-compose.yml`. Common patterns:
-- **Run a command in a service:** `docker compose -f infrastructure/docker/docker-compose.yml exec <service> <command>`
-- **Rebuild after code/dependency changes:** `docker compose -f infrastructure/docker/docker-compose.yml up --build`
-- **View logs:** `docker compose -f infrastructure/docker/docker-compose.yml logs -f <service>`
-- **Restart a service:** `docker compose -f infrastructure/docker/docker-compose.yml restart <service>`
-
-Never suggest `npm install`, `npm run build`, or similar commands outside of a `docker compose exec` context.
+Common patterns:
+- **Exec in a service:** `docker compose -f infrastructure/docker/docker-compose.yml exec <service> <cmd>`
+- **Rebuild:** `docker compose -f infrastructure/docker/docker-compose.yml up --build`
+- **Logs / restart:** `docker compose -f infrastructure/docker/docker-compose.yml logs -f <service>` / `restart <service>`
 
 ### No Backward Compatibility Required
-There is no need to support any kind of backward compatibility. Cromo is in active development and can be rebuilt and redeployed when significant changes are made. Feel free to make breaking changes, refactor, and deploy without worrying about migration paths or deprecation warnings.
+Cromo is in active development — make breaking changes freely. No migration paths, no deprecation warnings. (Exception: published release tags are immutable by convention; see versioning.)
 
 ### Sticker Catalog Cache
-The frontend's localStorage cache for the sticker catalog is keyed off a backend-provided version (`GET /api/v1/stickers/version`). The version is derived from `MAX(updated_at)` across the catalog tables, so any catalog mutation invalidates every browser on next page load automatically — no manual cache-key bump.
+The frontend's localStorage cache is keyed off `GET /api/v1/stickers/version`, derived from `MAX(updated_at)` across catalog tables — any mutation auto-invalidates all browsers.
 
-After a reseed, also flush Redis (`docker compose -f infrastructure/docker/docker-compose.yml exec cache redis-cli FLUSHALL`) since the backend caches sticker list responses for 1 hour and the catalog-version probe for 5 min. Admin edits via `PATCH /api/v1/admin/stickers/:id` already bust the version cache key (`cromo:catalog_version`) automatically.
+After a reseed, also flush Redis (`docker compose ... exec cache redis-cli FLUSHALL`) — the backend caches sticker lists for 1h and the version probe for 5min. Admin edits via `PATCH /api/v1/admin/stickers/:id` bust `cromo:catalog_version` automatically.
 
 ### API Response Casing — Always Use the Global Serializer
-The backend uses raw SQL and emits PostgreSQL `snake_case` row objects from its services. A global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response, so the wire format is always `camelCase`. Frontend types in `@cromo/shared` and the interfaces in `apps/frontend/src/lib/api.ts` describe that camelCase wire format.
+Backend services emit Postgres `snake_case`; a global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response. Wire format is always `camelCase`. Frontend types in `@cromo/shared` and `apps/frontend/src/lib/api.ts` describe that.
 
-Rules to follow:
-- **Do not** add per-endpoint snake→camel mapping functions in the frontend (e.g. `mapTradeSummary`, `mapTradeDetail`). If a response looks like snake_case in the client, the fix is on the backend, not in the API layer.
-- **Do not** rename SQL aliases to camelCase to "make it work." Keep SQL idiomatic; let the serializer do its job.
-- When adding a new Fastify route, you do **not** need to declare a `response:` schema for casing to work — the global setup covers both schema'd and non-schema'd routes via `setSerializerCompiler` + `setReplySerializer`. Existing `response:` schemas in route definitions are documentation only; the custom serializer ignores them for actual serialization, so adding/removing fields there has no runtime effect.
-- **Exception: raw socket writes.** SSE handlers use `reply.raw.write(...)` to push events directly to the socket, which bypasses both Fastify serializers. Any handler that writes raw bytes (or publishes payloads consumed by such a handler) must explicitly call `camelizeKeys(payload)` before `JSON.stringify`. See the SSE handler in `apps/backend/src/routes/v1/trade.ts` for the canonical pattern.
+Rules:
+- **Don't** add per-endpoint snake→camel mappers in the frontend. If a response looks snake_case, fix the backend.
+- **Don't** rename SQL aliases to camelCase. Keep SQL idiomatic.
+- New Fastify routes do **not** need a `response:` schema for casing — `setSerializerCompiler` + `setReplySerializer` cover both schema'd and non-schema'd routes. Existing `response:` schemas are doc-only.
+- **Exception: raw socket writes.** SSE handlers using `reply.raw.write(...)` bypass both serializers; explicitly call `camelizeKeys(payload)` before `JSON.stringify`. Canonical pattern in `apps/backend/src/routes/v1/trade.ts`.
 
-If both `setSerializerCompiler` and `setReplySerializer` need to be kept in sync (e.g. when changing the casing strategy), update both — losing one silently regresses every route on the wrong side of the schema/no-schema split.
+If changing casing strategy, update **both** `setSerializerCompiler` and `setReplySerializer` — losing one silently regresses every route on the wrong side of the schema/no-schema split.
 
 ### Drizzle Migrations — Single Migrations Folder
-The database schema is managed by Drizzle ORM. The Drizzle table definitions live in `apps/backend/src/db/schema.ts`; migration SQL files live in `apps/backend/src/db/migrations/` (alongside a `meta/_journal.json` index and per-migration snapshots). The backend applies pending migrations at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`, which delegates to Drizzle's `migrate()` and writes its bookkeeping into a `drizzle.__drizzle_migrations` table on the target DB.
+Schema in `apps/backend/src/db/schema.ts`; SQL files in `apps/backend/src/db/migrations/` (plus `meta/_journal.json` + per-migration snapshots). Backend auto-applies pending migrations at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`; bookkeeping lives in `drizzle.__drizzle_migrations`.
 
 To change the schema:
-1. Edit `apps/backend/src/db/schema.ts`.
-2. Generate a migration: `pnpm db:generate` (routes through `docker compose exec api` automatically).
-3. Review the generated SQL in `src/db/migrations/`. For things Drizzle can't infer (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` file and add a matching entry to `meta/_journal.json` plus a placeholder `meta/NNNN_snapshot.json` (copy the previous snapshot, refresh `id`/`prevId`).
-4. Apply: `pnpm db:migrate` (via docker compose exec). On the next API startup the migration is also applied automatically.
+1. Edit `schema.ts`.
+2. `pnpm db:generate` (routes through `docker compose exec api`).
+3. Review the generated SQL. For things Drizzle can't infer (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` and add a matching `meta/_journal.json` entry + placeholder snapshot (copy previous, refresh `id`/`prevId`).
+4. `pnpm db:migrate` (or wait for the next API startup).
 
-Catalog seed data (album types, editions, formats, scan prompts) lives in `scripts/seeds/00_album_catalog.sql` and is loaded by `pnpm db:seed`, not by the migration system.
+Catalog seed data (album types, editions, formats, scan prompts) lives in `scripts/seeds/00_album_catalog.sql` and loads via `pnpm db:seed`, not the migration system.
 
 ### Application Versioning — Hybrid SemVer + `git describe`
 
-Cromo has two version surfaces, and they exist for different reasons:
+Two version surfaces with different roles:
 
-1. **Runtime `APP_VERSION`** — what the running app reports to itself and to observability. Surfaces include `/api/v1/health`, Sentry `release` tags (client + server), and any future log line / activity entry that quotes a build identifier. The value is **computed at build time** by `scripts/app-version.sh` (which is `git describe --tags --always --dirty`) and baked into the container image via:
-    - Backend: `ARG APP_VERSION` → `ENV APP_VERSION` in `apps/backend/Dockerfile.cloud`, read at runtime by `apps/backend/src/env.ts`.
-    - Frontend: `ARG NEXT_PUBLIC_APP_VERSION` in `apps/frontend/Dockerfile.cloud`, baked into the Next.js client bundle (`NEXT_PUBLIC_*` is build-time) and re-exported in the runtime stage so server-side Sentry init sees it too.
+1. **Runtime `APP_VERSION`** — what the app reports (`/api/v1/health`, Sentry `release` tags, future log lines). Computed at build time by `scripts/app-version.sh` (= `git describe --tags --always --dirty`) and baked into images:
+   - Backend: `ARG APP_VERSION` → `ENV APP_VERSION` in `apps/backend/Dockerfile.cloud`, read by `apps/backend/src/env.ts`.
+   - Frontend: `ARG NEXT_PUBLIC_APP_VERSION` in `apps/frontend/Dockerfile.cloud`, baked into the Next.js client bundle and re-exported in the runtime stage so server-side Sentry sees it.
 
-   CI sets both build-args from `./scripts/app-version.sh` in `.github/workflows/ci-cd.yml`. Locally, `./scripts/dev-up.sh` exports `APP_VERSION` before `docker compose`; plain `docker compose -f infrastructure/docker/docker-compose.yml ...` still works and falls back to the static `0.0.0-local` label baked into the compose file.
+   CI sets both build-args from `./scripts/app-version.sh` in `.github/workflows/ci-cd.yml`. Locally, `./scripts/dev-up.sh` exports `APP_VERSION` before `docker compose`; plain compose falls back to `0.0.0-local`.
 
-2. **`package.json` `version`** — the **base SemVer** the runtime version extends. It lives in four files that must stay in lockstep: `package.json`, `apps/backend/package.json`, `apps/frontend/package.json`, `packages/shared/package.json`. It has **no runtime consumer** — runtime code must never read `package.json.version`; it must use `process.env.APP_VERSION`. The base SemVer exists purely to (a) answer "what release line are we on?" without git introspection, and (b) keep tooling that introspects `package.json` happy.
+2. **`package.json` `version`** — base SemVer the runtime extends. Lives in 4 lockstep files: root, `apps/backend`, `apps/frontend`, `packages/shared`. **No runtime consumer** — runtime code must use `process.env.APP_VERSION`. Base SemVer exists to (a) name the release line without git, (b) keep tooling happy.
 
-The two surfaces converge at tagged commits and diverge in between:
+Convergence:
 
 | State                         | `package.json.version` | Runtime `APP_VERSION`        |
 | ----------------------------- | ---------------------- | ---------------------------- |
@@ -64,274 +61,249 @@ The two surfaces converge at tagged commits and diverge in between:
 | Dirty working tree            | `0.2.0`                | `v0.2.0-3-gabcd123-dirty`    |
 | Before any tag exists         | `0.1.0`                | `<short-sha>` or `<…>-dirty` |
 
-**To cut a release:** `./scripts/release.sh 0.2.0`. The script validates SemVer, refuses on a dirty tree or a re-used tag, rewrites all four `version` fields, commits the bump as `Release v0.2.0`, and creates an annotated `v0.2.0` git tag. Then `git push origin main --tags` triggers the deploy pipeline; CI's `git describe` naturally reports `v0.2.0` for that commit and `v0.2.0-N-g<sha>` for each subsequent commit until the next tag.
-
-**Release workflow — step by step:**
+**Cut a release:**
 
 ```bash
-# from a clean main, with whatever you want to release already merged
 git checkout main && git pull
-./scripts/release.sh 0.2.0
-git push origin main --tags
+./scripts/release.sh 0.2.0          # validates semver, refuses dirty/reused tag, bumps 4 files, commits "Release v0.2.0", annotated tag
+git push origin main --tags         # CI deploys; `git describe` reports v0.2.0
 ```
 
-That sequence does everything the runtime versioning model needs:
-1. `release.sh` rewrites the four `package.json` `version` fields to `0.2.0`, commits as `Release v0.2.0`, and creates an **annotated** git tag `v0.2.0` on that commit (annotated, not lightweight — `git describe` only honours annotated tags by default, which is the whole point of the model).
-2. `git push origin main --tags` lets the bump commit and the new tag leave your machine. CI runs on the new commit; `scripts/app-version.sh` returns `v0.2.0`; the built images bake that string; `/api/v1/health` and Sentry start reporting it.
+Patch / pre-release follow the same shape (`0.2.1`, `0.3.0-rc.1`). The tag must be **annotated** — `git describe` only honours those by default.
 
-Patch and pre-release follow the same shape: `./scripts/release.sh 0.2.1`, `./scripts/release.sh 0.3.0-rc.1`, etc.
+**GitHub Releases** are optional metadata on top of the tag (`gh release create v0.2.0 --generate-notes`). Skip is fine — the git tag is the contract.
 
-**GitHub Releases — optional polish on top of the tag.** A GitHub Release is just metadata GitHub attaches to an existing tag; it does **not** change anything the running app sees. Create one only if you want a human-readable changelog UI:
+**Rollback.** Unpushed: `git tag -d v0.2.0 && git reset --hard HEAD~1`. Already pushed: **roll forward** with a patch (`0.2.1`); never delete a published tag — it rewrites history for anyone who fetched and breaks images built from it. The "No Backward Compatibility" rule applies to schema/API, not released tags.
 
-```bash
-gh release create v0.2.0 --generate-notes                    # auto-notes from PRs
-gh release create v0.2.0 --title "v0.2.0 — …" --notes "…"   # hand-written notes
-```
-
-Skipping this is fine — the git tag is the contract, the GitHub Release is decoration.
-
-**Rolling back a botched release.** If `release.sh` succeeded but you have **not yet pushed**:
-
-```bash
-git tag -d v0.2.0          # remove the tag locally
-git reset --hard HEAD~1    # drop the bump commit (DESTRUCTIVE — unpushed only)
-```
-
-If the tag has already been pushed, **roll forward with a new patch release** (`0.2.1`) instead of deleting the published tag. Deleting a published tag rewrites history for everyone who fetched it and breaks anyone still running an image built from it. The "No Backward Compatibility Required" project rule applies to schema and API shape — it does **not** apply to released version tags, which are immutable by convention.
-
-**Rules to follow:**
-- **Never edit a workspace `package.json` `version` field by hand.** Always go through `scripts/release.sh`, which guarantees the four files stay in sync and that the matching git tag exists.
-- **Never read `package.json.version` from runtime code.** The runtime contract is `process.env.APP_VERSION` — if you reach for `package.json`, you'll silently report the *release line* instead of the *commit*, and that will mislead whoever is debugging an incident.
-- **If you add a new workspace package** (a new `apps/*` or `packages/*`), update the `FILES=` array in `scripts/release.sh` and the table above in lockstep. A package whose `version` is not bumped by the release script will drift indefinitely.
-- **Build metadata (`+sha…`) is disallowed in release tags** — `release.sh` rejects it because `+` isn't valid in a git tag name. Use a pre-release suffix (`0.2.0-rc.1`) if you need to disambiguate.
-- **First-time setup is already done** — root, backend, and shared were bumped from `0.0.0-local` → `0.1.0` to match the frontend's existing base. The first run of `release.sh` should be `./scripts/release.sh 0.2.0` (or `0.1.1` for a patch) when cutting the first real release.
+**Rules:**
+- **Never edit a workspace `package.json` `version` by hand** — always `scripts/release.sh`.
+- **Never read `package.json.version` from runtime code** — use `process.env.APP_VERSION`. Reading `package.json` reports the *release line* instead of the *commit*, misleading incident debuggers.
+- **New workspace package?** Update `FILES=` in `scripts/release.sh` and the table above in lockstep, or its version drifts forever.
+- **Build metadata (`+sha…`) is rejected** — `+` isn't valid in git tag names. Use pre-release suffixes (`0.2.0-rc.1`).
+- **First-time setup is done** — root/backend/shared bumped from `0.0.0-local` → `0.1.0` to match frontend. First real release: `./scripts/release.sh 0.2.0` (or `0.1.1`).
 
 ### In-App Changelog — User-Facing Release Notes
 
-The user-facing changelog lives at `/changelog` in the frontend. It is a static server-rendered page whose data is hand-curated, not derived from git history.
+Lives at `/changelog`. Static SSR page, hand-curated data, not derived from git.
 
-- **Page:** `apps/frontend/src/app/changelog/page.tsx` — renders entries in array order (newest first), with category tags and an "Unreleased" badge when `date` is `null`.
-- **Data:** `apps/frontend/src/app/changelog/entries.ts` — the only file you edit when shipping notes. Each entry has `version`, `date` (`'YYYY-MM-DD'` or `null`), and `changes` keyed by category. Supported categories follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): `Added`, `Changed`, `Fixed`, `Removed`, `Security`.
-- **No navigation entries** point to `/changelog`. It is reachable only by typing the URL; this is intentional.
+- **Page:** `apps/frontend/src/app/changelog/page.tsx` — renders entries newest-first, with category tags and an "Unreleased" badge when `date === null`.
+- **Data:** `apps/frontend/src/app/changelog/entries.ts` — the only file you edit. Each entry has `version`, `date` (`'YYYY-MM-DD'` or `null`), `changes` keyed by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) categories: `Added`, `Changed`, `Fixed`, `Removed`, `Security`.
+- **No nav links** point to `/changelog`. Reachable only by URL — intentional.
 
-**Workflow — adding notes as work ships (the only manual step):**
-1. While in development between releases, append bullets to the single `Unreleased` entry at the top of the `CHANGELOG` array, under whichever category fits.
-2. Write bullets for collectors, not committers — describe the user-visible effect, not the implementation. ("Player search matches accented names" beats "Normalize NFD in name lookup".)
-3. Skip changes with no user-visible effect (refactors, infra, internal renames).
-4. Keep each bullet short and scannable — one clause, no nested qualifiers. A collector should be able to read the whole `Unreleased` block in a glance. If a bullet needs a comma-spliced "instead of…" tail to explain itself, the verb is probably wrong; pick a tighter one.
-5. When the `Unreleased` block grows long or starts to repeat a prefix (e.g. five bullets that begin with "Trade picker:"), rewrite and reorder before appending more. Combine bullets that describe the same surface (one sort+filter line is better than two), drop redundant context once a cluster makes the area obvious, and group related items so the reader sees them as one block instead of scattered repetition.
+**Workflow — between releases (manual):**
+Append bullets to the single `Unreleased` entry at index 0 as work ships.
+- Write for collectors, not committers — describe user-visible effect, not implementation ("Player search matches accented names" > "Normalize NFD in name lookup").
+- Skip changes with no user-visible effect (refactors, infra, internal renames) — but make that call explicitly.
+- One clause per bullet, no nested qualifiers. If a bullet needs a comma-spliced "instead of…" tail, the verb is wrong.
+- When `Unreleased` grows long or repeats a prefix, rewrite/reorder before appending — combine bullets on the same surface, group related items.
 
-**Workflow — at release time (fully automated by `scripts/release.sh`):**
-When you run `./scripts/release.sh X.Y.Z`, the script invokes `scripts/rotate-changelog.mjs` twice:
-1. **Pre-flight `check`** — runs before any mutations. Fails the release with a clear error if the `Unreleased` entry doesn't exist at index 0, has the wrong `date`, or has zero bullets. This is the guard against "I cut a release with empty notes."
-2. **`rotate`** — runs after the `package.json` bumps. Renames `Unreleased` → `vX.Y.Z`, stamps today's UTC date, and prepends a fresh empty `Unreleased` block. The mutated `entries.ts` is included in the same release commit as the `package.json` bumps, so the page and the tag ship together.
+**Workflow — at release time (automated):**
+`scripts/release.sh X.Y.Z` invokes `scripts/rotate-changelog.mjs` twice:
+1. **`check`** (pre-flight) — fails the release if `Unreleased` isn't at index 0, has wrong `date`, or has zero bullets.
+2. **`rotate`** (post-bump) — renames `Unreleased` → `vX.Y.Z`, stamps today's UTC date, prepends a fresh empty `Unreleased`. The mutated `entries.ts` ships in the same release commit.
 
-You never edit `version` or `date` in `entries.ts` by hand — the script owns those fields, the same way `release.sh` owns the four `package.json` `version` fields.
+You never edit `version` or `date` in `entries.ts` by hand — `release.sh` owns them.
 
-**Rules to follow:**
-- **Always update `Unreleased` in the same change that ships a user-visible fix or feature.** Appending the bullet is part of the work, not a follow-up. If a change has no user-visible effect (refactor, infra, internal rename), skip the bullet — but make that call explicitly, don't forget. Phrasing is for collectors, not committers.
-- **Do not link `/changelog` from any nav, footer, menu, or in-app banner.** If a future change makes it discoverable, that's a deliberate product decision, not a drive-by edit.
-- **Do not auto-generate entries from git log.** The point of the in-app changelog is that it speaks to collectors in their language; commit subjects are written for reviewers and don't translate. Curate by hand.
-- **Do not parse the root `CHANGELOG.md` at build time.** The two files are independent: `CHANGELOG.md` (if maintained at all) serves git tooling and GitHub Releases; `entries.ts` is the in-app source of truth. Keeping them decoupled means an in-app copy edit doesn't need a repo-wide rebuild story.
-- **Do not edit `version` or `date` in `entries.ts` by hand.** `scripts/release.sh` rotates them automatically, and the script's `check` subcommand enforces the shape it expects (`version: 'Unreleased'`, `date: null`, at index 0). Hand-edits will either be overwritten or will trip the validator on the next release.
-- **Preserve the shape of `entries.ts`.** `rotate-changelog.mjs` matches the file with regexes against a known shape (the literal string `CHANGELOG: ChangelogEntry[] = [`, then `version: 'Unreleased'` and `date: null` inside the first entry). Reformatting that changes those substrings — e.g. switching to double quotes, renaming the export, or splitting the type annotation across lines — will break the script. If you must change the shape, update `scripts/rotate-changelog.mjs` in the same commit.
-- **Dates are rendered in UTC** by the page and stamped in UTC by the rotator, so SSR and browser agree.
+**Rules:**
+- **Update `Unreleased` in the same change that ships a user-visible fix/feature.** Appending the bullet is part of the work.
+- **Don't link `/changelog` from any nav/footer/menu/banner.** Discoverability is a deliberate product decision.
+- **Don't auto-generate entries from git log.** Commit subjects are written for reviewers.
+- **Don't parse the root `CHANGELOG.md` at build time.** The two files are independent: `CHANGELOG.md` (if maintained) serves git tooling/GitHub Releases; `entries.ts` is the in-app SoT.
+- **Don't hand-edit `version`/`date`** — the rotator owns them.
+- **Preserve `entries.ts` shape.** `rotate-changelog.mjs` matches with regexes against `CHANGELOG: ChangelogEntry[] = [`, `version: 'Unreleased'`, `date: null`. Switching to double quotes, renaming the export, or splitting the type annotation breaks the script — update it in the same commit if you must.
+- **Dates are UTC** in both the page and the rotator, so SSR matches the browser.
 
 ### AWS Account Access — Two Profiles, MFA-Gated
 
-Operator authentication to the AWS account uses a two-tier IAM model, both Terraform-managed where possible:
+Two-tier IAM model, Terraform-managed:
 
-- **`cromo` profile** → `cromo-admin` IAM user (`AdministratorAccess`). Use **only** for break-glass / bootstrap ops that genuinely can't go through the CI pipeline (initial account bootstrap, recovering a broken state lock, etc.). Normal `terraform plan` / `apply` runs through GitHub Actions OIDC via the `cromo-tf-runner` role — see "Terraform — GitHub Actions OIDC" below. When you do need this profile locally, the Terraform backend and provider blocks no longer pin `profile = "cromo"`; both pick credentials up from the standard AWS chain (env vars first), so `eval "$(./scripts/aws-mfa-session.sh --profile cromo)"` in your shell is the gate that satisfies `cromo-shared-require-mfa`.
-- **`cromo-dev` profile** → an operator IAM user (e.g. `luisa`) created by `modules/dev-access`. Scoped to `ec2:DescribeInstances`, `ssm:StartSession` to the `cromo-dev-app` instance, `secretsmanager:GetSecretValue` on `cromo/dev/app`, and self-MFA management. Use for everything else (seeding through SSM port-forward, reading secrets, ad-hoc psql).
+- **`cromo` profile** → `cromo-admin` IAM user (`AdministratorAccess`). **Break-glass / bootstrap only** (initial account setup, recovering a broken state lock, etc.). Normal `terraform plan`/`apply` runs through GitHub Actions OIDC via `cromo-tf-runner` (see below). The Terraform backend/provider blocks no longer pin `profile = "cromo"` — they use the standard AWS chain, so `eval "$(./scripts/aws-mfa-session.sh --profile cromo)"` is the gate that satisfies `cromo-shared-require-mfa`.
+- **`cromo-dev` profile** → operator user (e.g. `luisa`) from `modules/dev-access`. Scoped to `ec2:DescribeInstances`, `ssm:StartSession` on `cromo-dev-app`, `secretsmanager:GetSecretValue` on `cromo/dev/app`, self-MFA. Use for everything else (SSM port-forward, secrets, ad-hoc psql).
 
-Both users carry the customer-managed policy `cromo-{shared,dev}-require-mfa` (`modules/iam-mfa-enforcement`) that **denies every sensitive action unless `aws:MultiFactorAuthPresent = true`**, so long-lived access keys are useless without first calling `sts:GetSessionToken` with an MFA token. The deny condition is `BoolIfExists` not `Bool`.
+Both users carry `cromo-{shared,dev}-require-mfa` (`modules/iam-mfa-enforcement`), which **denies sensitive actions unless `aws:MultiFactorAuthPresent = true`** (condition is `BoolIfExists`, not `Bool`). Long-lived keys are useless without first calling `sts:GetSessionToken` with an MFA token. The policy is customer-managed (not inline) because the canonical AWS document exceeds the 2,048-byte inline cap.
 
-The policy is customer-managed rather than inline because the canonical AWS document exceeds the 2,048-byte inline-policy cap — `aws_iam_user_policy_attachment` of an `aws_iam_policy` is the only shape that works.
+Operator workflow (mint creds, port-forward to private dev RDS, reseed) is in `docs/runbooks/aws-access.md`. Design rationale (incl. why not IAM Identity Center) in `docs/architecture/auth-security.md` §9.9.
 
-The operator workflow (mint creds via `scripts/aws-mfa-session.sh`, port-forward into the private dev RDS via SSM, reseed) is in `docs/runbooks/aws-access.md`. Design rationale (including why not AWS IAM Identity Center yet) is in `docs/architecture/auth-security.md` §9.9.
-
-**Rules to follow:**
-- **Never write access keys into Terraform** (`aws_iam_access_key`). Keys land in state and leak through `terraform show`. Create them via the AWS console post-apply; the IAM user resources themselves are fine to manage in Terraform.
-- **Never set `custom:username` on a `aws_cognito_user` resource in `modules/auth`.** The AWS provider has a read/write asymmetry on custom Cognito schema attributes whose name (`username`) collides with a built-in field, which surfaces as permanent plan drift. The backend's `deriveUsername()` in `apps/backend/src/services/cognito-auth.service.ts` synthesises the same value from the email local part on first login — bootstrapping the attribute is behaviour-neutral, so don't do it.
-- **Don't propose AWS IAM Identity Center** unless asked. It was considered and intentionally deferred until the team grows past one person; the MFA-required policy closes the same threat at lower complexity.
-- **The dev RDS is `publicly_accessible = false`.** Any command targeting it from a laptop must go through the SSM port-forward documented in `docs/runbooks/aws-access.md` §5 — direct connections will time out (or fall back to `/tmp/.s.PGSQL.5432` if `DATABASE_URL` is malformed).
+**Rules:**
+- **Never write access keys into Terraform** (`aws_iam_access_key`) — keys land in state and leak via `terraform show`. Mint in console post-apply; the IAM user resources themselves are fine to manage.
+- **Never set `custom:username` on `aws_cognito_user` in `modules/auth`.** The AWS provider has a read/write asymmetry on custom attributes that collide with built-in field names — surfaces as permanent plan drift. `deriveUsername()` in `apps/backend/src/services/cognito-auth.service.ts` synthesises the same value from the email local part on first login.
+- **Don't propose AWS IAM Identity Center** unless asked. Intentionally deferred — MFA-required policy closes the same threat at lower complexity for a one-person team.
+- **Dev RDS is `publicly_accessible = false`.** Laptop commands must go through SSM port-forward (`docs/runbooks/aws-access.md` §5) — direct connections time out (or fall back to `/tmp/.s.PGSQL.5432` on malformed `DATABASE_URL`).
 
 ### Terraform — GitHub Actions OIDC
 
-`terraform plan` and `terraform apply` run through `.github/workflows/terraform.yml`, not from a developer's laptop. The workflow assumes the `cromo-tf-runner` IAM role (`modules/terraform-runner`, instantiated once in `env/shared`) via GitHub OIDC, with `AdministratorAccess` attached. Trust is constrained by the OIDC token's `sub` claim, which must match one of three patterns gated by GitHub Environment:
+`terraform plan`/`apply` run from `.github/workflows/terraform.yml`, not laptops. The workflow assumes `cromo-tf-runner` (`modules/terraform-runner`, instantiated once in `env/shared`) via GitHub OIDC with `AdministratorAccess`. Trust is constrained by OIDC `sub` patterns gated by GitHub Environment:
 
-| GitHub Environment | Scope                   | Gate                                          |
-| ------------------ | ----------------------- | --------------------------------------------- |
-| `tf-shared`        | `env/shared/`           | Auto-applies on push to `main`                |
-| `tf-dev`           | `env/dev/`              | Auto-applies on push to `main`                |
-| `tf-prod`          | `env/prod/`             | Applies only on a `v*` tag push (release tag) |
+| Environment | Scope         | Gate                                          |
+| ----------- | ------------- | --------------------------------------------- |
+| `tf-shared` | `env/shared/` | Auto-applies on push to `main`                |
+| `tf-dev`    | `env/dev/`    | Auto-applies on push to `main`                |
+| `tf-prod`   | `env/prod/`   | Applies only on `v*` tag push (release tag)   |
 
-The role is **not** subject to `cromo-shared-require-mfa` because that policy attaches to IAM users (`aws_iam_user_policy_attachment`), not roles. Short-lived OIDC sessions don't need the MFA gate — the trust policy already restricts them to specific GitHub Environments in this specific repo.
+The role is **not** subject to `cromo-shared-require-mfa` — that policy attaches to users, not roles. Short-lived OIDC sessions don't need the MFA gate; the trust policy already restricts to specific GitHub Environments in this repo.
 
 **Workflow behaviour:**
-- **PR** → runs `terraform plan` for all three stacks in parallel; posts each diff as a PR comment so the reviewer sees what would change.
-- **Push to `main`** → applies `shared` and `dev`. Prod is **not** applied — push a `v*` tag to apply prod.
-- **Push of a `v*` tag** → applies `prod`. Cut releases the usual way: `./scripts/release.sh X.Y.Z && git push origin main --tags`. The release script already enforces clean tree + valid semver + unique tag, so the act of cutting a release IS the prod-deploy gate.
-- **`workflow_dispatch`** → manual single-stack apply (handy for one-off recoveries). Prod via dispatch still requires an underlying `v*` tag because the OIDC trust policy enforces it.
+- **PR** → parallel `terraform plan` for all three stacks; posts diffs as PR comments.
+- **Push to `main`** → applies `shared` + `dev`. Prod is **not** applied — push a `v*` tag.
+- **Push of `v*` tag** → applies `prod`. Releases via `./scripts/release.sh X.Y.Z && git push origin main --tags`. The release script's clean-tree + semver + unique-tag checks ARE the prod-deploy gate.
+- **`workflow_dispatch`** → manual single-stack apply for one-off recoveries. Prod via dispatch still requires an underlying `v*` tag (OIDC trust enforces it).
 
-**Required repo configuration** (one-time, not in Terraform):
-- Repo **secret** `AWS_TF_RUNNER_ROLE_ARN` = output of `module.terraform_runner.role_arn` from `env/shared`.
-- Repo **variable** `AWS_REGION` = `ca-central-1`. (Workflow reads it as `vars.AWS_REGION`, not `secrets.AWS_REGION` — these are different namespaces in GitHub Actions.)
-- GitHub Environments named `tf-shared`, `tf-dev`, `tf-prod` created in repo settings. No protection rules required on the Free plan — prod is gated at the OIDC-trust + workflow-condition layer instead.
+**One-time repo config** (not in Terraform):
+- Repo **secret** `AWS_TF_RUNNER_ROLE_ARN` = `module.terraform_runner.role_arn` from `env/shared`.
+- Repo **variable** `AWS_REGION` = `ca-central-1`. (Workflow reads `vars.AWS_REGION`, not `secrets.AWS_REGION` — different namespaces.)
+- GitHub Environments `tf-shared`, `tf-dev`, `tf-prod` created in settings. No protection rules required on Free — prod is gated at the OIDC-trust + workflow-condition layer.
 
-**Rules to follow:**
-- **Never run `terraform apply` from a laptop for routine changes.** It bypasses the PR review, the plan comment, and the prod approval gate. Local apply stays available for genuine emergencies (break-glass) via the `cromo` profile + MFA.
-- **Never widen the `tf-prod` sub-pattern** to drop the `:ref:refs/tags/v*` suffix. That suffix is what stops a workflow misconfig from applying prod without a release tag. The `environment:tf-prod` part alone is not a sufficient gate on the Free plan.
-- **The role intentionally has `AdministratorAccess`.** Terraform needs to manage every resource in the account; scoping it further means a different IAM error every time you add a service. The defence is the trust policy + GitHub Environment protection, not a narrow permission set.
-- **Local `terraform state` operations** (`mv`, `rm`, `push`, `force-unlock`) still happen from the laptop via the `cromo` profile — they're recovery operations, not routine flow. The workflow has no business doing them.
+**Rules:**
+- **Never run `terraform apply` from a laptop for routine changes** — bypasses PR review, plan comment, and prod gate. Local apply stays for genuine emergencies via the `cromo` profile + MFA.
+- **Never widen the `tf-prod` sub-pattern** to drop `:ref:refs/tags/v*`. That suffix is what stops a workflow misconfig from applying prod without a release tag.
+- **The role intentionally has `AdministratorAccess`.** Defence is trust policy + Environment protection, not narrow permissions — scoping further means a new IAM error every time you add a service.
+- **Local `terraform state` operations** (`mv`/`rm`/`push`/`force-unlock`) still happen from the laptop via the `cromo` profile — recovery ops, not routine flow.
 
 ### SES Bounce/Complaint Pipeline — SES → SNS → SQS → Poller
 
-Bounce and complaint events from Amazon SES are routed to an in-process poller, not a webhook. The pipeline:
+Bounces/complaints are routed to an in-process poller, not a webhook:
 
 1. **SES** → events emitted to the `cromo-default` SESv2 configuration set's event destinations (`modules/ses`).
 2. **SNS topics** `cromo-ses-bounces` and `cromo-ses-complaints` in `env/shared` — one publisher per event type, account-scoped.
-3. **SQS queue** `cromo-{env}-ses-events` per environment (`modules/ses-consumer`). Each env's queue subscribes to both shared SNS topics with `raw_message_delivery = true`, so messages arrive as plain SES event JSON, not wrapped in SNS envelopes.
-4. **Backend poller** at `apps/backend/src/services/ses-poller.service.ts` — long-polls the queue from `app.ts` alongside the Redis job worker; parses each SES event via `services/ses-event-handler.ts`; writes the affected addresses into the `email_suppressions` table.
+3. **SQS queue** `cromo-{env}-ses-events` per env (`modules/ses-consumer`). Subscribes to both shared SNS topics with `raw_message_delivery = true` → plain SES JSON, not SNS envelopes.
+4. **Backend poller** at `apps/backend/src/services/ses-poller.service.ts` — long-polls from `app.ts` alongside the Redis worker; parses events via `services/ses-event-handler.ts`; writes to `email_suppressions`.
 
-The previous design used SNS HTTPS subscriptions delivering to a Fastify route at `/api/v1/internal/ses/notifications`. That created a chicken-and-egg: every fresh environment apply required the backend to be live with the new route deployed before `terraform apply` could finish, because Terraform waited for the `SubscriptionConfirmation` handshake. SQS removes that ordering constraint entirely — Terraform creates the queue and subscriptions independently of the backend's deploy state, and bounces queue safely for up to 14 days if the backend is rolling.
+**Why not a webhook?** The previous SNS HTTPS subscription to `/api/v1/internal/ses/notifications` created a chicken-and-egg: every fresh apply needed the backend live with the route deployed before `terraform apply` could finish the `SubscriptionConfirmation` handshake. SQS removes the ordering constraint — Terraform creates the queue/subscriptions independent of backend state, and bounces queue for up to 14 days if the backend is rolling.
 
-**Why per-env SQS queues** (vs one shared queue): IAM scoping is cleaner — each env's EC2 role only sees its own queue, so a dev-environment code bug can't drain or corrupt prod's bounce stream. Cost is negligible (free tier covers any realistic bounce volume).
+**Why per-env queues** (vs one shared): IAM scoping is cleaner — each env's EC2 role only sees its own queue, so a dev bug can't drain prod. Cost is negligible.
 
-**Why no per-message signature verification**: the queue policy (`modules/ses-consumer/main.tf`) only allows the two specific SES topics to publish, and the EC2 role only allows `sqs:ReceiveMessage` on this specific queue. The IAM/queue policy layer does what the SNS signature check did in the old webhook.
+**Why no per-message signature verification:** the queue policy only allows the two specific SES topics to publish, and the EC2 role only allows `sqs:ReceiveMessage` on this specific queue. IAM/queue policy does what the SNS signature check did.
 
-**Rules to follow:**
-- **Don't reintroduce the HTTPS webhook** unless you have a hard requirement for sub-second latency on bounce handling. SES bounce volume tolerates polling latency well, and the webhook's operational sharp edges (chicken-and-egg on apply, subscription drift on hostname change, manual confirmation re-sends on dropped containers) cost real time.
-- **Both transient and permanent bounces flow through the queue**, but only permanent bounces are suppressed. Transient bounces are SES's retry signal; suppressing them costs real users their mail. The filter lives in `ses-event-handler.ts`.
-- **The queue's `redrive_policy` sends messages to a DLQ after 5 receive attempts.** Anything in the DLQ is a code bug — debug, fix, and either replay or drop. Don't quiet the DLQ by raising `maxReceiveCount`.
-- **When wiring SES into a new environment, the only env variable the backend needs is `SES_QUEUE_URL`.** Unset = poller is a no-op (correct behaviour for local dev and tests). The poller treats this as a feature flag.
+**Rules:**
+- **Don't reintroduce the HTTPS webhook** unless you need sub-second bounce latency. SES tolerates polling fine; the webhook's sharp edges (chicken-and-egg, subscription drift on hostname change, manual confirmation re-sends on dropped containers) cost real time.
+- **Transient and permanent bounces both flow through the queue**, but only permanent are suppressed. Transient is SES's retry signal; suppressing it costs real users their mail. Filter lives in `ses-event-handler.ts`.
+- **DLQ after 5 receive attempts.** Anything in the DLQ is a code bug — debug, fix, replay or drop. Don't quiet it with `maxReceiveCount`.
+- **For new envs, the only env var the backend needs is `SES_QUEUE_URL`.** Unset = poller no-op (correct for local/test). The poller treats this as a feature flag.
 
 ### AI Scan Provider — Env-Driven, Multi-Backend
 
-The sticker identification call in `apps/backend/src/services/scan.service.ts` (`identifySticker`) dispatches to one of two providers based on env, so we can swap backends without touching code. Both providers consume the same prompt built by `buildIdentifyPrompt` and emit the same `ScanResult[]` shape — only the wire-level call differs.
+`identifySticker` in `apps/backend/src/services/scan.service.ts` dispatches to one of two providers based on env. Both consume the same `buildIdentifyPrompt` and emit the same `ScanResult[]` — only the wire call differs.
 
-| Env var          | Values                                                                                       | Notes |
-| ---------------- | -------------------------------------------------------------------------------------------- | ----- |
-| `SCAN_PROVIDER`  | `gemini` (default), `groq`                                                                   | Picks which provider `identifySticker` calls. |
-| `SCAN_MODEL`     | provider-specific model id (optional)                                                         | Overrides the provider's default model. E.g. `gemini-2.5-pro` to try Pro instead of Flash on Gemini. |
-| `GEMINI_API_KEY` | `mock` (default) or real key from https://aistudio.google.com/apikey                          | Only consulted when `SCAN_PROVIDER=gemini`. |
-| `GROQ_API_KEY`   | `mock` (default) or real key from https://console.groq.com/keys                               | Only consulted when `SCAN_PROVIDER=groq`. |
+| Env var          | Values                                                            | Notes |
+| ---------------- | ----------------------------------------------------------------- | ----- |
+| `SCAN_PROVIDER`  | `gemini` (default), `groq`                                        | Picks the provider. |
+| `SCAN_MODEL`     | provider-specific model id (optional)                             | Overrides default. E.g. `gemini-2.5-pro`. |
+| `GEMINI_API_KEY` | `mock` (default) or real key from https://aistudio.google.com/apikey | Used when `SCAN_PROVIDER=gemini`. |
+| `GROQ_API_KEY`   | `mock` (default) or real key from https://console.groq.com/keys   | Used when `SCAN_PROVIDER=groq`. |
 
-**Default models per provider** (defined as constants in `scan.service.ts`):
+**Default models** (constants in `scan.service.ts`):
 - `gemini` → `gemini-2.5-flash`
 - `groq`   → `meta-llama/llama-4-scout-17b-16e-instruct`
 
-**Mock pathway.** `identifySticker` short-circuits to the canned `MOCK_RESULTS` (BRA5 / Vinicius Jr.) when the **active** provider's API key equals the literal string `'mock'`. That means flipping `SCAN_PROVIDER` without also setting the new provider's key flips you into mock mode silently — the symptom is "every scan returns BRA5". Always set both `SCAN_PROVIDER` and the matching key together.
+**Mock pathway.** `identifySticker` short-circuits to canned `MOCK_RESULTS` (BRA5 / Vinicius Jr.) when the **active** provider's key equals `'mock'`. Flipping `SCAN_PROVIDER` without also setting the new provider's key silently enters mock mode — symptom: every scan returns BRA5. Always set both together.
 
-**Why we have a switch.** Quality and latency are in tension on the free tiers:
-- Gemini Flash with thinking enabled: best quality on fine variant detection, ~10–20s per scan.
-- Gemini Pro with thinking enabled: stronger reasoning, but free-tier quotas are tight (~5 RPM) and latency runs 30–60s+.
-- Groq Llama 4 Scout: fast (~1–3s) and a much more generous free tier, but historically weaker on the fine visual discriminations this app needs (border colours, foil textures, background tiers). Commit `150be50` originally migrated *away* from Scout for that reason and onto Maverick, but Groq has since removed Maverick from their catalog — Scout is once again the only Llama-family option on Groq.
+**Why a switch.** Free-tier trade-offs:
+- Gemini Flash + thinking: best quality on variant detection, ~10–20s per scan.
+- Gemini Pro + thinking: stronger reasoning; tight quotas (~5 RPM), 30–60s+ latency.
+- Groq Llama 4 Scout: fast (~1–3s), generous free tier, weaker on fine visual discriminations (borders, foils, backgrounds). Commit `150be50` originally migrated away to Maverick, but Groq removed Maverick — Scout is again the only Llama option.
 
-There is no free option that is simultaneously fast, high-quality, and unmetered — that is a paid-API decision (GPT-4o, Claude Sonnet vision), not a tuning decision.
+No free option is simultaneously fast, high-quality, and unmetered — that's a paid-API decision (GPT-4o, Claude Sonnet vision).
 
-**Rate-limit behaviour.** `MAX_RETRIES = 0` for both providers. Free-tier 429s used to stack into multi-minute hangs (one 60s timeout per attempt + 10s back-off × 4 attempts ≈ 4–5 minutes); failing fast surfaces the 503 to the frontend in ~1–2s so the user knows to back off. Raise `MAX_RETRIES` only if you move to a paid tier where quotas are no longer the binding constraint.
+**Rate-limit behaviour.** `MAX_RETRIES = 0` for both. Free-tier 429s used to stack into multi-minute hangs (60s timeout × 4 attempts + 10s back-off ≈ 4–5 min); failing fast surfaces 503 in ~1–2s so the user can back off. Raise only on a paid tier.
 
-**Rules to follow:**
-- **Don't read `env.GEMINI_API_KEY` or `env.GROQ_API_KEY` directly from elsewhere** — all provider selection and key consumption is centralised in `scan.service.ts`. If you need a new provider, add a third branch alongside `callGemini` / `callGroq`, not a parallel call site.
-- **Both providers must accept the same prompt and emit the same `ScanResult[]` shape.** The prompt in `buildIdentifyPrompt` is provider-agnostic; if a future provider needs a different prompt shape, branch *inside* the provider call helper, not at the call site.
-- **When changing the default model**, update both the constant in `scan.service.ts` AND the description in `.env.example` so the documented default doesn't drift from reality.
-- **Production deploys.** `SCAN_PROVIDER`, `SCAN_MODEL`, `GEMINI_API_KEY`, and `GROQ_API_KEY` all exist as Terraform variables in `infrastructure/terraform/env/{dev,prod}/`. Edit `terraform.tfvars` and re-apply to flip providers or models without a code change; the new values land in Secrets Manager and the EC2 user-data re-renders `/etc/cromo/cromo.env` on the next instance launch (ASG recycle).
-- **`SCAN_MODEL` is conditionally merged into the secrets block** (`var.scan_model != "" ? { SCAN_MODEL = var.scan_model } : {}`) rather than always-set. The reason: in `scan.service.ts`, model selection is `env.SCAN_MODEL ?? DEFAULT_<PROVIDER>_MODEL` — an empty string would *override* the default to `""` and force `model=""` in the API call. The Terraform-side conditional keeps the env var absent when unused so the code-side default wins. Preserve this pattern; never replace it with an unconditional assignment.
+**Rules:**
+- **Don't read `env.GEMINI_API_KEY`/`env.GROQ_API_KEY` elsewhere** — provider selection and key consumption is centralised in `scan.service.ts`. New provider = third branch alongside `callGemini`/`callGroq`, not a parallel call site.
+- **Both providers must accept the same prompt and emit the same `ScanResult[]`.** If a future provider needs a different prompt, branch *inside* the helper, not at the call site.
+- **When changing a default model**, update both the constant and the description in `.env.example`.
+- **Production deploys.** All four env vars exist as Terraform variables in `infrastructure/terraform/env/{dev,prod}/`. Edit `terraform.tfvars` and re-apply to flip provider/model without a code change; values land in Secrets Manager and EC2 user-data re-renders `/etc/cromo/cromo.env` on the next ASG recycle.
+- **`SCAN_MODEL` is conditionally merged into secrets** (`var.scan_model != "" ? { SCAN_MODEL = var.scan_model } : {}`). Reason: code uses `env.SCAN_MODEL ?? DEFAULT_<PROVIDER>_MODEL` — an empty string would *override* the default to `""` and force `model=""` in the API call. Keep this pattern; never make it unconditional.
 
 ### Sticker Types & Rarities — Source of Truth
 
-This section is the **canonical model** of every sticker variant Cromo recognises. Every change to the codebase — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's actual product) and this section ever diverge, update this section first and propagate; do not let the codebase silently drift.
+This section is the **canonical model** of every variant Cromo recognises. Every code change — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's product) diverges, update this section first and propagate.
 
-Hard rules that follow from this model (call these out in any PR that touches stickers):
-- The variant `base_borderless` is shared by **two** sticker types: international core Base stickers AND Coca-Cola stickers. They are distinguished by `sticker_type` (`null` vs `'coca_cola_special'`), never by the variant token.
-- There is **no smooth (non-crumple) gold border variant** in the main set. The only "gold" finish on a core sticker is `gold_crumple` (iCollect online base). The only smooth gold finish anywhere is `extra_gold`, which is the **background colour** of an Extra sticker — its outer border is still white.
-- Extra stickers' outer border is **always white**. Rarity is encoded in the background colour behind the action photo, never in the rim. Extras have no Crumple variants and no album slot.
-- Coca-Cola stickers have **no parallel variants and no Crumple variants** — every physical Coca-Cola sticker looks identical except for the player image. Digital "Fan Sticker" / "Cosmic" variants from the FIFA Panini Collection App are out of scope for Cromo (physical-only).
-- **Coca-Cola is the only subset where `album_code` is not unique.** Several CC slots (CC3, CC5, CC6, CC8, CC9, CC12, CC13) print different players in different regions; each regional alternate is its own `stickers` row sharing one `album_code`. **Identity is `sticker_id` (UUID) everywhere.** Any code-keyed map (`Map<albumCode, …>`, `Set<albumCode>`) silently loses CC alternates via last-write-wins and is a bug. Frontend `ownedMap`, favourites, selection, and wanted sets are all keyed by `sticker_id`; only display labels and cross-album completion (which is per-slot, see §5) use `album_code`. The `stickers_album_type_id_album_code_unique` constraint was dropped in `0008_coca_cola_regional_variants.sql` — do not reintroduce it.
-- `swiss_green` is the Switzerland "United Edition" **sticker border variant** (light/mint/sage green). `swiss_gold` is the **album edition key** for the Swiss gold-foiled premium album cover. Do not conflate them.
-- The AI scan prompt must return **canonical `variant_type` tokens** in the `variantToken` field (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`, …). The frontend's `pickVariantId` does exact match first, `startsWith` fallback second.
-- The full canonical variant list lives in `packages/shared/src/types/index.ts` (`VariantType` union) and `packages/shared/src/constants/index.ts` (`VARIANT_RARITY`). Display labels live in `apps/frontend/src/app/album/components/variantMeta.ts`. Add new variants in all three files in lockstep.
+Hard rules:
+- `base_borderless` is shared by **two** sticker types: international core Base AND Coca-Cola. Distinguished by `sticker_type` (`null` vs `'coca_cola_special'`), never by variant token.
+- **No smooth (non-crumple) gold border variant exists** in the main set. The only core "gold" is `gold_crumple` (iCollect online base). The only smooth gold anywhere is `extra_gold`, which is the **background** of an Extra — its outer border is still white.
+- Extras' outer border is **always white**. Rarity = background colour, never the rim. No Crumple variants, no album slot.
+- Coca-Cola stickers have **no parallels and no Crumple variants** — every physical CC looks identical except for the player. Digital "Fan Sticker" / "Cosmic" variants are out of scope (physical-only).
+- **Coca-Cola is the only subset where `album_code` is not unique.** Slots CC3, CC5, CC6, CC8, CC9, CC12, CC13 print different players regionally; each alternate is its own `stickers` row sharing one `album_code`. **Identity is `sticker_id` (UUID) everywhere.** Any code-keyed map (`Map<albumCode,…>`, `Set<albumCode>`) silently loses CC alternates via last-write-wins and is a bug. Frontend `ownedMap`, favourites, selection, wanted sets are all keyed by `sticker_id`; only display labels and cross-album completion (per-slot, see §5) use `album_code`. The `stickers_album_type_id_album_code_unique` constraint was dropped in `0008_coca_cola_regional_variants.sql` — do not reintroduce.
+- `swiss_green` is the Switzerland **sticker border variant** (light/mint/sage green). `swiss_gold` is the **album edition key** for the Swiss gold-foiled premium album cover. Don't conflate.
+- The AI scan prompt must return **canonical `variant_type` tokens** in `variantToken` (e.g. `"base_border"`, `"base_borderless"`, `"blue"`, `"black"`, `"orange_amazon"`, `"gold_crumple"`, `"swiss_green"`, `"extra_gold"`). Frontend `pickVariantId` does exact match first, `startsWith` fallback second.
+- Canonical lists live in `packages/shared/src/types/index.ts` (`VariantType` union) and `packages/shared/src/constants/index.ts` (`VARIANT_RARITY`). Display labels in `apps/frontend/src/app/album/components/variantMeta.ts`. **Update all three in lockstep.**
 
 #### 1. Base Stickers & Standard Parallels (Border Variants)
 
-Panini ships the standard base in two regional layouts. In regions with colored parallels, the base sticker uses a **white border** so its layout matches the colored chases; in purist international regions it stays **borderless**.
+Two regional base layouts: in regions with colored parallels the base uses a **white border** to match; in purist international regions it's **borderless**.
 
-| Border Colour | Average Pack Odds | Rarity Tier & Notes | Variant token |
+| Border Colour | Avg Pack Odds | Rarity & Notes | Variant token |
 | --- | --- | --- | --- |
-| **Base (No Border)** | every pack (Intl) | **Common** — international editions (Mexico, Europe, South America). | `base_borderless` |
-| **Base (White Border)** | every pack (NA) | **Common** — North American packs, white 3mm rim matching the parallel layout. | `base_border` |
+| **Base (No Border)** | every pack (Intl) | **Common** — Mexico, Europe, South America. | `base_borderless` |
+| **Base (White Border)** | every pack (NA) | **Common** — NA packs, 3mm white rim. | `base_border` |
 | **Blue** | 1 in 2 packs | **Uncommon** | `blue` |
 | **Red** | 1 in 25 packs | **Rare** | `red` |
 | **Purple** | 1 in 200 packs | **Very Rare** | `purple` |
-| **Green** | 1 in 1,400 packs | **Ultra Rare** — vivid emerald/grass green. | `green` |
-| **Black** | 1-of-1 | **Unique** — only one copy exists per player. | `black` |
+| **Green** | 1 in 1,400 packs | **Ultra Rare** — vivid emerald. | `green` |
+| **Black** | 1-of-1 | **Unique** — one per player. | `black` |
 
 #### 2. "Crumple" Parallels (Panini iCollect online-exclusive boxes)
 
-Crumple stickers have a wrinkled/crinkled metallic foil background. They exist only in **Panini iCollect online exclusive boxes**, in parallel to the standard set. Every standard parallel has a Crumple counterpart:
+Wrinkled/crinkled metallic foil background. Only in iCollect online boxes, parallel to the standard set. Every parallel has a Crumple counterpart:
 
-| Variant | Online Pack Odds | Notes | Variant token |
+| Variant | Online Pack Odds | Notes | Token |
 | --- | --- | --- | --- |
-| **Gold Flood Crumple** | 6 per online pack | Replaces the white-bordered base entirely in iCollect boxes. There is no smooth, non-crumple Gold border in the main set. | `gold_crumple` |
-| **Blue Crumple** | 1 in 2 online packs | | `blue_crumple` |
-| **Red Crumple** | 1 in 26 online packs | | `red_crumple` |
-| **Purple Crumple** | 1 in 204 online packs | | `purple_crumple` |
-| **Green Crumple** | 1 in 1,529 online packs | | `green_crumple` |
+| **Gold Flood Crumple** | 6 per online pack | Replaces white-bordered base entirely in iCollect. No smooth Gold border exists. | `gold_crumple` |
+| **Blue Crumple** | 1 in 2 | | `blue_crumple` |
+| **Red Crumple** | 1 in 26 | | `red_crumple` |
+| **Purple Crumple** | 1 in 204 | | `purple_crumple` |
+| **Green Crumple** | 1 in 1,529 | | `green_crumple` |
 | **Black Crumple** | 1-of-1 | Textured unique print. | `black_crumple` |
 
 #### 3. Regional & Retailer Exclusives
 
-- **NA vs. International base split** — North American packs use `base_border` (white border); international purist packs use `base_borderless` (no rim). Same internal layout in both.
-- **Switzerland "United Edition"** — country-specific album. Swiss packs contain regional **Light Green border** variants (`swiss_green`). The physical Swiss premium album cover is gold-foiled and tracked as a separate `swiss_gold` *album edition* key — do not confuse it with the green sticker variant.
-- **Amazon Exclusive** — starter kits and boxes bought directly from Amazon contain exclusive **Orange Border** parallels (`orange_amazon`).
-- **Hardcover Albums** — select markets get premium hardcover/metallised editions (often via Amazon Collector's Tins or European bundles); standard retail leans softcover. These are album formats, not sticker variants.
+- **NA vs Intl base split** — `base_border` (white) in NA, `base_borderless` in Intl. Same internal layout.
+- **Switzerland "United Edition"** — country-specific album. Swiss packs contain regional **Light Green border** (`swiss_green`). The Swiss gold-foiled premium album cover is a separate `swiss_gold` *album edition*, not a sticker variant.
+- **Amazon Exclusive** — starter kits/boxes from Amazon contain **Orange Border** parallels (`orange_amazon`).
+- **Hardcover Albums** — premium hardcover/metallised editions in select markets (Amazon Collector's Tins, European bundles). Album formats, not sticker variants.
 
 #### 4. "Extra Stickers" Subset
 
-Short-printed, unnumbered action shots of 20 global superstars (Messi, Ronaldo, Mbappé, Yamal, etc.). They land as an 8th bonus item on average **1 in 100 packs** and **do not have a dedicated slot in the album**. No Crumple variants.
+Short-printed, unnumbered action shots of 20 global superstars. Land as the 8th bonus on average **1 in 100 packs**. **No album slot. No Crumple variants.**
 
-**Crucial visual rule:** the outer border of an Extra sticker is **always white**. Rarity is encoded in the **background colour** directly behind the player's action shot — never in the rim.
+**Visual rule:** outer border is **always white**. Rarity = background colour behind the action shot, never the rim.
 
-| Background Colour | Rarity Tier | Notes | Variant token |
-| --- | --- | --- | --- |
-| **Purple / Burgundy** | Base "Extra" | Most common Extra. | `extra_purple` |
-| **Bronze** | Uncommon | Copper/bronze metallic background. | `extra_bronze` |
-| **Silver** | Rare | Metallic silver background. | `extra_silver` |
-| **Gold** | Ultra Rare | Brilliant gold background. The pinnacle of the pack hunt. | `extra_gold` |
+| Background | Rarity | Token |
+| --- | --- | --- |
+| **Purple / Burgundy** | Base "Extra" — most common. | `extra_purple` |
+| **Bronze** | Uncommon — copper/bronze metallic. | `extra_bronze` |
+| **Silver** | Rare — metallic silver. | `extra_silver` |
+| **Gold** | Ultra Rare — brilliant gold. Pinnacle of the pack hunt. | `extra_gold` |
 
 #### 5. Coca-Cola Partnership Subset
 
-A promotional subset spanning **13 slots (CC1–CC13)** with up to 20 specific international stars across all regional printings. Six slots (CC1, CC2, CC4, CC7, CC10, CC11) print the same player in every market; the other seven slots have **regional alternates** — the player printed on the bottle label depends on where the bottle was sold (North America, Latin America, Europe, or "Rest of the World").
+13 slots (CC1–CC13) covering up to 20 stars across regional printings. Six slots (CC1, CC2, CC4, CC7, CC10, CC11) print the same player everywhere; the other seven have **regional alternates** depending on where the bottle was sold (NA / LatAm / Europe / RoW).
 
-Concrete examples:
-- **CC9** prints Alphonso Davies in NA, William Saliba in Europe, and Jordan Ayew in RoW.
-- **CC3** prints Harry Kane in NA and Eduardo Camavinga in Europe.
-- **CC13** (Raúl Jiménez) ships only in Latin America and Europe; NA and RoW bottles never see this slot at all.
+Examples:
+- **CC9** — Alphonso Davies (NA), William Saliba (Europe), Jordan Ayew (RoW).
+- **CC3** — Harry Kane (NA), Eduardo Camavinga (Europe).
+- **CC13** (Raúl Jiménez) — LatAm + Europe only; NA and RoW bottles never see this slot.
 
-The catalog stores every regional alternate as its own `stickers` row, so multiple sticker IDs can share one `album_code`. This is **the only subset where that's true** — for everything else, `album_code` is unique within an album.
+Each regional alternate is its own `stickers` row; multiple sticker IDs can share one `album_code`. **The only subset where that's true.**
 
-- **Physical stickers** — obtained by peeling labels off specially-marked Coca-Cola and Coca-Cola Zero Sugar bottles. They have **no border variants and no Crumple versions**; every physical Coca-Cola sticker looks identical except for the player image. They live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (shared with international core base; distinguished via `sticker_type = 'coca_cola_special'`).
-- **No back-of-sticker scan path** — physical Coca-Cola stickers have no Panini-printed back (the back is bottle-label adhesive). Any back-of-sticker scan flow can ignore the Coca-Cola subset; CC stickers are only ever identified by the front (player face).
-- **Digital Album App** — scanning the bottle labels unlocks digital-only packs in the FIFA Panini Collection App with exclusive **"Fan Stickers"** and **"Cosmic" variants**. These are app-only and **out of scope** for Cromo's physical-sticker tracking.
+- **Physical stickers** — peeled from specially-marked Coca-Cola / Zero bottles. **No border variants, no Crumple.** Live in a dedicated bonus section at the back of the album. Variant token: `base_borderless` (distinguished from core Intl base via `sticker_type = 'coca_cola_special'`).
+- **No back-of-sticker scan path** — the back is bottle-label adhesive. CC stickers are identified only by the front. Any back-of-sticker flow can ignore CC.
+- **Digital Album App** — bottle-label scans unlock app-only "Fan Stickers" / "Cosmic" variants. **Out of scope.**
 
-**Album completion treats CC slots by `album_code`, not by sticker row** — owning *any one* regional alternate fills the slot. This is enforced server-side in `_sync_user_album_counts` (`0009_album_count_by_album_code.sql`), which counts `COUNT(DISTINCT album_code)` for `total` and `owned`. Non-CC subsets are unaffected because each of their album codes maps to exactly one sticker.
+**Album completion treats CC slots by `album_code`, not sticker row** — owning *any one* regional alternate fills the slot. Enforced server-side in `_sync_user_album_counts` (`0009_album_count_by_album_code.sql`) via `COUNT(DISTINCT album_code)` for `total`/`owned`. Non-CC subsets are unaffected (album code → exactly one sticker).
 
 #### 6. Visual Identification — Front of Sticker
 
-Use this table to identify a sticker's `sticker_type` from a photo of its **front**. Every characteristic below is invariant within a type; if a scan/prompt/UI ever asserts otherwise, it is wrong.
-
 | Characteristic | Core | Extra | Coca-Cola |
 | --- | --- | --- | --- |
-| **Photo pose/type** | Posed studio portrait | Action shot | Action shot |
-| **FIFA 2026 logo position** | Upper-right corner | Upper-left corner | Upper-left corner |
-| **Sticker variants available** | No border (base, Intl), white border (base, NA), blue (border or crumple), red (border or crumple), purple (border or crumple), green (border or crumple), black (border or crumple), light green border (Switzerland only), orange border (Amazon purchase only) | Purple background, bronze background, silver background, gold background | None — every physical Coca-Cola sticker looks identical |
-| **Specific text on sticker** | None | "Extra sticker" text in upper-right corner | None |
-| **Player name position** | Lower middle. Below the name: D.O.B., height, weight, and club team. Background colour of this info block varies. | Lower middle, on a black background | Along the lower-left edge, displayed **vertically** |
-| **Country flag icon** | Lower-right, accompanied by the 3-letter country code | Lower-left corner AND used as the background behind the player | None |
+| **Photo type** | Posed studio portrait | Action shot | Action shot |
+| **FIFA 2026 logo** | Upper-right | Upper-left | Upper-left |
+| **Variants available** | No border (Intl base), white border (NA base), blue/red/purple/green/black (border or crumple), light green border (CH only), orange border (Amazon only) | Purple / bronze / silver / gold background | None — all look identical |
+| **Specific text** | None | "Extra sticker" upper-right | None |
+| **Player name** | Lower middle; below: DOB, height, weight, club (background colour varies) | Lower middle on black | Lower-left edge, **vertical** |
+| **Country flag** | Lower-right + 3-letter code | Lower-left + flag as background behind player | None |
 
 #### 7. Visual Identification — Back of Sticker
 
-The back of a real sticker prints the **album code** (e.g. `COL4`, `BRA19`, `FWC4`) PLUS three constant branding markers present on every sticker back: the text `FIFA WORLD CUP 2026`, the text `OFFICIAL LICENSED PRODUCT`, and the Panini wordmark. These three markers are what distinguish a real sticker back from an **empty album slot** — slots inside the physical album also print a code (so the collector knows which sticker belongs there), but they lack the FIFA/Panini branding. Any back-of-sticker scan handler must check for these markers; treating a code-bearing slot as a sticker is the failure mode this rule exists to prevent.
+The back prints the **album code** (e.g. `COL4`, `BRA19`, `FWC4`) PLUS three constant branding markers: `FIFA WORLD CUP 2026`, `OFFICIAL LICENSED PRODUCT`, and the Panini wordmark. These three markers distinguish a real sticker back from an **empty album slot** — slots inside the album also print a code (so the collector knows what belongs there) but lack the branding. Any back-of-sticker handler must check for these markers; treating a code-bearing slot as a sticker is the failure mode this rule prevents.
 
-Operationally, the scan still returns **only** the album code from a back-of-sticker image — the FIFA/Panini text exists to disambiguate sticker-vs-slot, not to be re-OCR'd or returned. Player name, country, sticker type, and album slot are all derived from the code via the catalog. A scan that returns more than the album code from a back-of-sticker image is hallucinating — trust the code lookup, not the OCR'd surrounding text.
+Operationally, the scan returns **only the album code** from a back-of-sticker image — the FIFA/Panini text exists to disambiguate sticker-vs-slot, not to be re-OCR'd. Player name, country, type, slot are all derived from the code via the catalog. A scan that returns more than the album code from a back image is hallucinating — trust the lookup, not the OCR'd surrounding text.
