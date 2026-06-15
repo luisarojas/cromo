@@ -159,9 +159,11 @@ ON CONFLICT (album_id, sticker_variant_id) DO NOTHING;
 -- ─── Trade flags ──────────────────────────────────────────────────────────────
 
 -- Alice hides two of her duplicate stickers from trade view (trade_hidden).
--- Stickers 7 and 14 are duplicates (7 % 7 = 0, 14 % 7 = 0) in her north_america album.
+-- Stickers 7 and 14 are pinned as duplicates (quantity = 2) and marked
+-- trade_hidden so the collection.test.ts fixture assertions are deterministic
+-- regardless of the ROW_NUMBER ordering in the bulk INSERT above.
 UPDATE user_stickers
-SET trade_hidden = true
+SET quantity = 2, trade_hidden = true
 WHERE album_id = '00000000-0000-0000-0001-000000000002'
   AND sticker_variant_id IN (
     SELECT sv.id FROM sticker_variants sv
@@ -172,9 +174,10 @@ WHERE album_id = '00000000-0000-0000-0001-000000000002'
   );
 
 -- Bob forces two non-duplicate stickers into his trade view (trade_forced).
--- Stickers 151 and 156 are singles for Bob (151 % 5 = 1, 156 % 5 = 1).
+-- Stickers 151 and 156 are pinned as singles (quantity = 1) and marked
+-- trade_forced so the fixture is deterministic.
 UPDATE user_stickers
-SET trade_forced = true
+SET quantity = 1, trade_forced = true
 WHERE album_id = '00000000-0000-0000-0001-000000000003'
   AND sticker_variant_id IN (
     SELECT sv.id FROM sticker_variants sv

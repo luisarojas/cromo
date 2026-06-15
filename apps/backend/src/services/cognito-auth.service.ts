@@ -62,7 +62,7 @@ function mapCognitoError(err: unknown): never {
   }
 }
 
-interface IdClaims {
+export interface IdClaims {
   sub: string;
   email?: string;
   email_verified?: boolean | string;
@@ -70,7 +70,7 @@ interface IdClaims {
   'cognito:groups'?: string[];
 }
 
-function deriveUsername(claims: IdClaims): string {
+export function deriveUsername(claims: IdClaims): string {
   const fromAttr = claims['custom:username'];
   if (fromAttr && fromAttr.length >= 3) return fromAttr;
   // Fallback for users provisioned outside the register flow (e.g. the

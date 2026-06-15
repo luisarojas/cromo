@@ -13,6 +13,11 @@
       "dependsOn": ["^build"],
       "env": ["DATABASE_URL", "REDIS_URL", "NODE_ENV", "AUTH_MODE", "JWT_SECRET"]
     },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "env": ["DATABASE_URL", "REDIS_URL", "NODE_ENV", "AUTH_MODE", "JWT_SECRET"],
+      "outputs": ["coverage/**"]
+    },
     "test:watch": {
       "cache": false,
       "persistent": true

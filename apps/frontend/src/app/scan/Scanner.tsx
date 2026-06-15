@@ -17,6 +17,7 @@ import {
   type UserAlbum,
 } from '@/lib/api';
 import { variantLabel } from '@/app/collection/components/variantMeta';
+import { pickVariantId } from '@/app/scan/pickVariantId';
 import { rememberLastScan, recordScanDay } from '@/lib/lastScan';
 import { publishSync } from '@/lib/syncBus';
 import { isSpeechSupported, isSpeechMuted, setSpeechMuted, speak } from '@/lib/speech';
@@ -545,34 +546,6 @@ interface ScanCard {
     variantId: string;
     previousQuantity: number;
   };
-}
-
-// Pre-selects the best variant for a sticker. The AI's explicit pick wins whenever
-// it returned one — including base_border or base_borderless. Only when the AI
-// returned a null variantToken do we fall back to the album's configured default
-// Base. This preserves the model's specific identifications (colored borders,
-// crumple, extras) while filling the uncertain case with the user's preference.
-function pickVariantId(
-  variants: StickerVariant[],
-  borderHint: string | null,
-  defaultBaseVariant: 'base_border' | 'base_borderless',
-): string {
-  if (borderHint) {
-    const exact = variants.find((v) => v.variantType === borderHint);
-    if (exact) return exact.id;
-    const partial = variants.find((v) =>
-      v.variantType.toLowerCase().startsWith(borderHint.toLowerCase()),
-    );
-    if (partial) return partial.id;
-  }
-
-  // AI returned no variantToken — use the album-level default. Falls through
-  // to base_borderless then variants[0] for Coca-Cola stickers, which only
-  // ever carry base_borderless regardless of the album's default.
-  return variants.find((v) => v.variantType === defaultBaseVariant)?.id
-    ?? variants.find((v) => v.variantType === 'base_borderless')?.id
-    ?? variants[0]?.id
-    ?? '';
 }
 
 function emptyScanCard(sourcePreview: string): ScanCard {

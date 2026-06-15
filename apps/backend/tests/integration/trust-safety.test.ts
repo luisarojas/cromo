@@ -80,14 +80,20 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
   let bobToken: string;
   let charlieToken: string;
   let dianaToken: string;
+  let initialFlagState: boolean;
 
   beforeAll(async () => {
     const { buildApp } = await import('../../src/app.js');
     const { signAccessToken } = await import('../../src/middleware/auth.js');
 
-    // Enable the feature flag in the DB for this test suite
     app = await buildApp();
     await app.ready();
+    // Snapshot then force-on for the duration of this suite. afterAll
+    // restores the snapshot so dev-env state never drifts.
+    const { rows } = await app.db.query<{ enabled: boolean }>(
+      `SELECT enabled FROM feature_flags WHERE key = 'FEATURE_TRUST_SAFETY'`,
+    );
+    initialFlagState = rows[0]?.enabled ?? true;
     await app.db.query(
       `UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_TRUST_SAFETY'`,
     );
@@ -99,9 +105,9 @@ describe.skipIf(!shouldRun)('Trust & Safety routes (integration)', () => {
   });
 
   afterAll(async () => {
-    // Restore feature flag to seeded default
     await app?.db.query(
-      `UPDATE feature_flags SET enabled = false WHERE key = 'FEATURE_TRUST_SAFETY'`,
+      `UPDATE feature_flags SET enabled = $1 WHERE key = 'FEATURE_TRUST_SAFETY'`,
+      [initialFlagState],
     );
     await app?.close();
   });

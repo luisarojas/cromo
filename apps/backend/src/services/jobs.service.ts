@@ -37,7 +37,10 @@ export async function enqueue(redis: Redis, job: Job): Promise<void> {
   await redis.lpush(QUEUE_KEY, JSON.stringify(entry));
 }
 
-async function runJob(db: Pool, job: Job): Promise<void> {
+// Exported so the worker contract (job.type → email service call) can be
+// unit-tested independently of the BRPOP loop. The loop itself is a thin
+// retry / dead-letter wrapper around this dispatch.
+export async function runJob(db: Pool, job: Job): Promise<void> {
   switch (job.type) {
     case 'email:verify':
       await sendVerificationEmail(db, job.email, job.username, job.code);

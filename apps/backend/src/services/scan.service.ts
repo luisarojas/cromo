@@ -91,7 +91,7 @@ function geminiUrl(model: string): string {
 
 // Pull the retry delay out of a Gemini 429/503 error body. Google nests it
 // under error.details[].retryDelay as a duration string like "12s".
-function parseGeminiRetryMs(responseBody: string): number {
+export function parseGeminiRetryMs(responseBody: string): number {
   try {
     const parsed = JSON.parse(responseBody) as {
       error?: { details?: { retryDelay?: string }[] };
@@ -414,7 +414,7 @@ const CRUMPLE_VARIANTS = new Set([
   'purple_crumple', 'green_crumple', 'black_crumple',
 ]);
 
-function reconcileStickerType(
+export function reconcileStickerType(
   rawType: 'extra' | 'coca_cola_special' | null,
   albumCode: string | null,
   variantToken: string | null,

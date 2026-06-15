@@ -118,6 +118,8 @@ services:
     volumes:
       - ../../apps/frontend/src:/app/apps/frontend/src
       - ../../apps/frontend/messages:/app/apps/frontend/messages
+      - ../../apps/frontend/tests:/app/apps/frontend/tests
+      - ../../apps/frontend/vitest.config.ts:/app/apps/frontend/vitest.config.ts
       - ../../packages/shared/src:/app/packages/shared/src
       # Manifests bind-mounted so the host is the source of truth: dep changes
       # are visible inside the container without rebuilding the image.

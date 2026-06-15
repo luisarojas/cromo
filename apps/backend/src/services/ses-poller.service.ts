@@ -8,6 +8,52 @@ import type { Pool } from 'pg';
 import { handleSesEvent, type SesEvent } from './ses-event-handler.js';
 import { env } from '../env.js';
 
+interface PollerLog {
+  info: (msg: string, fields?: Record<string, unknown>) => void;
+  warn: (msg: string, fields?: Record<string, unknown>) => void;
+  error: (err: unknown, msg?: string) => void;
+}
+
+/**
+ * processOne — handle a single SQS message envelope: parse, dispatch to
+ * handleSesEvent, delete on success, leave on the queue on failure so the
+ * redrive policy can DLQ it. Exported so unit tests can exercise the
+ * decision tree without spinning up the long-poll loop.
+ */
+export async function processOne(
+  db: Pool,
+  client: { send: (cmd: unknown) => Promise<unknown> },
+  queueUrl: string,
+  msg: Message,
+  log: PollerLog,
+): Promise<void> {
+  if (!msg.Body || !msg.ReceiptHandle) return;
+  let event: SesEvent;
+  try {
+    event = JSON.parse(msg.Body) as SesEvent;
+  } catch {
+    log.warn('[ses-poller] malformed message body, leaving for redrive', {
+      messageId: msg.MessageId,
+    });
+    return;
+  }
+
+  try {
+    const affected = await handleSesEvent(db, event);
+    log.info('[ses-poller] processed event', {
+      messageId: msg.MessageId,
+      type: event.notificationType,
+      affected,
+    });
+    await client.send(new DeleteMessageCommand({
+      QueueUrl: queueUrl,
+      ReceiptHandle: msg.ReceiptHandle,
+    }));
+  } catch (err) {
+    log.error(err, '[ses-poller] handler failed, message will retry');
+  }
+}
+
 // Long-polls the SES bounce/complaint SQS queue and writes the resulting
 // events into email_suppressions. Replaces the older HTTPS webhook —
 // see modules/ses-consumer/main.tf for why.
@@ -20,15 +66,9 @@ const RECEIVE_MAX_MESSAGES = 10;     // SDK max per call
 const RECEIVE_WAIT_SECONDS = 20;     // long-poll: keep the connection open
 const VISIBILITY_TIMEOUT_SEC = 60;   // matches the queue's setting
 
-interface Log {
-  info: (msg: string, fields?: Record<string, unknown>) => void;
-  warn: (msg: string, fields?: Record<string, unknown>) => void;
-  error: (err: unknown, msg?: string) => void;
-}
-
 export function startSesPoller(
   db: Pool,
-  log: Log,
+  log: PollerLog,
 ): () => Promise<void> {
   if (!env.SES_QUEUE_URL) {
     log.info('[ses-poller] SES_QUEUE_URL not set, poller disabled');
@@ -38,39 +78,6 @@ export function startSesPoller(
   const client = new SQSClient({ region: env.UPLOADS_REGION });
   const queueUrl = env.SES_QUEUE_URL;
   let running = true;
-
-  async function processOne(msg: Message): Promise<void> {
-    if (!msg.Body || !msg.ReceiptHandle) return;
-    let event: SesEvent;
-    try {
-      event = JSON.parse(msg.Body) as SesEvent;
-    } catch {
-      // Malformed bodies will hit the DLQ after maxReceiveCount tries.
-      // Don't delete here — let the redrive policy do its job.
-      log.warn('[ses-poller] malformed message body, leaving for redrive', {
-        messageId: msg.MessageId,
-      });
-      return;
-    }
-
-    try {
-      const affected = await handleSesEvent(db, event);
-      log.info('[ses-poller] processed event', {
-        messageId: msg.MessageId,
-        type: event.notificationType,
-        affected,
-      });
-      await client.send(new DeleteMessageCommand({
-        QueueUrl: queueUrl,
-        ReceiptHandle: msg.ReceiptHandle,
-      }));
-    } catch (err) {
-      // Don't delete on handler failure — the message becomes visible again
-      // after the visibility timeout and will be retried. Hits the DLQ
-      // after maxReceiveCount transient failures.
-      log.error(err, '[ses-poller] handler failed, message will retry');
-    }
-  }
 
   async function loop(): Promise<void> {
     while (running) {
@@ -87,7 +94,7 @@ export function startSesPoller(
         // is simpler and avoids the failure-handling tangle of Promise.all.
         for (const msg of messages) {
           if (!running) break;
-          await processOne(msg);
+          await processOne(db, client, queueUrl, msg, log);
         }
       } catch (err) {
         // Network blip, IAM hiccup — short backoff before retrying so we

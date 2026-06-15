@@ -68,6 +68,26 @@ describe.skipIf(!shouldRun)('Collection routes (integration)', () => {
     bobToken     = signAccessToken({ sub: BOB_ID,     email: 'bob@test.local',     role: 'user' });
     charlieToken = signAccessToken({ sub: CHARLIE_ID, email: 'charlie@test.local', role: 'user' });
     dianaToken   = signAccessToken({ sub: DIANA_ID,   email: 'diana@test.local',   role: 'user' });
+
+    // Reassert the trade_hidden fixture state. completeTrade in trade.test.ts
+    // decrements user_stickers.quantity and our integration tests share a
+    // single DB, so by the time we run we may find #7 or #14 missing or
+    // single-quantity. Pin them back to the documented state before any
+    // assertion runs.
+    await (app as unknown as { db: { query: (sql: string, params?: unknown[]) => Promise<unknown> } }).db.query(
+      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity, trade_hidden)
+       SELECT $1::uuid, sv.id, 2, true
+         FROM sticker_variants sv
+         JOIN stickers s ON sv.sticker_id = s.id
+        WHERE s.number IN (7, 14)
+          AND sv.variant_type = 'base_border'
+          AND s.album_type_id = (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026')
+       ON CONFLICT (album_id, sticker_variant_id)
+         DO UPDATE SET quantity = 2, trade_hidden = true`,
+      [ALICE_NA_ALBUM_ID],
+    );
+    // Bust the cached collection/duplicates responses Redis is holding.
+    await (app as unknown as { redis: { flushdb: () => Promise<void> } }).redis.flushdb();
   });
 
   afterAll(async () => {

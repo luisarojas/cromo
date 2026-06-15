@@ -99,8 +99,19 @@ jobs:
       - name: Seed catalog
         run: ./scripts/seed-database.sh --remote
 
-      - name: Unit + integration tests
-        run: pnpm test
+      - name: Unit + integration tests (with coverage thresholds)
+        run: pnpm test:coverage
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            apps/backend/coverage/
+            apps/frontend/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
 
   security:
     name: Security scans
