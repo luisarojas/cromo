@@ -14,6 +14,15 @@ interface PollerLog {
   error: (err: unknown, msg?: string) => void;
 }
 
+// Minimal subset of SQSClient that processOne needs. Typed as a
+// structural interface so unit tests can pass a hand-rolled stub without
+// constructing a real SQSClient (which would pull in IAM credential
+// resolution). The cast at the real call site below is safe — SQSClient
+// satisfies this interface.
+interface SqsLike {
+  send: (cmd: DeleteMessageCommand) => Promise<unknown>;
+}
+
 /**
  * processOne — handle a single SQS message envelope: parse, dispatch to
  * handleSesEvent, delete on success, leave on the queue on failure so the
@@ -22,7 +31,7 @@ interface PollerLog {
  */
 export async function processOne(
   db: Pool,
-  client: { send: (cmd: unknown) => Promise<unknown> },
+  client: SqsLike,
   queueUrl: string,
   msg: Message,
   log: PollerLog,

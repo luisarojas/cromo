@@ -130,19 +130,12 @@ describe.skipIf(!shouldRun)('Scan routes (integration)', () => {
       expect(body.message).toMatch(/Unsupported file type/i);
     });
 
-    it('never returns 200 for an oversized upload', async () => {
-      // 11 MB > the fastify-multipart fileSize cap (10 MB, configured in
-      // app.ts). What we LOCK IN here is "an oversized upload never produces
-      // a successful scan". The exact status code varies by which layer
-      // catches it: fastify-multipart may truncate the stream (the route then
-      // either 413s via its own length guard or 503s when the AI rejects
-      // the truncated buffer), or it may reject the request outright with
-      // 400. All three are acceptable failure modes — 200 is not.
-      //
-      // Known gap (not fixed here): when multipart truncates, the route
-      // doesn't check data.file.truncated, so the AI gets called with a
-      // garbage 10MB blob. Worth fixing in scan.ts later — would also
-      // tighten this assertion to a strict 413.
+    it('returns 413 with a "10 MB" message for oversized uploads, before reaching the AI', async () => {
+      // 11 MB > MAX_FILE_SIZE. @fastify/multipart truncates the stream at
+      // its `limits.fileSize` cap (10 MB), and the route's truncation guard
+      // detects that and throws 413 — so the AI is never called with a
+      // garbage 10MB blob. A regression here means we'd start burning
+      // Groq calls on every oversized upload.
       const big = Buffer.alloc(11 * 1024 * 1024, 0xff);
       big[0] = 0xff; big[1] = 0xd8;
       big[big.length - 2] = 0xff; big[big.length - 1] = 0xd9;
@@ -153,8 +146,8 @@ describe.skipIf(!shouldRun)('Scan routes (integration)', () => {
         headers: { ...headers, Authorization: `Bearer ${aliceToken}` },
         payload,
       });
-      expect(res.statusCode).not.toBe(200);
-      expect(res.statusCode).toBeGreaterThanOrEqual(400);
+      expect(res.statusCode).toBe(413);
+      expect(res.json<{ message: string }>().message).toMatch(/10 MB/i);
     });
   });
 });

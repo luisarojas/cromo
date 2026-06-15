@@ -27,6 +27,10 @@ async function guardFeature(
   return true;
 }
 
+function tooLarge(): Error & { statusCode: number } {
+  return Object.assign(new Error('File too large. Maximum size is 10 MB.'), { statusCode: 413 });
+}
+
 async function readUploadedImage(
   request: FastifyRequest,
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
@@ -37,11 +41,15 @@ async function readUploadedImage(
   let total = 0;
   for await (const chunk of data.file) {
     total += chunk.length;
-    if (total > MAX_FILE_SIZE) {
-      throw Object.assign(new Error('File too large. Maximum size is 10 MB.'), { statusCode: 413 });
-    }
+    if (total > MAX_FILE_SIZE) throw tooLarge();
     chunks.push(chunk);
   }
+  // @fastify/multipart's `limits.fileSize` truncates the stream at its
+  // configured cap before our `total > MAX_FILE_SIZE` guard would trip, so
+  // the check above never fires for an oversized upload — we'd silently
+  // send a 10MB truncated blob to the AI provider. The `truncated` flag
+  // is the real signal; gate on it explicitly.
+  if (data.file.truncated) throw tooLarge();
   return { buffer: Buffer.concat(chunks), mimeType: data.mimetype };
 }
 
@@ -286,10 +294,22 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
         for await (const part of parts) {
           const chunks: Buffer[] = [];
           let total = 0;
+          let oversize = false;
           for await (const chunk of part.file) {
             total += chunk.length;
-            if (total > MAX_FILE_SIZE) break;
+            if (total > MAX_FILE_SIZE) { oversize = true; break; }
             chunks.push(chunk);
+          }
+          // See readUploadedImage: @fastify/multipart's `limits.fileSize`
+          // truncates the stream, so `oversize` rarely fires and we have to
+          // gate on `part.file.truncated` as well to catch the truncation
+          // case. Either signal means we drop this image and tell the
+          // client which index failed, instead of running the AI on a
+          // garbage 10MB buffer.
+          if (oversize || part.file.truncated) {
+            writeSSEEvent(reply, 'error', { index, message: 'File too large. Maximum size is 10 MB.' });
+            index += 1;
+            continue;
           }
 
           const buffer = Buffer.concat(chunks);
@@ -393,10 +413,18 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
 
           const chunks: Buffer[] = [];
           let total = 0;
+          let oversize = false;
           for await (const chunk of part.file) {
             total += chunk.length;
-            if (total > MAX_FILE_SIZE) break;
+            if (total > MAX_FILE_SIZE) { oversize = true; break; }
             chunks.push(chunk);
+          }
+          // See readUploadedImage: must also check the multipart truncation
+          // flag, otherwise an oversize image silently becomes a truncated
+          // 10MB blob fed to the AI.
+          if (oversize || part.file.truncated) {
+            request.log.warn({ imageIndex: imageCount - 1 }, 'list scan: image rejected (>10MB)');
+            continue;
           }
           const buffer = Buffer.concat(chunks);
 
