@@ -130,12 +130,19 @@ describe.skipIf(!shouldRun)('Scan routes (integration)', () => {
       expect(body.message).toMatch(/Unsupported file type/i);
     });
 
-    it('rejects oversized uploads (does not return 200)', async () => {
-      // Build something larger than MAX_FILE_SIZE (10 MB). We don't assert the
-      // exact status code because three different layers could fire: the
-      // route's own 413 streaming guard, fastify-multipart's limit, or
-      // (if the buffer slips through) the AI provider returning an error.
-      // The contract this test enforces is "an 11 MB upload never succeeds".
+    it('never returns 200 for an oversized upload', async () => {
+      // 11 MB > the fastify-multipart fileSize cap (10 MB, configured in
+      // app.ts). What we LOCK IN here is "an oversized upload never produces
+      // a successful scan". The exact status code varies by which layer
+      // catches it: fastify-multipart may truncate the stream (the route then
+      // either 413s via its own length guard or 503s when the AI rejects
+      // the truncated buffer), or it may reject the request outright with
+      // 400. All three are acceptable failure modes — 200 is not.
+      //
+      // Known gap (not fixed here): when multipart truncates, the route
+      // doesn't check data.file.truncated, so the AI gets called with a
+      // garbage 10MB blob. Worth fixing in scan.ts later — would also
+      // tighten this assertion to a strict 413.
       const big = Buffer.alloc(11 * 1024 * 1024, 0xff);
       big[0] = 0xff; big[1] = 0xd8;
       big[big.length - 2] = 0xff; big[big.length - 1] = 0xd9;

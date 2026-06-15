@@ -106,7 +106,7 @@ describe.skipIf(!shouldRun)('Trade extra routes (integration)', () => {
   // ── /stream-ticket ─────────────────────────────────────────────────────────
 
   describe('POST /trade/requests/:id/stream-ticket', () => {
-    it('mints a ticket for a participant', async () => {
+    it('mints a ticket bound to the (user, trade) pair and TTL-stamped at 30s', async () => {
       const res = await app.inject({
         method: 'POST',
         url: `/api/v1/trade/requests/${tradeId}/stream-ticket`,
@@ -116,12 +116,37 @@ describe.skipIf(!shouldRun)('Trade extra routes (integration)', () => {
       const body = res.json<{ ticket: string; expiresIn: number }>();
       expect(body.ticket).toMatch(/^[A-Za-z0-9_-]+$/);
       expect(body.expiresIn).toBe(30);
-      // Ticket should be in Redis until consumed.
+
+      // The Redis value must include exactly the right { userId, tradeId }
+      // — anything else would let an unrelated user replay the ticket.
       const stored = await app.redis.get(`sse:trade:ticket:${body.ticket}`);
       expect(stored).not.toBeNull();
-      const parsed = JSON.parse(stored!) as { userId: string; tradeId: string };
-      expect(parsed.userId).toBe(ALICE_ID);
-      expect(parsed.tradeId).toBe(tradeId);
+      expect(JSON.parse(stored!)).toEqual({ userId: ALICE_ID, tradeId });
+
+      // The TTL must actually be set (≤ 30s and > 0). Without an EX clause
+      // the ticket would live forever and a leaked URL would never expire.
+      const ttl = await app.redis.ttl(`sse:trade:ticket:${body.ticket}`);
+      expect(ttl).toBeGreaterThan(0);
+      expect(ttl).toBeLessThanOrEqual(30);
+    });
+
+    it('is single-use: GETDEL consumes the ticket atomically', async () => {
+      // /stream is an SSE handler so app.inject() would block. Instead we
+      // simulate the route's consume step (GETDEL) directly. This locks in
+      // the contract that a swap from GETDEL to GET would break.
+      const mintRes = await app.inject({
+        method: 'POST',
+        url: `/api/v1/trade/requests/${tradeId}/stream-ticket`,
+        headers: { Authorization: `Bearer ${aliceToken}` },
+      });
+      const { ticket } = mintRes.json<{ ticket: string }>();
+
+      const first = await app.redis.getdel(`sse:trade:ticket:${ticket}`);
+      expect(first).not.toBeNull();
+
+      // Second consumer must get null — the ticket was deleted on first read.
+      const second = await app.redis.getdel(`sse:trade:ticket:${ticket}`);
+      expect(second).toBeNull();
     });
 
     it('returns 403 for a non-participant', async () => {

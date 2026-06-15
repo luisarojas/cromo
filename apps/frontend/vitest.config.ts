@@ -42,9 +42,11 @@ export default defineConfig({
         'src/lib/seo.ts',
       ],
       thresholds: {
-        // Matches the backend floor — protects the pure-logic surfaces
-        // (lib/*, app/scan/pickVariantId, variantMeta, profileExport,
-        // draftStorage) we actually unit-test from regressing.
+        // Per-file gate. The frontend's include[] is intentionally a small
+        // curated set of pure-logic modules — each one is fully unit-tested
+        // today, so the per-file floor matches the aggregate. A drop on
+        // any file blocks the build.
+        perFile: true,
         lines: 70,
         statements: 70,
         functions: 60,

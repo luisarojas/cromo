@@ -213,6 +213,55 @@ No free option is simultaneously fast, high-quality, and unmetered — that's a 
 - **Production deploys.** All four env vars exist as Terraform variables in `infrastructure/terraform/env/{dev,prod}/`. Edit `terraform.tfvars` and re-apply to flip provider/model without a code change; values land in Secrets Manager and EC2 user-data re-renders `/etc/cromo/cromo.env` on the next ASG recycle.
 - **`SCAN_MODEL` is conditionally merged into secrets** (`var.scan_model != "" ? { SCAN_MODEL = var.scan_model } : {}`). Reason: code uses `env.SCAN_MODEL ?? DEFAULT_<PROVIDER>_MODEL` — an empty string would *override* the default to `""` and force `model=""` in the API call. Keep this pattern; never make it unconditional.
 
+### Tests — Integration Tests Share The Dev DB
+
+`apps/backend/tests/integration/*.test.ts` connect to the same Postgres (and Redis) the dev backend serves: `cromo_dev` on the local compose stack, the dev RDS instance in CI. There is no dedicated test database. That choice keeps the setup simple but creates two hazards every new test must navigate.
+
+**Hazard 1: State leak.** A test that mutates `feature_flags`, `users`, `user_settings`, `user_albums`, `user_bans`, or any shared row can corrupt the dev environment for the next person if it doesn't clean up. The canonical symptom: `FEATURE_AI_SCANNING` silently flipped to `false` so the dev frontend's `/scan` page returns 404 — that happened because four integration suites forced the flag off in `afterAll` instead of snapshotting it first.
+
+**The rule:** never blanket-set shared state in `afterAll`. Snapshot the prior value in `beforeAll`, restore it in `afterAll`. Pattern:
+
+```ts
+let initialFlagState: boolean;
+
+beforeAll(async () => {
+  const { rows } = await app.db.query<{ enabled: boolean }>(
+    `SELECT enabled FROM feature_flags WHERE key = 'FEATURE_X'`,
+  );
+  initialFlagState = rows[0]?.enabled ?? true;
+  // …force the state this suite needs…
+});
+
+afterAll(async () => {
+  await app.db.query(
+    `UPDATE feature_flags SET enabled = $1 WHERE key = 'FEATURE_X'`,
+    [initialFlagState],
+  );
+});
+```
+
+**Hazard 2: Inter-suite mutation.** `trade.test.ts` decrements Alice's inventory via `completeTrade`. By the time `collection.test.ts` runs, the rows it asserts on are gone. The fix is **not** to reorder the suites or carve out fixture users per file. It is to **re-assert the required fixture state in `beforeAll`** — see `collection.test.ts` for the canonical pattern (it INSERT … ON CONFLICT DO UPDATE re-pins Alice's `#7` and `#14` to `quantity = 2, trade_hidden = true` and `redis.flushdb()`s before any test runs).
+
+**Rules to follow:**
+- **Save before you mutate, restore after.** If a test changes a row in a shared table, the same `beforeAll`/`afterAll` pair must put it back. Hard-coding the "default" value in `afterAll` is the trap — it diverges from the seed and from any local override the operator made.
+- **Re-pin fixture state, don't depend on it.** Tests that read from seeded users (alice, bob, charlie, diana, evan) must `INSERT … ON CONFLICT DO UPDATE` (or `UPDATE … WHERE`) to restore the exact rows they care about. Assume *some other suite* has mutated them.
+- **Flush Redis when relevant.** Cached responses (e.g. `getPublicProfile`, `getDuplicates`, `trust-score`) survive between tests. If your test mutates the underlying data, call `app.redis.flushdb()` before asserting on a cached endpoint — otherwise the read returns the previous test's snapshot.
+- **Use Evan for destructive identity changes.** Alice/Bob/Charlie/Diana have heavy fixture commitments across collection, trade, and trust-safety tests; mutating their `username`, `email`, or `display_name` corrupts those suites. Evan is the throwaway — seeded with no albums, no trades, no ratings, intentionally available for `PATCH /users/me/*` tests.
+- **Never write to `users.id` for seeded users.** UUIDs `…000000{1,…,6}` are referenced as foreign keys from every test fixture; changing them cascades destructively. New ephemeral users get `…000000-aaaa…` or similar reserved ranges and are deleted in `afterAll`.
+
+If you find yourself wanting to wipe a whole table in `afterAll`, that's a signal you're testing the wrong unit — extract the logic into a service-level test with a mocked DB, or scope your changes to a single ephemeral row you own end-to-end.
+
+### Tests — Coverage Thresholds Are Per-File
+
+`apps/backend/vitest.config.ts` and `apps/frontend/vitest.config.ts` both set `thresholds.perFile: true`. The thresholds are the floor every file in `include[]` must clear, not just the aggregate. The intent is to catch the regression an aggregate gate misses: a new 500-line file with zero tests hiding behind everyone else's well-tested code.
+
+The backend's floor is moderate (50% lines / 30% functions / 30% branches) because a handful of structurally hard-to-unit-test surfaces (SSE handler in `trade.ts`, AI integration in `scan.ts`, multi-CTE matchmaking in `trade-matching.service.ts`) sit lower. Those files get explicit per-glob overrides in the same `thresholds` object — see the inline list. The override numbers track current coverage minus a small buffer.
+
+**Rules to follow:**
+- **Don't add an override to make a failing build green.** Overrides are for files that genuinely can't be covered without standing up real infra (a browser, a paid API key, a multi-day fixture build). For everything else, the answer to "this file dropped below the floor" is "write a test", not "lower the threshold".
+- **When you do legitimately raise coverage on a file with an override, raise its override in the same PR.** The override numbers are a ratchet — they only ever go up.
+- **The frontend's `include[]` is intentionally narrow.** It tracks pure-logic modules (`lib/*`, `app/scan/pickVariantId.ts`, `variantMeta.ts`, `draftStorage.ts`). React components and pages are Playwright's domain. Adding a file to the frontend `include[]` is a commitment to keep it ≥ 70% — don't add a file just to inflate the headline number.
+
 ### Sticker Types & Rarities — Source of Truth
 
 This section is the **canonical model** of every variant Cromo recognises. Every code change — prompts, types, seeds, services, UI labels, docs, tests — MUST be consistent with this section. If reality (Panini's product) diverges, update this section first and propagate.

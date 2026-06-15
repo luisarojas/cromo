@@ -113,6 +113,152 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  e2e-scan:
+    name: E2E — scan flow smoke
+    needs: [test, changes]
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.code == 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cromo
+          POSTGRES_PASSWORD: localpassword
+          POSTGRES_DB: cromo_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cromo"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://cromo:localpassword@localhost:5432/cromo_dev
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: development
+      AUTH_MODE: local
+      JWT_SECRET: ci-test-secret-not-used-anywhere-else
+      # Mock pathway — `identifySticker` short-circuits to canned BRA5/
+      # Vinicius results when the active provider's key is the literal
+      # string "mock". This keeps the smoke test deterministic, free, and
+      # decoupled from Groq's availability.
+      SCAN_PROVIDER: groq
+      GROQ_API_KEY: mock
+      GEMINI_API_KEY: mock
+      FRONTEND_URL: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      PLAYWRIGHT_API_URL: http://localhost:3001
+      PORT: "3001"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter @cromo/shared build
+
+      - name: Apply Drizzle migrations
+        run: pnpm --filter @cromo/backend db:migrate
+
+      - name: Seed catalog + test users
+        run: ./scripts/seed-database.sh --remote
+
+      - name: Enable scan feature flag
+        # The seed already sets FEATURE_AI_SCANNING = true, but assert it
+        # explicitly so a future seed change doesn't silently disable this
+        # job.
+        run: |
+          PGPASSWORD=localpassword psql -h localhost -U cromo -d cromo_dev \
+            -c "UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_AI_SCANNING'"
+
+      - name: Build backend (tsc)
+        run: pnpm --filter @cromo/backend build
+
+      - name: Build frontend (next build)
+        run: pnpm --filter @cromo/frontend build
+
+      - name: Start backend in background
+        run: |
+          pnpm --filter @cromo/backend start > /tmp/backend.log 2>&1 &
+          echo "Started backend PID $!"
+
+      - name: Start frontend in background
+        run: |
+          pnpm --filter @cromo/frontend start > /tmp/frontend.log 2>&1 &
+          echo "Started frontend PID $!"
+
+      - name: Wait for both services to be ready
+        # Poll readiness for up to 90s. The backend exposes /health/ready;
+        # the frontend serves / once Next has started listening. Either
+        # failing here points at a deploy-shape problem (process crashed
+        # on startup, port conflict, missing env), not an e2e bug.
+        run: |
+          for i in $(seq 1 90); do
+            be=$(curl -fsS http://localhost:3001/api/v1/health/ready 2>/dev/null || echo "")
+            fe=$(curl -fsSI http://localhost:3000/ 2>/dev/null | head -1 || echo "")
+            if [ -n "$be" ] && echo "$fe" | grep -q "200\|3[0-9]\{2\}"; then
+              echo "Both services up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Backend or frontend failed to start within 90s"
+          echo "--- backend log ---"
+          tail -100 /tmp/backend.log
+          echo "--- frontend log ---"
+          tail -100 /tmp/frontend.log
+          exit 1
+
+      - name: Install Playwright chromium
+        # Skip Firefox/WebKit — the smoke test only runs in chromium per
+        # playwright.config.ts. --with-deps installs the system libs the
+        # browser needs.
+        run: pnpm --filter @cromo/frontend exec playwright install --with-deps chromium
+
+      - name: Run scan flow smoke test
+        run: pnpm --filter @cromo/frontend exec playwright test tests/e2e/scan.spec.ts
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-scan
+          path: apps/frontend/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload backend/frontend logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-server-logs
+          path: |
+            /tmp/backend.log
+            /tmp/frontend.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   security:
     name: Security scans
     runs-on: ubuntu-latest
@@ -155,7 +301,7 @@ jobs:
 
   build:
     name: Build images (PR smoke-test, no push)
-    needs: [test, security, changes]
+    needs: [test, e2e-scan, security, changes]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
 
@@ -198,7 +344,7 @@ jobs:
 
   deploy-dev:
     name: Build, push, deploy to dev
-    needs: [test, security, changes]
+    needs: [test, e2e-scan, security, changes]
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' ||
