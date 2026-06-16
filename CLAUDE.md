@@ -251,15 +251,22 @@ afterAll(async () => {
 
 If you find yourself wanting to wipe a whole table in `afterAll`, that's a signal you're testing the wrong unit — extract the logic into a service-level test with a mocked DB, or scope your changes to a single ephemeral row you own end-to-end.
 
-### Tests — Coverage Thresholds Are Per-File
+### Tests — Coverage Thresholds Are Aggregate (Not Per-File)
 
-`apps/backend/vitest.config.ts` and `apps/frontend/vitest.config.ts` both set `thresholds.perFile: true`. The thresholds are the floor every file in `include[]` must clear, not just the aggregate. The intent is to catch the regression an aggregate gate misses: a new 500-line file with zero tests hiding behind everyone else's well-tested code.
+`apps/backend/vitest.config.ts` and `apps/frontend/vitest.config.ts` both gate on the **aggregate** coverage across `include[]`, not per-file. The backend floor is `lines: 70 / statements: 65 / functions: 60 / branches: 55`; the frontend's `include[]` is narrow enough that aggregate ≈ per-file.
 
-The backend's floor is moderate (50% lines / 30% functions / 30% branches) because a handful of structurally hard-to-unit-test surfaces (SSE handler in `trade.ts`, AI integration in `scan.ts`, multi-CTE matchmaking in `trade-matching.service.ts`) sit lower. Those files get explicit per-glob overrides in the same `thresholds` object — see the inline list. The override numbers track current coverage minus a small buffer.
+We tried `perFile: true` with per-glob "overrides" first. It doesn't work the way the vitest docs imply: per-glob entries layer an **additional** constraint on top of the global floor instead of overriding it. So a `'src/routes/v1/scan.ts': { lines: 15 }` entry can't loosen a `lines: 50` global — the global keeps firing first. That makes per-file gating impractical for our codebase: a few files (SSE handler in `trade.ts`, AI integration in `scan.ts`, multi-CTE matchmaking in `trade-matching.service.ts`) genuinely sit below 50% and need real streaming-HTTP / browser test infra to climb. Forcing every file to clear the same number would block PRs on legitimately hard-to-test surfaces.
+
+The aggregate gate is sensitive enough on its own: a 500-line zero-coverage file added to a ~5,000-line codebase drops the average ~10%, which trips a 70% floor.
+
+**The CI env diverges from the dev docker stack.** CI runs the test job with `NODE_ENV=test`; the docker stack runs with `NODE_ENV=development`. `app.ts` has multiple `if (env.NODE_ENV !== 'test') { … }` guards (swagger plugin, jobs worker, SES poller). Code behind those guards is **not loaded** under CI's test mode — including it in `coverage.include[]` would inflate the denominator with code that's deliberately dormant. That's why the relevant entry-points are in `coverage.exclude[]`: `src/plugins/swagger.ts`, `src/jobs/scheduler.ts`, `src/jobs/run-once.ts`, `src/db/migrate.ts`, `src/server.ts`.
+
+The local docker stack only mounts `apps/backend/vitest.config.ts` after this revision. Any change to that file requires bouncing the api container (or restarting compose) for the change to take effect inside the container — the image-baked copy is stale.
 
 **Rules to follow:**
-- **Don't add an override to make a failing build green.** Overrides are for files that genuinely can't be covered without standing up real infra (a browser, a paid API key, a multi-day fixture build). For everything else, the answer to "this file dropped below the floor" is "write a test", not "lower the threshold".
-- **When you do legitimately raise coverage on a file with an override, raise its override in the same PR.** The override numbers are a ratchet — they only ever go up.
+- **Validate threshold changes locally with `NODE_ENV=test`.** The dev stack's default `NODE_ENV=development` runs more code than CI's `NODE_ENV=test`, so coverage measured in dev mode is inflated. The verification command is `docker compose exec -e NODE_ENV=test api pnpm --filter @cromo/backend test:coverage` — anything less will mislead you about whether CI will pass.
+- **Don't add per-glob entries to the `thresholds` object.** They don't override the global; they add a second constraint that's almost always stricter. If a file genuinely needs a different gate, the answer is either (a) write the missing tests, or (b) add the file to `coverage.exclude[]` with a comment explaining why it can't be unit-tested.
+- **Exclude, don't override.** Files that can't be unit-tested without real infra (Playwright-level browser tests, paid API keys, multi-day fixture builds) belong in `coverage.exclude[]`, not in `include[]` with a lowered threshold. The tests for those files still run — exclude only affects coverage measurement.
 - **The frontend's `include[]` is intentionally narrow.** It tracks pure-logic modules (`lib/*`, `app/scan/pickVariantId.ts`, `variantMeta.ts`, `draftStorage.ts`). React components and pages are Playwright's domain. Adding a file to the frontend `include[]` is a commitment to keep it ≥ 70% — don't add a file just to inflate the headline number.
 
 ### Sticker Types & Rarities — Source of Truth

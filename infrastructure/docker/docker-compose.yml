@@ -62,6 +62,7 @@ services:
     volumes:
       - ../../apps/backend/src:/app/apps/backend/src
       - ../../apps/backend/tests:/app/apps/backend/tests
+      - ../../apps/backend/vitest.config.ts:/app/apps/backend/vitest.config.ts
       - ../../packages/shared/src:/app/packages/shared/src
       - local_uploads:/app/uploads
       # Manifests bind-mounted so the host is the source of truth: dep changes

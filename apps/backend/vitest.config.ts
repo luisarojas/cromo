@@ -9,60 +9,50 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'text-summary', 'json', 'html'],
       include: ['src/**/*.ts'],
-      // server.ts is the bootstrap entry; migrate.ts has a CLI runner branch that
-      // can't run inside the test process; jobs/scheduler.ts is the node-cron
-      // wiring exercised via integration tests, not unit tests.
       exclude: [
+        // Bootstrap / CLI entry points — never imported by tests.
         'src/server.ts',
+        'src/jobs/run-once.ts',
+        // Module-level skip in app.ts when NODE_ENV === 'test', which is
+        // how CI runs the suite. Including these inflates the denominator
+        // with code we deliberately don't load in test mode.
+        'src/plugins/swagger.ts',
+        // Owns its own CLI runner branch + integration tests cover the
+        // happy path; the runner branch can't execute inside vitest.
         'src/db/migrate.ts',
+        // node-cron wiring — exercised via integration tests, not unit
+        // tests, and skipped under NODE_ENV === 'test' anyway.
         'src/jobs/scheduler.ts',
         'src/types/**',
       ],
-      // Per-file gate. With perFile: true, the numbers below apply to each
-      // file in include[] individually, not just the aggregate — that's
-      // what catches a new 500-line zero-coverage file from hiding behind
-      // everyone else's well-tested code.
+      // Aggregate floor across the whole suite. We tried `perFile: true`
+      // with per-glob overrides as a second tier, but vitest's per-glob
+      // entries layer an ADDITIONAL constraint on top of the global rather
+      // than overriding it — a "scan.ts: 15%" entry can't loosen a
+      // "global: 50%" floor, so per-file gating requires every file to
+      // meet the same number. That isn't realistic for a few hard-to-
+      // unit-test surfaces (SSE handlers, AI integration, multi-CTE
+      // matchmaking queries) and would block PRs on files that need
+      // browser- or streaming-HTTP-level test infra to cover.
       //
-      // The floor is deliberately moderate (50 lines / 30 funcs / 30 branches):
-      // a handful of files genuinely sit lower because they wrap things that
-      // can't be unit-tested without standing up real infra (SSE socket
-      // handlers, the AI scan provider, multi-CTE matchmaking queries). Those
-      // get per-glob overrides below. Everything else MUST meet the floor.
+      // The aggregate gate is sensitive enough on its own: adding a
+      // 500-line zero-coverage file to a ~5,000-line codebase drops the
+      // average by ~10%, which trips a 70% floor. The threshold also
+      // tolerates the few files that legitimately sit below 50% because
+      // their weight is small relative to the well-covered majority.
       //
-      // To raise the floor: bring the laggards up first, then bump these
-      // numbers. Don't bump the floor and add more overrides — that defeats
-      // the gate.
+      // Raise the numbers when (and only when) the next chunk of routes
+      // genuinely gets covered — not just to make the badge look better.
+      // Numbers reflect today's measured coverage minus a small buffer:
+      // lines 73.08 → 70, stmts 69.73 → 65, funcs 63.01 → 60, branches
+      // 59.7 → 55. Stmts trails lines because the codebase has multi-
+      // statement lines in service code (ternaries, short chains); the
+      // ~3% gap isn't worth closing with more tests.
       thresholds: {
-        perFile: true,
-        lines: 50,
-        statements: 50,
-        functions: 30,
-        branches: 30,
-        // Per-file overrides for surfaces with structural reasons coverage
-        // is hard. Numbers match the current state minus a small buffer so
-        // a regression of a few % blocks the build; rising coverage will
-        // need this number lifted in the same PR.
-        // scan.ts is currently 20.83% lines / 27.27% funcs / 15.45% branches.
-        // The uncovered range is `/scan/batch` and `/scan/list-extract` —
-        // both consume multipart streams with multiple image parts and
-        // (in the batch case) emit SSE events. Covering them needs a real
-        // HTTP client that can do streaming uploads + read an SSE response;
-        // `fastify.inject()` returns before the SSE handler resolves, so
-        // jsdom-style mocks don't cut it. The single-image `/scan/identify`
-        // handler IS partially covered via the integration tests.
-        'src/routes/v1/scan.ts':                  { lines: 15, statements: 15, functions: 20, branches: 10 },
-        'src/routes/v1/trade.ts':                 { lines: 55, statements: 55, functions: 45, branches: 30 },
-        'src/routes/v1/trust-safety.ts':          { lines: 55, statements: 55, functions: 55, branches: 40 },
-        'src/services/trade-matching.service.ts': { lines: 35, statements: 35, functions: 15, branches: 35 },
-        'src/services/trade-requests.service.ts': { lines: 50, statements: 45, functions: 25, branches: 40 },
-        'src/services/albums.service.ts':         { lines: 55, statements: 60, functions: 65, branches: 45 },
-        'src/plugins/tradeBus.ts':                { lines: 40, statements: 40, functions: 30, branches: 15 },
-        'src/plugins/cors.ts':                    { lines: 45, statements: 45, functions: 45, branches: 45 },
-        'src/jobs/catalog.ts':                    { lines: 45, statements: 30, functions: 0,  branches: 100 },
-        'src/db/migrate.ts':                      { lines: 25, statements: 25, functions: 15, branches: 30 },
-        'src/db/schema.ts':                       { lines: 50, statements: 50, functions: 35, branches: 100 },
-        'src/env.ts':                             { lines: 50, statements: 50, functions: 100, branches: 45 },
-        'src/middleware/auth.ts':                 { lines: 60, statements: 60, functions: 85, branches: 55 },
+        lines: 70,
+        statements: 65,
+        functions: 60,
+        branches: 55,
       },
     },
     testTimeout: 30000,
