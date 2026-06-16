@@ -126,9 +126,13 @@ test.describe('scan flow (smoke)', () => {
     // them prove the multipart upload pipeline + frontend rendering work:
     //
     //   1. Sticker card  — happy path. CI sets GROQ_API_KEY=mock so
-    //      identifySticker short-circuits to MOCK_RESULTS (BRA5 / Vinicius).
-    //      The card contains either a recognisable album code or the
-    //      mock player name.
+    //      identifySticker short-circuits to MOCK_RESULTS (BRA5). The
+    //      Scanner renders a MatchBadge: "✓ Matched" when the catalog has
+    //      the code, "Partial match — please verify" on a name-only hit,
+    //      or "Not found in this album" otherwise. The album code and
+    //      player name live inside ComboBox `<input value>` attributes —
+    //      Playwright's getByText doesn't match input values, so we gate
+    //      on the badge text (which IS plain DOM text).
     //   2. No-match card — real Groq + a tiny synthetic JPEG (the local
     //      dev path) returns no identification; the frontend renders the
     //      "couldn't identify any stickers" message.
@@ -141,7 +145,7 @@ test.describe('scan flow (smoke)', () => {
     // produce any of them — it would produce a blank result area, a hung
     // spinner, or an actual ErrorBoundary trigger. The assertion below
     // catches the "structured response of any kind" contract.
-    const stickerCard  = page.getByText(/BRA\d+|Vinicius|FWC\d+|EX\d+|CC\d+/);
+    const stickerCard  = page.getByText(/✓ Matched|Partial match — please verify|Not found in this album/);
     const noMatch      = page.getByText(/couldn't identify any stickers/i);
     const aiErrorCard  = page.getByText(/AI scanning is temporarily unavailable|API error 5\d\d/i);
     const anyResult    = stickerCard.or(noMatch).or(aiErrorCard);

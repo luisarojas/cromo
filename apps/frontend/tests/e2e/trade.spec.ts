@@ -51,17 +51,25 @@ test.describe('Trade Hub', () => {
   test('My Trades tab shows seeded trade or empty state', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/trade');
+    await expect(page.getByRole('heading', { name: 'Trades' })).toBeVisible({ timeout: 10_000 });
     await page.getByRole('button', { name: 'My Trades' }).click();
 
-    // Either the seeded trade or empty state is acceptable
+    // TradesList renders @username + a status badge per row; the empty-state
+    // path renders "You have no trades yet". Either shape proves the tab
+    // mounted and the list endpoint returned. The old /To:|From:/ regex
+    // matched neither and silently failed against the seeded trade.
     await expect(
-      page.getByText(/To:|From:|You have no trades yet/)
+      page.getByText(/@\w+|You have no trades yet/)
     ).toBeVisible({ timeout: 8000 });
   });
 
   test('Find Trades tab shows album dropdown and find button', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/trade');
+    // Wait for the page heading so the auth-store hydration + first paint are
+    // done before we look for the combobox. Without this gate the default 5s
+    // expect timeout races with a cold-CI hydration on the runner.
+    await expect(page.getByRole('heading', { name: 'Trades' })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('combobox')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Find Matches' })).toBeVisible();
   });
