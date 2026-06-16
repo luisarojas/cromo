@@ -10,6 +10,29 @@ Common patterns:
 - **Rebuild:** `docker compose -f infrastructure/docker/docker-compose.yml up --build`
 - **Logs / restart:** `docker compose -f infrastructure/docker/docker-compose.yml logs -f <service>` / `restart <service>`
 
+**Adding a workspace devDep on macOS — the EBUSY trap.** Docker Desktop on macOS bind-mounts files through a virtualisation layer (VirtioFS / gRPC FUSE) that can't reliably atomic-rename across the host/container boundary. `pnpm install --no-frozen-lockfile` writes the updated lockfile to a tmp file and then `rename()`s it onto `/app/pnpm-lock.yaml`. The rename fails with `EBUSY: resource busy or locked`. The install completes in the named-volume node_modules, but the host lockfile is unchanged, and CI's `--frozen-lockfile` fails with `ERR_PNPM_OUTDATED_LOCKFILE`.
+
+Workaround: regenerate the lockfile in a non-bind-mounted path inside the container, then pull it back to the host with `docker cp` (which goes through Docker's API, not the bind mount). One-shot script:
+
+```bash
+WORK=/tmp/lockgen
+docker compose -f infrastructure/docker/docker-compose.yml exec -T api sh -c "
+  rm -rf $WORK && mkdir -p $WORK/apps/backend $WORK/apps/frontend $WORK/packages/shared
+  cp /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml $WORK/
+  cp /app/apps/backend/package.json $WORK/apps/backend/
+  cp /app/packages/shared/package.json $WORK/packages/shared/
+"
+# The api container doesn't mount apps/frontend, so push it explicitly:
+docker cp apps/frontend/package.json docker-api-1:$WORK/apps/frontend/package.json
+docker compose -f infrastructure/docker/docker-compose.yml exec -T api \
+  sh -c "cd $WORK && pnpm install --lockfile-only --no-frozen-lockfile"
+docker cp docker-api-1:$WORK/pnpm-lock.yaml ./pnpm-lock.yaml
+```
+
+Verify before committing: `docker compose exec -T api sh -c 'cp /app/pnpm-lock.yaml /tmp/lc.yaml && cd /tmp && pnpm install --frozen-lockfile'` should exit 0. This is the same command CI runs.
+
+**Bind-mount file edits and stale container reads.** When the host edits a small bind-mounted file (e.g. `vitest.config.ts`, `package.json`), Docker Desktop's bind-mount cache can serve the container a truncated view of the previous content for tens of seconds, sometimes longer. Symptom: tests pass with thresholds that should fail, or `pnpm install` reports "Invalid package.json" with a parse error pointing at a line number that's past the EOF the host sees. Fix: `docker compose restart <service>` for the affected container. Don't try to debug application logic until the container's `wc -c <file>` matches the host's.
+
 ### No Backward Compatibility Required
 Cromo is in active development — make breaking changes freely. No migration paths, no deprecation warnings. (Exception: published release tags are immutable by convention; see versioning.)
 

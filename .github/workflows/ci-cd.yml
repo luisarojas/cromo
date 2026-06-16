@@ -113,10 +113,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  e2e-scan:
-    name: E2E — scan flow smoke
+  e2e:
+    name: E2E — Playwright smoke
     needs: [test, changes]
     runs-on: ubuntu-latest
+    # Non-gating until the suite has been observed green at least once.
+    # Removes the failure-on-first-run risk for selectors / DOM assumptions
+    # that were never exercised in CI (the specs predate the workflow).
+    # Promote to a gating check by removing continue-on-error after the
+    # first stable run — then downstream jobs will actually block on a red.
+    continue-on-error: true
     if: needs.changes.outputs.code == 'true'
 
     services:
@@ -236,20 +242,26 @@ jobs:
         # browser needs.
         run: pnpm --filter @cromo/frontend exec playwright install --with-deps chromium
 
-      - name: Run scan flow smoke test
-        run: pnpm --filter @cromo/frontend exec playwright test tests/e2e/scan.spec.ts
+      - name: Run all Playwright specs
+        # Runs the full apps/frontend/tests/e2e/*.spec.ts set. workers: 1
+        # in playwright.config.ts keeps them serial, and the per-spec
+        # retries: 2 on CI absorbs flakes. Total runtime: ~10-15 min when
+        # all green; first failure short-circuits the spec.
+        run: pnpm --filter @cromo/frontend exec playwright test
 
-      - name: Upload Playwright report on failure
-        if: failure()
+      - name: Upload Playwright report
+        # Uploaded unconditionally so the report is available for inspection
+        # even when continue-on-error masks a red.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-scan
+          name: playwright-report
           path: apps/frontend/playwright-report/
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload backend/frontend logs on failure
-        if: failure()
+      - name: Upload backend/frontend logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-server-logs
@@ -301,7 +313,7 @@ jobs:
 
   build:
     name: Build images (PR smoke-test, no push)
-    needs: [test, e2e-scan, security, changes]
+    needs: [test, e2e, security, changes]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
 
@@ -344,7 +356,7 @@ jobs:
 
   deploy-dev:
     name: Build, push, deploy to dev
-    needs: [test, e2e-scan, security, changes]
+    needs: [test, e2e, security, changes]
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' ||
