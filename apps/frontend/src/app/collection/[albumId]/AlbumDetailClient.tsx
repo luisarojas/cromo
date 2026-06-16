@@ -174,6 +174,26 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [massWorking, setMassWorking] = useState(false);
   const [variantPicker, setVariantPicker] = useState<'add' | 'remove' | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  // Overflow menu for the mobile album header. Secondary actions (set default,
+  // edit, new album) collapse behind a "⋯" tap target on small screens so the
+  // primary Scan + Share buttons aren't pushed off-row.
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!overflowOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) {
+        setOverflowOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOverflowOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [overflowOpen]);
 
   const tokenRef = useRef(token);
   const userRef = useRef(user);
@@ -797,18 +817,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                 </svg>
                 {t('scan')}
               </button>
-              {!activeAlbum.isDefault && (
-                <button
-                  onClick={handleSetDefault}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-warning-text)] hover:bg-[var(--cromo-warning-soft)] rounded-lg transition-colors"
-                  title={t('setAsDefault')}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  {t('setDefault')}
-                </button>
-              )}
               {user && (
                 <ShareProfileButton
                   username={user.username}
@@ -830,9 +838,25 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   }
                 />
               )}
+
+              {/* Secondary actions — inline on desktop, behind a "⋯" tap on mobile.
+                  Mobile albums never need to expose more than two visible action
+                  buttons (Scan, Share) without scrolling/wrapping. */}
+              {!activeAlbum.isDefault && (
+                <button
+                  onClick={handleSetDefault}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-warning-text)] hover:bg-[var(--cromo-warning-soft)] rounded-lg transition-colors"
+                  title={t('setAsDefault')}
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  {t('setDefault')}
+                </button>
+              )}
               <button
                 onClick={() => setEditingAlbum(activeAlbum)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-lg transition-colors"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -842,7 +866,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               {albums.length < 10 && (
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-soft)] rounded-lg transition-colors"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-soft)] rounded-lg transition-colors"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -850,6 +874,63 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                   {t('newAlbum')}
                 </button>
               )}
+
+              {/* Mobile overflow menu */}
+              <div ref={overflowRef} className="md:hidden relative">
+                <button
+                  type="button"
+                  onClick={() => setOverflowOpen((v) => !v)}
+                  aria-haspopup="menu"
+                  aria-expanded={overflowOpen}
+                  aria-label={t('moreActions')}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                    <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM18 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </button>
+                {overflowOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-1 min-w-[12rem] z-30 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg py-1"
+                  >
+                    {!activeAlbum.isDefault && (
+                      <button
+                        role="menuitem"
+                        onClick={() => { setOverflowOpen(false); handleSetDefault(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-[var(--cromo-warning-text)]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        {t('setDefault')}
+                      </button>
+                    )}
+                    <button
+                      role="menuitem"
+                      onClick={() => { setOverflowOpen(false); setEditingAlbum(activeAlbum); }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-[var(--cromo-fg-muted)]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                      </svg>
+                      {t('edit')}
+                    </button>
+                    {albums.length < 10 && (
+                      <button
+                        role="menuitem"
+                        onClick={() => { setOverflowOpen(false); setShowAddModal(true); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-[var(--cromo-accent)]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                          <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                        {t('newAlbum')}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -925,16 +1006,19 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               )}
             </button>
           ))}
+          {/* Density cycler is a desktop power-user feature — the mobile grid
+              already adapts to viewport width and the cycler steals tab space
+              on narrow screens. Long-press on any card enters selection mode,
+              so the Select button is icon-only on mobile (the MassActionBar
+              that appears confirms the mode change). */}
           <button
             onClick={() => {
-              // Cycle 2 → 3 → 4 → 5 → 6 → 2. The icon visually grows tighter
-              // as the count increases so the affordance maps to "denser".
               const next = (density === 6 ? 2 : ((density + 1) as Density));
               setDensity(next);
             }}
             aria-label={t('densityAria', { count: density })}
             title={t('densityTitle', { count: density })}
-            className="ml-auto shrink-0 px-3 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] transition-colors flex items-center gap-1"
+            className="ml-auto hidden md:flex shrink-0 px-3 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] transition-colors items-center gap-1"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
               {Array.from({ length: density }).map((_, i) => (
@@ -960,7 +1044,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                 setSelectionMode(true);
               }
             }}
-            className={`shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            aria-label={selectionMode ? t('selecting') : t('select')}
+            className={`md:ml-0 ml-auto shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
               selectionMode
                 ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
                 : 'border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)]'
@@ -972,7 +1057,9 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               <rect x="11" y="3" width="6" height="6" rx="1" />
               <rect x="3" y="11" width="6" height="6" rx="1" />
             </svg>
-            {selectionMode ? t('selecting') : t('select')}
+            <span className="hidden sm:inline">
+              {selectionMode ? t('selecting') : t('select')}
+            </span>
           </button>
         </div>
         )}
@@ -1052,7 +1139,14 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       {showScrollTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })}
-          className={`fixed ${selectionMode ? 'bottom-20' : 'bottom-6'} right-6 z-50 p-3 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)] transition-all`}
+          // In selection mode the MassActionBar (h-~14) sits above the tab bar,
+          // so park above both. Otherwise float above just the tab bar.
+          style={{
+            bottom: selectionMode
+              ? 'calc(var(--cromo-tabbar-h) + 4rem)'
+              : 'calc(var(--cromo-tabbar-h) + 1rem)',
+          }}
+          className="fixed right-4 z-50 p-3 rounded-full bg-[var(--cromo-surface)] border border-[var(--cromo-border)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)] transition-all shadow-cromo-lg"
           aria-label={t('scrollToTop')}
         >
           <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">

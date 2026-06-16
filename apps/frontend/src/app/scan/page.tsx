@@ -110,7 +110,7 @@ function AlbumPicker({
           <li key={album.id}>
             <button
               onClick={() => onPick(album)}
-              className="w-full text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] hover:border-[var(--cromo-accent)]/40 hover:bg-[var(--cromo-accent-soft)]/40 transition-colors px-4 py-3 flex items-center justify-between gap-3"
+              className="w-full text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] active:bg-[var(--cromo-accent-soft)]/60 md:hover:border-[var(--cromo-accent)]/40 md:hover:bg-[var(--cromo-accent-soft)]/40 transition-colors px-4 py-4 flex items-center justify-between gap-3 min-h-[60px]"
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[var(--cromo-fg)] truncate">

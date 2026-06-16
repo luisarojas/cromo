@@ -678,7 +678,7 @@ function TradePageContent() {
 
           {!matchesLoading && matches.length === 0 && !matchesError && selectedAlbumId && (
             <p className="text-sm text-[var(--cromo-fg-muted)] text-center py-8">
-              {matchesSearched ? 'No matches found.' : 'Click "Find Matches" to search.'}
+              {matchesSearched ? 'No matches found.' : 'Tap "Find Matches" to search.'}
             </p>
           )}
 

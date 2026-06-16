@@ -343,12 +343,9 @@ export default function StickerCard({
         </div>
       ) : null}
 
-      {/* Action hint */}
-      <div className="mt-2 text-[10px] text-[var(--cromo-fg-subtle)] opacity-0 group-hover:opacity-100 transition-opacity">
-        {owned ? 'Click to manage variants' : 'Click to add'}
-      </div>
-
-      {/* Favourite button — hidden in selection mode */}
+      {/* Favourite button — hidden in selection mode. Always visible on touch
+          (no hover), fades-in on desktop hover for cards that aren't already
+          favourited so the unfavourited grid stays calm on big screens. */}
       {onToggleFavourite && !selectionMode && (
         <span
           data-no-drag
@@ -364,16 +361,16 @@ export default function StickerCard({
               onToggleFavourite();
             }
           }}
-          className={`absolute bottom-1.5 right-1.5 transition-all cursor-pointer ${
+          className={`absolute bottom-1.5 right-1.5 p-1 -m-1 transition-all cursor-pointer ${
             isFavourited
               ? 'text-[var(--cromo-danger-text)] opacity-100'
-              : 'text-[var(--cromo-fg-subtle)] opacity-0 group-hover:opacity-100 hover:text-[var(--cromo-danger-text)]'
+              : 'text-[var(--cromo-fg-subtle)] opacity-100 md:opacity-0 md:group-hover:opacity-100 md:hover:text-[var(--cromo-danger-text)]'
           }`}
           title={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
           aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
           aria-pressed={isFavourited}
         >
-          <HeartIcon filled={isFavourited} className="w-3.5 h-3.5" />
+          <HeartIcon filled={isFavourited} className="w-4 h-4" />
         </span>
       )}
     </button>

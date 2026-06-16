@@ -50,10 +50,16 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Participant names on a trade page link to their profiles.',
         'My Trades shows open trades by default, with closed trades collapsed into an expandable section. Table gains an "Opened" and "Closed" date column, both sortable.',
         'Album share modal\'s "Copy list as text" button is disabled — with a tooltip — when the album has no duplicates or wanted stickers to share.',
+        'Mobile menu trims primary nav links that the bottom tab bar already covers — just identity, settings, guides, and log out.',
+        'Album header on phones collapses Set-default, Edit, and New-album into an overflow menu so the row no longer wraps.',
+        'Album list page no longer shows the grid-density toggle on phones; the grid adapts to viewport width automatically.',
       ],
       Fixed: [
         'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',
         'Mass actions on the album page no longer fail with a 400 error when more than 500 stickers are selected.',
+        'Favourite (♥) button on every sticker is now tappable on phones — previously it only appeared on desktop hover.',
+        'Album list cards expose Set-default and Edit buttons directly on phones instead of hiding them behind a hover state.',
+        'Remove (×) button on staged scan images is visible on phones.',
       ],
       Removed: [
         '"Focus on these" card on the album page.',

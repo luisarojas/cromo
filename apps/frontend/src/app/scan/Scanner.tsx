@@ -1025,7 +1025,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
                           setStaged(next);
                         }
                       }}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+                      className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/70 text-white text-sm flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity leading-none"
                       aria-label={`Remove image ${i + 1}`}
                     >
                       ✕

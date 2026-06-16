@@ -450,7 +450,8 @@
     "updatedFlagsToast": "Marcadores de intercambio actualizados para {count, plural, one {# variante} other {# variantes}}",
     "updateFlagsFailedToast": "No se pudieron actualizar los marcadores. Intenta de nuevo.",
     "densityAria": "Densidad de cuadrícula: {count} columnas. Toca para cambiar.",
-    "densityTitle": "Densidad: {count} columnas"
+    "densityTitle": "Densidad: {count} columnas",
+    "moreActions": "Más acciones del álbum"
   },
   "albumForm": {
     "createTitle": "Añadir nuevo álbum",

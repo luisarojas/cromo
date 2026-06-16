@@ -147,20 +147,11 @@ export default function NavBar() {
             className="md:hidden absolute left-0 right-0 top-full z-40 bg-[var(--cromo-surface)] border-b border-[var(--cromo-border)] shadow-cromo-lg"
           >
             <div className="px-4 py-4 flex flex-col gap-1">
-              {user && (
-                <>
-                  <DrawerLink href="/dashboard">{t('dashboard')}</DrawerLink>
-                  <DrawerLink href="/collection">{t('collection')}</DrawerLink>
-                  {tradeMatchingEnabled && <DrawerLink href="/trade">{t('trade')}</DrawerLink>}
-                  <DrawerLink href="/scan">{t('scan')}</DrawerLink>
-                </>
-              )}
-              {!user && <DrawerLink href="/trade/match">{t('tradeMatcher')}</DrawerLink>}
-              <DrawerLink href="/guide">{t('guides')}</DrawerLink>
-              {user?.role === 'admin' && <DrawerLink href="/admin">{t('admin')}</DrawerLink>}
-
-              <div className="my-2 h-px bg-[var(--cromo-border)]" />
-
+              {/* Authenticated mobile users navigate primary destinations via
+                  the bottom tab bar (MobileTabBar). The drawer is only for
+                  things the tab bar doesn't carry: identity, settings, guides,
+                  admin, logout. Unauthenticated users see all entry points
+                  here since the tab bar doesn't render for them. */}
               {user ? (
                 <>
                   <Link
@@ -173,6 +164,9 @@ export default function NavBar() {
                     <span className="truncate">{user.displayName ?? `@${user.username}`}</span>
                   </Link>
                   <DrawerLink href="/settings">{t('settings')}</DrawerLink>
+                  <DrawerLink href="/guide">{t('guides')}</DrawerLink>
+                  {user.role === 'admin' && <DrawerLink href="/admin">{t('admin')}</DrawerLink>}
+                  <div className="my-2 h-px bg-[var(--cromo-border)]" />
                   <button
                     onClick={handleLogout}
                     className="text-left rounded-btn px-3 py-3 text-sm font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
@@ -182,6 +176,9 @@ export default function NavBar() {
                 </>
               ) : (
                 <>
+                  <DrawerLink href="/trade/match">{t('tradeMatcher')}</DrawerLink>
+                  <DrawerLink href="/guide">{t('guides')}</DrawerLink>
+                  <div className="my-2 h-px bg-[var(--cromo-border)]" />
                   <DrawerLink href="/login">{t('logIn')}</DrawerLink>
                   <Link
                     href="/register"

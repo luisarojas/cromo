@@ -450,7 +450,8 @@
     "updatedFlagsToast": "Updated trade flags for {count, plural, one {# sticker variant} other {# sticker variants}}",
     "updateFlagsFailedToast": "Failed to update trade flags. Please try again.",
     "densityAria": "Grid density: {count} columns. Tap to change.",
-    "densityTitle": "Density: {count} columns"
+    "densityTitle": "Density: {count} columns",
+    "moreActions": "More album actions"
   },
   "albumForm": {
     "createTitle": "Add New Album",
