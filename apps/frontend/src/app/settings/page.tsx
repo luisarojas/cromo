@@ -751,12 +751,12 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
-        <div className="flex gap-1 border-b border-[var(--cromo-border)]">
+        <div className="flex gap-1 border-b border-[var(--cromo-border)] overflow-x-auto -mx-4 px-4 scrollbar-thin">
           {tabs.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === id
                   ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
                   : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)]'

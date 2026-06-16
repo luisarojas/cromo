@@ -21,7 +21,13 @@ async function loginAs(page: Page, user: { email: string; password: string }) {
   await page.fill('input[type="email"]', user.email);
   await page.fill('input[type="password"]', user.password);
   await page.click('button[type="submit"]');
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 10_000 });
+  // Gate on the auth-indicating "Log out" button rather than a URL change:
+  // when the backend rate-limits the login, the page briefly transitions
+  // away from /login before bouncing back, so waitForURL would resolve
+  // even though authentication failed. See trade.spec.ts for the same
+  // pattern and the underlying explanation.
+  await expect(page.getByRole('button', { name: /Log out/i }))
+    .toBeVisible({ timeout: 10_000 });
 }
 
 test('alice can post a message and bob sees it via SSE', async ({ browser }) => {
