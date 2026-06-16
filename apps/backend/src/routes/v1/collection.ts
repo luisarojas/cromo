@@ -555,7 +555,7 @@ export async function collectionRoutes(fastify: FastifyInstance): Promise<void> 
             ops: {
               type: 'array',
               minItems: 1,
-              maxItems: 500,
+              maxItems: 10000,
               items: {
                 type: 'object',
                 required: ['op', 'variantId'],

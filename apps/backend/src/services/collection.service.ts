@@ -773,7 +773,7 @@ export interface BulkOp {
   tradeForced?: boolean;
 }
 
-const BULK_OP_LIMIT = 500;
+const BULK_OP_LIMIT = 10000;
 
 /**
  * applyBulk — execute a batch of (add | set | remove | flags) operations on a

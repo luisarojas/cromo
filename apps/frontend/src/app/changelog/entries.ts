@@ -53,6 +53,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       ],
       Fixed: [
         'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',
+        'Mass actions on the album page no longer fail with a 400 error when more than 500 stickers are selected.',
       ],
       Removed: [
         '"Focus on these" card on the album page.',
