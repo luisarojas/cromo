@@ -1,0 +1,112 @@
+# E2E compose stack — used by the GitHub Actions e2e job to exercise the
+# Playwright suite against the same images that ship to dev/prod.
+#
+# Why a third compose file:
+#   - docker-compose.yml is the dev stack: bind-mounted sources, pnpm install
+#     at boot, mailpit/pgadmin/redis-commander sidecars — too heavy for CI and
+#     not the prod build shape.
+#   - docker-compose.prod.yml pulls from ECR and assumes RDS/ElastiCache/SES
+#     for state — not runnable in CI.
+#   - This file: prod images (built locally by the workflow, no push, no
+#     registry), plus self-contained postgres + redis containers in place of
+#     the AWS managed services.
+#
+# Images `cromo-backend:e2e` and `cromo-frontend:e2e` are built by the
+# workflow via docker/build-push-action with gha cache, then this compose
+# file consumes them by tag. No `build:` keys here on purpose — keeps the
+# image build path identical to dev/prod (Dockerfile.cloud + buildx) and
+# lets gha cache do its job across jobs in the same run.
+#
+# Postgres + redis publish to localhost so the runner can seed the catalog
+# and read the feature_flags table without exec'ing into a container.
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cromo
+      POSTGRES_PASSWORD: localpassword
+      POSTGRES_DB: cromo_dev
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cromo -d cromo_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  cache:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    image: cromo-backend:e2e
+    environment:
+      # development (not production) so the swagger plugin, jobs worker, and
+      # SES poller load — the e2e suite exercises endpoints that depend on
+      # them. The image's default NODE_ENV=production is overridden here.
+      NODE_ENV: development
+      AUTH_MODE: local
+      JWT_SECRET: ci-test-secret-not-used-anywhere-else
+      DATABASE_URL: postgres://cromo:localpassword@db:5432/cromo_dev
+      REDIS_URL: redis://cache:6379
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      FRONTEND_URL: http://localhost:3000
+      # Mock pathway — identifySticker short-circuits to canned BRA5/Vinicius
+      # results when the active provider's key is literally "mock". Keeps the
+      # smoke test deterministic and free.
+      SCAN_PROVIDER: groq
+      GROQ_API_KEY: mock
+      GEMINI_API_KEY: mock
+      # The Playwright suite logs in many times per run (one per test in
+      # trade.spec.ts); the default 100 req/min cap trips. Storage-state
+      # reuse is the right long-term fix; raising the cap is the workaround.
+      RATE_LIMIT_MAX: "10000"
+      RATE_LIMIT_WINDOW_MS: "60000"
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3001/api/v1/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
+
+  frontend:
+    image: cromo-frontend:e2e
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 15s

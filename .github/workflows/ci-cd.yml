@@ -135,56 +135,27 @@ jobs:
     continue-on-error: true
     if: needs.changes.outputs.code == 'true'
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: cromo
-          POSTGRES_PASSWORD: localpassword
-          POSTGRES_DB: cromo_dev
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U cromo"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-
-      redis:
-        image: redis:7-alpine
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+    # No service: containers — we bring up postgres + redis via the
+    # docker-compose.e2e.yml stack alongside the api + frontend images so
+    # the whole e2e topology matches what ships to dev/prod. The api and
+    # frontend images are built from Dockerfile.cloud in earlier steps,
+    # then docker compose consumes them by tag.
 
     env:
+      # Host-side connection strings — db port is published to localhost by
+      # the compose stack so the runner's psql can seed and flip flags
+      # without exec'ing into a container.
       DATABASE_URL: postgres://cromo:localpassword@localhost:5432/cromo_dev
-      REDIS_URL: redis://localhost:6379
-      NODE_ENV: development
-      AUTH_MODE: local
-      JWT_SECRET: ci-test-secret-not-used-anywhere-else
-      # Mock pathway — `identifySticker` short-circuits to canned BRA5/
-      # Vinicius results when the active provider's key is the literal
-      # string "mock". This keeps the smoke test deterministic, free, and
-      # decoupled from Groq's availability.
-      SCAN_PROVIDER: groq
-      GROQ_API_KEY: mock
-      GEMINI_API_KEY: mock
-      FRONTEND_URL: http://localhost:3000
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       PLAYWRIGHT_API_URL: http://localhost:3001
-      PORT: "3001"
-      # The Playwright suite calls /auth/login many times in a single run
-      # (one per test in trade.spec.ts), which blows through the default
-      # 100 req/min rate limit. The right long-term fix is a storage-state
-      # setup project that logs in once per user; bumping the cap is the
-      # interim workaround.
-      RATE_LIMIT_MAX: "10000"
-      RATE_LIMIT_WINDOW_MS: "60000"
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # `git describe` needs full history + tags to compute APP_VERSION
+          # the same way the build/deploy jobs do.
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -195,14 +166,88 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install dependencies
+      - name: Install dependencies (host — for Playwright + psql client)
+        # The runner needs the workspace installed so `playwright install`
+        # and `playwright test` resolve. Postgres ships psql on ubuntu-latest
+        # by default; no extra install needed.
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared package
-        run: pnpm --filter @cromo/shared build
+      - name: Compute APP_VERSION
+        id: version
+        run: echo "value=$(./scripts/app-version.sh)" >> "$GITHUB_OUTPUT"
 
-      - name: Apply Drizzle migrations
-        run: pnpm --filter @cromo/backend db:migrate
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (Dockerfile.cloud, gha cache)
+        # Shares the `backend` gha cache scope with the `build` and
+        # `deploy-dev` jobs — they'll all hit each other's layers. Tagged
+        # locally so docker-compose.e2e.yml's `image: cromo-backend:e2e`
+        # resolves without a registry push.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile.cloud
+          push: false
+          load: true
+          tags: cromo-backend:e2e
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.value }}
+
+      - name: Build frontend image (Dockerfile.cloud, gha cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/frontend/Dockerfile.cloud
+          push: false
+          load: true
+          tags: cromo-frontend:e2e
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:3001
+            NEXT_PUBLIC_ENV=ci
+            NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.value }}
+
+      - name: Start postgres + redis
+        # Bring infra up first so the seed step has a target. api/frontend
+        # are deferred until after the seed because the backend's startup
+        # path will run drizzle migrations as soon as it can connect — we
+        # want those migrations applied before the seed, which the api's
+        # own startup handles transparently in the next step.
+        run: docker compose -f infrastructure/docker/docker-compose.e2e.yml up -d db cache
+
+      - name: Wait for postgres
+        run: |
+          for i in $(seq 1 30); do
+            if PGPASSWORD=localpassword psql -h localhost -U cromo -d cromo_dev -c '\q' 2>/dev/null; then
+              echo "postgres up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::postgres failed to come up"
+          exit 1
+
+      - name: Start api (applies migrations on boot)
+        # The backend image runs `runMigrations()` in its startup chain
+        # (apps/backend/src/db/migrate.ts), so just starting the container
+        # leaves the schema ready for seeding.
+        run: docker compose -f infrastructure/docker/docker-compose.e2e.yml up -d api
+
+      - name: Wait for api ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3001/api/v1/health/ready >/dev/null 2>&1; then
+              echo "api ready after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::api failed to become ready"
+          docker compose -f infrastructure/docker/docker-compose.e2e.yml logs api | tail -100
+          exit 1
 
       - name: Seed catalog + test users
         run: ./scripts/seed-database.sh --remote
@@ -215,54 +260,21 @@ jobs:
           PGPASSWORD=localpassword psql -h localhost -U cromo -d cromo_dev \
             -c "UPDATE feature_flags SET enabled = true WHERE key = 'FEATURE_AI_SCANNING'"
 
-      - name: Build backend (tsc)
-        run: pnpm --filter @cromo/backend build
+      - name: Start frontend
+        run: docker compose -f infrastructure/docker/docker-compose.e2e.yml up -d frontend
 
-      - name: Build frontend (next build)
-        # `next build` warns + behaves incorrectly under NODE_ENV=development
-        # (it's expected to be unset or "production"). The job-level
-        # NODE_ENV=development is for the backend's runtime — `app.ts` has
-        # guards that skip swagger/jobs/SES under NODE_ENV=test, and the
-        # backend needs to actually serve requests in this job — so we
-        # override per-step. Default `next build` resolves NODE_ENV to
-        # 'production' when not set, which is what we want.
-        run: pnpm --filter @cromo/frontend build
-        env:
-          NODE_ENV: production
-
-      - name: Start backend in background
+      - name: Wait for frontend ready
         run: |
-          pnpm --filter @cromo/backend start > /tmp/backend.log 2>&1 &
-          echo "Started backend PID $!"
-
-      - name: Start frontend in background
-        # `next start` serves the production build; the env should match.
-        run: |
-          pnpm --filter @cromo/frontend start > /tmp/frontend.log 2>&1 &
-          echo "Started frontend PID $!"
-        env:
-          NODE_ENV: production
-
-      - name: Wait for both services to be ready
-        # Poll readiness for up to 90s. The backend exposes /health/ready;
-        # the frontend serves / once Next has started listening. Either
-        # failing here points at a deploy-shape problem (process crashed
-        # on startup, port conflict, missing env), not an e2e bug.
-        run: |
-          for i in $(seq 1 90); do
-            be=$(curl -fsS http://localhost:3001/api/v1/health/ready 2>/dev/null || echo "")
-            fe=$(curl -fsSI http://localhost:3000/ 2>/dev/null | head -1 || echo "")
-            if [ -n "$be" ] && echo "$fe" | grep -q "200\|3[0-9]\{2\}"; then
-              echo "Both services up after ${i}s"
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ || echo "000")
+            if echo "$code" | grep -qE '^(200|3[0-9]{2})$'; then
+              echo "frontend ready after ${i}s (HTTP $code)"
               exit 0
             fi
-            sleep 1
+            sleep 2
           done
-          echo "::error::Backend or frontend failed to start within 90s"
-          echo "--- backend log ---"
-          tail -100 /tmp/backend.log
-          echo "--- frontend log ---"
-          tail -100 /tmp/frontend.log
+          echo "::error::frontend failed to become ready"
+          docker compose -f infrastructure/docker/docker-compose.e2e.yml logs frontend | tail -100
           exit 1
 
       - name: Install Playwright chromium
@@ -274,9 +286,15 @@ jobs:
       - name: Run all Playwright specs
         # Runs the full apps/frontend/tests/e2e/*.spec.ts set. workers: 1
         # in playwright.config.ts keeps them serial, and the per-spec
-        # retries: 2 on CI absorbs flakes. Total runtime: ~10-15 min when
-        # all green; first failure short-circuits the spec.
+        # retries: 2 on CI absorbs flakes.
         run: pnpm --filter @cromo/frontend exec playwright test
+
+      - name: Capture container logs
+        if: always()
+        run: |
+          docker compose -f infrastructure/docker/docker-compose.e2e.yml logs api      > /tmp/backend.log  2>&1 || true
+          docker compose -f infrastructure/docker/docker-compose.e2e.yml logs frontend > /tmp/frontend.log 2>&1 || true
+          docker compose -f infrastructure/docker/docker-compose.e2e.yml logs db       > /tmp/db.log       2>&1 || true
 
       - name: Upload Playwright report
         # Uploaded unconditionally so the report is available for inspection
@@ -289,7 +307,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload backend/frontend logs
+      - name: Upload container logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -297,8 +315,13 @@ jobs:
           path: |
             /tmp/backend.log
             /tmp/frontend.log
+            /tmp/db.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Tear down compose stack
+        if: always()
+        run: docker compose -f infrastructure/docker/docker-compose.e2e.yml down -v
 
   security:
     name: Security scans
@@ -339,49 +362,6 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build:
-    name: Build images (PR smoke-test, no push)
-    needs: [test, e2e, security, changes]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
-
-    steps:
-      # fetch-depth: 0 + fetch-tags so `git describe` sees the full tag history.
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Compute APP_VERSION
-        id: version
-        run: echo "value=$(./scripts/app-version.sh)" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/backend/Dockerfile.cloud
-          push: false
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,scope=backend,mode=max
-          build-args: |
-            APP_VERSION=${{ steps.version.outputs.value }}
-
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/frontend/Dockerfile.cloud
-          push: false
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://dev.cromotrade.ca
-            NEXT_PUBLIC_ENV=ci
-            NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.value }}
 
   deploy-dev:
     name: Build, push, deploy to dev
