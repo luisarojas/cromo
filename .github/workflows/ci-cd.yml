@@ -219,7 +219,16 @@ jobs:
         run: pnpm --filter @cromo/backend build
 
       - name: Build frontend (next build)
+        # `next build` warns + behaves incorrectly under NODE_ENV=development
+        # (it's expected to be unset or "production"). The job-level
+        # NODE_ENV=development is for the backend's runtime — `app.ts` has
+        # guards that skip swagger/jobs/SES under NODE_ENV=test, and the
+        # backend needs to actually serve requests in this job — so we
+        # override per-step. Default `next build` resolves NODE_ENV to
+        # 'production' when not set, which is what we want.
         run: pnpm --filter @cromo/frontend build
+        env:
+          NODE_ENV: production
 
       - name: Start backend in background
         run: |
@@ -227,9 +236,12 @@ jobs:
           echo "Started backend PID $!"
 
       - name: Start frontend in background
+        # `next start` serves the production build; the env should match.
         run: |
           pnpm --filter @cromo/frontend start > /tmp/frontend.log 2>&1 &
           echo "Started frontend PID $!"
+        env:
+          NODE_ENV: production
 
       - name: Wait for both services to be ready
         # Poll readiness for up to 90s. The backend exposes /health/ready;
