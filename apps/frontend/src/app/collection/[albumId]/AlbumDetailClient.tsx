@@ -218,9 +218,16 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // ---------------------------------------------------------------------------
   // Initial load
   // ---------------------------------------------------------------------------
+  // Deliberately omits `token`/`user` from deps: silent 401 refresh in
+  // apiClient.ts swaps the access token in the auth store mid-session, and
+  // re-running this effect would flip `loading` true, unmount StickerGrid,
+  // and collapse the page height — manifesting as a popover dismissal and
+  // a scroll-to-top while the user is editing a tile. tokenRef/userRef carry
+  // the current values; the render guard at the bottom of the file handles
+  // the logged-out case.
   useEffect(() => {
     if (!hydrated) return;
-    if (!token || !user) {
+    if (!tokenRef.current || !userRef.current) {
       router.replace('/login');
       return;
     }
@@ -268,7 +275,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     init();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrated, token, user, albumId, router]);
+  }, [hydrated, albumId, router]);
 
   // ---------------------------------------------------------------------------
   // Cross-album indicators — computed server-side in a single SQL query.
