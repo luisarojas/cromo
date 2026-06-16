@@ -38,7 +38,7 @@ test.describe('smoke', () => {
     await loginAs(page, ALICE);
 
     // Album loads
-    await page.goto('/album');
+    await page.goto('/collection');
     await expect(page.getByText(/album|collection/i).first()).toBeVisible();
 
     // Trade page loads — exact selectors vary; assert the URL response and that
@@ -54,13 +54,24 @@ test.describe('smoke', () => {
   test('alice is forbidden from /admin', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/admin');
-    // Either redirected away from /admin OR shown an access-denied message.
-    const redirected = !page.url().endsWith('/admin');
-    if (!redirected) {
+    // /admin's client-side guard fires a router.replace after mount, so
+    // page.url() still ends in /admin at the moment goto() resolves. We
+    // wait for the post-redirect state instead: either the URL changes
+    // away from /admin (the common path), OR an access-denied message
+    // renders (a server-side gate that doesn't exist today, but the test
+    // shouldn't presume a particular implementation). The contract being
+    // locked in: Alice can never SEE the admin UI itself — no User
+    // Management table, no admin-only headings.
+    await page.waitForURL((url) => !url.pathname.startsWith('/admin'), { timeout: 5_000 })
+      .catch(() => undefined);
+    if (page.url().includes('/admin')) {
+      // Didn't redirect — must show a denial message.
       await expect(
         page.getByText(/forbidden|not authorized|admin only|access denied/i),
       ).toBeVisible();
     }
+    // Either way, no admin-only UI elements should be visible.
+    await expect(page.getByRole('heading', { name: /User Management/i })).toHaveCount(0);
   });
 
   test('admin can reach /admin', async ({ page }) => {

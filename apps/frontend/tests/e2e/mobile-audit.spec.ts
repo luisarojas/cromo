@@ -71,8 +71,8 @@ test.describe('mobile layout (iPhone 13)', () => {
     await page.goto('/dashboard');
     await expectNoHorizontalOverflow(page, '/dashboard');
 
-    await page.goto('/album');
-    await expectNoHorizontalOverflow(page, '/album');
+    await page.goto('/collection');
+    await expectNoHorizontalOverflow(page, '/collection');
 
     await page.goto('/trade');
     await expectNoHorizontalOverflow(page, '/trade');

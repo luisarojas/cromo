@@ -16,6 +16,16 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # Nightly run at 07:00 UTC (03:00 ET / 00:00 PT). Catches drift the
+  # PR/push triggers miss: flaky integration tests under fresh service
+  # containers, coverage thresholds becoming stale as code rots elsewhere,
+  # dependency-driven security regressions surfaced by the audit step, and
+  # the Playwright suite picking up changes upstream of the workflow (e.g.
+  # a backend route rename that broke a selector). Runs lint/typecheck/test,
+  # security, and e2e — never builds or deploys (no images pushed, ASG
+  # untouched).
+  schedule:
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -165,6 +175,13 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:3000
       PLAYWRIGHT_API_URL: http://localhost:3001
       PORT: "3001"
+      # The Playwright suite calls /auth/login many times in a single run
+      # (one per test in trade.spec.ts), which blows through the default
+      # 100 req/min rate limit. The right long-term fix is a storage-state
+      # setup project that logs in once per user; bumping the cap is the
+      # interim workaround.
+      RATE_LIMIT_MAX: "10000"
+      RATE_LIMIT_WINDOW_MS: "60000"
 
     steps:
       - uses: actions/checkout@v6

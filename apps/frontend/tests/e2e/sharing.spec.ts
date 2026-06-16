@@ -16,7 +16,10 @@ async function loginAs(page: import('@playwright/test').Page, user: typeof ALICE
   await page.fill('input[type="email"]', user.email);
   await page.fill('input[type="password"]', user.password);
   await page.click('button[type="submit"]');
-  await page.waitForURL('/dashboard');
+  // Don't pin the post-login URL: see trade.spec.ts loginAs comment.
+  // Gate on the auth-indicating "Log out" button.
+  await expect(page.getByRole('button', { name: /Log out/i }))
+    .toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Public share lists', () => {
@@ -57,7 +60,7 @@ test.describe('Public profile pages', () => {
     await page.goto('/profile/alice');
     // Either shows profile or user not found — both are valid responses
     await expect(
-      page.getByText(/@alice|alice|User not found/i)
+      page.getByText(/@alice|alice|User not found/i).first()
     ).toBeVisible({ timeout: 8000 });
   });
 });
@@ -67,7 +70,7 @@ test.describe('Share link management (authenticated)', () => {
     await loginAs(page, ALICE);
     await page.goto('/settings');
     await expect(page).toHaveURL('/settings');
-    await expect(page.getByRole('heading')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible();
   });
 });
 
