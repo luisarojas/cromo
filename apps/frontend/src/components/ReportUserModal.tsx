@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { submitReport, fetchTradeMessages, type TradeMessage } from '@/lib/api';
+import { BottomSheet } from '@/components/BottomSheet';
 
 const CATEGORIES = [
   { value: 'harassment',           label: 'Harassment' },
@@ -146,8 +147,8 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg">
+    <BottomSheet open onClose={onClose} ariaLabel={`Report @${username}`}>
+      <div>
         <div className="flex items-center justify-between border-b border-[var(--cromo-border)] px-5 py-4">
           <h2 className="text-base font-semibold text-[var(--cromo-fg)]">Report @{username}</h2>
           <button
@@ -321,6 +322,6 @@ export default function ReportUserModal({ userId, username, tradeId, token, onCl
           </form>
         )}
       </div>
-    </div>
+    </BottomSheet>
   );
 }

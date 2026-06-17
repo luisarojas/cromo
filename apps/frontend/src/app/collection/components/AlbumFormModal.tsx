@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import type { AlbumEditionOption, AlbumFormatOption, AlbumSettings, Sticker, UserAlbum } from '@/lib/api';
+import { BottomSheet } from '@/components/BottomSheet';
 
 const DEFAULT_SETTINGS: AlbumSettings = {
   includeExtras: true,
@@ -194,22 +194,14 @@ export default function AlbumFormModal({
   const submitLabel = mode === 'create' ? t('createSubmit') : t('editSubmit');
   const busyLabel = mode === 'create' ? t('creating') : t('saving');
 
-  const node = (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl bg-[var(--cromo-surface)] shadow-cromo-lg p-6 flex flex-col gap-4"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
+  return (
+    <BottomSheet open onClose={onClose} ariaLabel={title}>
+      <div className="p-4 md:p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-[var(--cromo-fg)]">{title}</h2>
           <button
             onClick={onClose}
-            className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-xl leading-none"
+            className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg)] text-2xl leading-none px-2 py-1 -m-1"
             aria-label={t('close')}
           >
             ×
@@ -405,9 +397,6 @@ export default function AlbumFormModal({
           </div>
         )}
       </div>
-    </div>
+    </BottomSheet>
   );
-
-  if (typeof document === 'undefined') return null;
-  return createPortal(node, document.body);
 }

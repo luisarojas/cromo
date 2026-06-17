@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { VARIANT_META, compareVariantTypes, variantSwatch } from './variantMeta';
+import { BottomSheet } from '@/components/BottomSheet';
 
 interface Props {
   mode: 'add' | 'remove';
@@ -17,12 +17,13 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
   const orderedTypes = [...availableTypes].sort(compareVariantTypes);
   const [selected, setSelected] = useState<string>(orderedTypes[0] ?? '');
 
-  const node = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div
-        className="bg-[var(--cromo-surface)] rounded-xl border border-[var(--cromo-border)] shadow-cromo-lg p-4 w-72 flex flex-col gap-3"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <BottomSheet
+      open
+      onClose={onClose}
+      ariaLabel={mode === 'add' ? t('addTitle') : t('removeTitle')}
+    >
+      <div className="p-4 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">
             {mode === 'add' ? t('addTitle') : t('removeTitle')}
@@ -39,14 +40,14 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
         {orderedTypes.length === 0 ? (
           <p className="text-xs text-[var(--cromo-fg-subtle)] italic py-2 text-center">{t('noVariants')}</p>
         ) : (
-          <div className="flex flex-col gap-1 max-h-56 overflow-y-auto -mx-1 px-1">
+          <div className="flex flex-col gap-1 max-h-[55vh] md:max-h-56 overflow-y-auto -mx-1 px-1">
             {orderedTypes.map((type) => {
               const meta = VARIANT_META[type];
               return (
                 <button
                   key={type}
                   onClick={() => setSelected(type)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors border ${
+                  className={`flex items-center gap-2.5 px-3 py-3 rounded-lg text-left transition-colors border min-h-[44px] ${
                     selected === type
                       ? 'bg-[var(--cromo-accent-soft)] border-[var(--cromo-accent)]/30 text-[var(--cromo-accent)]'
                       : 'bg-[var(--cromo-surface)] border-transparent hover:bg-[var(--cromo-surface-2)] text-[var(--cromo-fg)]'
@@ -70,22 +71,19 @@ export default function VariantPickerModal({ mode, availableTypes, onConfirm, on
         <div className="flex gap-2 pt-1">
           <button
             onClick={onClose}
-            className="flex-1 rounded-lg border border-[var(--cromo-border)] py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+            className="flex-1 rounded-lg border border-[var(--cromo-border)] py-3 md:py-2 text-sm text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors min-h-[44px]"
           >
             {t('cancel')}
           </button>
           <button
             onClick={() => { if (selected) onConfirm(selected); }}
             disabled={!selected || orderedTypes.length === 0}
-            className="flex-1 rounded-lg bg-[var(--cromo-accent)] py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 rounded-lg bg-[var(--cromo-accent)] py-3 md:py-2 text-sm font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px]"
           >
             {mode === 'add' ? t('add') : t('remove')}
           </button>
         </div>
       </div>
-    </div>
+    </BottomSheet>
   );
-
-  if (typeof document === 'undefined') return null;
-  return createPortal(node, document.body);
 }
