@@ -393,11 +393,18 @@ export default function StickerGrid({
   function jumpToGroup(name: string, behavior?: ScrollBehavior) {
     const idx = headerRowIndexByGroup.get(name);
     if (idx === undefined) return;
-    const targetTop = virtualizer.getVirtualItems().find((vi) => vi.index === idx)?.start
-      ?? virtualizer.measurementsCache[idx]?.start
-      ?? 0;
+    // getOffsetForIndex returns a document-space Y (scrollMargin is already
+    // baked into measurement starts), defined for every index — real
+    // measurement for visited rows, estimate for the rest. The previous
+    // chain — getVirtualItems() → measurementsCache[idx] → 0 — fell through
+    // to 0 for off-screen targets and the surviving branches double-counted
+    // listRef.offsetTop, so repeated clicks landed at different offsets as
+    // the cache filled in during scroll.
+    const result = virtualizer.getOffsetForIndex(idx, 'start');
+    if (!result) return;
+    const [offset] = result;
     window.scrollTo({
-      top: (listRef.current?.offsetTop ?? 0) + targetTop - STICKY_OFFSET_PX,
+      top: offset - STICKY_OFFSET_PX,
       behavior: behavior ?? (prefersReducedMotion() ? 'auto' : 'smooth'),
     });
   }
