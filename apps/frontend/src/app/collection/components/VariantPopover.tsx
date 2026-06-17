@@ -10,6 +10,9 @@ import {
 import { VARIANT_META, compareVariantTypes, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
+import { HeartIcon } from '@/components/HeartIcon';
+import { haptic } from '@/lib/haptics';
+import { useClickOutside } from '@/lib/useClickOutside';
 
 export interface OwnedVariantEntry {
   variantId: string;
@@ -84,6 +87,12 @@ export default function VariantPopover({
   const otherAlbums = albums.filter((a) => a.id !== albumId);
   const defaultBaseVariant =
     albums.find((a) => a.id === albumId)?.settings.defaultBaseVariant ?? 'base_borderless';
+  // One flag drives every "give this control more thumb room" decision below.
+  // Sheet = mobile bottom sheet (lots of width, lots of vertical room) so the
+  // primary +/− targets, wishlist heart, and unowned-variant rows render with
+  // 44px+ touch areas. Popover = compact desktop dropdown anchored to the
+  // card; keeps the original dense layout because mouse precision is fine.
+  const isSheet = presentation === 'sheet';
 
   // Fetch the variant catalog on mount. Wanted state is owned by the page so
   // toggles here stay in sync with the filter bar.
@@ -394,90 +403,17 @@ export default function VariantPopover({
           Not in your collection yet.
         </div>
       ) : (
-        <ul className="flex flex-col gap-1.5">
+        <ul className={isSheet ? 'flex flex-col gap-2' : 'flex flex-col gap-1.5'}>
           {ownedEntries.map(([variantType, entry]) => (
-            <li
+            <OwnedVariantRow
               key={variantType}
-              className="flex flex-col gap-1 rounded-md bg-[var(--cromo-surface-2)] px-2 py-1.5"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(variantType)}`}
-                  aria-hidden
-                />
-                <span className="flex-1 text-xs font-medium text-[var(--cromo-fg)] truncate">
-                  {variantLabel(variantType)}
-                </span>
-                <span className="text-xs font-semibold text-[var(--cromo-fg)] tabular-nums w-5 text-right">
-                  ×{entry.quantity}
-                </span>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleAdjust(entry.variantId, variantType, -1)}
-                    disabled={busy}
-                    className="w-6 h-6 rounded bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
-                    aria-label={`Remove one ${variantLabel(variantType)}`}
-                    title="Remove one"
-                  >
-                    −
-                  </button>
-                  <button
-                    onClick={() => handleAdjust(entry.variantId, variantType, 1)}
-                    disabled={busy}
-                    className="w-6 h-6 rounded bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] hover:bg-blue-200 disabled:opacity-50 text-sm font-bold leading-none"
-                    aria-label={`Add one ${variantLabel(variantType)}`}
-                    title="Add one"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              {onSetTradeFlag && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => onSetTradeFlag(entry.variantId, {
-                      tradeHidden: !entry.tradeHidden,
-                      ...((!entry.tradeHidden) && { tradeForced: false }),
-                    })}
-                    disabled={busy || (entry.tradeForced && !entry.tradeHidden)}
-                    title={entry.tradeForced && !entry.tradeHidden ? 'Remove "Force offer" first to unlist' : entry.tradeHidden ? 'List for trade' : 'Unlist from trade'}
-                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
-                      entry.tradeHidden
-                        ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200'
-                        : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
-                    }`}
-                  >
-                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      {entry.tradeHidden ? (
-                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                      ) : (
-                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                      )}
-                    </svg>
-                    {entry.tradeHidden ? 'Unlisted' : 'Listed'}
-                  </button>
-                  {!entry.tradeHidden && (
-                    <button
-                      onClick={() => onSetTradeFlag(entry.variantId, {
-                        tradeForced: !entry.tradeForced,
-                      })}
-                      disabled={busy}
-                      title={entry.tradeForced ? 'Only offer extra copies' : 'Offer even as last copy'}
-                      className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
-                        entry.tradeForced
-                          ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] hover:bg-green-200'
-                          : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
-                      }`}
-                    >
-                      <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
-                      </svg>
-                      {entry.tradeForced ? 'Force offer' : 'Extras only'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
+              variantType={variantType}
+              entry={entry}
+              isSheet={isSheet}
+              busy={busy}
+              onAdjust={(delta) => handleAdjust(entry.variantId, variantType, delta)}
+              onSetTradeFlag={onSetTradeFlag}
+            />
           ))}
         </ul>
       ))}
@@ -633,7 +569,11 @@ export default function VariantPopover({
         </>
       )}
 
-      {/* Unowned variants: add + want-it */}
+      {/* Unowned variants: add + want-it. On sheet (mobile) every unowned
+          variant renders inline with both an Add button and a wishlist heart,
+          so the common "I pulled the blue parallel" and "I want the gold" cases
+          are one tap each. The popover (desktop) keeps the disclosure flow —
+          the narrow 280px width can't afford an inline row per variant. */}
       {loadingVariants ? (
         <div className="text-xs text-[var(--cromo-fg-subtle)]">Loading variants…</div>
       ) : unownedVariants.length === 0 && ownedVariants.size > 0 ? (
@@ -642,17 +582,77 @@ export default function VariantPopover({
         </div>
       ) : unownedVariants.length > 0 ? (
         <>
-          {/* One-click add for the preferred base variant — the common case */}
+          {/* One-tap add for the preferred base variant — the common case when
+              nothing of this sticker is owned yet. */}
           {preferredBaseUnowned && (
             <button
               onClick={() => handleAddNew(preferredBaseUnowned.id, preferredBaseUnowned.variantType)}
               disabled={busy}
-              className="flex items-center justify-center gap-1.5 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs font-semibold py-2 hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
+              className={
+                isSheet
+                  ? 'flex items-center justify-center gap-1.5 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-sm font-semibold py-3 min-h-[44px] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50'
+                  : 'flex items-center justify-center gap-1.5 rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-xs font-semibold py-2 hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50'
+              }
             >
               + Add {variantLabel(preferredBaseUnowned.variantType)}
             </button>
           )}
-          {otherUnowned.length > 0 && !showAddPicker && (
+
+          {/* Sheet: every other unowned variant gets its own row with inline
+              Add + wishlist heart. No second tap to reveal the list. */}
+          {isSheet && otherUnowned.length > 0 && (
+            <>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--cromo-fg-subtle)] mt-1">
+                Other variants
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {otherUnowned.map((v) => {
+                  const wanted = wantedVariantIds.has(v.id);
+                  return (
+                    <li key={v.id} className="flex items-center gap-2 rounded-md bg-[var(--cromo-surface-2)] px-2 py-2">
+                      <span
+                        className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] shrink-0 ${variantSwatch(v.variantType)}`}
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm text-[var(--cromo-fg)] truncate leading-tight">
+                          {VARIANT_META[v.variantType]?.label ?? v.variantType}
+                        </div>
+                        <div className="text-[10px] text-[var(--cromo-fg-subtle)] leading-tight">
+                          {variantRarity(v.variantType)}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { haptic('tap'); handleToggleWanted(v.id); }}
+                        disabled={busy}
+                        aria-pressed={wanted}
+                        aria-label={wanted ? 'Remove from wishlist' : 'Add to wishlist'}
+                        title={wanted ? 'Remove from wishlist' : 'Add to wishlist'}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md transition-colors disabled:opacity-50 ${
+                          wanted
+                            ? 'text-[var(--cromo-danger-text)] bg-[var(--cromo-danger-soft)]'
+                            : 'text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface)]'
+                        }`}
+                      >
+                        <HeartIcon filled={wanted} className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => { haptic('tap'); handleAddNew(v.id, v.variantType); }}
+                        disabled={busy}
+                        aria-label={`Add ${variantLabel(v.variantType)}`}
+                        className="flex h-10 min-w-[44px] items-center justify-center rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-base font-bold disabled:opacity-50 px-3"
+                      >
+                        +
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          {/* Popover (desktop): keep the disclosure flow. */}
+          {!isSheet && otherUnowned.length > 0 && !showAddPicker && (
             <button
               onClick={openAddPicker}
               className="text-xs font-medium text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] self-start"
@@ -660,7 +660,7 @@ export default function VariantPopover({
               + Add other variant
             </button>
           )}
-          {otherUnowned.length > 0 && showAddPicker && (
+          {!isSheet && otherUnowned.length > 0 && showAddPicker && (
             <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
               {otherUnowned.map((v) => (
                 <button
@@ -683,7 +683,7 @@ export default function VariantPopover({
               ))}
             </div>
           )}
-          {!showWantedPicker && (() => {
+          {!isSheet && !showWantedPicker && (() => {
             const wantedHere = unownedVariants.filter((v) => wantedVariantIds.has(v.id)).length;
             return (
               <button
@@ -694,7 +694,7 @@ export default function VariantPopover({
               </button>
             );
           })()}
-          {showWantedPicker && (
+          {!isSheet && showWantedPicker && (
             <div className="flex flex-col gap-1">
               <p className="text-[10px] text-[var(--cromo-fg-muted)] leading-snug">
                 Shown on your public profile so traders can offer matches.
@@ -727,6 +727,11 @@ export default function VariantPopover({
               })}
             </div>
           )}
+
+          {/* Sheet handles the preferred base via the big button above; if the
+              user already owns something and the only remaining unowned is the
+              preferred base, otherUnowned is empty and there's nothing more
+              to show here. */}
         </>
       ) : null}
     </div>
@@ -749,4 +754,283 @@ export default function VariantPopover({
     );
   }
   return createPortal(node, document.body);
+}
+
+// ─── OwnedVariantRow ────────────────────────────────────────────────────────
+// One row per owned variant. Two presentation modes share the same scaffold:
+//
+//   sheet   → 44px+ +/− targets, swipe-to-adjust on the row, trade flags
+//             tucked behind a per-row ⋯ menu so the row stays one line.
+//   popover → original compact desktop layout (24px buttons, inline chips).
+//
+// Lives in this file so the swipe + trade-menu state stay co-located with the
+// only thing that uses them; extracting further would just move the same
+// useState boilerplate.
+const ROW_SWIPE_THRESHOLD = 60;
+const ROW_SWIPE_MAX = 90;
+
+function OwnedVariantRow({
+  variantType,
+  entry,
+  isSheet,
+  busy,
+  onAdjust,
+  onSetTradeFlag,
+}: {
+  variantType: string;
+  entry: OwnedVariantEntry;
+  isSheet: boolean;
+  busy: boolean;
+  onAdjust: (delta: 1 | -1) => Promise<void>;
+  onSetTradeFlag?: (variantId: string, flags: { tradeHidden?: boolean; tradeForced?: boolean }) => Promise<void>;
+}) {
+  // Per-row swipe state. Mirrors StickerCard's pattern (60px threshold, vertical-wins,
+  // committed flag) so the muscle memory carries from the grid into the sheet.
+  // Sheet-only — the desktop popover keeps mouse-only +/− clicks.
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const committedRef = useRef(false);
+  const [dragX, setDragX] = useState(0);
+  const swipeEnabled = isSheet && !busy;
+
+  function onTouchStart(e: React.TouchEvent) {
+    if (!swipeEnabled) return;
+    // Block bubble so the outer sheet's prev/next-sticker swipe handler
+    // doesn't fire on row-internal gestures.
+    e.stopPropagation();
+    const t = e.touches[0]!;
+    swipeStartRef.current = { x: t.clientX, y: t.clientY };
+    committedRef.current = false;
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!swipeEnabled || !swipeStartRef.current) return;
+    e.stopPropagation();
+    const t = e.touches[0]!;
+    const dx = t.clientX - swipeStartRef.current.x;
+    const dy = t.clientY - swipeStartRef.current.y;
+    if (Math.abs(dy) > Math.abs(dx)) {
+      // Vertical scroll wins — let the sheet scroll its body.
+      swipeStartRef.current = null;
+      setDragX(0);
+      return;
+    }
+    setDragX(Math.max(-ROW_SWIPE_MAX, Math.min(ROW_SWIPE_MAX, dx)));
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (!swipeEnabled) return;
+    e.stopPropagation();
+    if (!swipeStartRef.current) { setDragX(0); return; }
+    if (dragX >= ROW_SWIPE_THRESHOLD) {
+      committedRef.current = true;
+      haptic('tap');
+      onAdjust(1);
+    } else if (dragX <= -ROW_SWIPE_THRESHOLD) {
+      committedRef.current = true;
+      haptic('tap');
+      onAdjust(-1);
+    }
+    swipeStartRef.current = null;
+    setDragX(0);
+  }
+
+  const swipeIntent = dragX > 10 ? 'add' : dragX < -10 ? 'remove' : null;
+
+  // Trade-flag menu (sheet only). Desktop keeps the inline chips.
+  const [tradeMenuOpen, setTradeMenuOpen] = useState(false);
+  const tradeMenuRef = useRef<HTMLDivElement>(null);
+  useClickOutside(tradeMenuRef, () => setTradeMenuOpen(false), tradeMenuOpen);
+
+  // ─── Sheet (mobile) layout ────────────────────────────────────────────────
+  if (isSheet) {
+    return (
+      <li
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={() => { swipeStartRef.current = null; setDragX(0); }}
+        style={dragX !== 0 ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
+        className={`relative flex items-center gap-2 rounded-md px-2 py-2 select-none touch-pan-y ${
+          swipeIntent === 'add'
+            ? 'bg-[var(--cromo-success-soft)]'
+            : swipeIntent === 'remove'
+              ? 'bg-[var(--cromo-danger-soft)]'
+              : 'bg-[var(--cromo-surface-2)]'
+        }`}
+      >
+        {/* Swipe affordance — subtle +1 / −1 hint on the inactive edge */}
+        {swipeIntent === 'add' && (
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[var(--cromo-success-text)] text-sm font-bold">+1</span>
+        )}
+        {swipeIntent === 'remove' && (
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-1 flex items-center text-[var(--cromo-danger-text)] text-sm font-bold">−1</span>
+        )}
+
+        <span
+          className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] shrink-0 ${variantSwatch(variantType)}`}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-[var(--cromo-fg)] truncate leading-tight">
+            {variantLabel(variantType)}
+          </div>
+          {/* Listed/Unlisted state surfaced inline since the chips moved into the ⋯ menu */}
+          {onSetTradeFlag && (
+            <div className="text-[10px] text-[var(--cromo-fg-subtle)] leading-tight">
+              {entry.tradeHidden ? 'Hidden from trades' : entry.tradeForced ? 'Forced offer' : 'Listed for trade'}
+            </div>
+          )}
+        </div>
+        <span className="text-sm font-semibold text-[var(--cromo-fg)] tabular-nums w-6 text-right">
+          ×{entry.quantity}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); haptic('tap'); onAdjust(-1); }}
+          disabled={busy}
+          className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] text-xl font-bold leading-none disabled:opacity-50 active:scale-95 transition-transform"
+          aria-label={`Remove one ${variantLabel(variantType)}`}
+        >
+          −
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); haptic('tap'); onAdjust(1); }}
+          disabled={busy}
+          className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] text-xl font-bold leading-none disabled:opacity-50 active:scale-95 transition-transform"
+          aria-label={`Add one ${variantLabel(variantType)}`}
+        >
+          +
+        </button>
+        {onSetTradeFlag && (
+          <div ref={tradeMenuRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setTradeMenuOpen((v) => !v); }}
+              aria-haspopup="menu"
+              aria-expanded={tradeMenuOpen}
+              aria-label={`Trade options for ${variantLabel(variantType)}`}
+              className="flex h-10 w-8 items-center justify-center rounded-md text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface)] transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />
+              </svg>
+            </button>
+            {tradeMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 min-w-[12rem] z-30 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg py-1"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setTradeMenuOpen(false);
+                    onSetTradeFlag(entry.variantId, {
+                      tradeHidden: !entry.tradeHidden,
+                      ...((!entry.tradeHidden) && { tradeForced: false }),
+                    });
+                  }}
+                  disabled={busy || (entry.tradeForced && !entry.tradeHidden)}
+                  className="w-full text-left px-3 py-2.5 text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
+                >
+                  {entry.tradeHidden ? 'List for trade' : 'Hide from trades'}
+                </button>
+                {!entry.tradeHidden && (
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setTradeMenuOpen(false);
+                      onSetTradeFlag(entry.variantId, { tradeForced: !entry.tradeForced });
+                    }}
+                    disabled={busy}
+                    className="w-full text-left px-3 py-2.5 text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
+                  >
+                    {entry.tradeForced ? 'Only offer extra copies' : 'Force offer (even as last copy)'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </li>
+    );
+  }
+
+  // ─── Popover (desktop) layout ─────────────────────────────────────────────
+  // Unchanged from the original — compact, mouse-targeted, inline trade chips.
+  return (
+    <li className="flex flex-col gap-1 rounded-md bg-[var(--cromo-surface-2)] px-2 py-1.5">
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-block w-3 h-3 rounded-full border border-[var(--cromo-border-strong)] ${variantSwatch(variantType)}`}
+          aria-hidden
+        />
+        <span className="flex-1 text-xs font-medium text-[var(--cromo-fg)] truncate">
+          {variantLabel(variantType)}
+        </span>
+        <span className="text-xs font-semibold text-[var(--cromo-fg)] tabular-nums w-5 text-right">
+          ×{entry.quantity}
+        </span>
+        <div className="flex gap-1">
+          <button
+            onClick={() => onAdjust(-1)}
+            disabled={busy}
+            className="w-6 h-6 rounded bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200 disabled:opacity-50 text-sm font-bold leading-none"
+            aria-label={`Remove one ${variantLabel(variantType)}`}
+            title="Remove one"
+          >
+            −
+          </button>
+          <button
+            onClick={() => onAdjust(1)}
+            disabled={busy}
+            className="w-6 h-6 rounded bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] hover:bg-blue-200 disabled:opacity-50 text-sm font-bold leading-none"
+            aria-label={`Add one ${variantLabel(variantType)}`}
+            title="Add one"
+          >
+            +
+          </button>
+        </div>
+      </div>
+      {onSetTradeFlag && (
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onSetTradeFlag(entry.variantId, {
+              tradeHidden: !entry.tradeHidden,
+              ...((!entry.tradeHidden) && { tradeForced: false }),
+            })}
+            disabled={busy || (entry.tradeForced && !entry.tradeHidden)}
+            title={entry.tradeForced && !entry.tradeHidden ? 'Remove "Force offer" first to unlist' : entry.tradeHidden ? 'List for trade' : 'Unlist from trade'}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+              entry.tradeHidden
+                ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200'
+                : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
+            }`}
+          >
+            <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              {entry.tradeHidden ? (
+                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+              ) : (
+                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+              )}
+            </svg>
+            {entry.tradeHidden ? 'Unlisted' : 'Listed'}
+          </button>
+          {!entry.tradeHidden && (
+            <button
+              onClick={() => onSetTradeFlag(entry.variantId, { tradeForced: !entry.tradeForced })}
+              disabled={busy}
+              title={entry.tradeForced ? 'Only offer extra copies' : 'Offer even as last copy'}
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
+                entry.tradeForced
+                  ? 'bg-[var(--cromo-success-soft)] text-[var(--cromo-success-text)] hover:bg-green-200'
+                  : 'bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)]'
+              }`}
+            >
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+              </svg>
+              {entry.tradeForced ? 'Force offer' : 'Extras only'}
+            </button>
+          )}
+        </div>
+      )}
+    </li>
+  );
 }

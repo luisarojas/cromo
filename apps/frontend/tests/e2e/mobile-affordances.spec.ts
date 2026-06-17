@@ -82,6 +82,34 @@ test.describe('mobile affordances', () => {
     await expect(menu.getByRole('menuitem', { name: /edit/i })).toBeVisible();
   });
 
+  test('variant sheet exposes thumb-sized +/- without a disclosure tap', async ({ page }) => {
+    await loginAs(page, ALICE);
+    await page.goto('/collection');
+    const firstAlbumLink = page.locator('a[href^="/collection/"]').first();
+    await firstAlbumLink.click();
+    await page.waitForURL(/\/collection\/[^/]+/);
+
+    // Tap the first owned sticker to open the sheet. We rely on the
+    // green-border class as the owned-card marker — same class StickerCard
+    // emits when `owned` is true.
+    const ownedCard = page.locator('button.border-green-400').first();
+    await ownedCard.waitFor({ state: 'visible' });
+    await ownedCard.click();
+
+    // Sheet header should be visible. Reliable handle: aria-label.
+    const sheet = page.getByRole('dialog', { name: /manage variants for sticker/i });
+    await expect(sheet).toBeVisible();
+
+    // +1 button should have a thumb-sized hit target (≥40px in either
+    // dimension). One button per owned variant — check the first.
+    const addBtn = sheet.getByRole('button', { name: /^Add one /i }).first();
+    await expect(addBtn).toBeVisible();
+    const box = await addBtn.boundingBox();
+    expect(box, '+ button has no bounding box').not.toBeNull();
+    expect(box!.height, '+ button is too short for a thumb').toBeGreaterThanOrEqual(40);
+    expect(box!.width, '+ button is too narrow for a thumb').toBeGreaterThanOrEqual(40);
+  });
+
   test('grid density toggle is hidden on mobile', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/collection');

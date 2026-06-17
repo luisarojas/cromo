@@ -53,6 +53,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Mobile menu trims primary nav links that the bottom tab bar already covers — just identity, settings, guides, and log out.',
         'Album header on phones collapses Set-default, Edit, and New-album into an overflow menu so the row no longer wraps.',
         'Album list page no longer shows the grid-density toggle on phones; the grid adapts to viewport width automatically.',
+        'Variant sheet on phones gets thumb-sized +/− buttons, swipe-to-adjust on any row, every unowned variant inline with a wishlist heart, and trade options tucked behind a per-row ⋯ menu.',
       ],
       Fixed: [
         'Trade picker filter dropdown scrolls instead of overflowing when a collector has many variants, countries, or groups to filter by.',
