@@ -367,11 +367,20 @@ function DropZone({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [cameraOpen, setCameraOpen] = useState(false);
-
+  // Lazy-init reads the signal on mount: if the parent armed the camera
+  // before we mounted (e.g. "Scan another sticker" reset status and bumped
+  // the signal in one event), we open in the same render as the dropzone
+  // UI, so the modal covers it before the user sees the idle screen flash.
+  // Subsequent in-mount signal bumps go through the effect below.
+  const [cameraOpen, setCameraOpen] = useState(() => {
+    return openCameraSignal !== undefined && openCameraSignal > 0 && !disabled;
+  });
+  const lastHandledSignal = useRef(openCameraSignal ?? 0);
   useEffect(() => {
-    if (openCameraSignal === undefined || openCameraSignal === 0) return;
-    if (!disabled) setCameraOpen(true);
+    const sig = openCameraSignal ?? 0;
+    if (sig === lastHandledSignal.current) return;
+    lastHandledSignal.current = sig;
+    if (sig > 0 && !disabled) setCameraOpen(true);
   }, [openCameraSignal, disabled]);
 
   const handleFiles = useCallback(

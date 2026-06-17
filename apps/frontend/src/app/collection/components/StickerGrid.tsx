@@ -87,6 +87,10 @@ export default function StickerGrid({
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
   const lastClickedIndexRef = useRef<number | null>(null);
+  // Mirror of the anchor's sticker ID for rendering — the ref above is read
+  // synchronously in click/long-press handlers, but a re-render is needed to
+  // paint the visual range-anchor ring on the card. Both are kept in lockstep.
+  const [rangeAnchorId, setRangeAnchorId] = useState<string | null>(null);
   const { addToast } = useToast();
   const tradeMatchingEnabled = usePreferencesStore((s) => s.tradeMatchingEnabled);
   const [popover, setPopover] = useState<PopoverState | null>(null);
@@ -338,7 +342,10 @@ export default function StickerGrid({
   }
 
   useEffect(() => {
-    if (!selectionMode) lastClickedIndexRef.current = null;
+    if (!selectionMode) {
+      lastClickedIndexRef.current = null;
+      setRangeAnchorId(null);
+    }
   }, [selectionMode]);
 
   // Keep popover anchored to its tile while the user scrolls
@@ -597,7 +604,9 @@ export default function StickerGrid({
                         // Three meanings for long-press, branched on context:
                         //  1. In selection mode + an anchor exists → range
                         //     select from anchor to here. Touch equivalent
-                        //     of shift+click on desktop.
+                        //     of shift+click on desktop. Clears the anchor
+                        //     after committing so the next long-press starts
+                        //     a fresh range instead of re-extending.
                         //  2. Not in selection mode, owned card → enter
                         //     selection mode with this card pre-selected.
                         //  3. Not in selection mode, unowned card with a
@@ -609,9 +618,12 @@ export default function StickerGrid({
                             const from = Math.min(lastClickedIndexRef.current, currentIndex);
                             const to = Math.max(lastClickedIndexRef.current, currentIndex);
                             onRangeSelect(stickers.slice(from, to + 1).map((s) => s.id));
+                            lastClickedIndexRef.current = null;
+                            setRangeAnchorId(null);
                           } else if (onToggleSelect) {
                             // No anchor yet — drop one and select this card.
                             lastClickedIndexRef.current = currentIndex;
+                            setRangeAnchorId(sticker.id);
                             onToggleSelect(sticker.id);
                           }
                           return;
@@ -627,6 +639,7 @@ export default function StickerGrid({
                       }
                       selectionMode={selectionMode}
                       isSelected={selectedStickerIds?.has(sticker.id)}
+                      isRangeAnchor={selectionMode && rangeAnchorId === sticker.id}
                       onToggleSelect={onToggleSelect ? (shiftKey: boolean) => {
                         const currentIndex = startIdx + rowStickers.indexOf(sticker);
                         if (shiftKey && lastClickedIndexRef.current !== null && onRangeSelect) {
@@ -636,8 +649,11 @@ export default function StickerGrid({
                           // group header rows live in virtualRows but not in the
                           // flat `stickers` array, so the slice is still safe.
                           onRangeSelect(stickers.slice(from, to + 1).map((s) => s.id));
+                          lastClickedIndexRef.current = null;
+                          setRangeAnchorId(null);
                         } else {
                           lastClickedIndexRef.current = currentIndex;
+                          setRangeAnchorId(sticker.id);
                           onToggleSelect(sticker.id);
                         }
                       } : undefined}

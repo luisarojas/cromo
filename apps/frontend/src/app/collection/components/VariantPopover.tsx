@@ -398,6 +398,7 @@ export default function VariantPopover({
               entry={entry}
               isSheet={isSheet}
               busy={busy}
+              stickerLabel={sticker.playerName ? `${sticker.albumCode} · ${sticker.playerName}` : sticker.albumCode}
               onAdjust={(delta) => handleAdjust(entry.variantId, variantType, delta)}
               onSetTradeFlag={onSetTradeFlag}
             />
@@ -615,7 +616,7 @@ export default function VariantPopover({
                         aria-pressed={wanted}
                         aria-label={wanted ? 'Remove from wishlist' : 'Add to wishlist'}
                         title={wanted ? 'Remove from wishlist' : 'Add to wishlist'}
-                        className={`flex h-10 w-10 items-center justify-center rounded-md transition-colors disabled:opacity-50 ${
+                        className={`flex h-11 w-11 items-center justify-center rounded-md transition-colors disabled:opacity-50 ${
                           wanted
                             ? 'text-[var(--cromo-danger-text)] bg-[var(--cromo-danger-soft)]'
                             : 'text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface)]'
@@ -627,7 +628,7 @@ export default function VariantPopover({
                         onClick={() => { haptic('tap'); handleAddNew(v.id, v.variantType); }}
                         disabled={busy}
                         aria-label={`Add ${variantLabel(v.variantType)}`}
-                        className="flex h-10 min-w-[44px] items-center justify-center rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-base font-bold disabled:opacity-50 px-3"
+                        className="flex h-11 min-w-[44px] items-center justify-center rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] text-base font-bold disabled:opacity-50 px-3"
                       >
                         +
                       </button>
@@ -761,6 +762,7 @@ function OwnedVariantRow({
   entry,
   isSheet,
   busy,
+  stickerLabel,
   onAdjust,
   onSetTradeFlag,
 }: {
@@ -768,6 +770,9 @@ function OwnedVariantRow({
   entry: OwnedVariantEntry;
   isSheet: boolean;
   busy: boolean;
+  // Human-readable "BRA5 · Vinicius Jr." for the undo toast so a user
+  // mid-swipe-spree can tell which sticker an Undo would reverse.
+  stickerLabel: string;
   onAdjust: (delta: 1 | -1) => Promise<void>;
   onSetTradeFlag?: (variantId: string, flags: { tradeHidden?: boolean; tradeForced?: boolean }) => Promise<void>;
 }) {
@@ -787,10 +792,9 @@ function OwnedVariantRow({
     committedRef.current = true;
     haptic('tap');
     onAdjust(delta);
+    const sign = delta === 1 ? '+1' : '−1';
     addToast(
-      delta === 1
-        ? `+1 ${variantLabel(variantType)}`
-        : `−1 ${variantLabel(variantType)}`,
+      `${sign} ${stickerLabel} (${variantLabel(variantType)})`,
       {
         type: delta === 1 ? 'success' : 'info',
         action: { label: 'Undo', onClick: () => onAdjust(delta === 1 ? -1 : 1) },
@@ -851,8 +855,12 @@ function OwnedVariantRow({
       if (open) return false;
       const rect = tradeTriggerRef.current?.getBoundingClientRect();
       if (rect) {
+        // The menu holds at most two ~44px items + ~8px padding ≈ 96px.
+        // 140px buffers for the safe-area inset and any focus ring outline
+        // so the bottom item never sits flush against the OS chrome.
+        const FLIP_THRESHOLD_PX = 140;
         const spaceBelow = window.innerHeight - rect.bottom;
-        setTradeMenuFlipUp(spaceBelow < 140);
+        setTradeMenuFlipUp(spaceBelow < FLIP_THRESHOLD_PX);
       }
       return true;
     });
@@ -924,7 +932,7 @@ function OwnedVariantRow({
         <button
           onClick={(e) => { e.stopPropagation(); haptic('tap'); onAdjust(-1); }}
           disabled={busy}
-          className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] text-xl font-bold leading-none disabled:opacity-50 active:scale-95 transition-transform"
+          className="flex h-11 w-11 items-center justify-center rounded-md bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] text-xl font-bold leading-none disabled:opacity-50 active:scale-95 transition-transform"
           aria-label={`Remove one ${variantLabel(variantType)}`}
         >
           −
@@ -932,7 +940,7 @@ function OwnedVariantRow({
         <button
           onClick={(e) => { e.stopPropagation(); haptic('tap'); onAdjust(1); }}
           disabled={busy}
-          className="flex h-10 w-10 items-center justify-center rounded-md bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] text-xl font-bold leading-none disabled:opacity-50 active:scale-95 transition-transform"
+          className="flex h-11 w-11 items-center justify-center rounded-md bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] text-xl font-bold leading-none disabled:opacity-50 active:scale-95 transition-transform"
           aria-label={`Add one ${variantLabel(variantType)}`}
         >
           +
@@ -946,7 +954,7 @@ function OwnedVariantRow({
               aria-haspopup="menu"
               aria-expanded={tradeMenuOpen}
               aria-label={`Trade options for ${variantLabel(variantType)}`}
-              className="flex h-10 w-8 items-center justify-center rounded-md text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface)] transition-colors"
+              className="flex h-11 w-10 items-center justify-center rounded-md text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface)] transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
                 <path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z" />

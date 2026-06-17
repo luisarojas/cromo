@@ -100,14 +100,14 @@ test.describe('mobile affordances', () => {
     const sheet = page.getByRole('dialog', { name: /manage variants for sticker/i });
     await expect(sheet).toBeVisible();
 
-    // +1 button should have a thumb-sized hit target (≥40px in either
-    // dimension). One button per owned variant — check the first.
+    // +1 button should meet Apple HIG's 44px touch-target floor. One button
+    // per owned variant — check the first.
     const addBtn = sheet.getByRole('button', { name: /^Add one /i }).first();
     await expect(addBtn).toBeVisible();
     const box = await addBtn.boundingBox();
     expect(box, '+ button has no bounding box').not.toBeNull();
-    expect(box!.height, '+ button is too short for a thumb').toBeGreaterThanOrEqual(40);
-    expect(box!.width, '+ button is too narrow for a thumb').toBeGreaterThanOrEqual(40);
+    expect(box!.height, '+ button is too short for a thumb').toBeGreaterThanOrEqual(44);
+    expect(box!.width, '+ button is too narrow for a thumb').toBeGreaterThanOrEqual(44);
   });
 
   test('grid density toggle is hidden on mobile', async ({ page }) => {

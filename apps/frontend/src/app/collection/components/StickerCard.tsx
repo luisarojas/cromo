@@ -28,6 +28,10 @@ interface Props {
   onContextMenu?: (clientX: number, clientY: number) => void;
   selectionMode?: boolean;
   isSelected?: boolean;
+  // True when this card is the active range anchor — long-pressing another
+  // card extends a multi-select from here to there. Renders a dashed accent
+  // ring so the user knows the next long-press will fill to it.
+  isRangeAnchor?: boolean;
   onToggleSelect?: (shiftKey: boolean) => void;
   // Keyboard-focused card highlight. When true, render an accent ring so the
   // user can see which sticker the j/k/+/-/f/w hotkeys will act on.
@@ -68,6 +72,7 @@ export default function StickerCard({
   onContextMenu,
   selectionMode,
   isSelected,
+  isRangeAnchor,
   onToggleSelect,
   isKeyboardFocused,
   dragPayload,
@@ -208,6 +213,7 @@ export default function StickerCard({
         group relative flex flex-col rounded-lg border p-2.5 text-sm text-left
         transition-all duration-150 select-none w-full touch-pan-y
         ${isKeyboardFocused ? 'ring-2 ring-[var(--cromo-accent)] ring-offset-2 ring-offset-[var(--cromo-bg)]' : ''}
+        ${isRangeAnchor ? 'ring-2 ring-dashed ring-[var(--cromo-accent-strong)] ring-offset-1 ring-offset-[var(--cromo-bg)]' : ''}
         ${
           selectionMode && isSelected
             ? 'border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] ring-2 ring-blue-200'
