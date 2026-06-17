@@ -326,7 +326,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     if (tab !== 'stats') return;
     if (!activeAlbum) return;
     if (activeAlbum.albumTypeKey === DEFAULT_ALBUM_TYPE_KEY) return;
-    setTab('all');
+    setTab('all', 'replace');
   }, [tab, activeAlbum, setTab]);
 
   const settingsFilteredStickers = useMemo<Sticker[]>(() => {

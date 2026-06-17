@@ -21,9 +21,9 @@ black:                  { label: 'Black',                   short: 'Black',     
   green_crumple:        { label: 'Green Crumple',           short: 'Grn Crmp',  swatch: 'bg-green-800',                          rarity: 'iCollect Ultra Rare' },
   black_crumple:   { label: 'Black Crumple',           short: 'Blk Crmp',  swatch: 'bg-neutral-900',           rarity: 'iCollect Unique' },
   extra_purple:         { label: 'Extra — Purple',          short: 'EX Purple', swatch: 'bg-purple-400',            rarity: 'Base Extra' },
-  extra_bronze:         { label: 'Extra — Bronze',          short: 'EX Bronze', swatch: 'bg-amber-600',             rarity: 'Uncommon' },
-  extra_silver:         { label: 'Extra — Silver',          short: 'EX Silver', swatch: 'bg-slate-400',             rarity: 'Rare' },
-  extra_gold:           { label: 'Extra — Gold',            short: 'EX Gold',   swatch: 'bg-[var(--cromo-warning)]',            rarity: 'Ultra Rare' },
+  extra_bronze:         { label: 'Extra — Bronze',          short: 'EX Bronze', swatch: 'bg-amber-600',             rarity: 'Bronze Extra' },
+  extra_silver:         { label: 'Extra — Silver',          short: 'EX Silver', swatch: 'bg-slate-400',             rarity: 'Silver Extra' },
+  extra_gold:           { label: 'Extra — Gold',            short: 'EX Gold',   swatch: 'bg-[var(--cromo-warning)]',            rarity: 'Gold Extra' },
   swiss_green:          { label: 'Green (United Edition)',  short: 'Swiss',     swatch: 'bg-[var(--cromo-success)]',             rarity: 'Swiss Edition' },
 };
 

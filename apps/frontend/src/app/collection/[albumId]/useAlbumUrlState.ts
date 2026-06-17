@@ -43,8 +43,13 @@ export function useAlbumUrlState() {
     };
   }, [searchParams]);
 
+  // history: 'push' creates a new browser-history entry (back returns the user
+  // to where they were); 'replace' overwrites the current one. Tab switches
+  // and stats jumps are discrete user actions and should be reversible via
+  // browser back; filter typing fires per-keystroke and must stay on replace
+  // or each character would create a history entry.
   const apply = useCallback(
-    (next: { tab?: Tab; filters?: FilterState }) => {
+    (next: { tab?: Tab; filters?: FilterState }, history: 'push' | 'replace' = 'replace') => {
       const params = new URLSearchParams(searchParams.toString());
 
       if (next.tab !== undefined) {
@@ -76,7 +81,9 @@ export function useAlbumUrlState() {
       }
 
       const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      if (history === 'push') router.push(url, { scroll: false });
+      else router.replace(url, { scroll: false });
     },
     [router, pathname, searchParams],
   );
@@ -84,12 +91,13 @@ export function useAlbumUrlState() {
   return {
     tab,
     filters,
-    setTab: (t: Tab) => apply({ tab: t }),
+    setTab: (t: Tab, history: 'push' | 'replace' = 'push') => apply({ tab: t }, history),
     setFilters: (f: FilterState) => apply({ filters: f }),
     // Combined setter — used when "jumping" from a stats card to a specific
     // tab + filter combo. `apply` replaces all filter keys at once, so any
     // filter not present in `next.filters` is cleared (the intended "fresh
-    // view" semantics for stats drill-downs).
-    setView: apply,
+    // view" semantics for stats drill-downs). Pushes history so browser back
+    // returns to the stats view the user jumped from.
+    setView: (next: { tab?: Tab; filters?: FilterState }) => apply(next, 'push'),
   };
 }
