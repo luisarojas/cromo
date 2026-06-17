@@ -470,7 +470,7 @@ const UNKNOWN_ECHO_CAP = 50;
  * The user's stated preference is the default for core stickers; CC and Extras
  * are handled by absolute fallback because they have their own variant lanes.
  */
-function defaultVariantFor(
+export function defaultVariantFor(
   stickerType: string,
   defaultBaseVariant: string,
 ): string {
@@ -501,19 +501,19 @@ const VARIANT_LABELS: Record<string, string> = {
   extra_gold: 'Extra · Gold',
 };
 
-function labelFor(token: string | null): string | null {
+export function labelFor(token: string | null): string | null {
   if (!token) return null;
   return VARIANT_LABELS[token] ?? token;
 }
 
-interface NormalisedItem {
+export interface NormalisedItem {
   albumCode: string;
   /** Raw user-supplied token (still un-resolved against album context). */
   variantToken: string | null;
   quantity: number;
 }
 
-function dedupeItems(input: ExternalListItem[]): NormalisedItem[] {
+export function dedupeItems(input: ExternalListItem[]): NormalisedItem[] {
   const seen = new Map<string, NormalisedItem>();
   for (const raw of input) {
     const code = normalizeAlbumCode(raw.albumCode);
@@ -542,7 +542,7 @@ interface CatalogVariantRow {
   sticker_variant_id: string;
 }
 
-interface CatalogEntry {
+export interface CatalogEntry {
   albumCode: string;
   playerName: string | null;
   stickerType: string;
@@ -551,7 +551,7 @@ interface CatalogEntry {
   variants: Map<string, { stickerVariantId: string }>;
 }
 
-async function lookupCatalogVariants(
+export async function lookupCatalogVariants(
   db: Pool,
   codes: string[],
   albumTypeKey: string,
@@ -621,7 +621,7 @@ function resolveItem(
   return { entry, variantType, stickerVariantId: v.stickerVariantId };
 }
 
-interface ResolvedItem {
+export interface ResolvedItem {
   entry: CatalogEntry;
   variantType: string;
   stickerVariantId: string;
@@ -631,7 +631,7 @@ interface ResolvedItem {
   rawToken: string | null;
 }
 
-function resolveItems(
+export function resolveItems(
   items: NormalisedItem[],
   catalog: Map<string, CatalogEntry>,
   defaultBaseVariant: string,
@@ -655,7 +655,7 @@ function resolveItems(
   return { resolved, unknown };
 }
 
-function refOf(r: ResolvedItem): ExternalRef {
+export function refOf(r: ResolvedItem): ExternalRef {
   const stickerType =
     r.entry.stickerType === 'extra' ? 'extra'
     : r.entry.stickerType === 'coca_cola_special' ? 'coca_cola_special'
@@ -807,16 +807,12 @@ export async function matchPair(
   // sticker-type fallbacks regardless.
   const DEFAULT_BASE = 'base_borderless';
 
-  const { resolved: aOfferedR } = resolveItems(aOffered, catalog, DEFAULT_BASE);
-  const { resolved: aWantedR,  unknown: uAW } = resolveItems(aWanted, catalog, DEFAULT_BASE);
-  const { resolved: bOfferedR } = resolveItems(bOffered, catalog, DEFAULT_BASE);
-  const { resolved: bWantedR,  unknown: uBW } = resolveItems(bWanted, catalog, DEFAULT_BASE);
-
-  // Tracking unknown items from offered sides too — they didn't resolve to a
-  // valid (code, variant), so the diagnostic value of surfacing them is the
-  // same as for wanted items.
-  const { unknown: uAO } = resolveItems(aOffered, catalog, DEFAULT_BASE);
-  const { unknown: uBO } = resolveItems(bOffered, catalog, DEFAULT_BASE);
+  // Unknowns from all four lists feed `unknownCodes` so the UI can flag what
+  // didn't resolve, regardless of which side it came from.
+  const { resolved: aOfferedR, unknown: uAO } = resolveItems(aOffered, catalog, DEFAULT_BASE);
+  const { resolved: aWantedR,  unknown: uAW } = resolveItems(aWanted,  catalog, DEFAULT_BASE);
+  const { resolved: bOfferedR, unknown: uBO } = resolveItems(bOffered, catalog, DEFAULT_BASE);
+  const { resolved: bWantedR,  unknown: uBW } = resolveItems(bWanted,  catalog, DEFAULT_BASE);
 
   const bOfferedSet = new Set(bOfferedR.map((r) => r.stickerVariantId));
   const aOfferedSet = new Set(aOfferedR.map((r) => r.stickerVariantId));

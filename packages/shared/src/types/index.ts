@@ -321,6 +321,9 @@ export interface TradeMessage {
 }
 
 export interface TradeSummary {
+  /** Discriminator for the unified history list. Optional + 'request' default
+   *  so existing consumers that don't narrow still type-check. */
+  kind?: 'request'
   id: string
   requesterId: string
   requesterUsername: string
@@ -336,6 +339,31 @@ export interface TradeSummary {
   cancelledAt: string | null
   messageCount: number
 }
+
+/**
+ * Summary row for a live in-person trade in the unified history list. Carries
+ * the enriched give/receive piles inline because no detail page exists — the
+ * row IS the record. `status` collapses (undoneAt ?? completedAt) into one of
+ * two outcomes so the existing status-filter logic on the list keeps working.
+ */
+export interface LiveTradeHistorySummary {
+  kind: 'live'
+  id: string
+  hostUserId: string
+  hostAlbumId: string
+  /** Free-text label the host gave to the visitor (or null if never set). */
+  guestLabel: string | null
+  status: 'completed' | 'cancelled'
+  hostGave: LiveTradeStickerRef[]
+  hostReceived: LiveTradeStickerRef[]
+  completedAt: string
+  undoneAt: string | null
+  /** Sort key for the unified history list: undoneAt ?? completedAt. */
+  updatedAt: string
+}
+
+/** Discriminated union returned by the trade history endpoint. */
+export type TradeHistoryItem = TradeSummary | LiveTradeHistorySummary
 
 export interface TradeDetail extends TradeSummary {
   items: TradeItemDetail[]
@@ -440,6 +468,96 @@ export interface MatchPairResult {
 export interface ScanListResult {
   offered: string[]
   wanted: string[]
+}
+
+// ─── Live Trade wire types ─────────────────────────────────────────────────
+// Two-sided in-person trade between a registered host and an anonymous guest.
+// Session lives in Redis; only the completion (deltas applied to the host's
+// inventory) is persisted, behind a 60s undo window. See
+// services/live-trade.service.ts for invariants.
+
+/** A staged or listed sticker — already resolved against the catalog, so it
+ *  carries every field the room UI needs without an extra lookup. */
+export interface LiveTradeStickerRef {
+  /** Resolved sticker_variants.id — what gets written to user_stickers. */
+  stickerVariantId: string
+  albumCode: string
+  playerName: string | null
+  stickerType: StickerType | null
+  number: number | null
+  variantToken: string | null
+  variantLabel: string | null
+  scarcity: number
+  quantity: number
+}
+
+/** Public snapshot of a live-trade session. Returned by every read/write
+ *  endpoint and broadcast over SSE on every mutation. */
+export interface LiveTradeSession {
+  id: string
+  joinCode: string
+  joinUrl: string
+  status: 'open' | 'completed'
+  host: {
+    userId: string
+    username: string | null
+    displayName: string | null
+    albumId: string
+    albumTypeKey: string
+  }
+  /** Guest is anonymous; label is whatever the host typed (or null until set). */
+  guest: {
+    /** True once a guest has joined the session via /join. */
+    joined: boolean
+    label: string | null
+  }
+  /** Items the host has typed/scanned but not yet committed to staging. */
+  hostList: {
+    offered: LiveTradeStickerRef[]
+    wanted: LiveTradeStickerRef[]
+    unknownCodes: string[]
+  }
+  guestList: {
+    offered: LiveTradeStickerRef[]
+    wanted: LiveTradeStickerRef[]
+    unknownCodes: string[]
+  }
+  /** Locked-in pile each side will give. */
+  hostStaged: LiveTradeStickerRef[]
+  guestStaged: LiveTradeStickerRef[]
+  hostLocked: boolean
+  guestLocked: boolean
+  /** Optimal swap derived from both lists — used to populate one-tap suggestions. */
+  suggestion: {
+    hostGives: LiveTradeStickerRef[]
+    hostReceives: LiveTradeStickerRef[]
+    balance: ScarcityTotals
+  } | null
+  /** Set when completion is applied. The 60-second undo window starts here. */
+  completion: {
+    id: string
+    completedAt: string
+    undoneAt: string | null
+    /** Window end (completedAt + 60s) so the client can render a countdown
+     *  without trusting its own clock for the start time. */
+    undoExpiresAt: string
+  } | null
+  createdAt: string
+  updatedAt: string
+  expiresAt: string
+}
+
+/** Returned by POST /api/v1/live-trade — the host's view of a newly minted session. */
+export interface CreateLiveTradeResponse {
+  session: LiveTradeSession
+}
+
+/** Returned by POST /api/v1/live-trade/join — guest's first call. */
+export interface JoinLiveTradeResponse {
+  /** Bearer-style opaque token the guest sends on every subsequent call as
+   *  `X-Live-Trade-Token`. Stored in the guest browser's session/localStorage. */
+  guestToken: string
+  session: LiveTradeSession
 }
 
 // ─── Sharing / public profile wire types ───────────────────────────────────

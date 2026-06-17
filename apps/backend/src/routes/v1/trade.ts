@@ -19,7 +19,7 @@ import {
   declineTrade,
   editTrade,
   getTrade,
-  listTrades,
+  listTradeHistory,
 } from '../../services/trade-requests.service.js';
 import * as messagingService from '../../services/messaging.service.js';
 import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
@@ -304,7 +304,9 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       const { status, cursor, limit } = request.query as {
         status?: string; cursor?: string; limit?: number;
       };
-      const page = await listTrades(fastify.db, request.userId!, { status, cursor, limit });
+      // The endpoint name predates live trades; for compatibility it still
+      // serves both feeds — `listTradeHistory` returns a discriminated union.
+      const page = await listTradeHistory(fastify.db, request.userId!, { status, cursor, limit });
       return reply.status(200).send(page);
     }
   );

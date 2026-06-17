@@ -17,6 +17,7 @@ import {
   fetchPublicProfile,
   createTrade,
   createTradeInvite,
+  createLiveTradeSession,
   setTradeFlags,
   patchUserPreferences,
   matchAgainstMe,
@@ -24,12 +25,14 @@ import {
   type UserAlbum,
   type TradeMatch,
   type TradeSummary,
+  type TradeHistoryItem,
   type CollectionItem,
   type City,
   type ExternalListItem,
   type MatchAgainstMeResult,
   type TradeInvite,
 } from '@/lib/api';
+import { useToast } from '@/components/ToastProvider';
 import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
 import CombinedListInput from './components/CombinedListInput';
@@ -152,7 +155,7 @@ function TradePageContent() {
   const [matchesSearched, setMatchesSearched] = useState(false);
 
   // My Trades state
-  const [trades, setTrades] = useState<TradeSummary[]>([]);
+  const [trades, setTrades] = useState<TradeHistoryItem[]>([]);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [tradesMoreLoading, setTradesMoreLoading] = useState(false);
   const [tradesCursor, setTradesCursor] = useState<string | null>(null);
@@ -183,6 +186,23 @@ function TradePageContent() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const [qrCopied, setQrCopied] = useState(false);
+
+  // Live-trade button: route the host into the room for the selected album so
+  // they can share the join code with someone who doesn't have an account.
+  const { addToast } = useToast();
+  const [liveTradeBusy, setLiveTradeBusy] = useState(false);
+  async function handleStartLiveTrade() {
+    if (!token || !selectedAlbumId || liveTradeBusy) return;
+    setLiveTradeBusy(true);
+    try {
+      const session = await createLiveTradeSession(selectedAlbumId, token);
+      router.push(`/trade/live/${session.id}`);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Could not start a live trade.');
+    } finally {
+      setLiveTradeBusy(false);
+    }
+  }
 
   const handleOpenQr = async () => {
     if (!token) return;
@@ -574,15 +594,29 @@ function TradePageContent() {
             {t('subtitle')}
           </p>
         </div>
-        <button
-          onClick={handleOpenQr}
-          className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
-        >
-          <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-            <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm6-2h6v6h-6V3zm2 2v2h2V5h-2zM3 11h6v6H3v-6zm2 2v2h2v-2H5zm6 0h2v-2h2v2h2v2h-2v2h-2v-2h-2v2h-2v-4h2v-2zm4 4h2v-2h-2v2z" />
-          </svg>
-          {t('tradeInPerson')}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleOpenQr}
+            className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm6-2h6v6h-6V3zm2 2v2h2V5h-2zM3 11h6v6H3v-6zm2 2v2h2v-2H5zm6 0h2v-2h2v2h2v2h-2v2h-2v-2h-2v2h-2v-4h2v-2zm4 4h2v-2h-2v2z" />
+            </svg>
+            {t('tradeInPerson')}
+          </button>
+          <button
+            onClick={handleStartLiveTrade}
+            disabled={!selectedAlbumId || liveTradeBusy}
+            title="Trade in person with someone who doesn't have an account"
+            className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="10" cy="10" r="3" />
+              <circle cx="10" cy="10" r="7" />
+            </svg>
+            {liveTradeBusy ? 'Starting…' : 'Live trade'}
+          </button>
+        </div>
       </div>
 
       <div className="mb-6">

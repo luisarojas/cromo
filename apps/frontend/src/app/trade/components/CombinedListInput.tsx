@@ -70,7 +70,11 @@ export default function CombinedListInput({
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Two distinct entry points: gallery picker (no capture hint) for a
+  // pre-existing photo, and camera capture for the in-person case where the
+  // collector hands the phone to a friend who'll snap their list right then.
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   function handleTextChange(value: string) {
     // Hard-cap the text so a paste-bomb can't hang the parser. The user sees
@@ -114,7 +118,9 @@ export default function CombinedListInput({
       setScanError(err instanceof Error ? err.message : 'Failed to scan image.');
     } finally {
       setScanning(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      // Reset both inputs so re-selecting the same file fires `onChange` again.
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
     }
   }
 
@@ -147,10 +153,18 @@ export default function CombinedListInput({
             </span>
           )}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {scanning && <span className="text-xs text-[var(--cromo-fg-subtle)]">Scanning…</span>}
           <input
-            ref={fileInputRef}
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => handleFiles(e.target.files)}
+            className="hidden"
+          />
+          <input
+            ref={galleryInputRef}
             type="file"
             accept="image/*"
             multiple
@@ -159,11 +173,19 @@ export default function CombinedListInput({
           />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => cameraInputRef.current?.click()}
             disabled={scanning}
             className="text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
           >
-            Upload list photo
+            Take photo
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={scanning}
+            className="text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
+          >
+            Upload photo
           </button>
         </div>
       </div>

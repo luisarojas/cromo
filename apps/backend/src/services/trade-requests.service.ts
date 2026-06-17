@@ -1,11 +1,13 @@
 import type { Pool, PoolClient } from 'pg';
 import type { Redis } from 'ioredis';
+import type { TradeHistoryItem } from '@cromo/shared';
 import { withTx } from '../db/transaction.js';
 import { invalidateUserCaches } from './cache.js';
 import { publishTradeEvent, sendSystemMessage } from './messaging.service.js';
 import { statusError } from '../utils/errors.js';
 import { recordAuditBulk } from '../utils/audit.js';
 import { matchesIndexKey } from './trade-matching.service.js';
+import { listLiveTradeHistory } from './live-trade.service.js';
 
 async function invalidateMatchesFor(redis: Redis, userIds: string[]): Promise<void> {
   // Each user owns a Redis SET that lists every active match-cache key they've
@@ -397,6 +399,114 @@ export async function listTrades(
   const nextCursor = hasMore && last ? `${last.updated_at}|${last.id}` : null;
 
   return { items, nextCursor };
+}
+
+// ─── Unified history (trade requests + live trades) ─────────────────────────
+//
+// The two sources have different in-process shapes:
+//   • Trade-request rows are raw SQL output (snake_case) — the global Fastify
+//     serializer camelizes them at the wire boundary.
+//   • Live-trade rows are built in JS and are already camelCase.
+// We merge in this mixed-case state and let the serializer normalise. The
+// comparator works on whichever timestamp/id key is present on each shape.
+
+/** What the merge function returns *internally*, before the wire serializer
+ *  camelizes the request side. The route signs off on this as the wire-side
+ *  TradeHistoryItem because both branches camelize to the same shape. */
+type InternalHistoryItem =
+  | (TradeSummary & { kind?: 'request' })
+  | TradeHistoryItem;
+
+export interface TradeHistoryPage {
+  items: InternalHistoryItem[];
+  nextCursor: string | null;
+}
+
+/**
+ * Live trades only have two outcomes (`completed`, `cancelled` = undone). Map
+ * the request-side status filter to the live source: filters whose semantics
+ * have no live equivalent skip the live query entirely.
+ */
+function mapStatusForLive(status: string | undefined): 'completed' | 'cancelled' | 'skip' | undefined {
+  if (status === undefined) return undefined;
+  if (status === 'completed') return 'completed';
+  if (status === 'cancelled') return 'cancelled';
+  return 'skip';
+}
+
+function timestampOf(item: InternalHistoryItem): number {
+  // Request rows carry snake_case `updated_at`; live rows carry camel
+  // `updatedAt`. Read whichever is present so the comparator stays correct
+  // across both feed sources.
+  const ts = 'updatedAt' in item ? item.updatedAt : item.updated_at;
+  return Date.parse(ts);
+}
+
+/**
+ * Comparator for the merged history list. Same (updatedAt desc, id desc)
+ * ordering both sources already produce, so the merge stays a stable global sort.
+ */
+function compareDesc(a: InternalHistoryItem, b: InternalHistoryItem): number {
+  const ta = timestampOf(a);
+  const tb = timestampOf(b);
+  if (ta !== tb) return tb - ta;
+  return b.id < a.id ? -1 : b.id > a.id ? 1 : 0;
+}
+
+/**
+ * listTradeHistory — unified trade-history feed: classic trade requests +
+ * host-only live-trade completions. Both sources page via the same
+ * `<iso>|<uuid>` cursor encoding and the same (updatedAt desc, id desc)
+ * order. We over-fetch the same page size from each source so the merged
+ * window can be trimmed to `pageSize` while still producing a correct
+ * next-cursor — pulling pageSize from each guarantees the global top pageSize
+ * is contained in the union regardless of how the two timelines interleave.
+ */
+export async function listTradeHistory(
+  db: Pool,
+  userId: string,
+  opts: { status?: string; cursor?: string; limit?: number } = {},
+): Promise<TradeHistoryPage> {
+  const pageSize = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+  const liveStatus = mapStatusForLive(opts.status);
+
+  // Skip the live source entirely when the filter has no live analogue
+  // (pending / accepted / declined / expired all live in trade_requests only).
+  const [requests, live] = await Promise.all([
+    listTrades(db, userId, { status: opts.status, cursor: opts.cursor, limit: pageSize }),
+    liveStatus === 'skip'
+      ? Promise.resolve({ items: [], nextCursor: null as string | null })
+      : listLiveTradeHistory(db, userId, {
+          status: liveStatus,
+          cursor: opts.cursor,
+          limit: pageSize,
+        }),
+  ]);
+
+  // Tag request items with their kind so the camelized wire payload is a
+  // proper discriminated union.
+  for (const r of requests.items) (r as InternalHistoryItem).kind = 'request';
+
+  const merged: InternalHistoryItem[] = [...requests.items, ...live.items];
+  merged.sort(compareDesc);
+
+  // Anything beyond pageSize is dropped — but if either source has more data
+  // OR our merged window had to be trimmed, there's a next page. New cursor
+  // points to the last row we're keeping; both sources will re-query past it
+  // on the next call. Same algebra `listTrades` already uses.
+  const trimmed = merged.slice(0, pageSize);
+  const last = trimmed[trimmed.length - 1];
+  const hasMore =
+    merged.length > pageSize
+    || requests.nextCursor !== null
+    || live.nextCursor !== null;
+  let nextCursor: string | null = null;
+  if (hasMore && last) {
+    const ts = 'updatedAt' in last ? last.updatedAt : last.updated_at;
+    nextCursor = `${ts}|${last.id}`;
+  }
+
+  return { items: trimmed, nextCursor };
 }
 
 /**

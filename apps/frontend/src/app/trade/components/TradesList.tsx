@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { TradeSummary } from '@/lib/api';
+import { isLiveTradeRow, type LiveTradeHistorySummary, type TradeHistoryItem, type TradeSummary } from '@/lib/api';
 
-// Renders "My Trades" as cards on mobile and a sortable table on md+. Sort
-// state lives in this component; the caller passes the raw list and the
-// open-trade handler. Pagination (Load more) stays on the parent — sorting
-// only reorders what's already loaded.
+// Renders "My Trades" as cards on mobile and a sortable table on md+. The list
+// is heterogeneous: classic trade requests AND live in-person trades are
+// merged into one feed (sorted by updatedAt desc) and dispatched per-row on
+// the `kind` discriminator. Live rows are display-only — there is no detail
+// page; the gave/received piles are shown inline.
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
   pending:   { label: 'Pending',   className: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]' },
@@ -31,16 +32,36 @@ const STATUS_ORDER: Record<TradeSummary['status'], number> = {
 
 const OPEN_STATUSES = new Set<TradeSummary['status']>(['pending', 'accepted']);
 
-function closedAt(trade: TradeSummary): string | null {
-  return trade.completedAt ?? trade.cancelledAt ?? null;
+function effectiveStatus(item: TradeHistoryItem): TradeSummary['status'] {
+  return isLiveTradeRow(item) ? item.status : item.status;
+}
+
+function closedAt(item: TradeHistoryItem): string | null {
+  if (isLiveTradeRow(item)) {
+    return item.undoneAt ?? item.completedAt;
+  }
+  return item.completedAt ?? item.cancelledAt ?? null;
+}
+
+function openedAt(item: TradeHistoryItem): string {
+  // Live trades have no "opened" — they're recorded as a single completion
+  // event. We surface completedAt in the "Opened" column so the date columns
+  // still line up across both kinds.
+  return isLiveTradeRow(item) ? item.completedAt : item.createdAt;
+}
+
+function counterpartyLabel(item: TradeHistoryItem, myUserId: string): string {
+  if (isLiveTradeRow(item)) return item.guestLabel ?? 'Guest';
+  return item.requesterId === myUserId ? item.recipientUsername : item.requesterUsername;
 }
 
 type SortKey = 'created' | 'closed' | 'status' | 'other';
 type SortDir = 'asc' | 'desc';
 
 interface Props {
-  trades: TradeSummary[];
+  trades: TradeHistoryItem[];
   myUserId: string;
+  /** Called only for classic trade requests — live trades have no detail page. */
   onOpen: (tradeId: string) => void;
 }
 
@@ -50,10 +71,10 @@ export default function TradesList({ trades, myUserId, onOpen }: Props) {
   const [closedOpen, setClosedOpen] = useState(false);
 
   const { openTrades, closedTrades } = useMemo(() => {
-    const cmpFn = (a: TradeSummary, b: TradeSummary) => {
+    const cmpFn = (a: TradeHistoryItem, b: TradeHistoryItem) => {
       let cmp = 0;
       if (sortKey === 'created') {
-        cmp = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+        cmp = Date.parse(openedAt(a)) - Date.parse(openedAt(b));
       } else if (sortKey === 'closed') {
         // Trades with no closing date sort to the end regardless of dir.
         const aC = closedAt(a);
@@ -63,18 +84,18 @@ export default function TradesList({ trades, myUserId, onOpen }: Props) {
         else if (bC === null) return -1;
         else cmp = Date.parse(aC) - Date.parse(bC);
       } else if (sortKey === 'status') {
-        cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+        cmp = STATUS_ORDER[effectiveStatus(a)] - STATUS_ORDER[effectiveStatus(b)];
       } else if (sortKey === 'other') {
-        const aOther = a.requesterId === myUserId ? a.recipientUsername : a.requesterUsername;
-        const bOther = b.requesterId === myUserId ? b.recipientUsername : b.requesterUsername;
-        cmp = aOther.localeCompare(bOther);
+        cmp = counterpartyLabel(a, myUserId).localeCompare(counterpartyLabel(b, myUserId));
       }
       return sortDir === 'asc' ? cmp : -cmp;
     };
-    const open: TradeSummary[] = [];
-    const closed: TradeSummary[] = [];
+    const open: TradeHistoryItem[] = [];
+    const closed: TradeHistoryItem[] = [];
     for (const t of trades) {
-      (OPEN_STATUSES.has(t.status) ? open : closed).push(t);
+      // Live trades are always closed by definition (they're inserted at
+      // completion time). Only classic requests can be in an open state.
+      (!isLiveTradeRow(t) && OPEN_STATUSES.has(t.status) ? open : closed).push(t);
     }
     open.sort(cmpFn);
     closed.sort(cmpFn);
@@ -136,7 +157,7 @@ export default function TradesList({ trades, myUserId, onOpen }: Props) {
           </thead>
           <tbody>
             {openTrades.map((trade) => (
-              <TradeRow key={trade.id} trade={trade} myUserId={myUserId} onOpen={onOpen} />
+              <DesktopRow key={rowKey(trade)} trade={trade} myUserId={myUserId} onOpen={onOpen} />
             ))}
             {openTrades.length === 0 && (
               <tr>
@@ -163,7 +184,7 @@ export default function TradesList({ trades, myUserId, onOpen }: Props) {
             )}
             {closedOpen &&
               closedTrades.map((trade) => (
-                <TradeRow key={trade.id} trade={trade} myUserId={myUserId} onOpen={onOpen} />
+                <DesktopRow key={rowKey(trade)} trade={trade} myUserId={myUserId} onOpen={onOpen} />
               ))}
           </tbody>
         </table>
@@ -172,15 +193,23 @@ export default function TradesList({ trades, myUserId, onOpen }: Props) {
   );
 }
 
-function TradeRow({
-  trade,
-  myUserId,
-  onOpen,
-}: {
-  trade: TradeSummary;
-  myUserId: string;
-  onOpen: (tradeId: string) => void;
-}) {
+// Composite key — live and request rows can share a UUID space in theory,
+// even though in practice they don't. Prefixing with the kind is cheap insurance
+// for React's reconciliation.
+function rowKey(item: TradeHistoryItem): string {
+  return `${isLiveTradeRow(item) ? 'live' : 'req'}:${item.id}`;
+}
+
+function DesktopRow({
+  trade, myUserId, onOpen,
+}: { trade: TradeHistoryItem; myUserId: string; onOpen: (id: string) => void }) {
+  if (isLiveTradeRow(trade)) return <LiveDesktopRow trade={trade} />;
+  return <RequestDesktopRow trade={trade} myUserId={myUserId} onOpen={onOpen} />;
+}
+
+function RequestDesktopRow({
+  trade, myUserId, onOpen,
+}: { trade: TradeSummary; myUserId: string; onOpen: (id: string) => void }) {
   const badge = STATUS_BADGE[trade.status];
   const isRequester = trade.requesterId === myUserId;
   const otherUser = isRequester ? trade.recipientUsername : trade.requesterUsername;
@@ -206,13 +235,39 @@ function TradeRow({
   );
 }
 
+function LiveDesktopRow({ trade }: { trade: LiveTradeHistorySummary }) {
+  const badge = STATUS_BADGE[trade.status];
+  return (
+    <tr className="border-b border-[var(--cromo-border)]">
+      <td className="px-3 py-2 text-[var(--cromo-fg)] font-medium">
+        <div className="flex items-center gap-1.5">
+          <span>{trade.guestLabel ?? 'Guest'}</span>
+          <LiveBadge />
+        </div>
+        <LiveSummaryLine trade={trade} />
+      </td>
+      <td className="px-3 py-2">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
+          {badge.label}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums">
+        {new Date(trade.completedAt).toLocaleDateString()}
+      </td>
+      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums">
+        {trade.undoneAt ? new Date(trade.undoneAt).toLocaleDateString() : new Date(trade.completedAt).toLocaleDateString()}
+      </td>
+    </tr>
+  );
+}
+
 function MobileGroup({
   trades,
   myUserId,
   onOpen,
   emptyLabel,
 }: {
-  trades: TradeSummary[];
+  trades: TradeHistoryItem[];
   myUserId: string;
   onOpen: (tradeId: string) => void;
   emptyLabel?: string;
@@ -224,36 +279,111 @@ function MobileGroup({
   }
   return (
     <div className="space-y-2">
-      {trades.map((trade) => {
-        const badge = STATUS_BADGE[trade.status];
-        const isRequester = trade.requesterId === myUserId;
-        const otherUser = isRequester ? trade.recipientUsername : trade.requesterUsername;
-        const closed = closedAt(trade);
-        return (
-          <button
-            key={trade.id}
-            onClick={() => onOpen(trade.id)}
-            className="w-full text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 hover:border-[var(--cromo-accent)]/30 hover:bg-[var(--cromo-accent-soft)] transition-colors"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-[var(--cromo-fg)] truncate">
-                  @{otherUser}
-                </div>
-                <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
-                  Opened {new Date(trade.createdAt).toLocaleDateString()}
-                  {closed && (
-                    <> · Closed {new Date(closed).toLocaleDateString()}</>
-                  )}
-                </div>
-              </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
-                {badge.label}
-              </span>
-            </div>
-          </button>
-        );
-      })}
+      {trades.map((trade) =>
+        isLiveTradeRow(trade)
+          ? <LiveMobileCard key={rowKey(trade)} trade={trade} />
+          : <RequestMobileCard key={rowKey(trade)} trade={trade} myUserId={myUserId} onOpen={onOpen} />
+      )}
+    </div>
+  );
+}
+
+function RequestMobileCard({
+  trade, myUserId, onOpen,
+}: { trade: TradeSummary; myUserId: string; onOpen: (id: string) => void }) {
+  const badge = STATUS_BADGE[trade.status];
+  const isRequester = trade.requesterId === myUserId;
+  const otherUser = isRequester ? trade.recipientUsername : trade.requesterUsername;
+  const closed = closedAt(trade);
+  return (
+    <button
+      onClick={() => onOpen(trade.id)}
+      className="w-full text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 hover:border-[var(--cromo-accent)]/30 hover:bg-[var(--cromo-accent-soft)] transition-colors"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-[var(--cromo-fg)] truncate">@{otherUser}</div>
+          <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
+            Opened {new Date(trade.createdAt).toLocaleDateString()}
+            {closed && <> · Closed {new Date(closed).toLocaleDateString()}</>}
+          </div>
+        </div>
+        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+          {badge.label}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function LiveMobileCard({ trade }: { trade: LiveTradeHistorySummary }) {
+  const badge = STATUS_BADGE[trade.status];
+  return (
+    <div className="w-full rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-[var(--cromo-fg)] truncate flex items-center gap-1.5">
+            <span>{trade.guestLabel ?? 'Guest'}</span>
+            <LiveBadge />
+          </div>
+          <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
+            {new Date(trade.completedAt).toLocaleDateString()}
+            {trade.undoneAt && <> · Undone {new Date(trade.undoneAt).toLocaleDateString()}</>}
+          </div>
+        </div>
+        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+          {badge.label}
+        </span>
+      </div>
+      <div className="mt-2.5">
+        <LiveSummaryLine trade={trade} />
+      </div>
+    </div>
+  );
+}
+
+function LiveBadge() {
+  return (
+    <span
+      title="In-person trade with a non-registered visitor"
+      className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]"
+    >
+      Live
+    </span>
+  );
+}
+
+function LiveSummaryLine({ trade }: { trade: LiveTradeHistorySummary }) {
+  const gaveCount = trade.hostGave.reduce((s, r) => s + r.quantity, 0);
+  const gotCount = trade.hostReceived.reduce((s, r) => s + r.quantity, 0);
+  // Up to ~4 codes per side keeps the row compact; anything beyond becomes
+  // "+N more" so the table still reads as a glanceable history list.
+  const previewLimit = 4;
+  const gavePreview = trade.hostGave.slice(0, previewLimit).map((r) => r.albumCode).join(', ');
+  const gotPreview  = trade.hostReceived.slice(0, previewLimit).map((r) => r.albumCode).join(', ');
+  const gaveExtra = trade.hostGave.length > previewLimit
+    ? ` +${trade.hostGave.length - previewLimit} more` : '';
+  const gotExtra = trade.hostReceived.length > previewLimit
+    ? ` +${trade.hostReceived.length - previewLimit} more` : '';
+  return (
+    <div className="text-xs text-[var(--cromo-fg-muted)] mt-0.5 space-y-0.5">
+      {gaveCount > 0 && (
+        <div>
+          <span className="text-[var(--cromo-fg-subtle)]">Gave</span>{' '}
+          <span className="tabular-nums">×{gaveCount}</span>
+          <span className="font-mono ml-1.5">{gavePreview}{gaveExtra}</span>
+        </div>
+      )}
+      {gotCount > 0 && (
+        <div>
+          <span className="text-[var(--cromo-fg-subtle)]">Got</span>{' '}
+          <span className="tabular-nums">×{gotCount}</span>
+          <span className="font-mono ml-1.5">{gotPreview}{gotExtra}</span>
+        </div>
+      )}
+      {gaveCount === 0 && gotCount === 0 && (
+        <div className="italic">Empty trade.</div>
+      )}
     </div>
   );
 }

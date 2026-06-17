@@ -669,6 +669,31 @@ export const tradeInvites = pgTable('trade_invites', {
   expiresIdx: index('idx_trade_invites_expires_at').on(table.expiresAt),
 }));
 
+// ─── live_trade_completions ───────────────────────────────────────────────────
+// Host-only history of in-person live trades with a non-registered visitor.
+// The session itself lives in Redis (ephemeral, two-sided staging + lock); the
+// only thing we persist is what changed on the host's side at "complete" time
+// so we can show it in trade history and reverse it inside a 60s undo window.
+//
+// `host_gave` / `host_received` are JSONB arrays of `{stickerVariantId, quantity}`
+// — the exact deltas applied to user_stickers — so undo can reverse them without
+// re-resolving the catalog. Once `undone_at` is set, the row stays for audit
+// but no further mutation is possible.
+
+export const liveTradeCompletions = pgTable('live_trade_completions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  hostUserId: uuid('host_user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  hostAlbumId: uuid('host_album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  guestLabel: text('guest_label'),
+  hostGave: jsonb('host_gave').$type<{ stickerVariantId: string; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
+  hostReceived: jsonb('host_received').$type<{ stickerVariantId: string; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
+  completedAt: timestamp('completed_at', { withTimezone: true }).notNull().default(sql`now()`),
+  undoneAt: timestamp('undone_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  hostHistoryIdx: index('idx_live_trade_completions_host_completed').on(table.hostUserId, table.completedAt),
+}));
+
 // ─── user_achievements ────────────────────────────────────────────────────────
 // One row per (user, achievement_key) the moment a criterion is first met.
 // Definitions live in code (packages/shared/src/constants/achievements.ts);
@@ -725,3 +750,5 @@ export type UserAchievement = typeof userAchievements.$inferSelect;
 export type NewUserAchievement = typeof userAchievements.$inferInsert;
 export type TradeInvite = typeof tradeInvites.$inferSelect;
 export type NewTradeInvite = typeof tradeInvites.$inferInsert;
+export type LiveTradeCompletion = typeof liveTradeCompletions.$inferSelect;
+export type NewLiveTradeCompletion = typeof liveTradeCompletions.$inferInsert;

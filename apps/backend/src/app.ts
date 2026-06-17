@@ -11,6 +11,7 @@ import { swaggerPlugin } from './plugins/swagger.js';
 import { databasePluginWrapped } from './plugins/database.js';
 import { redisPluginWrapped } from './plugins/redis.js';
 import { tradeBusPluginWrapped } from './plugins/tradeBus.js';
+import { liveTradeBusPluginWrapped } from './plugins/liveTradeBus.js';
 import { startWorker } from './services/jobs.service.js';
 import { registerJobs } from './jobs/scheduler.js';
 
@@ -24,6 +25,7 @@ import { usersRoutes } from './routes/v1/users.js';
 import { albumsRoutes } from './routes/v1/albums.js';
 import { tradeRoutes } from './routes/v1/trade.js';
 import { tradeInvitesRoutes } from './routes/v1/trade-invites.js';
+import { liveTradeRoutes } from './routes/v1/live-trade.js';
 import { sharingRoutes } from './routes/v1/sharing.js';
 import { profileRoutes } from './routes/v1/profiles.js';
 import { trustSafetyRoutes } from './routes/v1/trust-safety.js';
@@ -97,6 +99,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(databasePluginWrapped);
   await fastify.register(redisPluginWrapped);
   await fastify.register(tradeBusPluginWrapped);
+  await fastify.register(liveTradeBusPluginWrapped);
 
   // ── Background job worker ────────────────────────────────────────────────
   // Single in-process consumer drains Redis-backed job queue. Tests skip the
@@ -146,6 +149,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(albumsRoutes);
   await fastify.register(tradeRoutes);
   await fastify.register(tradeInvitesRoutes);
+  await fastify.register(liveTradeRoutes);
   await fastify.register(sharingRoutes);
   await fastify.register(profileRoutes);
   await fastify.register(trustSafetyRoutes);
