@@ -87,6 +87,11 @@ export default function StickerGrid({
   const listRef = useRef<HTMLDivElement>(null);
   const popoverAnchorRef = useRef<HTMLElement | null>(null);
   const lastClickedIndexRef = useRef<number | null>(null);
+  // Jump-rail scrubbing. Tracks the last group the finger landed on so a
+  // continuous slide only fires `jumpToGroup` + haptic when crossing into a
+  // new row, not on every move event.
+  const railRef = useRef<HTMLElement | null>(null);
+  const lastScrubGroupRef = useRef<string | null>(null);
   // Mirror of the anchor's sticker ID for rendering — the ref above is read
   // synchronously in click/long-press handlers, but a re-render is needed to
   // paint the visual range-anchor ring on the card. Both are kept in lockstep.
@@ -328,8 +333,32 @@ export default function StickerGrid({
   // FilterBar both consume space at the top of the viewport, so we offset the
   // scroll target by their combined height to avoid landing the header
   // underneath sticky chrome.
+  // Drag-scrub: as the finger slides up/down the rail, find the row whose
+  // vertical centre is closest to the touch point and jump there. Read groups
+  // off `data-group` rather than recomputing index math, so the rail stays
+  // truthy even when items wrap or scroll inside their own container.
+  function scrubAt(clientY: number) {
+    const rail = railRef.current;
+    if (!rail) return;
+    const buttons = rail.querySelectorAll<HTMLElement>('[data-group]');
+    if (buttons.length === 0) return;
+    let closest: HTMLElement | null = null;
+    let bestDist = Infinity;
+    for (const b of buttons) {
+      const r = b.getBoundingClientRect();
+      const centre = r.top + r.height / 2;
+      const d = Math.abs(centre - clientY);
+      if (d < bestDist) { bestDist = d; closest = b; }
+    }
+    const name = closest?.dataset.group;
+    if (!name || name === lastScrubGroupRef.current) return;
+    lastScrubGroupRef.current = name;
+    jumpToGroup(name, 'auto');
+    haptic('tap');
+  }
+
   const STICKY_OFFSET_PX = 56 + 80;
-  function jumpToGroup(name: string) {
+  function jumpToGroup(name: string, behavior?: ScrollBehavior) {
     const idx = headerRowIndexByGroup.get(name);
     if (idx === undefined) return;
     const targetTop = virtualizer.getVirtualItems().find((vi) => vi.index === idx)?.start
@@ -337,7 +366,7 @@ export default function StickerGrid({
       ?? 0;
     window.scrollTo({
       top: (listRef.current?.offsetTop ?? 0) + targetTop - STICKY_OFFSET_PX,
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      behavior: behavior ?? (prefersReducedMotion() ? 'auto' : 'smooth'),
     });
   }
 
@@ -682,8 +711,9 @@ export default function StickerGrid({
           — bar always wins; the rail just lives in the space below it. */}
       {railGroups.length > 1 && (
         <nav
+          ref={railRef}
           aria-label="Jump to group"
-          className="md:hidden fixed right-1 z-10 flex flex-col justify-center items-end gap-0.5"
+          className="md:hidden fixed right-0 z-10 flex flex-col justify-center items-stretch"
           style={{
             // 13rem ≈ nav (3.5rem) + sticky FilterBar at its tallest 2-row
             // wrap on narrow phones (~7rem with chips). Picking a tall
@@ -692,15 +722,27 @@ export default function StickerGrid({
             top: '13rem',
             bottom: 'calc(var(--cromo-tabbar-h) + 1rem)',
             overflowY: 'auto',
+            // Eat the gesture: with touch-action:none, dragging on the rail
+            // doesn't also scroll the page (which would fight our programmatic
+            // jumpToGroup). The page still scrolls normally everywhere else.
+            touchAction: 'none',
           }}
+          onTouchStart={(e) => {
+            lastScrubGroupRef.current = null;
+            scrubAt(e.touches[0]!.clientY);
+          }}
+          onTouchMove={(e) => scrubAt(e.touches[0]!.clientY)}
+          onTouchEnd={() => { lastScrubGroupRef.current = null; }}
+          onTouchCancel={() => { lastScrubGroupRef.current = null; }}
         >
           {railGroups.map((name: string) => (
             <button
               key={name}
               type="button"
+              data-group={name}
               onClick={() => jumpToGroup(name)}
               aria-label={`Jump to ${name}`}
-              className="rounded-l-md bg-[var(--cromo-surface)]/85 backdrop-blur border border-[var(--cromo-border)] border-r-0 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-accent)]"
+              className="flex items-center justify-end min-h-[28px] rounded-l-md bg-[var(--cromo-surface)]/85 backdrop-blur border border-[var(--cromo-border)] border-r-0 px-2 py-1 text-[11px] font-semibold tracking-wider text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-accent)] active:text-[var(--cromo-accent)]"
             >
               {name.length > 5 ? name.slice(0, 5) : name}
             </button>

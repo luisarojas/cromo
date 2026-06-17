@@ -61,6 +61,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'In selection mode, long-pressing one card and then another fills the range between them — the touch equivalent of shift-click.',
         'Trade picker quantity +/− and remove (×) buttons are larger on phones for easier thumb-tapping.',
         'After confirming a scanned sticker, the "Scan another" button reopens the camera in one tap instead of dropping back to the file-picker screen.',
+        'Album-page group jump-rail on phones uses thumb-sized rows, and you can slide a finger along it to scrub through groups without precision-tapping.',
       ],
       Fixed: [
         'iOS Safari no longer zooms in when you tap any input, textarea, or dropdown — affects login, register, settings, trade messages, and every form on the site.',
