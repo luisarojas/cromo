@@ -274,13 +274,15 @@ export default function StickerGrid({
     : 'grid-cols-6';
 
   // Mixed-row model: a virtual row is either a group header (variable, short
-  // height) or a row of up to COLS stickers. We don't let a sticker row span
-  // two groups, so a partial trailing row gets blank cells rather than mixing.
-  // The first index attached to each stickers row is the *global* sticker
-  // index (across the unmixed `stickers` array) — selection range math relies
-  // on it being a stable global index, not a row-local one.
+  // height), a team subheader within a WC group, or a row of up to COLS
+  // stickers. We don't let a sticker row span two sections — or, inside a WC
+  // group letter, two teams — so a partial trailing row gets blank cells
+  // rather than mixing. The first index attached to each stickers row is the
+  // *global* sticker index (across the unmixed `stickers` array) — selection
+  // range math relies on it being a stable global index, not a row-local one.
   type VRow =
     | { kind: 'header'; name: string }
+    | { kind: 'subheader'; name: string }
     | { kind: 'stickers'; items: Sticker[]; firstIdx: number };
 
   // Coca-Cola and Extra stickers have a team_id (so their joined groupName is
@@ -298,6 +300,13 @@ export default function StickerGrid({
     }
   };
 
+  // Team subheaders only make sense inside a WC team-group section — for
+  // Intro/FWC, Coca-Cola, and Extras the section already IS the meaningful
+  // bucket and breaking on teamName would just produce noisy per-country
+  // subheaders for stickers the user reads as a single block.
+  const sectionUsesTeamSubgroups = (s: Sticker): boolean =>
+    s.stickerType !== 'intro' && s.stickerType !== 'coca_cola_special' && s.stickerType !== 'extra';
+
   const { virtualRows, headerRowIndexByGroup } = useMemo(() => {
     const out: VRow[] = [];
     const idxByGroup = new Map<string, number>();
@@ -310,9 +319,27 @@ export default function StickerGrid({
       // Find the run length for this section.
       let j = i;
       while (j < stickers.length && sectionOf(stickers[j]!) === section) j++;
-      // Slice into COLS-sized rows.
-      for (let r = i; r < j; r += COLS) {
-        out.push({ kind: 'stickers', items: stickers.slice(r, Math.min(r + COLS, j)), firstIdx: r });
+      if (sectionUsesTeamSubgroups(stickers[i]!)) {
+        // Within a WC group letter, further break the run by teamName so each
+        // country starts on a fresh row preceded by its own subheader.
+        // Stickers come back ORDER BY page.number, which clusters teams
+        // contiguously, so a simple run-length walk is enough.
+        let k = i;
+        while (k < j) {
+          const teamName = stickers[k]!.teamName;
+          let m = k;
+          while (m < j && stickers[m]!.teamName === teamName) m++;
+          if (teamName) out.push({ kind: 'subheader', name: teamName });
+          for (let r = k; r < m; r += COLS) {
+            out.push({ kind: 'stickers', items: stickers.slice(r, Math.min(r + COLS, m)), firstIdx: r });
+          }
+          k = m;
+        }
+      } else {
+        // Slice into COLS-sized rows.
+        for (let r = i; r < j; r += COLS) {
+          out.push({ kind: 'stickers', items: stickers.slice(r, Math.min(r + COLS, j)), firstIdx: r });
+        }
       }
       i = j;
     }
@@ -323,7 +350,12 @@ export default function StickerGrid({
 
   const virtualizer = useWindowVirtualizer({
     count: virtualRows.length,
-    estimateSize: (idx) => virtualRows[idx]?.kind === 'header' ? 36 : 160,
+    estimateSize: (idx) => {
+      const kind = virtualRows[idx]?.kind;
+      if (kind === 'header') return 36;
+      if (kind === 'subheader') return 28;
+      return 160;
+    },
     overscan: 5,
     measureElement: (el) => el?.getBoundingClientRect().height ?? 160,
     scrollMargin: listRef.current?.offsetTop ?? 0,
@@ -586,6 +618,27 @@ export default function StickerGrid({
                 <h3 className="text-[11px] font-semibold uppercase tracking-widest text-[var(--cromo-fg-muted)]">
                   {row.name}
                 </h3>
+              </div>
+            );
+          }
+          if (row.kind === 'subheader') {
+            return (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+                }}
+                className="pt-2 pb-1"
+              >
+                <h4 className="text-[11px] font-medium tracking-wide text-[var(--cromo-fg-subtle)]">
+                  {row.name}
+                </h4>
               </div>
             );
           }
