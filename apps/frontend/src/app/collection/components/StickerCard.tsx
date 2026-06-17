@@ -347,6 +347,8 @@ export default function StickerCard({
 
       <div
         className={`flex items-center gap-1.5 mt-0.5 ${
+          selectionMode ? 'pl-6' : ''
+        } ${
           sticker.playerName && sticker.teamName ? '' : 'mb-1'
         }`}
       >

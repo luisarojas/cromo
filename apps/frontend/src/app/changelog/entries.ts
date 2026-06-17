@@ -57,7 +57,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Mobile menu trims primary nav links that the bottom tab bar already covers — just identity, settings, guides, and log out.',
         'Album header on phones collapses Set-default, Edit, and New-album into an overflow menu so the row no longer wraps.',
         'Album list page no longer shows the grid-density toggle on phones; the grid adapts to viewport width automatically.',
-        'Variant sheet on phones gets thumb-sized +/− buttons, swipe-to-adjust on any row, every unowned variant inline with a wishlist heart, and trade options tucked behind a per-row ⋯ menu.',
+        'Variant sheet on phones gets thumb-sized +/− buttons, swipe-to-adjust on any row, every unowned variant inline with a wishlist star, and trade options tucked behind a per-row ⋯ menu.',
         'Swipe-to-adjust in the variant sheet shows an undo toast — accidental swipes are reversible with one tap.',
         'Modals on phones open as bottom sheets (Album form, Variant picker, Report user, Trade QR share) instead of centred cards.',
         'Settings tab strip stays pinned under the navbar while you scroll, and switching tabs scrolls back to the top.',
@@ -67,6 +67,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Album-page group jump-rail on phones uses thumb-sized rows, and you can slide a finger along it to scrub through groups without precision-tapping.',
         'Stats page — Top Tradeable Duplicates now shows a plain count and honours your Duplicates setting (all-variants vs same-variant only).',
         'Stats page — Favourites, country rows, top duplicates, and rare-pull tiers are clickable and drop you into the matching tab + filter on the album view.',
+        'Album progress bar and All/Have/Missing/Duplicates tabs stay pinned at the top of the album view as you scroll the grid.',
       ],
       Fixed: [
         'iOS Safari no longer zooms in when you tap any input, textarea, or dropdown — affects login, register, settings, trade messages, and every form on the site.',
@@ -76,6 +77,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Album list cards expose Set-default and Edit buttons directly on phones instead of hiding them behind a hover state.',
         'Remove (×) button on staged scan images is visible on phones.',
         'Toast notifications for successful mass actions on the album page are no longer styled as errors.',
+        'Selection-mode checkbox on sticker tiles no longer covers the album code.',
+        'Filter dropdown options keep their original order instead of jumping to the top as you check them.',
       ],
       Removed: [
         '"Focus on these" card on the album page.',

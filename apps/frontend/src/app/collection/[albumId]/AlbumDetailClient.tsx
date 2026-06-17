@@ -901,25 +901,27 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           </div>
         )}
 
-        <StatsBar
-          stats={computedStats}
-          loading={loading}
-          onViewDetailedStats={
-            supportsDetailedStats
-              ? () => setTab(tab === 'stats' ? 'all' : 'stats')
-              : undefined
-          }
-          isViewingDetailedStats={tab === 'stats'}
-        />
+        {/* Pin progress + filter bar + tabs to the top while scrolling the
+            (often very long) sticker grid. Collectors flip filters and tab
+            into Have/Missing constantly mid-scan; having to scroll-to-top
+            to do either is friction. NavBar is h-14 (56px) so top-14 keeps
+            this group flush beneath it. Negative side margins + matching
+            padding cancel the parent gutter so the background spans full
+            width. Progress bar is compact (single row, thin bar) to keep
+            the sticky region small on mobile. */}
+        <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 bg-[var(--cromo-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--cromo-bg)]/70 flex flex-col gap-2">
+          <StatsBar
+            stats={computedStats}
+            loading={loading}
+            onViewDetailedStats={
+              supportsDetailedStats
+                ? () => setTab(tab === 'stats' ? 'all' : 'stats')
+                : undefined
+            }
+            isViewingDetailedStats={tab === 'stats'}
+          />
 
-        {tab !== 'stats' && (
-          // Pin the filter bar to the top while scrolling the (often very long)
-          // sticker grid — collectors flip filters constantly mid-scan and
-          // having them re-scroll-to-top to flip a chip is friction. The
-          // NavBar is h-14 (56px), so top-14 keeps the filter bar flush
-          // under it. Negative side margins + matching padding cancel the
-          // parent container's gutters so the background spans full width.
-          <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 bg-[var(--cromo-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--cromo-bg)]/70">
+          {tab !== 'stats' && (
             <FilterBar
               filters={filters}
               onChange={setFilters}
@@ -928,10 +930,9 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               typeOptions={filterOptions.typeOptions}
               variantOptions={filterOptions.variantOptions}
             />
-          </div>
-        )}
+          )}
 
-        {tab !== 'stats' && (
+          {tab !== 'stats' && (
         <div className="flex items-center gap-1 border-b border-[var(--cromo-border)] overflow-x-auto -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TABS.map(({ id, label }) => (
             <button
@@ -1022,7 +1023,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             </span>
           </button>
         </div>
-        )}
+          )}
+        </div>
 
         {!loading && hasActiveFilter && tab !== 'stats' && (
           <p className="text-xs text-[var(--cromo-fg-muted)]">

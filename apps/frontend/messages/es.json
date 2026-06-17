@@ -547,7 +547,9 @@
   },
   "statsBar": {
     "backToAlbum": "Volver al álbum",
+    "backToAlbumShort": "Álbum",
     "viewDetailedStats": "Ver estadísticas detalladas",
+    "viewDetailedStatsShort": "Stats",
     "collectionProgress": "Progreso de la colección"
   },
   "albumStats": {

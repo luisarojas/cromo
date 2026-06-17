@@ -547,7 +547,9 @@
   },
   "statsBar": {
     "backToAlbum": "Back to album",
+    "backToAlbumShort": "Album",
     "viewDetailedStats": "View detailed stats",
+    "viewDetailedStatsShort": "Stats",
     "collectionProgress": "Collection progress"
   },
   "albumStats": {

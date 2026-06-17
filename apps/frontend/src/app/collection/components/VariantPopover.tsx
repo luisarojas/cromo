@@ -10,7 +10,7 @@ import {
 import { VARIANT_META, compareVariantTypes, isBaseVariant, variantLabel, variantRarity, variantSwatch } from './variantMeta';
 import { useAlbumsStore } from '@/store/albums';
 import { albumDisplayName } from '@/lib/api';
-import { HeartIcon } from '@/components/HeartIcon';
+import { StarIcon } from '@/components/StarIcon';
 import { haptic } from '@/lib/haptics';
 import { useClickOutside } from '@/lib/useClickOutside';
 import { useToast } from '@/components/ToastProvider';
@@ -622,11 +622,11 @@ export default function VariantPopover({
                         title={wanted ? 'Remove from wishlist' : 'Add to wishlist'}
                         className={`flex h-11 w-11 items-center justify-center rounded-md transition-colors disabled:opacity-50 ${
                           wanted
-                            ? 'text-[var(--cromo-danger-text)] bg-[var(--cromo-danger-soft)]'
+                            ? 'text-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)]'
                             : 'text-[var(--cromo-fg-subtle)] hover:bg-[var(--cromo-surface)]'
                         }`}
                       >
-                        <HeartIcon filled={wanted} className="w-5 h-5" />
+                        <StarIcon filled={wanted} className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => { haptic('tap'); handleAddNew(v.id, v.variantType); }}

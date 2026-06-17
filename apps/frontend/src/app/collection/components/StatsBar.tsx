@@ -15,43 +15,44 @@ export default function StatsBar({ stats, loading, onViewDetailedStats, isViewin
   const pct = stats?.percentage ?? 0;
 
   return (
-    <div className="flex flex-col gap-3 bg-[var(--cromo-surface-2)] border border-[var(--cromo-border)] rounded-xl p-4">
+    <div className="flex items-center gap-3">
+      <span className="hidden sm:inline text-xs font-medium text-[var(--cromo-fg-muted)] shrink-0">
+        {t('collectionProgress')}
+      </span>
+      <div className="flex-1 min-w-0 h-1.5 rounded-full bg-[var(--cromo-surface)] overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[var(--cromo-success)] transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs font-semibold text-[var(--cromo-fg)] tabular-nums shrink-0">
+        {loading ? '…' : `${pct.toFixed(1)}%`}
+      </span>
       {onViewDetailedStats && (
         <button
           type="button"
           onClick={onViewDetailedStats}
-          className="self-end inline-flex items-center gap-1.5 rounded-full bg-[var(--cromo-accent-soft)] px-3.5 py-1.5 text-sm font-semibold text-[var(--cromo-accent)] transition hover:opacity-90"
+          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-[var(--cromo-accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--cromo-accent)] transition hover:opacity-90"
         >
           {isViewingDetailedStats ? (
             <>
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M12 5l-5 5 5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {t('backToAlbum')}
+              <span className="hidden sm:inline">{t('backToAlbum')}</span>
+              <span className="sm:hidden">{t('backToAlbumShort')}</span>
             </>
           ) : (
             <>
-              {t('viewDetailedStats')}
-              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+              <span className="hidden sm:inline">{t('viewDetailedStats')}</span>
+              <span className="sm:hidden">{t('viewDetailedStatsShort')}</span>
+              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M8 5l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </>
           )}
         </button>
       )}
-
-      <div>
-        <div className="flex items-center justify-between text-xs text-[var(--cromo-fg-muted)] mb-1">
-          <span>{t('collectionProgress')}</span>
-          <span>{loading ? '…' : `${pct.toFixed(1)}%`}</span>
-        </div>
-        <div className="h-2.5 w-full rounded-full bg-[var(--cromo-surface)] overflow-hidden">
-          <div
-            className="h-full rounded-full bg-[var(--cromo-success)] transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
     </div>
   );
 }

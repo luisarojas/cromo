@@ -60,15 +60,9 @@ export default function MultiSelect({
     }
   };
 
-  const filteredOptions = (search
+  const filteredOptions = search
     ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options
-  ).slice().sort((a, b) => {
-    const aChecked = value.includes(a.value);
-    const bChecked = value.includes(b.value);
-    if (aChecked === bChecked) return 0;
-    return aChecked ? -1 : 1;
-  });
+    : options;
 
   const selectedOption = value.length === 1 ? options.find((o) => o.value === value[0]) : null;
 
