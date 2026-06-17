@@ -13,6 +13,7 @@ import { albumDisplayName } from '@/lib/api';
 import { HeartIcon } from '@/components/HeartIcon';
 import { haptic } from '@/lib/haptics';
 import { useClickOutside } from '@/lib/useClickOutside';
+import { useToast } from '@/components/ToastProvider';
 
 export interface OwnedVariantEntry {
   variantId: string;
@@ -110,22 +111,8 @@ export default function VariantPopover({
     return () => { cancelled = true; };
   }, [sticker.albumCode, sticker.id, token]);
 
-  // Close on outside click / Esc.
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    const handleDown = (e: MouseEvent) => {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', handleDown);
-    return () => {
-      document.removeEventListener('mousedown', handleDown);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [onClose]);
+  // Close on outside click / Esc — shared hook covers mousedown + touchstart + Escape.
+  useClickOutside(ref, onClose, true);
 
   // Position the popover near the anchor, flipping above when space below is tight
   const spaceBelow = window.innerHeight - anchorRect.bottom - 14;
@@ -791,6 +778,26 @@ function OwnedVariantRow({
   const committedRef = useRef(false);
   const [dragX, setDragX] = useState(0);
   const swipeEnabled = isSheet && !busy;
+  const { addToast } = useToast();
+
+  // Swipe is irreversible without an explicit undo: 60px on a 390px viewport
+  // is ~15% of width, so an accidental commit during a vertical-ish scroll is
+  // plausible. Tap +/− is intentional and skips the toast.
+  function commitSwipe(delta: 1 | -1) {
+    committedRef.current = true;
+    haptic('tap');
+    onAdjust(delta);
+    addToast(
+      delta === 1
+        ? `+1 ${variantLabel(variantType)}`
+        : `−1 ${variantLabel(variantType)}`,
+      {
+        type: delta === 1 ? 'success' : 'info',
+        action: { label: 'Undo', onClick: () => onAdjust(delta === 1 ? -1 : 1) },
+        durationMs: 5000,
+      },
+    );
+  }
 
   function onTouchStart(e: React.TouchEvent) {
     if (!swipeEnabled) return;
@@ -820,13 +827,9 @@ function OwnedVariantRow({
     e.stopPropagation();
     if (!swipeStartRef.current) { setDragX(0); return; }
     if (dragX >= ROW_SWIPE_THRESHOLD) {
-      committedRef.current = true;
-      haptic('tap');
-      onAdjust(1);
+      commitSwipe(1);
     } else if (dragX <= -ROW_SWIPE_THRESHOLD) {
-      committedRef.current = true;
-      haptic('tap');
-      onAdjust(-1);
+      commitSwipe(-1);
     }
     swipeStartRef.current = null;
     setDragX(0);
@@ -834,10 +837,26 @@ function OwnedVariantRow({
 
   const swipeIntent = dragX > 10 ? 'add' : dragX < -10 ? 'remove' : null;
 
-  // Trade-flag menu (sheet only). Desktop keeps the inline chips.
+  // Trade-flag menu (sheet only). Desktop keeps the inline chips. The menu
+  // flips up when there isn't ~140px below the trigger — common when the row
+  // is at the bottom of a tall sheet, where a downward menu would clip past
+  // the safe-area inset.
   const [tradeMenuOpen, setTradeMenuOpen] = useState(false);
+  const [tradeMenuFlipUp, setTradeMenuFlipUp] = useState(false);
   const tradeMenuRef = useRef<HTMLDivElement>(null);
+  const tradeTriggerRef = useRef<HTMLButtonElement>(null);
   useClickOutside(tradeMenuRef, () => setTradeMenuOpen(false), tradeMenuOpen);
+  function toggleTradeMenu() {
+    setTradeMenuOpen((open) => {
+      if (open) return false;
+      const rect = tradeTriggerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const spaceBelow = window.innerHeight - rect.bottom;
+        setTradeMenuFlipUp(spaceBelow < 140);
+      }
+      return true;
+    });
+  }
 
   // ─── Sheet (mobile) layout ────────────────────────────────────────────────
   if (isSheet) {
@@ -872,10 +891,30 @@ function OwnedVariantRow({
           <div className="text-sm font-medium text-[var(--cromo-fg)] truncate leading-tight">
             {variantLabel(variantType)}
           </div>
-          {/* Listed/Unlisted state surfaced inline since the chips moved into the ⋯ menu */}
+          {/* Listed/Unlisted/Forced state surfaced inline since the chips
+              moved into the ⋯ menu. Coloured icon + matching text so the state
+              reads at a glance: red eye-closed = hidden, green double-arrow =
+              forced, neutral eye-open = listed. */}
           {onSetTradeFlag && (
-            <div className="text-[10px] text-[var(--cromo-fg-subtle)] leading-tight">
-              {entry.tradeHidden ? 'Hidden from trades' : entry.tradeForced ? 'Forced offer' : 'Listed for trade'}
+            <div
+              className={`flex items-center gap-1 text-[11px] leading-tight ${
+                entry.tradeHidden
+                  ? 'text-[var(--cromo-danger-text)]'
+                  : entry.tradeForced
+                    ? 'text-[var(--cromo-success-text)]'
+                    : 'text-[var(--cromo-fg-subtle)]'
+              }`}
+            >
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                {entry.tradeHidden ? (
+                  <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.515a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                ) : entry.tradeForced ? (
+                  <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                ) : (
+                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                )}
+              </svg>
+              {entry.tradeHidden ? 'Hidden' : entry.tradeForced ? 'Forced offer' : 'Listed'}
             </div>
           )}
         </div>
@@ -901,8 +940,9 @@ function OwnedVariantRow({
         {onSetTradeFlag && (
           <div ref={tradeMenuRef} className="relative shrink-0">
             <button
+              ref={tradeTriggerRef}
               type="button"
-              onClick={(e) => { e.stopPropagation(); setTradeMenuOpen((v) => !v); }}
+              onClick={(e) => { e.stopPropagation(); toggleTradeMenu(); }}
               aria-haspopup="menu"
               aria-expanded={tradeMenuOpen}
               aria-label={`Trade options for ${variantLabel(variantType)}`}
@@ -915,7 +955,9 @@ function OwnedVariantRow({
             {tradeMenuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full mt-1 min-w-[12rem] z-30 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg py-1"
+                className={`absolute right-0 min-w-[12rem] z-30 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg py-1 ${
+                  tradeMenuFlipUp ? 'bottom-full mb-1' : 'top-full mt-1'
+                }`}
               >
                 <button
                   role="menuitem"
