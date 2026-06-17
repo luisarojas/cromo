@@ -42,6 +42,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
         'Trade in person — generate a QR code from the Trades page; the other collector scans it and lands straight in the propose-trade flow with you as the partner.',
         'One-tap clear (×) button in every search bar.',
+        'Double-tap a sticker tile on mobile to favourite (or un-favourite) it without opening the variant sheet.',
       ],
       Changed: [
         'Renamed the 1-of-1 Black rarity tier to "Unique".',

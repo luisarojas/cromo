@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
+import { haptic } from '@/lib/haptics';
 import { HeartIcon } from '@/components/HeartIcon';
 import { compareVariantTypes, variantRarity, variantShort, variantSwatch } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
@@ -50,6 +51,13 @@ const SWIPE_THRESHOLD = 60;
 // Cap the visual translate so the card doesn't fly across the grid.
 const SWIPE_MAX = 90;
 
+// Touch-only double-tap to (un)favourite. We defer the single-tap action by
+// this window so a second tap can preempt it; the cost is a ~280ms latency
+// before the popover opens on touch, which is the standard mobile tradeoff
+// for any gesture that overloads a tap.
+const DOUBLE_TAP_WINDOW_MS = 280;
+const DOUBLE_TAP_TOLERANCE_PX = 30;
+
 const TYPE_COLORS: Record<string, string> = {
   player: 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]',
   badge: 'bg-[var(--cromo-tier-very-rare-soft)] text-[var(--cromo-tier-very-rare)]',
@@ -96,12 +104,21 @@ export default function StickerCard({
   // touchend, or commit. We treat the fire as the click-suppressing event
   // (same channel as a committed swipe) so the popover doesn't *also* open.
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Double-tap bookkeeping. `lastTapRef` is the previous tap's position/time
+  // so we can check proximity. `pendingTapTimerRef` runs the deferred single-
+  // tap action — cancelled when a second tap turns it into a double-tap.
+  const lastTapRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const pendingTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [dragX, setDragX] = useState(0);
   const gesturesEnabled = !!onSwipeAdjust && !selectionMode;
   // Long-press stays armed in selection mode so the grid can use it for
   // range-extend (touch equivalent of shift+click). The grid decides what the
   // gesture means based on whether an anchor is already set.
   const longPressEnabled = !!onLongPress;
+  // Double-tap is the touch equivalent of clicking the heart icon. Off in
+  // selection mode so two quick taps don't toggle-then-untoggle the cell.
+  const doubleTapEnabled = !!onToggleFavourite && !selectionMode;
 
   function cancelLongPress() {
     if (longPressTimerRef.current) {
@@ -110,12 +127,27 @@ export default function StickerCard({
     }
   }
 
+  function cancelPendingTap() {
+    if (pendingTapTimerRef.current) {
+      clearTimeout(pendingTapTimerRef.current);
+      pendingTapTimerRef.current = null;
+    }
+  }
+
+  useEffect(() => () => {
+    cancelLongPress();
+    cancelPendingTap();
+  }, []);
+
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0]!;
-    if (gesturesEnabled || longPressEnabled) {
+    if (gesturesEnabled || longPressEnabled || doubleTapEnabled) {
       startRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
       committedRef.current = false;
     }
+    // A new touch supersedes any pending single-tap timer — otherwise the
+    // popover could open mid-long-press or after the user starts a swipe.
+    cancelPendingTap();
     if (longPressEnabled) {
       cancelLongPress();
       longPressTimerRef.current = setTimeout(() => {
@@ -144,25 +176,68 @@ export default function StickerCard({
   }
   function onTouchEnd() {
     cancelLongPress();
-    if (!startRef.current) {
-      setDragX(0);
-      return;
-    }
+    const start = startRef.current;
+    startRef.current = null;
+    setDragX(0);
+    if (!start) return;
     if (gesturesEnabled && dragX >= SWIPE_THRESHOLD) {
       committedRef.current = true;
       onSwipeAdjust?.('right');
-    } else if (gesturesEnabled && dragX <= -SWIPE_THRESHOLD) {
+      lastTapRef.current = null;
+      return;
+    }
+    if (gesturesEnabled && dragX <= -SWIPE_THRESHOLD) {
       committedRef.current = true;
       onSwipeAdjust?.('left');
+      lastTapRef.current = null;
+      return;
     }
-    startRef.current = null;
-    setDragX(0);
+    // Long-press already fired its action and set committedRef — don't treat
+    // the release as a tap, and don't seed the double-tap window.
+    if (committedRef.current) {
+      lastTapRef.current = null;
+      return;
+    }
+    if (!doubleTapEnabled) return;
+    const now = Date.now();
+    const last = lastTapRef.current;
+    if (
+      last &&
+      now - last.t < DOUBLE_TAP_WINDOW_MS &&
+      Math.abs(start.x - last.x) < DOUBLE_TAP_TOLERANCE_PX &&
+      Math.abs(start.y - last.y) < DOUBLE_TAP_TOLERANCE_PX
+    ) {
+      cancelPendingTap();
+      committedRef.current = true;
+      lastTapRef.current = null;
+      haptic('success');
+      onToggleFavourite?.();
+      return;
+    }
+    // First tap of a potential pair. Swallow the synthetic click and schedule
+    // the popover-open after the double-tap window; a second tap inside that
+    // window cancels the timer above.
+    lastTapRef.current = { x: start.x, y: start.y, t: now };
+    committedRef.current = true;
+    cancelPendingTap();
+    pendingTapTimerRef.current = setTimeout(() => {
+      pendingTapTimerRef.current = null;
+      lastTapRef.current = null;
+      const anchor = buttonRef.current;
+      if (!anchor) return;
+      if (selectionMode && onToggleSelect) {
+        onToggleSelect(false);
+      } else if (!selectionMode) {
+        onOpenPopover(anchor);
+      }
+    }, DOUBLE_TAP_WINDOW_MS);
   }
 
   const swipeIntent = dragX > 10 ? 'add' : dragX < -10 ? 'remove' : null;
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={(e) => {
         // If a swipe just committed, swallow the click so the popover doesn't open.
@@ -180,7 +255,7 @@ export default function StickerCard({
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      onTouchCancel={() => { cancelLongPress(); startRef.current = null; setDragX(0); }}
+      onTouchCancel={() => { cancelLongPress(); cancelPendingTap(); lastTapRef.current = null; startRef.current = null; setDragX(0); }}
       onContextMenu={onContextMenu ? (e) => {
         e.preventDefault();
         onContextMenu(e.clientX, e.clientY);
