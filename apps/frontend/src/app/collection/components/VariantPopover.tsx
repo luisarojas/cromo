@@ -346,7 +346,11 @@ export default function VariantPopover({
       style={
         presentation === 'sheet'
           ? {
-              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+              // p-3 sets a 0.75rem bottom padding; the inline style overrides it,
+              // so add the safe-area inset on top of an explicit gutter instead
+              // of replacing it — otherwise non-notched devices end up with 0px
+              // padding-bottom and the last line sits flush against the edge.
+              paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))',
               transform: sheetDragX !== 0 ? `translateX(${sheetDragX}px)` : undefined,
               transition: sheetSnapping ? 'transform 120ms ease-out' : 'none',
               opacity: Math.max(0.6, 1 - Math.abs(sheetDragX) / 240),
