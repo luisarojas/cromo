@@ -93,7 +93,10 @@ export default function StickerCard({
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragX, setDragX] = useState(0);
   const gesturesEnabled = !!onSwipeAdjust && !selectionMode;
-  const longPressEnabled = !!onLongPress && !selectionMode;
+  // Long-press stays armed in selection mode so the grid can use it for
+  // range-extend (touch equivalent of shift+click). The grid decides what the
+  // gesture means based on whether an anchor is already set.
+  const longPressEnabled = !!onLongPress;
 
   function cancelLongPress() {
     if (longPressTimerRef.current) {

@@ -594,11 +594,28 @@ export default function StickerGrid({
                         playerName: sticker.playerName,
                       }) : undefined}
                       onLongPress={() => {
-                        // Owned → flip to selection mode (caller pre-selects).
-                        // Unowned → toggle wishlist on the album's default base
-                        // variant if known. Either way, give the user a haptic
-                        // pulse so the gesture feels deliberate.
+                        // Three meanings for long-press, branched on context:
+                        //  1. In selection mode + an anchor exists → range
+                        //     select from anchor to here. Touch equivalent
+                        //     of shift+click on desktop.
+                        //  2. Not in selection mode, owned card → enter
+                        //     selection mode with this card pre-selected.
+                        //  3. Not in selection mode, unowned card with a
+                        //     known base variant → toggle wishlist.
                         haptic('success');
+                        if (selectionMode) {
+                          const currentIndex = startIdx + rowStickers.indexOf(sticker);
+                          if (lastClickedIndexRef.current !== null && onRangeSelect) {
+                            const from = Math.min(lastClickedIndexRef.current, currentIndex);
+                            const to = Math.max(lastClickedIndexRef.current, currentIndex);
+                            onRangeSelect(stickers.slice(from, to + 1).map((s) => s.id));
+                          } else if (onToggleSelect) {
+                            // No anchor yet — drop one and select this card.
+                            lastClickedIndexRef.current = currentIndex;
+                            onToggleSelect(sticker.id);
+                          }
+                          return;
+                        }
                         if (totalQuantity > 0) {
                           onRequestSelectionMode?.(sticker.id);
                         } else if (sticker.baseVariantId) {
