@@ -55,6 +55,7 @@ import VariantPickerModal from '../components/VariantPickerModal';
 import type { OwnedVariantEntry } from '../components/VariantPopover';
 import Scanner from '@/app/scan/Scanner';
 import ShareProfileButton from '@/components/ShareProfileButton';
+import ProgressShareCard from '@/components/ProgressShareCard';
 import { buildAlbumExportText } from '@/lib/profileExport';
 
 type OwnedMap = Map<string, OwnedVariantMap>;
@@ -175,6 +176,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [massWorking, setMassWorking] = useState(false);
   const [variantPicker, setVariantPicker] = useState<'add' | 'remove' | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [showShareCard, setShowShareCard] = useState(false);
   // Overflow menu for the mobile album header. Secondary actions (set default,
   // edit, new album) collapse behind a "⋯" tap target on small screens so the
   // primary Scan + Share buttons aren't pushed off-row.
@@ -726,6 +728,16 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       onClick: runAndClose(() => setEditingAlbum(activeAlbum)),
       variant: 'neutral',
     });
+    if (computedStats) {
+      xs.push({
+        key: 'share-progress',
+        label: t('shareProgress'),
+        title: t('shareProgressTitle'),
+        icon: <ShareIcon />,
+        onClick: runAndClose(() => setShowShareCard(true)),
+        variant: 'accent',
+      });
+    }
     if (albums.length < 10) {
       xs.push({
         key: 'new-album',
@@ -736,7 +748,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       });
     }
     return xs;
-  }, [activeAlbum, albums.length, handleSetDefault, runAndClose, t]);
+  }, [activeAlbum, albums.length, computedStats, handleSetDefault, runAndClose, t]);
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'all', label: t('tabAll') },
@@ -1169,6 +1181,22 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         percentage={computedStats?.percentage ?? 0}
       />
 
+      {showShareCard && activeAlbum && computedStats && user && (
+        <ProgressShareCard
+          collectorName={user.displayName ?? `@${user.username}`}
+          username={user.username}
+          albumLabel={albumDisplayName(activeAlbum)}
+          stats={{
+            owned: computedStats.owned,
+            total: computedStats.total,
+            percentage: computedStats.percentage,
+            missing: computedStats.missing,
+            duplicates: computedStats.duplicates,
+          }}
+          onClose={() => setShowShareCard(false)}
+        />
+      )}
+
       {showScanner && activeAlbum && (
         <div
           className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-0 sm:p-4 overflow-y-auto"
@@ -1315,6 +1343,15 @@ function PlusIcon() {
   return (
     <svg className="w-full h-full" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
       <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+    </svg>
+  );
+}
+function ShareIcon() {
+  return (
+    <svg className="w-full h-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" y1="2" x2="12" y2="15" />
     </svg>
   );
 }

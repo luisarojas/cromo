@@ -38,7 +38,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       Added: [
         'Spanish (Español) language support — pick your language from the footer.',
         'Site-wide SEO — sitemap, robots, OpenGraph cards, hreflang for EN/ES, and a structured Organization profile for search engines.',
-        'Share progress — generate a 1080×1080 card of your album completion to post on Instagram, TikTok, or WhatsApp.',
+        'Share progress — from any album, generate a 1080×1080 card of your completion to post on Instagram, TikTok, or WhatsApp.',
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
         'Trade in person — generate a QR code from the Trades page; the other collector scans it and lands straight in the propose-trade flow with you as the partner.',
         'Live trade — start a shared in-person trade session with someone who doesn\'t have a Cromo account. Share a 6-digit code, link, or QR; both sides stage stickers, lock in, and the host commits the swap to their album with a 60-second undo window. A suggested split surfaces automatically from your lists. Completed live trades show in My Trades alongside your regular trade history.',
@@ -79,6 +79,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       ],
       Removed: [
         '"Focus on these" card on the album page.',
+        'Dashboard summary stats (Total/Owned/Missing/Duplicates) and the large overall progress bar — the per-album cards below already cover the same ground without misrepresenting multi-album collections.',
       ],
     },
   },

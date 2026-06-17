@@ -15,10 +15,9 @@ import {
 } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useAlbumsStore } from '@/store/albums';
-import { Alert, Badge, Button, Card, PageHeader, Stat } from '@/components/ui';
+import { Alert, Badge, Button, Card, PageHeader } from '@/components/ui';
 import { readLastScan, clearLastScan, readStreak, type LastScan } from '@/lib/lastScan';
 import { subscribeSync } from '@/lib/syncBus';
-import ProgressShareCard from '@/components/ProgressShareCard';
 
 // New users on the dashboard who have never scanned see a one-time card that
 // explains we'll ask for camera access on first scan. Browsers only prompt in
@@ -64,7 +63,6 @@ export default function DashboardPage() {
   const [lastScan, setLastScan] = useState<LastScan | null>(null);
   const [showCameraPrimer, setShowCameraPrimer] = useState(false);
   const [streak, setStreak] = useState(0);
-  const [showShareCard, setShowShareCard] = useState(false);
 
   useEffect(() => {
     setLastScan(readLastScan());
@@ -204,14 +202,6 @@ export default function DashboardPage() {
 
   const displayName = user?.displayName ?? `@${user?.username}`;
   const defaultAlbum = albums.find((a) => a.isDefault) ?? albums[0] ?? null;
-  const defaultAlbumStats = defaultAlbum ? albumStats.get(defaultAlbum.id) : null;
-
-  let insightText: string | null = null;
-  if (defaultAlbum && defaultAlbumStats) {
-    insightText = defaultAlbumStats.missing === 0
-      ? t('insightComplete', { album: albumDisplayName(defaultAlbum) })
-      : t('insightLeft', { count: defaultAlbumStats.missing, album: albumDisplayName(defaultAlbum) });
-  }
 
   const allSelected = displayedAlbums.length > 0 && selectedIds.size === displayedAlbums.length;
 
@@ -235,83 +225,6 @@ export default function DashboardPage() {
           <div className="mb-6">
             <Alert tone="danger">{error}</Alert>
           </div>
-        )}
-
-        {/* Aggregate stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          {loading
-            ? [...Array(4)].map((_, i) => (
-                <div key={i} className="h-24 rounded-card bg-[var(--cromo-surface-2)] animate-pulse" />
-              ))
-            : (
-              <>
-                <StatLink albumId={defaultAlbum?.id} tab="all">
-                  <Stat label={t('statTotal')} value={defaultAlbumStats?.total ?? 0} tone="chrome" />
-                </StatLink>
-                <StatLink albumId={defaultAlbum?.id} tab="have">
-                  <Stat label={t('statOwned')} value={defaultAlbumStats?.owned ?? 0} tone="success" />
-                </StatLink>
-                <StatLink albumId={defaultAlbum?.id} tab="missing">
-                  <Stat label={t('statMissing')} value={defaultAlbumStats?.missing ?? 0} />
-                </StatLink>
-                <StatLink albumId={defaultAlbum?.id} tab="duplicates">
-                  <Stat label={t('statDuplicates')} value={defaultAlbumStats?.duplicates ?? 0} tone="accent" />
-                </StatLink>
-              </>
-            )}
-        </div>
-
-        {/* Overall progress + insight */}
-        {defaultAlbumStats && !loading && (
-          <Card className="mb-8">
-            <div className="flex justify-between text-xs text-[var(--cromo-fg-muted)] mb-2">
-              <span className="font-semibold uppercase tracking-wider">{albumDisplayName(defaultAlbum!)}</span>
-              <span className="font-mono text-[var(--cromo-fg)]">{defaultAlbumStats.percentage.toFixed(1)}%</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-[var(--cromo-surface-2)] overflow-hidden mb-2">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${
-                  defaultAlbumStats.percentage >= 100
-                    ? 'cromo-chrome-fill'
-                    : 'bg-[var(--cromo-accent)]'
-                }`}
-                style={{ width: `${defaultAlbumStats.percentage}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              {insightText && (
-                <p className="text-xs text-[var(--cromo-fg-subtle)]">{insightText}</p>
-              )}
-              <button
-                onClick={() => setShowShareCard(true)}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)] transition-colors"
-                aria-label={t('shareProgressAria')}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>
-                {t('shareProgress')}
-              </button>
-            </div>
-          </Card>
-        )}
-
-        {showShareCard && defaultAlbum && defaultAlbumStats && user && (
-          <ProgressShareCard
-            collectorName={user.displayName ?? `@${user.username}`}
-            username={user.username}
-            albumLabel={albumDisplayName(defaultAlbum)}
-            stats={{
-              owned: defaultAlbumStats.owned,
-              total: defaultAlbumStats.total,
-              percentage: defaultAlbumStats.percentage,
-              missing: defaultAlbumStats.missing,
-              duplicates: defaultAlbumStats.duplicates,
-            }}
-            onClose={() => setShowShareCard(false)}
-          />
         )}
 
         {/* Albums */}
@@ -687,26 +600,6 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function StatLink({
-  albumId,
-  tab,
-  children,
-}: {
-  albumId: string | undefined;
-  tab: 'all' | 'have' | 'missing' | 'duplicates';
-  children: React.ReactNode;
-}) {
-  if (!albumId) return <>{children}</>;
-  return (
-    <Link
-      href={`/collection/${albumId}?tab=${tab}`}
-      className="block rounded-card transition-transform hover:-translate-y-0.5 hover:shadow-cromo focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)]"
-    >
-      {children}
-    </Link>
   );
 }
 

@@ -152,14 +152,6 @@
     "addFirstAlbumPrompt": "Add your first album to start tracking",
     "loading": "Loading…",
     "failedToLoad": "Failed to load",
-    "statTotal": "Total",
-    "statOwned": "Owned",
-    "statMissing": "Missing",
-    "statDuplicates": "Duplicates",
-    "insightComplete": "You've completed {album}!",
-    "insightLeft": "{count, plural, one {# sticker} other {# stickers}} left to complete {album}",
-    "shareProgressAria": "Share progress card",
-    "shareProgress": "Share progress",
     "albumsHeading": "Albums",
     "cancel": "Cancel",
     "select": "Select",
@@ -451,7 +443,9 @@
     "updateFlagsFailedToast": "Failed to update trade flags. Please try again.",
     "densityAria": "Grid density: {count} columns. Tap to change.",
     "densityTitle": "Density: {count} columns",
-    "moreActions": "More album actions"
+    "moreActions": "More album actions",
+    "shareProgress": "Share progress",
+    "shareProgressTitle": "Share a card with your album completion"
   },
   "albumForm": {
     "createTitle": "Add New Album",

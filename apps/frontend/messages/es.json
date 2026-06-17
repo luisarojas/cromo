@@ -152,14 +152,6 @@
     "addFirstAlbumPrompt": "Agrega tu primer álbum para empezar",
     "loading": "Cargando…",
     "failedToLoad": "Error al cargar",
-    "statTotal": "Total",
-    "statOwned": "Tengo",
-    "statMissing": "Faltan",
-    "statDuplicates": "Repetidos",
-    "insightComplete": "¡Completaste {album}!",
-    "insightLeft": "{count, plural, one {Falta # cromo} other {Faltan # cromos}} para completar {album}",
-    "shareProgressAria": "Compartir tarjeta de progreso",
-    "shareProgress": "Compartir progreso",
     "albumsHeading": "Álbumes",
     "cancel": "Cancelar",
     "select": "Seleccionar",
@@ -451,7 +443,9 @@
     "updateFlagsFailedToast": "No se pudieron actualizar los marcadores. Intenta de nuevo.",
     "densityAria": "Densidad de cuadrícula: {count} columnas. Toca para cambiar.",
     "densityTitle": "Densidad: {count} columnas",
-    "moreActions": "Más acciones del álbum"
+    "moreActions": "Más acciones del álbum",
+    "shareProgress": "Compartir progreso",
+    "shareProgressTitle": "Comparte una tarjeta con el avance de tu álbum"
   },
   "albumForm": {
     "createTitle": "Añadir nuevo álbum",
