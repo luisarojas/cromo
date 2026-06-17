@@ -90,14 +90,11 @@ export default function AchievementBadges({ username, className }: Props) {
           return (
             <li
               key={def.key}
-              className="w-9 sm:w-20 rounded-md border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent)]/5 p-1 sm:px-1.5 sm:py-1.5 flex flex-col items-center justify-center text-center gap-1"
+              className="w-9 h-9 rounded-md border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent)]/5 flex items-center justify-center"
               title={`${localizedTitle(def, locale)} · ${formatDate(unlock.unlockedAt, locale)}\n${localizedDescription(def, locale)}`}
             >
               <span className="text-lg leading-none" aria-hidden>
                 {def.emoji}
-              </span>
-              <span className="hidden sm:block text-[10px] font-medium text-[var(--cromo-fg)] leading-tight line-clamp-2 overflow-hidden">
-                {localizedTitle(def, locale)}
               </span>
             </li>
           );
@@ -105,14 +102,11 @@ export default function AchievementBadges({ username, className }: Props) {
         {lockedDefs.map((def) => (
           <li
             key={def.key}
-            className="w-9 sm:w-20 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-1 sm:px-1.5 sm:py-1.5 flex flex-col items-center justify-center text-center gap-1 opacity-50"
+            className="w-9 h-9 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] flex items-center justify-center opacity-50"
             title={`${localizedTitle(def, locale)}\n${localizedDescription(def, locale)}`}
           >
             <span className="text-lg leading-none grayscale" aria-hidden>
               {def.emoji}
-            </span>
-            <span className="hidden sm:block text-[10px] font-medium text-[var(--cromo-fg-muted)] leading-tight line-clamp-2 overflow-hidden">
-              {localizedTitle(def, locale)}
             </span>
           </li>
         ))}

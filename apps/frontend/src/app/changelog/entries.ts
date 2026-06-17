@@ -68,6 +68,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Stats page — Top Tradeable Duplicates now shows a plain count and honours your Duplicates setting (all-variants vs same-variant only).',
         'Stats page — Favourites, country rows, top duplicates, and rare-pull tiers are clickable and drop you into the matching tab + filter on the album view.',
         'Album progress bar and All/Have/Missing/Duplicates tabs stay pinned at the top of the album view as you scroll the grid.',
+        'Profile achievement badges are now compact icon-only tiles; hover a badge to see its name and description.',
       ],
       Fixed: [
         'iOS Safari no longer zooms in when you tap any input, textarea, or dropdown — affects login, register, settings, trade messages, and every form on the site.',
