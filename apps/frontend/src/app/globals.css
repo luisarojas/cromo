@@ -235,12 +235,17 @@ input::placeholder, textarea::placeholder {
 }
 
 /* iOS Safari auto-zooms the viewport when a focused input/textarea/select
-   has a computed font-size < 16px. Force ≥16px on phone widths regardless
-   of what Tailwind classes the consumer passed. md+ keeps the smaller
-   text-sm look the desktop UI was designed around. */
+   has a computed font-size < 16px, and the scale doesn't reliably restore
+   on blur — the page appears to "randomly zoom out" later when the user
+   taps elsewhere. Force ≥16px on phone widths regardless of what Tailwind
+   classes the consumer passed. !important is required because a bare
+   `input` selector (specificity 0,0,1) loses to any `.text-sm`/`.text-xs`
+   utility (0,1,0); without it, this rule silently does nothing on the
+   many raw <input className="text-sm"> usages across the app. md+ keeps
+   the smaller text-sm look the desktop UI was designed around. */
 @media (max-width: 767px) {
   input, textarea, select {
-    font-size: max(16px, 1rem);
+    font-size: max(16px, 1rem) !important;
   }
 }
 
