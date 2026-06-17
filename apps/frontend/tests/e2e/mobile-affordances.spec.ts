@@ -53,7 +53,7 @@ test.describe('mobile affordances', () => {
     await expect(drawer.getByRole('button', { name: /log out/i })).toBeVisible();
   });
 
-  test('album page exposes an overflow menu on mobile (Edit hidden, ⋯ visible)', async ({ page }) => {
+  test('album page exposes an overflow menu on mobile (inline hidden, ⋯ visible)', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/collection');
 
@@ -66,10 +66,14 @@ test.describe('mobile affordances', () => {
     const overflow = page.getByRole('button', { name: /more album actions/i });
     await expect(overflow).toBeVisible();
 
-    // … but the inline secondary buttons (Edit, New album) are hidden on this
-    // viewport. They live behind `hidden md:flex`.
-    const inlineEdit = page.locator('h1').first().locator('xpath=ancestor::div[1]/following-sibling::div').getByRole('button', { name: /^Edit$/ });
-    await expect(inlineEdit).toHaveCount(0);
+    // … and every inline secondary action button is hidden via `hidden md:flex`.
+    // The data-testid is the contract with SecondaryHeaderActions; if it
+    // changes there, update both sides in the same commit.
+    const inlineActions = page.locator('[data-testid="header-action-inline"]');
+    expect(await inlineActions.count()).toBeGreaterThan(0);
+    for (const action of await inlineActions.all()) {
+      await expect(action).toBeHidden();
+    }
 
     // Opening the overflow surfaces the secondary actions.
     await overflow.click();

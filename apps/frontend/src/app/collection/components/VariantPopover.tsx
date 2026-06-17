@@ -440,7 +440,7 @@ export default function VariantPopover({
                       ...((!entry.tradeHidden) && { tradeForced: false }),
                     })}
                     disabled={busy || (entry.tradeForced && !entry.tradeHidden)}
-                    title={entry.tradeForced && !entry.tradeHidden ? 'Remove "Force offer" first to unlist' : entry.tradeHidden ? 'Tap to list for trade' : 'Tap to unlist from trade'}
+                    title={entry.tradeForced && !entry.tradeHidden ? 'Remove "Force offer" first to unlist' : entry.tradeHidden ? 'List for trade' : 'Unlist from trade'}
                     className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 ${
                       entry.tradeHidden
                         ? 'bg-[var(--cromo-danger-soft)] text-[var(--cromo-danger-text)] hover:bg-red-200'

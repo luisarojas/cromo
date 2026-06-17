@@ -110,7 +110,7 @@ export default function MobileTabBar() {
                 onClick={() => haptic('tap')}
                 aria-current={active ? 'page' : undefined}
                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
-                  active ? 'text-[var(--cromo-accent)]' : 'text-[var(--cromo-fg-muted)] active:text-[var(--cromo-fg)]'
+                  active ? 'text-[var(--cromo-accent)]' : 'text-[var(--cromo-fg-muted)]'
                 }`}
               >
                 {tab.emphasis ? (

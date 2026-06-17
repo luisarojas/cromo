@@ -370,7 +370,7 @@ export default function StickerCard({
           aria-label={isFavourited ? 'Remove from favourites' : 'Add to favourites'}
           aria-pressed={isFavourited}
         >
-          <HeartIcon filled={isFavourited} className="w-4 h-4" />
+          <HeartIcon filled={isFavourited} className="w-3.5 h-3.5" />
         </span>
       )}
     </button>
