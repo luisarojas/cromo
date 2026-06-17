@@ -476,15 +476,15 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     try {
       const { ops, emptyMessage, successMessage } = buildOps();
       if (ops.length === 0) {
-        if (emptyMessage) addToast(emptyMessage);
+        if (emptyMessage) addToast(emptyMessage, { type: 'info' });
         return;
       }
       await bulkStickers(usr.id, albumId, ops, tok);
       await loadView(tok, usr.id, albumId);
-      addToast(successMessage(ops.length));
+      addToast(successMessage(ops.length), { type: 'success' });
     } catch (err) {
       console.error('Mass action failed', err);
-      addToast(buildOps().failMessage);
+      addToast(buildOps().failMessage, { type: 'error' });
     } finally {
       setMassWorking(false);
     }
@@ -522,7 +522,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         (s) => selectedStickerIds.has(s.id) && !ownedMap.get(s.id)?.has(variantType),
       );
       if (selectedStickerList.length === 0) {
-        addToast(t('allOwnThatVariantToast'));
+        addToast(t('allOwnThatVariantToast'), { type: 'info' });
         return;
       }
       // fetchStickersBulk is keyed by album_code on the server. For regional
@@ -545,10 +545,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       if (ops.length === 0) return;
       await bulkStickers(usr.id, albumId, ops, tok);
       await loadView(tok, usr.id, albumId);
-      addToast(t('addedVariantToast', { variant: variantType, count: ops.length }));
+      addToast(t('addedVariantToast', { variant: variantType, count: ops.length }), { type: 'success' });
     } catch (err) {
       console.error('Mass add variant failed', err);
-      addToast(t('addVariantFailedToast'));
+      addToast(t('addVariantFailedToast'), { type: 'error' });
     } finally {
       setMassWorking(false);
     }

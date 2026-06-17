@@ -70,6 +70,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Favourite (♥) button on every sticker is now tappable on phones — previously it only appeared on desktop hover.',
         'Album list cards expose Set-default and Edit buttons directly on phones instead of hiding them behind a hover state.',
         'Remove (×) button on staged scan images is visible on phones.',
+        'Toast notifications for successful mass actions on the album page are no longer styled as errors.',
       ],
       Removed: [
         '"Focus on these" card on the album page.',
