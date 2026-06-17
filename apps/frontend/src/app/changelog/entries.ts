@@ -80,6 +80,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       Removed: [
         '"Focus on these" card on the album page.',
         'Dashboard summary stats (Total/Owned/Missing/Duplicates) and the large overall progress bar — the per-album cards below already cover the same ground without misrepresenting multi-album collections.',
+        'Album page Total/Owned/Missing/Duplicates tiles — the same counts already appear in the tab labels below, now colour-coded.',
       ],
     },
   },

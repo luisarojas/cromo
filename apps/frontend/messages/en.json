@@ -548,10 +548,6 @@
   "statsBar": {
     "backToAlbum": "Back to album",
     "viewDetailedStats": "View detailed stats",
-    "total": "Total",
-    "owned": "Owned",
-    "missing": "Missing",
-    "duplicates": "Duplicates",
     "collectionProgress": "Collection progress"
   },
   "albumStats": {

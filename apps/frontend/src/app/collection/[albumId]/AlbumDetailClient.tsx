@@ -948,17 +948,17 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                 <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">({settingsFilteredStickers.length})</span>
               )}
               {id === 'have' && computedStats && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">
+                <span className="ml-1.5 text-xs text-[var(--cromo-success-text)]">
                   {totalOwnedQuantity > computedStats.owned
                     ? `(${computedStats.owned} / ${totalOwnedQuantity})`
                     : `(${computedStats.owned})`}
                 </span>
               )}
               {id === 'missing' && computedStats && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">({computedStats.missing})</span>
+                <span className="ml-1.5 text-xs text-[var(--cromo-danger-text)]">({computedStats.missing})</span>
               )}
               {id === 'duplicates' && computedStats && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">
+                <span className="ml-1.5 text-xs text-[var(--cromo-warning-text)]">
                   {totalExtraCopies > 0
                     ? `(${computedStats.duplicates} / +${totalExtraCopies})`
                     : `(${computedStats.duplicates})`}

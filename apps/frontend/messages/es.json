@@ -548,10 +548,6 @@
   "statsBar": {
     "backToAlbum": "Volver al álbum",
     "viewDetailedStats": "Ver estadísticas detalladas",
-    "total": "Total",
-    "owned": "Tengo",
-    "missing": "Faltan",
-    "duplicates": "Repetidos",
     "collectionProgress": "Progreso de la colección"
   },
   "albumStats": {
