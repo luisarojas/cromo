@@ -234,6 +234,16 @@ input::placeholder, textarea::placeholder {
   color: var(--cromo-fg-subtle);
 }
 
+/* iOS Safari auto-zooms the viewport when a focused input/textarea/select
+   has a computed font-size < 16px. Force ≥16px on phone widths regardless
+   of what Tailwind classes the consumer passed. md+ keeps the smaller
+   text-sm look the desktop UI was designed around. */
+@media (max-width: 767px) {
+  input, textarea, select {
+    font-size: max(16px, 1rem);
+  }
+}
+
 /* Selection */
 ::selection {
   background: var(--cromo-accent-soft);

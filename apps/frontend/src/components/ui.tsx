@@ -131,7 +131,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <input
       ref={ref}
       className={cx(
-        'w-full rounded-btn border bg-[var(--cromo-surface)] text-[var(--cromo-fg)] border-[var(--cromo-border)] px-3 py-2 text-sm transition-colors',
+        // text-base (16px) on mobile prevents iOS Safari's auto-zoom on focus;
+        // text-sm (14px) returns on md+ for the desktop look.
+        'w-full rounded-btn border bg-[var(--cromo-surface)] text-[var(--cromo-fg)] border-[var(--cromo-border)] px-3 py-2 text-base md:text-sm transition-colors',
         'placeholder:text-[var(--cromo-fg-subtle)]',
         'focus:outline-none focus:border-[var(--cromo-accent)] focus:ring-2 focus:ring-[var(--cromo-accent-soft)]',
         'disabled:opacity-50 disabled:cursor-not-allowed',
@@ -152,7 +154,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
     <textarea
       ref={ref}
       className={cx(
-        'w-full rounded-btn border bg-[var(--cromo-surface)] text-[var(--cromo-fg)] border-[var(--cromo-border)] px-3 py-2 text-sm transition-colors',
+        // text-base on mobile prevents iOS auto-zoom on focus; see Input above.
+        'w-full rounded-btn border bg-[var(--cromo-surface)] text-[var(--cromo-fg)] border-[var(--cromo-border)] px-3 py-2 text-base md:text-sm transition-colors',
         'placeholder:text-[var(--cromo-fg-subtle)]',
         'focus:outline-none focus:border-[var(--cromo-accent)] focus:ring-2 focus:ring-[var(--cromo-accent-soft)]',
         'disabled:opacity-50 disabled:cursor-not-allowed',

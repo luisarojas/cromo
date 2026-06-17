@@ -751,20 +751,31 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
         <PageHeader eyebrow={t('eyebrow')} title={t('title')} />
 
-        <div className="flex gap-1 border-b border-[var(--cromo-border)] overflow-x-auto -mx-4 px-4 scrollbar-thin">
-          {tabs.map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === id
-                  ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
-                  : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Sticky tab strip — stays under the NavBar (h-14) so users can
+            switch sections without scrolling back to the top of a long
+            Account tab. Negative side margins + matching padding extend the
+            backdrop full-width so the scroll fade looks intentional. */}
+        <div className="sticky top-14 z-20 -mx-4 px-4 pt-1 pb-0 bg-[var(--cromo-bg)]/90 backdrop-blur supports-[backdrop-filter]:bg-[var(--cromo-bg)]/75">
+          <div className="flex gap-1 border-b border-[var(--cromo-border)] overflow-x-auto scrollbar-thin">
+            {tabs.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setActiveTab(id);
+                  // Keep the top of the next tab in view rather than leaving
+                  // the user wherever they scrolled in the previous one.
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`shrink-0 whitespace-nowrap px-4 py-3 md:py-2 text-sm font-medium border-b-2 transition-colors min-h-[44px] ${
+                  activeTab === id
+                    ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                    : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {activeTab === 'account' && <AccountSettingsTab />}
