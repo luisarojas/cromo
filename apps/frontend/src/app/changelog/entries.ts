@@ -64,6 +64,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Trade picker quantity +/− and remove (×) buttons are larger on phones for easier thumb-tapping.',
         'After confirming a scanned sticker, the "Scan another" button reopens the camera in one tap instead of dropping back to the file-picker screen.',
         'Album-page group jump-rail on phones uses thumb-sized rows, and you can slide a finger along it to scrub through groups without precision-tapping.',
+        'Stats page — Top Tradeable Duplicates now shows a plain count and honours your Duplicates setting (all-variants vs same-variant only).',
+        'Stats page — Favourites, country rows, top duplicates, and rare-pull tiers are clickable and drop you into the matching tab + filter on the album view.',
       ],
       Fixed: [
         'iOS Safari no longer zooms in when you tap any input, textarea, or dropdown — affects login, register, settings, trade messages, and every form on the site.',

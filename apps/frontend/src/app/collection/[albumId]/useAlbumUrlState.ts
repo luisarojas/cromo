@@ -81,5 +81,15 @@ export function useAlbumUrlState() {
     [router, pathname, searchParams],
   );
 
-  return { tab, filters, setTab: (t: Tab) => apply({ tab: t }), setFilters: (f: FilterState) => apply({ filters: f }) };
+  return {
+    tab,
+    filters,
+    setTab: (t: Tab) => apply({ tab: t }),
+    setFilters: (f: FilterState) => apply({ filters: f }),
+    // Combined setter — used when "jumping" from a stats card to a specific
+    // tab + filter combo. `apply` replaces all filter keys at once, so any
+    // filter not present in `next.filters` is cleared (the intended "fresh
+    // view" semantics for stats drill-downs).
+    setView: apply,
+  };
 }

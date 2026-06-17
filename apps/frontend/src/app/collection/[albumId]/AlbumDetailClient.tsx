@@ -135,7 +135,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [serverStats, setServerStats] = useState<CollectionStats | null>(null);
   const [serverExtraCopies, setServerExtraCopies] = useState<number>(0);
   const [crossAlbum, setCrossAlbum] = useState<CrossAlbum>({ neededIn: {}, availableIn: {}, presentIn: {} });
-  const { tab, filters, setTab, setFilters } = useAlbumUrlState();
+  const { tab, filters, setTab, setFilters, setView } = useAlbumUrlState();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Grid density (2/3/4/5/6 columns) — persisted per browser. 5 and 6 are
@@ -1023,7 +1023,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             {t('loadingStickers')}
           </div>
         ) : tab === 'stats' ? (
-          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} favouriteSet={favouriteSet} />
+          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} favouriteSet={favouriteSet} onJumpTo={setView} />
         ) : albumId ? (
           <div className={selectionMode ? 'pb-20' : ''}>
             <StickerGrid

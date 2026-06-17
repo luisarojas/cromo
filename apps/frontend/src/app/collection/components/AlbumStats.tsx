@@ -4,16 +4,35 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
+import { usePreferencesStore } from '@/store/preferences';
 import { VARIANT_META, variantLabel } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
+import type { FilterState } from './FilterBar';
+import type { Tab } from '../[albumId]/useAlbumUrlState';
 
 type OwnedMap = Map<string, Map<string, OwnedVariantEntry>>;
+
+type JumpTo = (next: { tab?: Tab; filters?: FilterState }) => void;
 
 interface Props {
   stickers: Sticker[];
   ownedMap: OwnedMap;
   favouriteSet: Set<string>;
+  onJumpTo: JumpTo;
 }
+
+// Map a rarity tier (e.g. "Rare") to the variant tokens that belong to it
+// (e.g. `["red", "extra_silver"]`). Used to translate a Rare Pulls tier-label
+// click into an album filter. Built once at module load — `VARIANT_META` is
+// static.
+const TIER_TO_VARIANTS: Record<string, string[]> = (() => {
+  const out: Record<string, string[]> = {};
+  for (const [variant, meta] of Object.entries(VARIANT_META)) {
+    if (!meta.rarity) continue;
+    (out[meta.rarity] ??= []).push(variant);
+  }
+  return out;
+})();
 
 const STICKERS_PER_PACK = 7;
 const COUNTRY_PREVIEW_COUNT = 10;
@@ -77,7 +96,7 @@ interface DuplicateRow {
   playerName: string | null;
   fifaCode: string | null;
   topVariantType: string;
-  extras: number;
+  duplicates: number;
 }
 
 // Single-scalar progress ring for the Favourites card. Dasharray draws the
@@ -121,10 +140,11 @@ function ProgressRing({
 
 type CountrySort = 'most' | 'least';
 
-export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) {
+export default function AlbumStats({ stickers, ownedMap, favouriteSet, onJumpTo }: Props) {
   const t = useTranslations('albumStats');
   const [showAllCountries, setShowAllCountries] = useState(false);
   const [countrySort, setCountrySort] = useState<CountrySort>('most');
+  const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
 
   // Coca-Cola stickers come from peeling Coke bottle labels, not packs, so
   // they're excluded from the pack-count estimate.
@@ -217,7 +237,11 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
       .map((tier) => ({ tier, entries: byTier.get(tier)! }));
   }, [stickers, ownedMap]);
 
-  // Top 5 stickers the user has the most *tradeable* extra copies of.
+  // Top 5 stickers the user has the most *tradeable* duplicates of. What
+  // counts as a duplicate depends on the user's preference: when
+  // `duplicatesCountAllVariants` is on, every copy beyond the first of the
+  // same sticker (across variants) is a duplicate; when off, only extra
+  // copies of the same variant count.
   const topDuplicates = useMemo<DuplicateRow[]>(() => {
     const stickerIndex = new Map<string, Sticker>();
     for (const s of stickers) stickerIndex.set(s.id, s);
@@ -226,35 +250,40 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
     for (const [stickerId, perSticker] of ownedMap.entries()) {
       const sticker = stickerIndex.get(stickerId);
       if (!sticker) continue;
-      let extras = 0;
+      let duplicates = 0;
       let topVariantType = '';
-      let topVariantExtras = 0;
+      let topVariantQuantity = 0;
+      let tradeableTotal = 0;
       for (const [variantType, entry] of perSticker.entries()) {
         if (entry.tradeHidden) continue;
-        const variantExtras = Math.max(0, entry.quantity - 1);
-        if (variantExtras === 0) continue;
-        extras += variantExtras;
-        if (variantExtras > topVariantExtras) {
-          topVariantExtras = variantExtras;
+        tradeableTotal += entry.quantity;
+        if (!duplicatesCountAllVariants) {
+          duplicates += Math.max(0, entry.quantity - 1);
+        }
+        if (entry.quantity > topVariantQuantity) {
+          topVariantQuantity = entry.quantity;
           topVariantType = variantType;
         }
       }
-      if (extras <= 0) continue;
+      if (duplicatesCountAllVariants) {
+        duplicates = Math.max(0, tradeableTotal - 1);
+      }
+      if (duplicates <= 0) continue;
       rows.push({
         stickerId,
         albumCode: sticker.albumCode,
         playerName: sticker.playerName,
         fifaCode: sticker.fifaCode,
         topVariantType,
-        extras,
+        duplicates,
       });
     }
     rows.sort((a, b) => {
-      if (a.extras !== b.extras) return b.extras - a.extras;
+      if (a.duplicates !== b.duplicates) return b.duplicates - a.duplicates;
       return a.albumCode.localeCompare(b.albumCode);
     });
     return rows.slice(0, 5);
-  }, [stickers, ownedMap]);
+  }, [stickers, ownedMap, duplicatesCountAllVariants]);
 
   const visibleCountries = showAllCountries
     ? byCountry
@@ -268,15 +297,24 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
       {/* ─── Hero row: Favourites ring (1/3) + Country list (2/3) ─── */}
       <div className="grid gap-5 lg:grid-cols-3">
         {/* ─── Favourites — centered ring hero, stretches to row height ─── */}
-        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col lg:col-span-1">
-          <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
-            {t('favouritesOwned')}
-          </h3>
-          {favouriteStats.inAlbum === 0 ? (
+        {favouriteStats.inAlbum === 0 ? (
+          <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col lg:col-span-1">
+            <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
+              {t('favouritesOwned')}
+            </h3>
             <p className="flex-1 flex items-center justify-center text-xs text-[var(--cromo-fg-subtle)] text-center py-8">
               {t('noFavourites')}
             </p>
-          ) : (
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onJumpTo({ tab: 'have', filters: { favouritesOnly: true } })}
+            className="text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col lg:col-span-1 hover:border-[var(--cromo-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)] transition-colors"
+          >
+            <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
+              {t('favouritesOwned')}
+            </h3>
             <div className="flex-1 flex flex-col items-center justify-center gap-4 py-4">
               <ProgressRing pct={favouriteStats.pct} size={160} stroke={14} color="var(--cromo-accent)">
                 <div className="flex flex-col items-center leading-none">
@@ -299,8 +337,8 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
                 )}
               </div>
             </div>
-          )}
-        </div>
+          </button>
+        )}
 
         {/* ─── Countries — sortable list, defaults to most-complete first ─── */}
         <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 lg:col-span-2">
@@ -360,7 +398,16 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
                 }
               >
                 {visibleCountries.map((c) => (
-                  <CountryRowItem key={c.teamName} c={c} />
+                  <CountryRowItem
+                    key={c.teamName}
+                    c={c}
+                    onClick={() => onJumpTo({
+                      tab: 'have',
+                      // FilterBar accepts either fifaCode or teamName as the
+                      // team filter value (see AlbumDetailClient filter pass).
+                      filters: { team: [c.fifaCode ?? c.teamName] },
+                    })}
+                  />
                 ))}
               </div>
               {hasMoreCountries && (
@@ -399,22 +446,34 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
             <ol className="divide-y divide-[var(--cromo-border)]">
               {topDuplicates.map((d, idx) => (
                 <li key={d.stickerId} className="py-2.5 first:pt-0 last:pb-0">
-                  <div className="flex items-baseline gap-2.5 mb-1">
-                    <span className="w-5 text-xs font-bold text-[var(--cromo-fg-subtle)] tabular-nums shrink-0">
-                      {idx + 1}.
-                    </span>
-                    <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--cromo-fg)] truncate">
-                      {d.playerName ?? '—'}
-                    </span>
-                    <span className="text-xs font-semibold tabular-nums text-[var(--cromo-fg-muted)] shrink-0">
-                      +{d.extras}
-                    </span>
-                  </div>
-                  <p className="text-xs text-[var(--cromo-fg-subtle)] pl-7 leading-relaxed truncate">
-                    <span className="font-mono">{d.albumCode}</span>
-                    <span className="mx-1.5">·</span>
-                    {variantLabel(d.topVariantType)}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onJumpTo({
+                      tab: 'duplicates',
+                      // Album code is the catalog's most precise text identifier
+                      // — search matches it via `foldAccents(albumCode)`, so this
+                      // narrows the duplicates tab to the row the user clicked.
+                      filters: { search: d.albumCode },
+                    })}
+                    className="w-full text-left rounded-md -mx-1.5 px-1.5 py-1 hover:bg-[var(--cromo-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)] transition-colors"
+                  >
+                    <div className="flex items-baseline gap-2.5 mb-1">
+                      <span className="w-5 text-xs font-bold text-[var(--cromo-fg-subtle)] tabular-nums shrink-0">
+                        {idx + 1}.
+                      </span>
+                      <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--cromo-fg)] truncate">
+                        {d.playerName ?? '—'}
+                      </span>
+                      <span className="text-xs font-semibold tabular-nums text-[var(--cromo-fg-muted)] shrink-0">
+                        {d.duplicates}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--cromo-fg-subtle)] pl-7 leading-relaxed truncate">
+                      <span className="font-mono">{d.albumCode}</span>
+                      <span className="mx-1.5">·</span>
+                      {variantLabel(d.topVariantType)}
+                    </p>
+                  </button>
                 </li>
               ))}
             </ol>
@@ -422,7 +481,14 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
         </div>
 
         {/* ─── Rare Pulls trophy ─── */}
-        <RarePulls trophy={trophy} />
+        <RarePulls
+          trophy={trophy}
+          onTierClick={(tier) => {
+            const variants = TIER_TO_VARIANTS[tier];
+            if (!variants || variants.length === 0) return;
+            onJumpTo({ tab: 'have', filters: { variant: variants } });
+          }}
+        />
       </div>
 
       {/* ─── Packs opened — slim footer, the page's least-actionable stat ─── */}
@@ -445,9 +511,13 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet }: Props) 
   );
 }
 
-function CountryRowItem({ c }: { c: CountryRow }) {
+function CountryRowItem({ c, onClick }: { c: CountryRow; onClick: () => void }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 text-left rounded-md -mx-1.5 px-1.5 py-1 hover:bg-[var(--cromo-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)] transition-colors"
+    >
       {c.fifaCode ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -476,11 +546,11 @@ function CountryRowItem({ c }: { c: CountryRow }) {
       <span className="text-xs tabular-nums min-w-[7rem] text-right text-[var(--cromo-fg-muted)] shrink-0 whitespace-nowrap">
         {`${c.owned}/${c.total} · ${c.pct}%`}
       </span>
-    </div>
+    </button>
   );
 }
 
-function RarePulls({ trophy }: { trophy: TrophyTier[] }) {
+function RarePulls({ trophy, onTierClick }: { trophy: TrophyTier[]; onTierClick: (tier: string) => void }) {
   const t = useTranslations('albumStats');
   return (
     <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
@@ -505,21 +575,27 @@ function RarePulls({ trophy }: { trophy: TrophyTier[] }) {
             const hidden = entries.length - shown.length;
             return (
               <li key={tier} className="py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-baseline gap-2.5 mb-1">
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0 self-center"
-                    style={{ background: color }}
-                    aria-hidden
-                  />
-                  <span className="text-sm font-semibold text-[var(--cromo-fg)]">{tier}</span>
-                  <span className="text-xs tabular-nums text-[var(--cromo-fg-muted)] ml-auto">
-                    {t('ownedCount', { count: entries.length })}
-                  </span>
-                </div>
-                <p className="text-xs text-[var(--cromo-fg-subtle)] pl-4 leading-relaxed">
-                  {shown.map((e) => e.playerName).join(', ')}
-                  {hidden > 0 && <span>{t('morePulls', { count: hidden })}</span>}
-                </p>
+                <button
+                  type="button"
+                  onClick={() => onTierClick(tier)}
+                  className="w-full text-left rounded-md -mx-1.5 px-1.5 py-1 hover:bg-[var(--cromo-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)] transition-colors"
+                >
+                  <div className="flex items-baseline gap-2.5 mb-1">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0 self-center"
+                      style={{ background: color }}
+                      aria-hidden
+                    />
+                    <span className="text-sm font-semibold text-[var(--cromo-fg)]">{tier}</span>
+                    <span className="text-xs tabular-nums text-[var(--cromo-fg-muted)] ml-auto">
+                      {t('ownedCount', { count: entries.length })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--cromo-fg-subtle)] pl-4 leading-relaxed">
+                    {shown.map((e) => e.playerName).join(', ')}
+                    {hidden > 0 && <span>{t('morePulls', { count: hidden })}</span>}
+                  </p>
+                </button>
               </li>
             );
           })}
