@@ -354,14 +354,36 @@ export interface TradeDetail extends TradeSummary {
 //      collection (match-against-me).
 //   2. An anonymous visitor pastes two lists and gets the optimal trade
 //      between them (match-pair).
-// In both cases, identity is by album code (not variant) because hand-written
-// or photographed lists rarely carry variant detail.
+//
+// Inputs are (albumCode, variantToken, quantity) tuples. Untagged codes are
+// resolved to the album's base variant per region (NA → base_border, Intl →
+// base_borderless, CC → coca_cola_special base, Extras → extra_purple). The
+// VARIANT_SCARCITY table in @cromo/shared/constants weighs each variant so
+// the result can flag lopsided trades.
+
+/** A single line in a pasted offered/wanted list — code + optional variant + qty. */
+export interface ExternalListItem {
+  albumCode: string
+  /** Canonical VariantType token, or null for "default base for this code". */
+  variantToken: string | null
+  /** Defaults to 1 when omitted in the input. */
+  quantity: number
+}
 
 export interface ExternalStickerRef {
   albumCode: string
   playerName: string | null
   stickerType: StickerType | null
   number: number | null
+  /** Resolved variant. Null means "the input didn't tag a variant and we
+   *  couldn't resolve a default" — only happens for codes not in the catalog. */
+  variantToken: string | null
+  /** Human label for the variant (e.g. "Red", "Gold Crumple", "Extra · Gold").
+   *  Localisable on the frontend; this is the English default. */
+  variantLabel: string | null
+  /** Scarcity weight from VARIANT_SCARCITY. */
+  scarcity: number
+  quantity: number
 }
 
 export interface ExternalList {
@@ -369,25 +391,44 @@ export interface ExternalList {
   wanted: string[]
 }
 
+/** Aggregated scarcity totals for a single side of the trade. */
+export interface ScarcityTotals {
+  /** Sum of (scarcity × quantity) of stickers this side gives. */
+  give: number
+  /** Sum of (scarcity × quantity) of stickers this side receives. */
+  get: number
+  /** get / give, or null when give == 0 (no comparison possible). */
+  ratio: number | null
+  /** True when the ratio falls outside the TRADE_BALANCE band — UI surfaces
+   *  this as a warning, never as an error. */
+  lopsided: boolean
+}
+
 /** Result of matching a third-party list against the logged-in user. */
 export interface MatchAgainstMeResult {
-  /** Codes the requester would receive (their offered ∩ my missing). */
+  /** Stickers the requester would receive (their offered ∩ my missing). */
   iGet: ExternalStickerRef[]
-  /** Codes the requester would give (their wanted ∩ my duplicates). */
+  /** Stickers the requester would give (their wanted ∩ my duplicates). */
   theyGet: ExternalStickerRef[]
-  /** Codes from the input that could not be resolved against the catalog. */
+  /** Codes/tokens from the input that could not be resolved against the catalog. */
   unknownCodes: string[]
   mutualOverlap: number
+  /** Scarcity balance from the logged-in user's perspective:
+   *   give = sum of `theyGet` scarcity, get = sum of `iGet` scarcity. */
+  balance: ScarcityTotals
 }
 
 /** Result of matching two independent lists (anonymous pair flow). */
 export interface MatchPairResult {
-  /** Codes Person A would receive (a.wanted ∩ b.offered). */
+  /** Stickers Person A would receive (a.wanted ∩ b.offered). */
   aGets: ExternalStickerRef[]
-  /** Codes Person B would receive (b.wanted ∩ a.offered). */
+  /** Stickers Person B would receive (b.wanted ∩ a.offered). */
   bGets: ExternalStickerRef[]
   unknownCodes: string[]
   mutualOverlap: number
+  /** Balance from Person A's perspective. B's is its inverse — show only A's
+   *  in the UI to avoid double-counting the same imbalance. */
+  balance: ScarcityTotals
 }
 
 /**

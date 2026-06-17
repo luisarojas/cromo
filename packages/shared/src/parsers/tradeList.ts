@@ -321,3 +321,211 @@ export function parseTradeList(value: string): TradeListBuckets {
     wanted: [...wanted],
   };
 }
+
+// ─── Variant-aware parser ─────────────────────────────────────────────────
+// parseTradeListItems extends parseTradeList with two pieces of trailing
+// metadata that collectors care about in third-party trades:
+//   1. A variant tag in parens or after a colon: "BRA5(red)", "BRA5:red",
+//      "BRA5 red". Multi-word tags work too: "BRA5(red crumple)".
+//   2. A quantity multiplier: "BRA5 x2", "BRA5(red)x3", "BRA5 *4".
+// Codes without a tag are emitted with variantToken=null; the backend then
+// resolves null to the album's appropriate base variant. Unknown variant
+// words pass through as the raw lowercased token so the backend can echo
+// them back in `unknownCodes` — that's a better signal than silently
+// dropping the tag.
+
+export interface TradeListItem {
+  albumCode: string;
+  variantToken: string | null;
+  quantity: number;
+}
+
+export interface TradeListItemBuckets {
+  offered: TradeListItem[];
+  wanted: TradeListItem[];
+}
+
+// User-facing variant words → canonical VariantType tokens. Keys are kept
+// short and natural — what people actually type. Multi-word entries use a
+// single space; the normaliser collapses runs of whitespace before lookup.
+// Ambiguous bare words ("gold", "purple", "bronze", "silver") are routed to
+// their core meaning here; the backend resolves Extras-vs-Core based on the
+// album_code's sticker_type, so "EX5(gold)" still resolves to extra_gold.
+const VARIANT_ALIASES: ReadonlyArray<readonly [string, string]> = [
+  ['base', 'base'],
+  ['white', 'base_border'],
+  ['white border', 'base_border'],
+  ['borderless', 'base_borderless'],
+  ['no border', 'base_borderless'],
+  ['blue', 'blue'],
+  ['red', 'red'],
+  ['purple', 'purple'],
+  ['green', 'green'],
+  ['black', 'black'],
+  ['orange', 'orange_amazon'],
+  ['amazon', 'orange_amazon'],
+  ['swiss', 'swiss_green'],
+  ['swiss green', 'swiss_green'],
+  ['light green', 'swiss_green'],
+  ['gold', 'gold_crumple'],
+  ['gold crumple', 'gold_crumple'],
+  ['blue crumple', 'blue_crumple'],
+  ['red crumple', 'red_crumple'],
+  ['purple crumple', 'purple_crumple'],
+  ['green crumple', 'green_crumple'],
+  ['black crumple', 'black_crumple'],
+  ['crumple', 'gold_crumple'],
+  ['bronze', 'extra_bronze'],
+  ['silver', 'extra_silver'],
+  ['extra', 'extra_purple'],
+  ['extra purple', 'extra_purple'],
+  ['extra bronze', 'extra_bronze'],
+  ['extra silver', 'extra_silver'],
+  ['extra gold', 'extra_gold'],
+];
+
+const VARIANT_ALIAS_MAP: ReadonlyMap<string, string> = new Map(
+  VARIANT_ALIASES.map(([k, v]) => [k, v]),
+);
+
+// Also accept the canonical tokens themselves so "BRA5(extra_gold)" works.
+const CANONICAL_VARIANT_TOKENS: ReadonlySet<string> = new Set([
+  'base_border', 'base_borderless', 'blue', 'red', 'purple', 'green', 'black',
+  'orange_amazon', 'gold_crumple', 'blue_crumple', 'red_crumple',
+  'purple_crumple', 'green_crumple', 'black_crumple',
+  'extra_purple', 'extra_bronze', 'extra_silver', 'extra_gold',
+  'swiss_green',
+]);
+
+/**
+ * Resolve user-typed variant text to a canonical VariantType token, or the
+ * raw normalised string when no alias matches. Returning the raw string lets
+ * the backend surface it in `unknownCodes` for the warning UI.
+ */
+export function resolveVariantToken(raw: string): string {
+  const norm = raw.trim().toLowerCase().replace(/[_\s]+/g, ' ').replace(/[()]/g, '');
+  if (!norm) return '';
+  if (CANONICAL_VARIANT_TOKENS.has(norm.replace(/ /g, '_'))) {
+    return norm.replace(/ /g, '_');
+  }
+  // Try the longest matching prefix so "red crumple foil" still resolves to red_crumple.
+  const sorted = [...VARIANT_ALIASES].sort((a, b) => b[0].length - a[0].length);
+  for (const [alias, token] of sorted) {
+    if (norm === alias) return token;
+  }
+  // Single-word match (e.g. "Red Crumple" with trailing noise).
+  const first = norm.split(' ')[0];
+  if (first && VARIANT_ALIAS_MAP.has(first)) return VARIANT_ALIAS_MAP.get(first)!;
+  return norm.replace(/ /g, '_');
+}
+
+interface VariantTail {
+  variantToken: string | null;
+  quantity: number;
+  /** Number of characters consumed from the source string (for the tokenizer). */
+  consumed: number;
+}
+
+// Match an optional trailing variant + quantity after a code. Greedy enough
+// to capture "(red crumple) x2" as one tail, conservative enough that the
+// next code on the same line still parses normally. The colon form is
+// limited to single tokens — "BRA5:red", "BRA5:gold_crumple" — and stops
+// at the next word boundary; multi-word aliases must use parens.
+const TAIL_REGEX = /^\s*(?:\(([^)]+)\)|:([a-zA-Z][a-zA-Z_-]*))?\s*(?:[x×*]\s*(\d{1,3}))?/i;
+
+function parseTail(rest: string): VariantTail {
+  const m = TAIL_REGEX.exec(rest);
+  if (!m) return { variantToken: null, quantity: 1, consumed: 0 };
+  const [whole, parenTag, colonTag, qty] = m;
+  const rawTag = parenTag ?? colonTag ?? null;
+  const variantToken = rawTag ? resolveVariantToken(rawTag) : null;
+  const quantity = qty ? Math.max(1, Math.min(99, Number.parseInt(qty, 10))) : 1;
+  return { variantToken, quantity, consumed: whole?.length ?? 0 };
+}
+
+export function parseTradeListItems(value: string): TradeListItemBuckets {
+  // Last-write-wins on (albumCode, variantToken) — the user pasting "BRA5(red),
+  // BRA5(red) x2" almost certainly means quantity 2, not two separate lines.
+  const offered = new Map<string, TradeListItem>();
+  const wanted = new Map<string, TradeListItem>();
+  let current: Bucket = 'offered';
+
+  const keyOf = (code: string, token: string | null) => `${code}|${token ?? ''}`;
+
+  const emit = (item: TradeListItem) => {
+    const k = keyOf(item.albumCode, item.variantToken);
+    if (current === 'offered') {
+      if (wanted.has(k)) return;
+      if (offered.size >= HARD_LIMIT && !offered.has(k)) return;
+      const existing = offered.get(k);
+      offered.set(k, existing ? { ...existing, quantity: existing.quantity + item.quantity } : item);
+    } else {
+      offered.delete(k);
+      if (wanted.size >= HARD_LIMIT && !wanted.has(k)) return;
+      const existing = wanted.get(k);
+      wanted.set(k, existing ? { ...existing, quantity: existing.quantity + item.quantity } : item);
+    }
+  };
+
+  const lines = value.split(/\r?\n+/);
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue;
+    const line = normaliseLine(rawLine);
+    const lower = line.toLowerCase();
+
+    let firstOffered = Infinity;
+    let firstWanted = Infinity;
+    for (const m of OFFERED_MARKERS) {
+      const idx = findMarkerIndex(lower, m);
+      if (idx !== -1 && idx < firstOffered) firstOffered = idx;
+    }
+    for (const m of WANTED_MARKERS) {
+      const idx = findMarkerIndex(lower, m);
+      if (idx !== -1 && idx < firstWanted) firstWanted = idx;
+    }
+    if (firstOffered < firstWanted) current = 'offered';
+    else if (firstWanted < firstOffered) current = 'wanted';
+
+    // Walk the line manually so a code consumes any trailing variant tail
+    // before the regex advances. lastIndex tracks where the next token search
+    // resumes from.
+    const tokenRegex = /([A-Za-z]{2,4})(\d{1,3})|\b([A-Za-z]{2,4})\b|\b(\d+)\b/g;
+    let lastPrefix: string | null = null;
+    let match: RegExpExecArray | null;
+    while ((match = tokenRegex.exec(line)) !== null) {
+      const [, inlinePrefix, inlineNumber, prefixOnly, numberOnly] = match;
+      if (inlinePrefix && inlineNumber) {
+        const prefix = inlinePrefix.toUpperCase();
+        if (NON_PREFIX_WORDS.has(prefix)) continue;
+        const code = `${prefix}${Number.parseInt(inlineNumber, 10)}`;
+        const tail = parseTail(line.slice(tokenRegex.lastIndex));
+        emit({ albumCode: code, variantToken: tail.variantToken, quantity: tail.quantity });
+        tokenRegex.lastIndex += tail.consumed;
+        lastPrefix = prefix;
+      } else if (prefixOnly) {
+        const prefix = prefixOnly.toUpperCase();
+        if (NON_PREFIX_WORDS.has(prefix)) continue;
+        lastPrefix = prefix;
+      } else if (numberOnly) {
+        if (!lastPrefix) continue;
+        const parts = splitGluedDigits(numberOnly);
+        if (!parts) continue;
+        // Variant + quantity tail attaches only to the *last* number in a
+        // glued/listed run — "BRA: 5, 7 (red) x2" means BRA7(red) x2, not
+        // both. Keeps the parser predictable for hand-written lists.
+        for (let i = 0; i < parts.length - 1; i++) {
+          emit({ albumCode: `${lastPrefix}${parts[i]}`, variantToken: null, quantity: 1 });
+        }
+        const tail = parseTail(line.slice(tokenRegex.lastIndex));
+        const last = parts[parts.length - 1]!;
+        emit({ albumCode: `${lastPrefix}${last}`, variantToken: tail.variantToken, quantity: tail.quantity });
+        tokenRegex.lastIndex += tail.consumed;
+      }
+    }
+  }
+
+  return {
+    offered: [...offered.values()],
+    wanted: [...wanted.values()],
+  };
+}

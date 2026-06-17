@@ -7,6 +7,7 @@ import {
   fetchAlbumTypes,
   DEFAULT_ALBUM_TYPE_KEY,
   type AlbumTypeOption,
+  type ExternalListItem,
   type MatchPairResult,
 } from '@/lib/api';
 import CombinedListInput from '../components/CombinedListInput';
@@ -20,10 +21,10 @@ export default function AnonymousMatchPage() {
   const [albumTypeKey, setAlbumTypeKey] = useState<string>(DEFAULT_ALBUM_TYPE_KEY);
   const [aName, setAName] = useState<string>(DEFAULT_A_NAME);
   const [bName, setBName] = useState<string>(DEFAULT_B_NAME);
-  const [aOffered, setAOffered] = useState<string[]>([]);
-  const [aWanted, setAWanted] = useState<string[]>([]);
-  const [bOffered, setBOffered] = useState<string[]>([]);
-  const [bWanted, setBWanted] = useState<string[]>([]);
+  const [aOffered, setAOffered] = useState<ExternalListItem[]>([]);
+  const [aWanted, setAWanted] = useState<ExternalListItem[]>([]);
+  const [bOffered, setBOffered] = useState<ExternalListItem[]>([]);
+  const [bWanted, setBWanted] = useState<ExternalListItem[]>([]);
   const [result, setResult] = useState<MatchPairResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +160,7 @@ export default function AnonymousMatchPage() {
             rightReceives={result.bGets}
             mutualOverlap={result.mutualOverlap}
             unknownCodes={result.unknownCodes}
+            balance={result.balance}
           />
         </div>
       )}

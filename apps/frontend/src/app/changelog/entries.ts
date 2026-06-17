@@ -41,6 +41,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Share progress — generate a 1080×1080 card of your album completion to post on Instagram, TikTok, or WhatsApp.',
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
         'Trade in person — generate a QR code from the Trades page; the other collector scans it and lands straight in the propose-trade flow with you as the partner.',
+        'Variant tags in third-party trade lists — paste a friend\'s offered/wanted list with rarities attached (e.g. BRA5(red)x2, MEX10(gold)) and the matcher will check variant-by-variant ownership instead of only album-code overlap.',
+        'Lopsided-trade warning on third-party matches — Cromo flags trades where one side gives noticeably more scarcity than they\'d receive, based on Panini\'s published pack odds. Guidance only — collectors set the actual price.',
         'One-tap clear (×) button in every search bar.',
         'Double-tap a sticker tile on mobile to favourite (or un-favourite) it without opening the variant sheet.',
       ],

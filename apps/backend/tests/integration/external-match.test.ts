@@ -1,0 +1,283 @@
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'node:crypto';
+
+/**
+ * Integration tests for the variant-aware external-list matching paths
+ * (apps/backend/src/services/trade-matching.service.ts):
+ *   - matchAgainstUserAlbum: a third-party's offered/wanted list matched
+ *     against a logged-in user's collection. Identity is (album_code,
+ *     variant_type); owning the base variant does NOT satisfy a want for
+ *     a parallel.
+ *   - matchPair: anonymous two-list match.
+ *
+ * The third-party flow is the entry point for trade-ratio guidance: the
+ * service computes a give/get scarcity total and flags lopsided trades, so
+ * these tests pin the math down to a known fixture.
+ */
+
+const HAS_REAL_DB =
+  typeof process.env['DATABASE_URL'] === 'string' &&
+  process.env['DATABASE_URL'].includes('@') &&
+  !process.env['DATABASE_URL'].includes('placeholder');
+
+const HAS_REAL_REDIS =
+  typeof process.env['REDIS_URL'] === 'string' &&
+  process.env['REDIS_URL'].startsWith('redis://');
+
+const shouldRun = HAS_REAL_DB && HAS_REAL_REDIS;
+
+describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
+  let app: FastifyInstance;
+  let matchAgainstUserAlbum: typeof import('../../src/services/trade-matching.service.js')['matchAgainstUserAlbum'];
+  let matchPair: typeof import('../../src/services/trade-matching.service.js')['matchPair'];
+
+  let albumTypeId: string;
+  let editionId: string;
+  let formatId: string;
+
+  const allInsertedUserIds: string[] = [];
+  let scratchUserIds: string[] = [];
+
+  async function insertUser(): Promise<string> {
+    const id = randomUUID();
+    const username = id.replace(/-/g, '').slice(0, 20);
+    const email = `${id}@external-match-test.local`;
+    await app.db.query(
+      `INSERT INTO users (id, email, username, display_name, role, email_verified_at)
+       VALUES ($1, $2, $3, 'Test User', 'user', now())`,
+      [id, email, username],
+    );
+    await app.db.query(`INSERT INTO user_settings (user_id) VALUES ($1)`, [id]);
+    allInsertedUserIds.push(id);
+    scratchUserIds.push(id);
+    return id;
+  }
+
+  async function insertAlbum(userId: string, defaultBaseVariant: 'base_border' | 'base_borderless' = 'base_border'): Promise<string> {
+    const id = randomUUID();
+    await app.db.query(
+      `INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default, settings)
+       VALUES ($1, $2, $3, $4, $5, true, $6::jsonb)`,
+      [
+        id, userId, albumTypeId, editionId, formatId,
+        JSON.stringify({
+          includeExtras: true,
+          includeCocaCola: true,
+          defaultBaseVariant,
+        }),
+      ],
+    );
+    return id;
+  }
+
+  async function insertOwned(
+    albumId: string,
+    variantId: string,
+    quantity: number,
+  ): Promise<void> {
+    await app.db.query(
+      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+       VALUES ($1, $2, $3)`,
+      [albumId, variantId, quantity],
+    );
+  }
+
+  // Test fixtures use sticker numbers 800–810 (well above seeded ranges).
+  async function lookupVariant(stickerNumber: number, variantType: string): Promise<{
+    stickerId: string; variantId: string; albumCode: string;
+  }> {
+    const { rows } = await app.db.query<{ sticker_id: string; variant_id: string; album_code: string }>(
+      `SELECT s.id AS sticker_id, sv.id AS variant_id, s.album_code
+         FROM stickers s
+         JOIN sticker_variants sv ON sv.sticker_id = s.id
+        WHERE s.number = $1
+          AND sv.variant_type = $2
+          AND s.album_type_id = $3`,
+      [stickerNumber, variantType, albumTypeId],
+    );
+    if (!rows[0]) throw new Error(`No variant for sticker #${stickerNumber} (${variantType})`);
+    return { stickerId: rows[0].sticker_id, variantId: rows[0].variant_id, albumCode: rows[0].album_code };
+  }
+
+  beforeAll(async () => {
+    const { buildApp } = await import('../../src/app.js');
+    ({ matchAgainstUserAlbum, matchPair } = await import('../../src/services/trade-matching.service.js'));
+
+    app = await buildApp();
+    await app.ready();
+
+    const { rows } = await app.db.query<{ type_id: string; edition_id: string; format_id: string }>(
+      `SELECT at.id   AS type_id,
+              ae.id   AS edition_id,
+              af.id   AS format_id
+         FROM album_types at
+         JOIN album_editions ae ON ae.album_type_id = at.id AND ae.key = 'north_america'
+         JOIN album_formats  af ON af.album_type_id = at.id AND af.key = 'softcover_standard'
+        WHERE at.key = 'fifa_world_cup_2026'`,
+    );
+    if (!rows[0]) throw new Error('FIFA 2026 album type lookup failed — is the catalog seeded?');
+    albumTypeId = rows[0].type_id;
+    editionId   = rows[0].edition_id;
+    formatId    = rows[0].format_id;
+  });
+
+  afterEach(async () => {
+    if (scratchUserIds.length > 0) {
+      await app.db.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [scratchUserIds]);
+      scratchUserIds = [];
+    }
+  });
+
+  afterAll(async () => {
+    if (allInsertedUserIds.length > 0) {
+      await app.db.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [allInsertedUserIds]);
+    }
+    await app?.close();
+  });
+
+  describe('matchAgainstUserAlbum — variant identity', () => {
+    it('treats owning the base variant as NOT satisfying a want for the red parallel', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(800, 'base_border');
+      const red = await lookupVariant(800, 'red');
+
+      // User owns the base only.
+      await insertOwned(albumId, base.variantId, 1);
+
+      // Third party offers BRA800(red). The user "needs" it because they
+      // don't own the red variant — owning base doesn't fill that lane.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: red.albumCode, variantToken: 'red', quantity: 1 }],
+        theirWanted:  [],
+      });
+
+      expect(result.iGet).toHaveLength(1);
+      expect(result.iGet[0]?.variantToken).toBe('red');
+      expect(result.iGet[0]?.albumCode).toBe(red.albumCode);
+      expect(result.unknownCodes).toEqual([]);
+    });
+
+    it('resolves an untagged code to the album owner\'s defaultBaseVariant', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border'); // NA edition
+
+      const base = await lookupVariant(801, 'base_border');
+
+      // User has TWO of the base → trade_forced isn't set, but qty > 1 makes
+      // it a spare. The third party wants the code with no variant tag.
+      await insertOwned(albumId, base.variantId, 2);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: null, quantity: 1 }],
+      });
+
+      expect(result.theyGet).toHaveLength(1);
+      // Untagged on a base_border-default album resolves to base_border.
+      expect(result.theyGet[0]?.variantToken).toBe('base_border');
+    });
+
+    it('flags an unknown variant token without dropping the rest of the list', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId);
+      const base = await lookupVariant(802, 'base_border');
+      await insertOwned(albumId, base.variantId, 2);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [
+          { albumCode: 'BRA802', variantToken: 'hologram', quantity: 1 },
+          { albumCode: base.albumCode, variantToken: 'red', quantity: 1 },
+        ],
+        theirWanted:  [],
+      });
+
+      // hologram is unknown → echoes back with the variant tag attached so
+      // the user sees exactly what didn't resolve.
+      expect(result.unknownCodes).toContain('BRA802(hologram)');
+      // Real items still resolve: user doesn't own the red, so they receive it.
+      expect(result.iGet.map((r) => r.variantToken)).toContain('red');
+    });
+  });
+
+  describe('matchAgainstUserAlbum — scarcity balance', () => {
+    it('flags a lopsided trade and reports the give/get totals from the user\'s perspective', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId);
+
+      // User has 5 spares of the base (scarcity 1 each); third party offers
+      // their green parallel (scarcity 1400). User gives 5 × 1 = 5, gets
+      // 1 × 1400 = 1400 — get/give ratio = 280, far above the upper bound.
+      const baseA = await lookupVariant(803, 'base_border');
+      const greenB = await lookupVariant(804, 'green');
+      await insertOwned(albumId, baseA.variantId, 5);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: greenB.albumCode, variantToken: 'green', quantity: 1 }],
+        theirWanted:  [
+          { albumCode: baseA.albumCode, variantToken: 'base_border', quantity: 1 },
+        ],
+      });
+
+      expect(result.balance.give).toBe(1);     // theyGet sticker × 1 base
+      expect(result.balance.get).toBe(1400);   // iGet sticker × 1 green
+      expect(result.balance.ratio).toBe(1400);
+      expect(result.balance.lopsided).toBe(true);
+    });
+
+    it('treats roughly balanced trades as not lopsided', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId);
+
+      // User has 1 spare blue (scarcity 2); third party offers a red parallel
+      // (scarcity 25). 25/2 = 12.5, still well outside the band.
+      // For a fair trade: user gives 1 red (25), receives 1 red (25) — exact 1:1.
+      const redA = await lookupVariant(805, 'red');
+      const redB = await lookupVariant(806, 'red');
+      await insertOwned(albumId, redA.variantId, 2);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: redB.albumCode, variantToken: 'red', quantity: 1 }],
+        theirWanted:  [{ albumCode: redA.albumCode, variantToken: 'red', quantity: 1 }],
+      });
+
+      expect(result.balance.give).toBe(25);
+      expect(result.balance.get).toBe(25);
+      expect(result.balance.ratio).toBe(1);
+      expect(result.balance.lopsided).toBe(false);
+    });
+  });
+
+  describe('matchPair — variant-aware anonymous flow', () => {
+    it('matches variants between two ephemeral lists and surfaces a balance', async () => {
+      // No user state involved at all — purely a catalog lookup. Person A
+      // wants BRA807(red) and B has it; vice versa with a base sticker.
+      const a807 = await lookupVariant(807, 'red');
+      const b808 = await lookupVariant(808, 'base_borderless');
+
+      const result = await matchPair(app.db, {
+        a: {
+          offered: [{ albumCode: b808.albumCode, variantToken: null, quantity: 1 }],
+          wanted:  [{ albumCode: a807.albumCode, variantToken: 'red', quantity: 1 }],
+        },
+        b: {
+          offered: [{ albumCode: a807.albumCode, variantToken: 'red', quantity: 1 }],
+          wanted:  [{ albumCode: b808.albumCode, variantToken: null, quantity: 1 }],
+        },
+        albumTypeKey: 'fifa_world_cup_2026',
+      });
+
+      expect(result.aGets).toHaveLength(1);
+      expect(result.aGets[0]?.variantToken).toBe('red');
+      expect(result.bGets).toHaveLength(1);
+      // matchPair falls back to base_borderless globally when no album owner exists.
+      expect(result.bGets[0]?.variantToken).toBe('base_borderless');
+      // A gives 1 base (1), receives 1 red (25) — ratio 25, lopsided.
+      expect(result.balance.give).toBe(1);
+      expect(result.balance.get).toBe(25);
+      expect(result.balance.lopsided).toBe(true);
+    });
+  });
+});

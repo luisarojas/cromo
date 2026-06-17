@@ -27,6 +27,60 @@ export const VARIANT_RARITY: Record<string, number> = {
   swiss_green: 19,
 }
 
+// VARIANT_SCARCITY — relative trade-value weight per variant.
+// Derived from the documented Panini pack odds (see CLAUDE.md §"Sticker Types
+// & Rarities"): the value approximates "how many base stickers, on average,
+// you'd open before finding one of this variant". Used as guidance only —
+// the third-party trade flow warns when the give/get ratio gets lopsided,
+// but never blocks a trade. Numbers are tunable; the *relative* order is the
+// invariant collectors care about.
+export const VARIANT_SCARCITY: Record<string, number> = {
+  // Core border parallels — direct inverse of pack odds.
+  base_border: 1,
+  base_borderless: 1,
+  blue: 2,         // ~1 in 2 packs
+  red: 25,         // ~1 in 25 packs
+  purple: 200,     // ~1 in 200 packs
+  green: 1400,     // ~1 in 1,400 packs
+  black: 5000,     // 1-of-1, capped to keep totals comparable
+  // Regional / retailer exclusives — limited distribution rather than odds-based.
+  swiss_green: 4,
+  orange_amazon: 15,
+  // iCollect online-exclusive Crumple parallels — same odds-tier as the
+  // border counterpart, bumped slightly to reflect online-only scarcity.
+  gold_crumple: 8,
+  blue_crumple: 3,
+  red_crumple: 30,
+  purple_crumple: 225,
+  green_crumple: 1500,
+  black_crumple: 5000,
+  // Extras — short-printed action shots, 1 in 100 packs as a baseline; the
+  // gold background is the pinnacle of the pack hunt.
+  extra_purple: 100,
+  extra_bronze: 300,
+  extra_silver: 800,
+  extra_gold: 2000,
+}
+
+/**
+ * Lookup helper with a safe fallback for unknown tokens. Treats anything we
+ * don't recognise as a common base (1.0) so callers don't have to special-case
+ * the unknown path — the warning UI already surfaces unknown tokens separately.
+ */
+export function variantScarcity(token: string | null | undefined): number {
+  if (!token) return 1
+  return VARIANT_SCARCITY[token] ?? 1
+}
+
+// ─── Trade-balance guidance ───────────────────────────────────────────────────
+// The third-party trade flow computes total scarcity each side gives vs.
+// receives, then flags trades outside this band as lopsided. Inside the band
+// the trade is treated as "roughly fair". These are tuning knobs, not hard
+// gates — every third-party trade ultimately happens in person between the
+// two collectors.
+export const TRADE_BALANCE_LOW = 0.5
+export const TRADE_BALANCE_HIGH = 2.0
+
 export const DEFAULT_PAGE_SIZE = 100
 export const MAX_TRADE_COUNTERS = 5
 export const VERIFICATION_TOKEN_TTL_HOURS = 24

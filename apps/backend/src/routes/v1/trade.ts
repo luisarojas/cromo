@@ -54,7 +54,28 @@ const SendMessageBody = z.object({
 // External-list inputs are short hand-written/photographed lists. 500 codes
 // is well above any realistic single-person list and bounds the catalog query
 // cost on the unauthenticated /match-pair endpoint.
-const CodeListSchema = z.array(z.string().min(1).max(16)).max(500);
+// Variant tokens are short snake_case identifiers (e.g. "red", "gold_crumple",
+// "extra_purple"). The bound is the longest current token plus headroom for
+// future ones — anything beyond that is almost certainly garbage.
+const VariantTokenSchema = z.string().min(1).max(32);
+const QuantitySchema = z.number().int().min(1).max(99);
+
+const ListItemSchema = z.object({
+  albumCode: z.string().min(1).max(16),
+  variantToken: VariantTokenSchema.nullish(),
+  quantity: QuantitySchema.default(1),
+});
+const ItemListSchema = z.array(ListItemSchema).max(500);
+
+// Normalise Zod's `variantToken: string | null | undefined` down to the
+// service's `string | null` contract.
+function asListItems(items: { albumCode: string; variantToken?: string | null; quantity: number }[]) {
+  return items.map((i) => ({
+    albumCode: i.albumCode,
+    variantToken: i.variantToken ?? null,
+    quantity: i.quantity,
+  }));
+}
 
 // albumTypeKey lands in a Redis cache-key suffix and a SQL parameter. The
 // allow-list keeps an attacker from filling the cache namespace with garbage
@@ -68,19 +89,19 @@ const AlbumTypeKeySchema = z
 
 const MatchAgainstMeBody = z.object({
   albumId: z.string().uuid(),
-  theirOffered: CodeListSchema.default([]),
-  theirWanted: CodeListSchema.default([]),
+  theirOffered: ItemListSchema.default([]),
+  theirWanted: ItemListSchema.default([]),
 });
 
 const MatchPairBody = z.object({
   albumTypeKey: AlbumTypeKeySchema.default('fifa_world_cup_2026'),
   a: z.object({
-    offered: CodeListSchema.default([]),
-    wanted: CodeListSchema.default([]),
+    offered: ItemListSchema.default([]),
+    wanted: ItemListSchema.default([]),
   }),
   b: z.object({
-    offered: CodeListSchema.default([]),
-    wanted: CodeListSchema.default([]),
+    offered: ItemListSchema.default([]),
+    wanted: ItemListSchema.default([]),
   }),
 });
 
@@ -195,7 +216,10 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         const result = await matchAgainstUserAlbum(
           fastify.db, request.userId!, parsed.data.albumId,
-          { theirOffered: parsed.data.theirOffered, theirWanted: parsed.data.theirWanted },
+          {
+            theirOffered: asListItems(parsed.data.theirOffered),
+            theirWanted: asListItems(parsed.data.theirWanted),
+          },
         );
         return reply.status(200).send(result);
       } catch (err) {
@@ -237,8 +261,14 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
       const result = await matchPair(fastify.db, {
-        a: parsed.data.a,
-        b: parsed.data.b,
+        a: {
+          offered: asListItems(parsed.data.a.offered),
+          wanted:  asListItems(parsed.data.a.wanted),
+        },
+        b: {
+          offered: asListItems(parsed.data.b.offered),
+          wanted:  asListItems(parsed.data.b.wanted),
+        },
         albumTypeKey: parsed.data.albumTypeKey,
       });
       return reply.status(200).send(result);

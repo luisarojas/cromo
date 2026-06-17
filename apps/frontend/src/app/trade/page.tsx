@@ -26,6 +26,7 @@ import {
   type TradeSummary,
   type CollectionItem,
   type City,
+  type ExternalListItem,
   type MatchAgainstMeResult,
   type TradeInvite,
 } from '@/lib/api';
@@ -163,8 +164,8 @@ function TradePageContent() {
 
   // Third-party (external list) state
   const [tpAlbumId, setTpAlbumId] = useState<string>('');
-  const [tpOffered, setTpOffered] = useState<string[]>([]);
-  const [tpWanted, setTpWanted] = useState<string[]>([]);
+  const [tpOffered, setTpOffered] = useState<ExternalListItem[]>([]);
+  const [tpWanted, setTpWanted] = useState<ExternalListItem[]>([]);
   const [tpResult, setTpResult] = useState<MatchAgainstMeResult | null>(null);
   const [tpLoading, setTpLoading] = useState(false);
   const [tpError, setTpError] = useState<string | null>(null);
@@ -882,6 +883,7 @@ function TradePageContent() {
               rightReceives={tpResult.theyGet}
               mutualOverlap={tpResult.mutualOverlap}
               unknownCodes={tpResult.unknownCodes}
+              balance={tpResult.balance}
             />
           )}
         </div>

@@ -1,5 +1,14 @@
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import type {
+  ExternalListItem,
+  ScarcityTotals,
+} from '@cromo/shared';
+import {
+  TRADE_BALANCE_HIGH,
+  TRADE_BALANCE_LOW,
+  variantScarcity,
+} from '@cromo/shared';
 import { normalizeAlbumCode } from './scan.service.js';
 
 export interface TradeMatch {
@@ -412,9 +421,16 @@ export async function getTradeMatches(
 //   resolved against the catalog so the response carries player metadata.
 //
 // Both are ephemeral: no persistence, no cache, no rate-limit index.
-// Identity is by album code, not variant — hand-written lists rarely carry
-// variant detail and the existing trade-request flow can refine variants
-// later if the parties decide to formalise.
+//
+// Identity is `(album_code, variant_type)`. An input item with variantToken
+// left null is resolved to the album's default base variant per sticker type:
+//   • Coca-Cola stickers          → base_borderless (always)
+//   • Extras                      → extra_purple
+//   • Everything else (core/FWC)  → the album owner's defaultBaseVariant
+//                                   (base_border for NA-edition albums,
+//                                   base_borderless otherwise). matchPair
+//                                   has no album owner, so it falls back to
+//                                   base_borderless — the global default.
 // ───────────────────────────────────────────────────────────────────────────
 
 export interface ExternalRef {
@@ -422,6 +438,10 @@ export interface ExternalRef {
   playerName: string | null;
   stickerType: 'extra' | 'coca_cola_special' | null;
   number: number | null;
+  variantToken: string | null;
+  variantLabel: string | null;
+  scarcity: number;
+  quantity: number;
 }
 
 export interface MatchAgainstMeOutcome {
@@ -429,6 +449,7 @@ export interface MatchAgainstMeOutcome {
   theyGet: ExternalRef[];
   unknownCodes: string[];
   mutualOverlap: number;
+  balance: ScarcityTotals;
 }
 
 export interface MatchPairOutcome {
@@ -436,6 +457,7 @@ export interface MatchPairOutcome {
   bGets: ExternalRef[];
   unknownCodes: string[];
   mutualOverlap: number;
+  balance: ScarcityTotals;
 }
 
 // Cap the number of unknown codes echoed back to the caller. A 500-all-bogus
@@ -443,82 +465,251 @@ export interface MatchPairOutcome {
 // way to amplify response size. The diagnostic value is the same after ~50.
 const UNKNOWN_ECHO_CAP = 50;
 
-function dedupeCodes(input: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
+/**
+ * Pick the default variant to assume when a list line carries no variant tag.
+ * The user's stated preference is the default for core stickers; CC and Extras
+ * are handled by absolute fallback because they have their own variant lanes.
+ */
+function defaultVariantFor(
+  stickerType: string,
+  defaultBaseVariant: string,
+): string {
+  if (stickerType === 'coca_cola_special') return 'base_borderless';
+  if (stickerType === 'extra') return 'extra_purple';
+  return defaultBaseVariant === 'base_border' ? 'base_border' : 'base_borderless';
+}
+
+const VARIANT_LABELS: Record<string, string> = {
+  base_border: 'Base · White Border',
+  base_borderless: 'Base',
+  blue: 'Blue',
+  red: 'Red',
+  purple: 'Purple',
+  green: 'Green',
+  black: 'Black',
+  orange_amazon: 'Orange · Amazon',
+  swiss_green: 'Swiss · Light Green',
+  gold_crumple: 'Gold · Crumple',
+  blue_crumple: 'Blue · Crumple',
+  red_crumple: 'Red · Crumple',
+  purple_crumple: 'Purple · Crumple',
+  green_crumple: 'Green · Crumple',
+  black_crumple: 'Black · Crumple',
+  extra_purple: 'Extra · Purple',
+  extra_bronze: 'Extra · Bronze',
+  extra_silver: 'Extra · Silver',
+  extra_gold: 'Extra · Gold',
+};
+
+function labelFor(token: string | null): string | null {
+  if (!token) return null;
+  return VARIANT_LABELS[token] ?? token;
+}
+
+interface NormalisedItem {
+  albumCode: string;
+  /** Raw user-supplied token (still un-resolved against album context). */
+  variantToken: string | null;
+  quantity: number;
+}
+
+function dedupeItems(input: ExternalListItem[]): NormalisedItem[] {
+  const seen = new Map<string, NormalisedItem>();
   for (const raw of input) {
-    const code = normalizeAlbumCode(raw);
-    if (code && !seen.has(code)) {
-      seen.add(code);
-      out.push(code);
+    const code = normalizeAlbumCode(raw.albumCode);
+    if (!code) continue;
+    const token = raw.variantToken && raw.variantToken.trim() !== ''
+      ? raw.variantToken.trim().toLowerCase()
+      : null;
+    const qty = Math.max(1, Math.min(99, Math.floor(raw.quantity || 1)));
+    const key = `${code}|${token ?? ''}`;
+    const existing = seen.get(key);
+    if (existing) {
+      existing.quantity = Math.min(99, existing.quantity + qty);
+    } else {
+      seen.set(key, { albumCode: code, variantToken: token, quantity: qty });
+    }
+  }
+  return [...seen.values()];
+}
+
+interface CatalogVariantRow {
+  album_code: string;
+  player_name: string | null;
+  sticker_type: string;
+  number: number;
+  variant_type: string;
+  sticker_variant_id: string;
+}
+
+interface CatalogEntry {
+  albumCode: string;
+  playerName: string | null;
+  stickerType: string;
+  number: number;
+  /** Variants available for this album_code, keyed by variant_type. */
+  variants: Map<string, { stickerVariantId: string }>;
+}
+
+async function lookupCatalogVariants(
+  db: Pool,
+  codes: string[],
+  albumTypeKey: string,
+): Promise<Map<string, CatalogEntry>> {
+  if (codes.length === 0) return new Map();
+  // For CC slots, multiple sticker rows share one album_code (regional alternates).
+  // Picking the lowest number gives a stable representative — variant lanes are
+  // identical across alternates, so the choice doesn't affect ownership math.
+  const { rows } = await db.query<CatalogVariantRow>(
+    `SELECT s.album_code,
+            s.player_name,
+            s.sticker_type,
+            s.number,
+            sv.variant_type,
+            sv.id AS sticker_variant_id
+       FROM stickers s
+       JOIN album_types at ON at.id = s.album_type_id
+       JOIN sticker_variants sv ON sv.sticker_id = s.id
+      WHERE at.key = $1
+        AND s.album_code = ANY($2::text[])`,
+    [albumTypeKey, codes],
+  );
+
+  const out = new Map<string, CatalogEntry>();
+  for (const r of rows) {
+    let entry = out.get(r.album_code);
+    if (!entry) {
+      entry = {
+        albumCode: r.album_code,
+        playerName: r.player_name,
+        stickerType: r.sticker_type,
+        number: r.number,
+        variants: new Map(),
+      };
+      out.set(r.album_code, entry);
+    } else if (r.number < entry.number) {
+      // Stable representative across CC regional alternates: lowest sticker
+      // number wins. (Player name displayed in the UI will be that one's.)
+      entry.playerName = r.player_name;
+      entry.number = r.number;
+    }
+    // For shared CC album_codes, the same variant_type may appear once per
+    // regional row — keep the first; ownership is by sticker_variant_id, so
+    // a single representative is all we need for downstream lookups.
+    if (!entry.variants.has(r.variant_type)) {
+      entry.variants.set(r.variant_type, { stickerVariantId: r.sticker_variant_id });
     }
   }
   return out;
 }
 
-interface CatalogLookupRow {
-  album_code: string;
-  player_name: string | null;
-  sticker_type: string;
-  number: number;
+/**
+ * Resolve a NormalisedItem against the catalog, producing a CatalogEntry +
+ * concrete variant_type, or null when either the code or the requested
+ * variant is unknown.
+ */
+function resolveItem(
+  item: NormalisedItem,
+  catalog: Map<string, CatalogEntry>,
+  defaultBaseVariant: string,
+): { entry: CatalogEntry; variantType: string; stickerVariantId: string } | null {
+  const entry = catalog.get(item.albumCode);
+  if (!entry) return null;
+  const variantType = item.variantToken ?? defaultVariantFor(entry.stickerType, defaultBaseVariant);
+  const v = entry.variants.get(variantType);
+  if (!v) return null;
+  return { entry, variantType, stickerVariantId: v.stickerVariantId };
 }
 
-async function lookupCatalogCodes(
-  db: Pool,
-  codes: string[],
-  albumTypeKey: string,
-): Promise<Map<string, ExternalRef>> {
-  if (codes.length === 0) return new Map();
-  // album_code is unique within an album type except for Coca-Cola regional
-  // alternates; for those we pick a representative row (any regional variant
-  // satisfies the slot for matching purposes).
-  const { rows } = await db.query<CatalogLookupRow>(
-    `SELECT DISTINCT ON (s.album_code)
-            s.album_code, s.player_name, s.sticker_type, s.number
-       FROM stickers s
-       JOIN album_types at ON at.id = s.album_type_id
-      WHERE at.key = $1
-        AND s.album_code = ANY($2::text[])
-      ORDER BY s.album_code, s.number ASC`,
-    [albumTypeKey, codes],
-  );
-  const map = new Map<string, ExternalRef>();
-  for (const r of rows) {
-    map.set(r.album_code, {
-      albumCode: r.album_code,
-      playerName: r.player_name,
-      stickerType:
-        r.sticker_type === 'extra' ? 'extra'
-        : r.sticker_type === 'coca_cola_special' ? 'coca_cola_special'
-        : null,
-      number: r.number,
+interface ResolvedItem {
+  entry: CatalogEntry;
+  variantType: string;
+  stickerVariantId: string;
+  quantity: number;
+  /** Source item's raw token — preserved so the response can surface what the
+   *  user actually typed when it didn't resolve, instead of just the code. */
+  rawToken: string | null;
+}
+
+function resolveItems(
+  items: NormalisedItem[],
+  catalog: Map<string, CatalogEntry>,
+  defaultBaseVariant: string,
+): { resolved: ResolvedItem[]; unknown: string[] } {
+  const resolved: ResolvedItem[] = [];
+  const unknown: string[] = [];
+  for (const item of items) {
+    const r = resolveItem(item, catalog, defaultBaseVariant);
+    if (!r) {
+      unknown.push(item.variantToken ? `${item.albumCode}(${item.variantToken})` : item.albumCode);
+      continue;
+    }
+    resolved.push({
+      entry: r.entry,
+      variantType: r.variantType,
+      stickerVariantId: r.stickerVariantId,
+      quantity: item.quantity,
+      rawToken: item.variantToken,
     });
   }
-  return map;
+  return { resolved, unknown };
+}
+
+function refOf(r: ResolvedItem): ExternalRef {
+  const stickerType =
+    r.entry.stickerType === 'extra' ? 'extra'
+    : r.entry.stickerType === 'coca_cola_special' ? 'coca_cola_special'
+    : null;
+  return {
+    albumCode: r.entry.albumCode,
+    playerName: r.entry.playerName,
+    stickerType,
+    number: r.entry.number,
+    variantToken: r.variantType,
+    variantLabel: labelFor(r.variantType),
+    scarcity: variantScarcity(r.variantType),
+    quantity: r.quantity,
+  };
+}
+
+function computeBalance(give: ExternalRef[], get: ExternalRef[]): ScarcityTotals {
+  const giveSum = give.reduce((s, r) => s + r.scarcity * r.quantity, 0);
+  const getSum  = get.reduce((s, r) => s + r.scarcity * r.quantity, 0);
+  const ratio = giveSum === 0 ? null : getSum / giveSum;
+  const lopsided = ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
+  return { give: giveSum, get: getSum, ratio, lopsided };
 }
 
 /**
  * matchAgainstUserAlbum — third-party list vs. a registered user's collection.
- * "iGet" is the set of codes the user is missing AND the third party offers.
- * "theyGet" is the set of codes the user has spares of AND the third party wants.
- * Album codes are resolved against the catalog (scoped to the user's album type)
- * so the response carries player metadata for display.
+ * "iGet" is what the user receives (the third party offers it AND the user
+ * doesn't own that exact variant). "theyGet" is what the user gives (the
+ * third party wants it AND the user has a spare of that exact variant).
+ * Identity is `(album_code, variant_type)` — owning BRA5(base) does not
+ * satisfy a want for BRA5(red).
  */
 export async function matchAgainstUserAlbum(
   db: Pool,
   userId: string,
   albumId: string,
-  input: { theirOffered: string[]; theirWanted: string[] },
+  input: { theirOffered: ExternalListItem[]; theirWanted: ExternalListItem[] },
 ): Promise<MatchAgainstMeOutcome> {
-  const offered = dedupeCodes(input.theirOffered);
-  const wanted = dedupeCodes(input.theirWanted);
+  const offered = dedupeItems(input.theirOffered);
+  const wanted = dedupeItems(input.theirWanted);
   if (offered.length === 0 && wanted.length === 0) {
-    return { iGet: [], theyGet: [], unknownCodes: [], mutualOverlap: 0 };
+    return {
+      iGet: [], theyGet: [], unknownCodes: [], mutualOverlap: 0,
+      balance: { give: 0, get: 0, ratio: null, lopsided: false },
+    };
   }
 
-  // Resolve the album's type key once so the catalog lookup is scoped correctly.
-  const { rows: albumRows } = await db.query<{ album_type_key: string }>(
-    `SELECT at.key AS album_type_key
+  // Resolve the album's type key + the owner's preferred base variant so
+  // untagged items map to the right "base" for this album region.
+  const { rows: albumRows } = await db.query<{
+    album_type_key: string;
+    settings: { defaultBaseVariant?: string } | null;
+  }>(
+    `SELECT at.key AS album_type_key, ua.settings
        FROM user_albums ua
        JOIN album_types at ON at.id = ua.album_type_id
       WHERE ua.id = $1 AND ua.user_id = $2`,
@@ -528,96 +719,119 @@ export async function matchAgainstUserAlbum(
     throw Object.assign(new Error('Album not found.'), { statusCode: 404 });
   }
   const albumTypeKey = albumRows[0]!.album_type_key;
+  const defaultBaseVariant = albumRows[0]!.settings?.defaultBaseVariant ?? 'base_borderless';
 
-  // Codes the user does NOT own any variant of (= missing slots).
-  // Codes the user owns 2+ copies of (or has trade_forced) — their duplicates.
-  // We intersect inline against the inputs to avoid round-tripping the full
-  // album state. Album code as identity matches the way the album-completion
-  // count works in _sync_user_album_counts.
-  const { rows: stateRows } = await db.query<{
-    album_code: string;
-    owned_qty: string;
-    has_dupe: boolean;
-  }>(
-    `SELECT s.album_code,
-            COALESCE(SUM(us.quantity), 0) AS owned_qty,
-            BOOL_OR((us.quantity > 1) OR us.trade_forced) FILTER (WHERE NOT us.trade_hidden) AS has_dupe
-       FROM stickers s
-       JOIN album_types at ON at.id = s.album_type_id
-       LEFT JOIN sticker_variants sv ON sv.sticker_id = s.id
-       LEFT JOIN user_stickers us
-              ON us.sticker_variant_id = sv.id
-             AND us.album_id = $1
-      WHERE at.key = $2
-        AND s.album_code = ANY($3::text[])
-      GROUP BY s.album_code`,
-    [albumId, albumTypeKey, [...offered, ...wanted]],
-  );
+  const allCodes = [...new Set([...offered, ...wanted].map((i) => i.albumCode))];
+  const catalog = await lookupCatalogVariants(db, allCodes, albumTypeKey);
 
-  const ownedByCode = new Map<string, { qty: number; hasDupe: boolean }>();
+  const { resolved: offeredRes, unknown: unknownOffered } = resolveItems(offered, catalog, defaultBaseVariant);
+  const { resolved: wantedRes, unknown: unknownWanted } = resolveItems(wanted, catalog, defaultBaseVariant);
+
+  // Per-variant ownership: a sticker_variant the user has 0 of is "missing"
+  // for the iGet path; one with qty > 1 or trade_forced is a "spare" for
+  // theyGet. Both filters require the variant to NOT be trade_hidden when we
+  // evaluate the spare flag (matches the FILTER clause in the user-album
+  // matching CTE).
+  const variantIds = [
+    ...new Set([...offeredRes, ...wantedRes].map((r) => r.stickerVariantId)),
+  ];
+
+  const { rows: stateRows } = variantIds.length === 0
+    ? { rows: [] as { sticker_variant_id: string; qty: string; spare: boolean }[] }
+    : await db.query<{ sticker_variant_id: string; qty: string; spare: boolean }>(
+        `SELECT us.sticker_variant_id,
+                COALESCE(SUM(us.quantity), 0) AS qty,
+                BOOL_OR((us.quantity > 1) OR us.trade_forced) FILTER (WHERE NOT us.trade_hidden) AS spare
+           FROM user_stickers us
+          WHERE us.album_id = $1
+            AND us.sticker_variant_id = ANY($2::uuid[])
+          GROUP BY us.sticker_variant_id`,
+        [albumId, variantIds],
+      );
+
+  const ownedByVariant = new Map<string, { qty: number; spare: boolean }>();
   for (const r of stateRows) {
-    ownedByCode.set(r.album_code, {
-      qty: Number(r.owned_qty),
-      hasDupe: !!r.has_dupe,
+    ownedByVariant.set(r.sticker_variant_id, {
+      qty: Number(r.qty),
+      spare: !!r.spare,
     });
   }
 
-  const myMissingCodes = offered.filter((c) => (ownedByCode.get(c)?.qty ?? 0) === 0);
-  const myDuplicateCodes = wanted.filter((c) => ownedByCode.get(c)?.hasDupe);
+  const iGet = offeredRes
+    .filter((r) => (ownedByVariant.get(r.stickerVariantId)?.qty ?? 0) === 0)
+    .map(refOf);
+  const theyGet = wantedRes
+    .filter((r) => ownedByVariant.get(r.stickerVariantId)?.spare === true)
+    .map(refOf);
 
-  const catalog = await lookupCatalogCodes(db, [...new Set([...offered, ...wanted])], albumTypeKey);
-  const unknownCodes = [...offered, ...wanted].filter((c) => !catalog.has(c));
-
-  const refOf = (c: string): ExternalRef =>
-    catalog.get(c) ?? { albumCode: c, playerName: null, stickerType: null, number: null };
-
-  const iGet = myMissingCodes.filter((c) => catalog.has(c)).map(refOf);
-  const theyGet = myDuplicateCodes.filter((c) => catalog.has(c)).map(refOf);
+  const balance = computeBalance(theyGet, iGet);
+  const unknownCodes = [...new Set([...unknownOffered, ...unknownWanted])].slice(0, UNKNOWN_ECHO_CAP);
 
   return {
     iGet,
     theyGet,
-    unknownCodes: [...new Set(unknownCodes)].slice(0, UNKNOWN_ECHO_CAP),
+    unknownCodes,
     mutualOverlap: iGet.length + theyGet.length,
+    balance,
   };
 }
 
 /**
  * matchPair — anonymous two-party matching.
- * Each side specifies offered + wanted. Person A receives stickers that are in
- * their wanted list AND in B's offered list; vice versa for Person B.
- * Codes are resolved against the catalog so the response carries player names.
+ * Each side specifies offered + wanted. Person A receives stickers in their
+ * wanted list AND in B's offered list; vice versa for Person B. Identity is
+ * `(album_code, variant_type)` like matchAgainstUserAlbum.
  */
 export async function matchPair(
   db: Pool,
   input: {
-    a: { offered: string[]; wanted: string[] };
-    b: { offered: string[]; wanted: string[] };
+    a: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
+    b: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
     albumTypeKey: string;
   },
 ): Promise<MatchPairOutcome> {
-  const aOffered = dedupeCodes(input.a.offered);
-  const aWanted = dedupeCodes(input.a.wanted);
-  const bOffered = dedupeCodes(input.b.offered);
-  const bWanted = dedupeCodes(input.b.wanted);
+  const aOffered = dedupeItems(input.a.offered);
+  const aWanted = dedupeItems(input.a.wanted);
+  const bOffered = dedupeItems(input.b.offered);
+  const bWanted = dedupeItems(input.b.wanted);
 
-  const allCodes = [...new Set([...aOffered, ...aWanted, ...bOffered, ...bWanted])];
-  const catalog = await lookupCatalogCodes(db, allCodes, input.albumTypeKey);
-  const unknownCodes = allCodes.filter((c) => !catalog.has(c));
+  const allCodes = [...new Set([
+    ...aOffered, ...aWanted, ...bOffered, ...bWanted,
+  ].map((i) => i.albumCode))];
 
-  const bOfferedSet = new Set(bOffered);
-  const aOfferedSet = new Set(aOffered);
+  const catalog = await lookupCatalogVariants(db, allCodes, input.albumTypeKey);
 
-  const refOf = (c: string): ExternalRef =>
-    catalog.get(c) ?? { albumCode: c, playerName: null, stickerType: null, number: null };
+  // No album owner here, so untagged items resolve to the global default.
+  // North-American collectors using match-pair just need to type "(base)" or
+  // "(white)" if they want the bordered base. CC and Extras get their own
+  // sticker-type fallbacks regardless.
+  const DEFAULT_BASE = 'base_borderless';
 
-  const aGets = aWanted.filter((c) => bOfferedSet.has(c) && catalog.has(c)).map(refOf);
-  const bGets = bWanted.filter((c) => aOfferedSet.has(c) && catalog.has(c)).map(refOf);
+  const { resolved: aOfferedR } = resolveItems(aOffered, catalog, DEFAULT_BASE);
+  const { resolved: aWantedR,  unknown: uAW } = resolveItems(aWanted, catalog, DEFAULT_BASE);
+  const { resolved: bOfferedR } = resolveItems(bOffered, catalog, DEFAULT_BASE);
+  const { resolved: bWantedR,  unknown: uBW } = resolveItems(bWanted, catalog, DEFAULT_BASE);
+
+  // Tracking unknown items from offered sides too — they didn't resolve to a
+  // valid (code, variant), so the diagnostic value of surfacing them is the
+  // same as for wanted items.
+  const { unknown: uAO } = resolveItems(aOffered, catalog, DEFAULT_BASE);
+  const { unknown: uBO } = resolveItems(bOffered, catalog, DEFAULT_BASE);
+
+  const bOfferedSet = new Set(bOfferedR.map((r) => r.stickerVariantId));
+  const aOfferedSet = new Set(aOfferedR.map((r) => r.stickerVariantId));
+
+  const aGets = aWantedR.filter((r) => bOfferedSet.has(r.stickerVariantId)).map(refOf);
+  const bGets = bWantedR.filter((r) => aOfferedSet.has(r.stickerVariantId)).map(refOf);
+
+  const balance = computeBalance(bGets, aGets);
+  const unknownCodes = [...new Set([...uAO, ...uAW, ...uBO, ...uBW])].slice(0, UNKNOWN_ECHO_CAP);
 
   return {
     aGets,
     bGets,
-    unknownCodes: unknownCodes.slice(0, UNKNOWN_ECHO_CAP),
+    unknownCodes,
     mutualOverlap: aGets.length + bGets.length,
+    balance,
   };
 }

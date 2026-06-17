@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ExternalStickerRef } from '@/lib/api';
+import type { ScarcityTotals } from '@cromo/shared';
 
 interface Props {
   title: string;
@@ -13,14 +14,19 @@ interface Props {
   rightLabel: string;
   mutualOverlap: number;
   unknownCodes: string[];
+  /** Scarcity balance from the left side's perspective (their give vs. get). */
+  balance?: ScarcityTotals;
 }
 
 function refLine(r: ExternalStickerRef): string {
-  const tag = r.stickerType === 'extra' ? ' (Extra)'
-    : r.stickerType === 'coca_cola_special' ? ' (Coca-Cola)'
-    : '';
   const player = r.playerName ?? 'Unknown';
-  return `  ${r.albumCode.padEnd(6)} ${player}${tag}`;
+  const variantSuffix = r.variantLabel && r.variantToken !== 'base_borderless' && r.variantToken !== 'base_border'
+    ? ` (${r.variantLabel})` : '';
+  const tag = r.stickerType === 'extra' ? ' [Extra]'
+    : r.stickerType === 'coca_cola_special' ? ' [Coca-Cola]'
+    : '';
+  const qty = r.quantity > 1 ? ` ×${r.quantity}` : '';
+  return `  ${r.albumCode.padEnd(6)} ${player}${variantSuffix}${tag}${qty}`;
 }
 
 function buildShareText(
@@ -41,6 +47,10 @@ function buildShareText(
   return lines.join('\n');
 }
 
+function isBaseToken(token: string | null): boolean {
+  return token === 'base_border' || token === 'base_borderless';
+}
+
 function StickerLine({ ref }: { ref: ExternalStickerRef }) {
   return (
     <li className="flex items-baseline gap-2 text-sm">
@@ -50,6 +60,14 @@ function StickerLine({ ref }: { ref: ExternalStickerRef }) {
       <span className="text-[var(--cromo-fg)] truncate">
         {ref.playerName ?? <span className="italic text-[var(--cromo-fg-muted)]">Unknown player</span>}
       </span>
+      {ref.variantLabel && !isBaseToken(ref.variantToken) && (
+        <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">
+          {ref.variantLabel}
+        </span>
+      )}
+      {ref.quantity > 1 && (
+        <span className="text-xs text-[var(--cromo-fg-muted)]">×{ref.quantity}</span>
+      )}
       {ref.stickerType === 'extra' && (
         <span className="text-xs text-[var(--cromo-accent)]">Extra</span>
       )}
@@ -60,8 +78,41 @@ function StickerLine({ ref }: { ref: ExternalStickerRef }) {
   );
 }
 
+/**
+ * Format the balance summary line. Returns null when there's nothing to say
+ * (one side gives nothing or both sides are empty).
+ */
+function balanceMessage(balance: ScarcityTotals, leftLabel: string): {
+  tone: 'ok' | 'warn';
+  text: string;
+} | null {
+  if (balance.ratio === null) return null;
+  if (balance.give === 0 && balance.get === 0) return null;
+  const fmt = (n: number) => n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(1);
+  const ratio = balance.ratio;
+  if (!balance.lopsided) {
+    return {
+      tone: 'ok',
+      text: `Roughly fair trade — ${leftLabel} gives ${fmt(balance.give)} scarcity points, receives ${fmt(balance.get)}.`,
+    };
+  }
+  if (ratio < 1) {
+    // leftLabel side gives more than they get.
+    const multiple = (1 / ratio).toFixed(1);
+    return {
+      tone: 'warn',
+      text: `${leftLabel} would give about ${multiple}× more scarcity than they receive (${fmt(balance.give)} vs. ${fmt(balance.get)}). Worth a second look before sealing.`,
+    };
+  }
+  const multiple = ratio.toFixed(1);
+  return {
+    tone: 'warn',
+    text: `${leftLabel} would receive about ${multiple}× more scarcity than they give (${fmt(balance.get)} vs. ${fmt(balance.give)}). The other side may push back.`,
+  };
+}
+
 export default function ExternalMatchResult({
-  title, leftReceives, leftLabel, rightReceives, rightLabel, mutualOverlap, unknownCodes,
+  title, leftReceives, leftLabel, rightReceives, rightLabel, mutualOverlap, unknownCodes, balance,
 }: Props) {
   const [canNativeShare, setCanNativeShare] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -99,6 +150,8 @@ export default function ExternalMatchResult({
     );
   }
 
+  const balanceLine = balance ? balanceMessage(balance, leftLabel) : null;
+
   return (
     <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -129,6 +182,26 @@ export default function ExternalMatchResult({
         )}
       </div>
 
+      {balanceLine && (
+        <div
+          className={`rounded-md p-2.5 text-xs ${
+            balanceLine.tone === 'warn'
+              ? 'bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 text-amber-800'
+              : 'bg-[var(--cromo-success-soft)] border border-[var(--cromo-success)]/30 text-[var(--cromo-success-text)]'
+          }`}
+        >
+          <span className="font-medium">
+            {balanceLine.tone === 'warn' ? 'Lopsided trade — ' : 'Looks fair — '}
+          </span>
+          {balanceLine.text}
+          {balanceLine.tone === 'warn' && (
+            <span className="block mt-1 text-[11px] opacity-80">
+              This is just guidance. Scarcity is approximated from Panini pack odds; collectors set the actual price.
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
@@ -138,7 +211,9 @@ export default function ExternalMatchResult({
             <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing.</p>
           ) : (
             <ul className="space-y-1.5">
-              {leftReceives.map((r) => <StickerLine key={r.albumCode} ref={r} />)}
+              {leftReceives.map((r) => (
+                <StickerLine key={`${r.albumCode}|${r.variantToken ?? ''}`} ref={r} />
+              ))}
             </ul>
           )}
         </div>
@@ -150,7 +225,9 @@ export default function ExternalMatchResult({
             <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing.</p>
           ) : (
             <ul className="space-y-1.5">
-              {rightReceives.map((r) => <StickerLine key={r.albumCode} ref={r} />)}
+              {rightReceives.map((r) => (
+                <StickerLine key={`${r.albumCode}|${r.variantToken ?? ''}`} ref={r} />
+              ))}
             </ul>
           )}
         </div>

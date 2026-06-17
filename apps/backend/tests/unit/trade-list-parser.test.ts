@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTradeList } from '@cromo/shared';
+import { parseTradeList, parseTradeListItems, resolveVariantToken } from '@cromo/shared';
 
 // Each `describe` here mirrors one of the real wild-form lists collectors
 // pasted into the Trade Matcher. They serve as a regression net: every shape
@@ -303,5 +303,135 @@ Turkey: 6, 13`;
         'UZB13', 'UZB14', 'UZB19', 'UZB20',
       ]);
     });
+  });
+});
+
+describe('parseTradeListItems (variant + quantity)', () => {
+  it('emits untagged items with variantToken=null and quantity=1', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5, ARG7');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5', variantToken: null, quantity: 1 },
+      { albumCode: 'ARG7', variantToken: null, quantity: 1 },
+    ]);
+  });
+
+  it('extracts a parenthesised variant tag glued to the code', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5(red), ARG7(blue)');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5', variantToken: 'red',  quantity: 1 },
+      { albumCode: 'ARG7', variantToken: 'blue', quantity: 1 },
+    ]);
+  });
+
+  it('extracts a parenthesised variant tag with whitespace and an explicit quantity', () => {
+    const { wanted } = parseTradeListItems('WANT: FWC3 (purple) x2');
+    expect(wanted).toEqual([
+      { albumCode: 'FWC3', variantToken: 'purple', quantity: 2 },
+    ]);
+  });
+
+  it('canonicalises multi-word variant aliases like "red crumple" → red_crumple', () => {
+    const { offered } = parseTradeListItems('HAVE: MEX10 (red crumple)');
+    expect(offered).toEqual([
+      { albumCode: 'MEX10', variantToken: 'red_crumple', quantity: 1 },
+    ]);
+  });
+
+  it('canonicalises "gold" to gold_crumple (no smooth gold border exists in the catalog)', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5(gold)');
+    expect(offered[0]?.variantToken).toBe('gold_crumple');
+  });
+
+  it('accepts the colon-separated variant form (BRA5:red)', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5:red');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5', variantToken: 'red', quantity: 1 },
+    ]);
+  });
+
+  it('accepts the canonical snake_case token directly', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5(extra_gold)');
+    expect(offered[0]?.variantToken).toBe('extra_gold');
+  });
+
+  it('routes a tag onto the LAST number in a prefix-then-numbers run', () => {
+    // "BRA: 5, 7, 12 (red)" assigns red only to BRA12 — the other codes stay base.
+    // This keeps the parser predictable for hand-written lists where the tag
+    // is invariably attached to the nearest code.
+    const { offered } = parseTradeListItems('HAVE: BRA 5, 7, 12 (red) x3');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5',  variantToken: null,  quantity: 1 },
+      { albumCode: 'BRA7',  variantToken: null,  quantity: 1 },
+      { albumCode: 'BRA12', variantToken: 'red', quantity: 3 },
+    ]);
+  });
+
+  it('treats the same (code, variant) twice as additive quantity', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5(red), BRA5(red)x2');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5', variantToken: 'red', quantity: 3 },
+    ]);
+  });
+
+  it('keeps the same code under two different variants as distinct items', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5, BRA5(red)');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5', variantToken: null,  quantity: 1 },
+      { albumCode: 'BRA5', variantToken: 'red', quantity: 1 },
+    ]);
+  });
+
+  it('still respects the HAVE/WANT bucket markers', () => {
+    const { offered, wanted } = parseTradeListItems(
+      'HAVE: BRA5(red) x2\nWANT: MEX10(purple), FWC3(gold)',
+    );
+    expect(offered).toEqual([{ albumCode: 'BRA5', variantToken: 'red', quantity: 2 }]);
+    expect(wanted).toEqual([
+      { albumCode: 'MEX10', variantToken: 'purple',       quantity: 1 },
+      { albumCode: 'FWC3',  variantToken: 'gold_crumple', quantity: 1 },
+    ]);
+  });
+
+  it('clamps quantities to [1, 99] without dropping the rest of the line', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5(red) x500, ARG7');
+    expect(offered).toEqual([
+      { albumCode: 'BRA5', variantToken: 'red',  quantity: 99 },
+      { albumCode: 'ARG7', variantToken: null,   quantity: 1 },
+    ]);
+  });
+
+  it('passes unknown variant words through as raw tokens so the backend can flag them', () => {
+    const { offered } = parseTradeListItems('HAVE: BRA5(neonpink)');
+    // resolveVariantToken returns the normalised lowercase string when nothing matches —
+    // the backend resolves against the catalog and fails it loudly there.
+    expect(offered[0]?.variantToken).toBe('neonpink');
+  });
+});
+
+describe('resolveVariantToken', () => {
+  it('maps natural single words to canonical tokens', () => {
+    expect(resolveVariantToken('red')).toBe('red');
+    expect(resolveVariantToken('Blue')).toBe('blue');
+    expect(resolveVariantToken('GOLD')).toBe('gold_crumple');
+    expect(resolveVariantToken('bronze')).toBe('extra_bronze');
+    expect(resolveVariantToken('silver')).toBe('extra_silver');
+    expect(resolveVariantToken('amazon')).toBe('orange_amazon');
+    expect(resolveVariantToken('swiss')).toBe('swiss_green');
+  });
+
+  it('maps multi-word aliases', () => {
+    expect(resolveVariantToken('red crumple')).toBe('red_crumple');
+    expect(resolveVariantToken('white border')).toBe('base_border');
+    expect(resolveVariantToken('extra gold')).toBe('extra_gold');
+  });
+
+  it('passes canonical tokens through unchanged', () => {
+    expect(resolveVariantToken('base_borderless')).toBe('base_borderless');
+    expect(resolveVariantToken('extra_purple')).toBe('extra_purple');
+  });
+
+  it('returns the lowercased raw string when nothing matches', () => {
+    expect(resolveVariantToken('hologram')).toBe('hologram');
+    expect(resolveVariantToken('')).toBe('');
   });
 });

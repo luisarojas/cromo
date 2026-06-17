@@ -47,6 +47,7 @@ import type {
   PublicProfileAlbum as SharedPublicProfileAlbum,
   PublicProfile as SharedPublicProfile,
   PublicWantedPage as SharedPublicWantedPage,
+  ExternalListItem as SharedExternalListItem,
   ExternalStickerRef as SharedExternalStickerRef,
   MatchAgainstMeResult as SharedMatchAgainstMeResult,
   MatchPairResult as SharedMatchPairResult,
@@ -992,13 +993,14 @@ export async function fetchTradeMatches(
 }
 
 // ─── External-list matching (third-party / anonymous flows) ────────────────
+export type ExternalListItem = SharedExternalListItem;
 export type ExternalStickerRef = SharedExternalStickerRef;
 export type MatchAgainstMeResult = SharedMatchAgainstMeResult;
 export type MatchPairResult = SharedMatchPairResult;
 export type ScanListResult = SharedScanListResult;
 
 export async function matchAgainstMe(
-  body: { albumId: string; theirOffered: string[]; theirWanted: string[] },
+  body: { albumId: string; theirOffered: ExternalListItem[]; theirWanted: ExternalListItem[] },
   token: string,
 ): Promise<MatchAgainstMeResult> {
   return apiFetch<MatchAgainstMeResult>(
@@ -1010,8 +1012,8 @@ export async function matchAgainstMe(
 
 export async function matchPair(body: {
   albumTypeKey?: string;
-  a: { offered: string[]; wanted: string[] };
-  b: { offered: string[]; wanted: string[] };
+  a: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
+  b: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
 }): Promise<MatchPairResult> {
   return apiFetch<MatchPairResult>(
     '/api/v1/trade/match-pair',
