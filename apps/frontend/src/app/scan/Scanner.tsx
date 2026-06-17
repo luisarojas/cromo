@@ -354,16 +354,25 @@ function DropZone({
   onFiles,
   multiple,
   disabled,
+  openCameraSignal,
 }: {
   // `appendMode` signals "treat this file as one of many in a live session" —
   // skip the preview swap and append result cards instead of replacing them.
   onFiles: (files: File[], opts?: { appendMode?: boolean }) => void;
   multiple?: boolean;
   disabled?: boolean;
+  // Monotonic counter — incrementing it triggers the camera to open. Lets the
+  // parent (Scanner) chain "scan another sticker" without lifting state.
+  openCameraSignal?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+
+  useEffect(() => {
+    if (openCameraSignal === undefined || openCameraSignal === 0) return;
+    if (!disabled) setCameraOpen(true);
+  }, [openCameraSignal, disabled]);
 
   const handleFiles = useCallback(
     (files: FileList | null) => {
@@ -638,6 +647,11 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
   const [staged, setStaged] = useState<{ file: File; preview: string }[]>([]);
   const [resultCards, setResultCards] = useState<ScanCard[]>([]);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
+  // Monotonic counter routed to DropZone — bumping it tells the freshly-mounted
+  // DropZone to auto-open its camera. Used by the "Scan another sticker" CTA
+  // so the user keeps flowing after a confirmed match instead of hunting the
+  // camera trigger again.
+  const [openCameraSignal, setOpenCameraSignal] = useState(0);
   const [speechMuted, setSpeechMutedState] = useState(() => isSpeechMuted());
   const speechSupported = isSpeechSupported();
   // Session-scoped log of successful adds, used to seed the pack-share card.
@@ -991,7 +1005,7 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
       </div>
 
       {status === 'idle' ? (
-        <DropZone onFiles={handleFiles} multiple />
+        <DropZone onFiles={handleFiles} multiple openCameraSignal={openCameraSignal} />
       ) : (
         <>
           {!isBatch && previewUrl && resultCards.length === 0 && (
@@ -1222,11 +1236,17 @@ export default function Scanner({ album, onChange, onClose, onChangeAlbum }: Sca
           )}
 
           {status === 'done' && (
+            // "Scan another" is the dominant follow-up after a confirmed match —
+            // resets the result panel AND reopens the camera so the user keeps
+            // flowing instead of hunting the camera trigger again.
             <button
-              onClick={reset}
-              className="w-full text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] underline"
+              onClick={() => { reset(); setOpenCameraSignal((n) => n + 1); }}
+              className="w-full rounded-lg bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] px-4 py-3 text-sm font-semibold hover:bg-[var(--cromo-accent-strong)] flex items-center justify-center gap-2"
             >
-              Scan more stickers
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+              Scan another sticker
             </button>
           )}
 

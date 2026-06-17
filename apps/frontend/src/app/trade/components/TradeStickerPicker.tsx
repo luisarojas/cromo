@@ -1282,7 +1282,7 @@ function SelectedChip({
           onClick={onDecrement}
           disabled={quantity <= minQty}
           aria-label="Decrease quantity"
-          className={`w-6 h-6 flex items-center justify-center rounded text-sm font-bold ${actionColor} ${actionHover} disabled:opacity-30 transition-colors`}
+          className={`w-9 h-9 md:w-6 md:h-6 flex items-center justify-center rounded text-base md:text-sm font-bold ${actionColor} ${actionHover} disabled:opacity-30 transition-colors active:scale-95 md:active:scale-100`}
         >
           −
         </button>
@@ -1293,7 +1293,7 @@ function SelectedChip({
           onClick={onIncrement}
           disabled={quantity >= maxQty}
           aria-label="Increase quantity"
-          className={`w-6 h-6 flex items-center justify-center rounded text-sm font-bold ${actionColor} ${actionHover} disabled:opacity-30 transition-colors`}
+          className={`w-9 h-9 md:w-6 md:h-6 flex items-center justify-center rounded text-base md:text-sm font-bold ${actionColor} ${actionHover} disabled:opacity-30 transition-colors active:scale-95 md:active:scale-100`}
         >
           +
         </button>
@@ -1301,8 +1301,8 @@ function SelectedChip({
 
       <button
         onClick={onRemove}
-        className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-surface-2)] transition-colors text-base leading-none"
         aria-label={`Remove ${albumCode}`}
+        className="shrink-0 w-9 h-9 md:w-6 md:h-6 flex items-center justify-center rounded text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-danger-text)] hover:bg-[var(--cromo-surface-2)] transition-colors text-lg md:text-base leading-none"
       >
         ×
       </button>

@@ -36,6 +36,7 @@ import ExternalMatchResult from './components/ExternalMatchResult';
 import TradesList from './components/TradesList';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
 import CityAutocomplete from '@/components/CityAutocomplete';
+import { BottomSheet } from '@/components/BottomSheet';
 
 import { saveDraft, clearDraft, loadDraft } from './draftStorage';
 
@@ -980,14 +981,8 @@ function TradePageContent() {
       )}
 
       {qrOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setQrOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg p-6 flex flex-col items-center gap-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <BottomSheet open onClose={() => setQrOpen(false)} ariaLabel={t('qrModalTitle')}>
+          <div className="p-6 flex flex-col items-center gap-4">
             <h2 className="text-base font-semibold text-[var(--cromo-fg)]">
               {t('qrModalTitle')}
             </h2>
@@ -1030,7 +1025,7 @@ function TradePageContent() {
               </>
             )}
           </div>
-        </div>
+        </BottomSheet>
       )}
     </div>
   );
