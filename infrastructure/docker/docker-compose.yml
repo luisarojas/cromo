@@ -114,6 +114,7 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:3001
+      INTERNAL_API_URL: http://api:3001
       NEXT_PUBLIC_ENV: development
       NEXT_PUBLIC_APP_VERSION: ${APP_VERSION:-0.0.0-local}
     volumes:

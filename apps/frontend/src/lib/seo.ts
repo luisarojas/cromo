@@ -9,6 +9,18 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://cromotrade
 export const SITE_NAME = 'Cromo';
 export const NOINDEX = process.env.NEXT_PUBLIC_NOINDEX === 'true';
 
+// Server-side base for API calls (OG image routes, future RSC fetches).
+// NEXT_PUBLIC_API_URL is what the browser hits — in dev that's
+// `http://localhost:3001` and inside the frontend container localhost doesn't
+// resolve to the api service. INTERNAL_API_URL lets compose point us at
+// `http://api:3001`; in prod everything's behind the same ALB so the public
+// URL works for both.
+export const INTERNAL_API_URL = (
+  process.env.INTERNAL_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:3001'
+).replace(/\/$/, '');
+
 // Public routes that are safe for crawlers and worth indexing. Private
 // surfaces (/admin, /dashboard, /album, /trade except /trade/match, /scan,
 // /settings, /verify-email, /reset-password, /forgot-password) are blocked

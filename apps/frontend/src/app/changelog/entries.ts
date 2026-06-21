@@ -38,6 +38,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       Added: [
         'Spanish (Español) language support — pick your language from the footer.',
         'Site-wide SEO — sitemap, robots, OpenGraph cards, hreflang for EN/ES, and a structured Organization profile for search engines.',
+        'Link previews — sharing a profile, share list, trade invite, or live-trade join URL now unfurls with a Cromo-branded graphic; profiles show the collector\'s name, album count, and totals.',
         'Share progress — from any album, generate a 1080×1080 card of your completion to post on Instagram, TikTok, or WhatsApp.',
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
         'Trade in person — generate a QR code from the Trades page; the other collector scans it and lands straight in the propose-trade flow with you as the partner.',
