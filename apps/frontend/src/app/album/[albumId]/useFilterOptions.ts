@@ -3,8 +3,8 @@
 import { useMemo } from 'react';
 import type { Sticker } from '@/lib/api';
 import { foldAccents } from '@/lib/normalize';
-import type { FilterState } from '../components/FilterBar';
-import { variantLabel, variantSwatch } from '../components/variantMeta';
+import type { FilterState } from '@/app/collection/components/FilterBar';
+import { variantLabel, variantSwatch } from '@/app/collection/components/variantMeta';
 
 const TYPE_LABELS: Record<string, string> = {
   player: 'Player',

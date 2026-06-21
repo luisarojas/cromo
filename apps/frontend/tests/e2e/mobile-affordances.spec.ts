@@ -58,9 +58,9 @@ test.describe('mobile affordances', () => {
     await page.goto('/collection');
 
     // Open whichever album Alice has — first card on the grid.
-    const firstAlbumLink = page.locator('a[href^="/collection/"]').first();
+    const firstAlbumLink = page.locator('a[href^="/album/"]').first();
     await firstAlbumLink.click();
-    await page.waitForURL(/\/collection\/[^/]+/);
+    await page.waitForURL(/\/album\/[^/]+/);
 
     // The mobile overflow trigger is visible …
     const overflow = page.getByRole('button', { name: /more album actions/i });
@@ -85,9 +85,9 @@ test.describe('mobile affordances', () => {
   test('variant sheet exposes thumb-sized +/- without a disclosure tap', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/collection');
-    const firstAlbumLink = page.locator('a[href^="/collection/"]').first();
+    const firstAlbumLink = page.locator('a[href^="/album/"]').first();
     await firstAlbumLink.click();
-    await page.waitForURL(/\/collection\/[^/]+/);
+    await page.waitForURL(/\/album\/[^/]+/);
 
     // Tap the first owned sticker to open the sheet. We rely on the
     // green-border class as the owned-card marker — same class StickerCard
@@ -114,9 +114,9 @@ test.describe('mobile affordances', () => {
     await loginAs(page, ALICE);
     await page.goto('/collection');
 
-    const firstAlbumLink = page.locator('a[href^="/collection/"]').first();
+    const firstAlbumLink = page.locator('a[href^="/album/"]').first();
     await firstAlbumLink.click();
-    await page.waitForURL(/\/collection\/[^/]+/);
+    await page.waitForURL(/\/album\/[^/]+/);
 
     // The density button's aria-label starts with "Grid density:".
     const density = page.getByRole('button', { name: /grid density:/i });

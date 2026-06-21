@@ -8,7 +8,7 @@ import { usePreferencesStore } from '@/store/preferences';
 import { VARIANT_META, variantLabel } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
 import type { FilterState } from './FilterBar';
-import type { Tab } from '../[albumId]/useAlbumUrlState';
+import type { Tab } from '@/app/album/[albumId]/useAlbumUrlState';
 
 type OwnedMap = Map<string, Map<string, OwnedVariantEntry>>;
 

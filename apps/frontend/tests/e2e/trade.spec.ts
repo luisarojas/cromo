@@ -106,7 +106,7 @@ test.describe('Multiple albums', () => {
 
   test('Alice can navigate to her international album', async ({ page }) => {
     await loginAs(page, ALICE);
-    await page.goto(`/collection/${ALICE_INTL_ALBUM_ID}`);
+    await page.goto(`/album/${ALICE_INTL_ALBUM_ID}`);
 
     // Page should load the album view (not redirect to login or show 404)
     await expect(page).not.toHaveURL('/login');
@@ -358,7 +358,7 @@ test.describe('Trade flags — sticker picker visibility', () => {
 test.describe('Favourites', () => {
   test('favourites filter button is visible on album page', async ({ page }) => {
     await loginAs(page, ALICE);
-    await page.goto(`/collection/${ALICE_NA_ALBUM_ID}`);
+    await page.goto(`/album/${ALICE_NA_ALBUM_ID}`);
 
     // The favourites filter toggle should exist on the album page
     const favsButton = page
@@ -381,7 +381,7 @@ test.describe('Favourites', () => {
       value: JSON.stringify(['1']),
     });
 
-    await page.goto(`/collection/${ALICE_NA_ALBUM_ID}`);
+    await page.goto(`/album/${ALICE_NA_ALBUM_ID}`);
 
     const favsButton = page
       .getByRole('button', { name: /favourites|starred|fav/i })
@@ -411,7 +411,7 @@ test.describe('Favourites', () => {
 
   test('toggling a sticker as favourite persists via localStorage', async ({ page }) => {
     await loginAs(page, ALICE);
-    await page.goto(`/collection/${ALICE_NA_ALBUM_ID}`);
+    await page.goto(`/album/${ALICE_NA_ALBUM_ID}`);
 
     // Click the star/favourite icon on the first visible sticker
     const firstStar = page

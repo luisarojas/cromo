@@ -14,6 +14,7 @@ export default function robots(): MetadataRoute.Robots {
           '/admin',
           '/dashboard',
           '/collection',
+          '/album/',
           '/scan',
           '/settings',
           '/profile/',

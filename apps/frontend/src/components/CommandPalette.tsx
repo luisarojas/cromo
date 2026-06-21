@@ -75,7 +75,7 @@ export default function CommandPalette() {
         label: albumDisplayName(a),
         badge: a.isDefault ? 'Album · default' : 'Album',
         keywords: `${a.editionName} ${a.formatName}`,
-        run: () => router.push(`/collection/${a.id}`),
+        run: () => router.push(`/album/${a.id}`),
       });
     }
     base.push({

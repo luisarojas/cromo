@@ -433,7 +433,7 @@ export default function DashboardPage() {
                     key={album.id}
                     className="group rounded-card border border-[var(--cromo-border)] bg-[var(--cromo-surface)] hover:border-[var(--cromo-border-strong)] transition-colors overflow-hidden"
                   >
-                    <Link href={`/collection/${album.id}`} className="block p-4">
+                    <Link href={`/album/${album.id}`} className="block p-4">
                       {cardContent}
                     </Link>
                     {guideLink}

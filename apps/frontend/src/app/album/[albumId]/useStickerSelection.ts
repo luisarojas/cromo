@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import type { Sticker } from '@/lib/api';
-import type { OwnedVariantMap } from '../components/StickerGrid';
+import type { OwnedVariantMap } from '@/app/collection/components/StickerGrid';
 
 interface UseStickerSelectionParams {
   displayedStickers: Sticker[];

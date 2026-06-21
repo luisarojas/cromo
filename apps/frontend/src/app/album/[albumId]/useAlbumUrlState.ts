@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import type { FilterState } from '../components/FilterBar';
+import type { FilterState } from '@/app/collection/components/FilterBar';
 
 export type Tab = 'all' | 'have' | 'missing' | 'duplicates' | 'stats';
 const VALID_TABS: readonly Tab[] = ['all', 'have', 'missing', 'duplicates', 'stats'];
