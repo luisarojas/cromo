@@ -38,12 +38,18 @@ function escapeXml(s: string): string {
 
 function buildSvg(p: Omit<Props, 'onClose' | 'onShared'>): string {
   const pct = Math.max(0, Math.min(100, p.stats.percentage));
-  const pctLabel = pct >= 99.95 ? '100' : pct.toFixed(pct >= 10 ? 1 : 1);
-  const ringR = 280;
+  const pctLabel = pct >= 99.95 ? '100' : pct.toFixed(1);
+  const ringR = 230;
+  const ringStroke = 34;
   const ringCx = SIZE / 2;
-  const ringCy = 560;
+  const ringCy = 500;
   const circumference = 2 * Math.PI * ringR;
   const dash = (pct / 100) * circumference;
+  const hasDuplicates = p.stats.duplicates != null && p.stats.duplicates > 0;
+  const hasMissing = p.stats.missing != null;
+  const statsLine = hasMissing
+    ? `${p.stats.missing} missing${hasDuplicates ? `  ·  ${p.stats.duplicates} duplicates` : ''}`
+    : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">
     <defs>
@@ -68,39 +74,43 @@ function buildSvg(p: Omit<Props, 'onClose' | 'onShared'>): string {
     <rect x="0" y="0" width="${SIZE}" height="6" fill="url(#accent)"/>
 
     <!-- Header -->
-    <g transform="translate(${PAD}, ${PAD + 12})">
+    <g transform="translate(${PAD}, ${PAD + 20})">
       <rect x="0" y="0" width="56" height="56" rx="14" fill="url(#accent)"/>
-      <text x="76" y="22" font-family="Inter, system-ui" font-size="20" font-weight="800" fill="#FFFFFF">Cromo</text>
-      <text x="76" y="48" font-family="Inter, system-ui" font-size="14" letter-spacing="2" font-weight="600" fill="#7DD3FC">COLLECTION · PROGRESS</text>
+      <text x="76" y="24" font-family="Inter, system-ui" font-size="22" font-weight="800" fill="#FFFFFF">Cromo</text>
+      <text x="76" y="50" font-family="Inter, system-ui" font-size="13" letter-spacing="3" font-weight="600" fill="#7DD3FC">COLLECTION · PROGRESS</text>
     </g>
 
     <!-- Progress ring -->
     <g transform="translate(${ringCx}, ${ringCy})">
-      <circle r="${ringR}" fill="none" stroke="#1A1D24" stroke-width="44"/>
-      <circle r="${ringR}" fill="none" stroke="url(#ringGrad)" stroke-width="44"
+      <circle r="${ringR}" fill="none" stroke="#1A1D24" stroke-width="${ringStroke}"/>
+      <circle r="${ringR}" fill="none" stroke="url(#ringGrad)" stroke-width="${ringStroke}"
               stroke-linecap="round"
               stroke-dasharray="${dash} ${circumference - dash}"
               transform="rotate(-90)"/>
-      <text x="0" y="-30" font-family="Inter, system-ui" font-size="120" font-weight="800" fill="#FFFFFF" text-anchor="middle">${pctLabel}<tspan font-size="68" fill="#94A3B8" dx="-4">%</tspan></text>
-      <text x="0" y="42" font-family="Inter, system-ui" font-size="32" font-weight="600" fill="#CBD5E1" text-anchor="middle">${p.stats.owned} of ${p.stats.total} stickers</text>
-      ${p.stats.missing != null ? `<text x="0" y="86" font-family="Inter, system-ui" font-size="22" fill="#7DD3FC" text-anchor="middle">${p.stats.missing} missing${p.stats.duplicates != null ? ` · ${p.stats.duplicates} duplicates` : ''}</text>` : ''}
+      <text x="0" y="0" font-family="Inter, system-ui" font-size="150" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${pctLabel}<tspan font-size="64" fill="#94A3B8" dx="6" dy="-40">%</tspan></text>
+      <text x="0" y="110" font-family="Inter, system-ui" font-size="28" font-weight="600" fill="#CBD5E1" text-anchor="middle">${p.stats.owned} / ${p.stats.total} stickers</text>
     </g>
 
+    ${statsLine ? `<text x="${SIZE / 2}" y="${ringCy + ringR + 70}" font-family="Inter, system-ui" font-size="22" font-weight="500" fill="#94A3B8" text-anchor="middle">${statsLine}</text>` : ''}
+
+    <!-- Divider -->
+    <line x1="${PAD}" y1="${SIZE - 240}" x2="${SIZE - PAD}" y2="${SIZE - 240}" stroke="#1F2230" stroke-width="1"/>
+
     <!-- Collector label -->
-    <g transform="translate(${PAD}, ${SIZE - PAD - 130})">
-      <text x="0" y="0" font-family="Inter, system-ui" font-size="20" letter-spacing="3" font-weight="600" fill="#7DD3FC">COLLECTOR</text>
-      <text x="0" y="42" font-family="Inter, system-ui" font-size="44" font-weight="800" fill="#FFFFFF">${escapeXml(p.collectorName)}</text>
-      ${p.username ? `<text x="0" y="78" font-family="Inter, system-ui" font-size="22" fill="#94A3B8">@${escapeXml(p.username)}</text>` : ''}
+    <g transform="translate(${PAD}, ${SIZE - 190})">
+      <text x="0" y="0" font-family="Inter, system-ui" font-size="14" letter-spacing="3" font-weight="700" fill="#7DD3FC">COLLECTOR</text>
+      <text x="0" y="44" font-family="Inter, system-ui" font-size="40" font-weight="800" fill="#FFFFFF">${escapeXml(p.collectorName)}</text>
+      ${p.username ? `<text x="0" y="78" font-family="Inter, system-ui" font-size="20" fill="#94A3B8">@${escapeXml(p.username)}</text>` : ''}
     </g>
 
     <!-- Album label -->
-    <g transform="translate(${SIZE - PAD}, ${SIZE - PAD - 130})" text-anchor="end">
-      <text x="0" y="0" font-family="Inter, system-ui" font-size="20" letter-spacing="3" font-weight="600" fill="#F472B6">ALBUM</text>
-      <text x="0" y="42" font-family="Inter, system-ui" font-size="32" font-weight="700" fill="#E5E7EB">${escapeXml(p.albumLabel)}</text>
+    <g transform="translate(${SIZE - PAD}, ${SIZE - 190})" text-anchor="end">
+      <text x="0" y="0" font-family="Inter, system-ui" font-size="14" letter-spacing="3" font-weight="700" fill="#F472B6">ALBUM</text>
+      <text x="0" y="44" font-family="Inter, system-ui" font-size="28" font-weight="700" fill="#E5E7EB">${escapeXml(p.albumLabel)}</text>
     </g>
 
     <!-- Footer -->
-    <text x="${SIZE / 2}" y="${SIZE - 36}" font-family="Inter, system-ui" font-size="20" font-weight="600" fill="#64748B" text-anchor="middle">cromotrade.ca</text>
+    <text x="${SIZE / 2}" y="${SIZE - 48}" font-family="Inter, system-ui" font-size="18" letter-spacing="2" font-weight="600" fill="#64748B" text-anchor="middle">cromotrade.ca</text>
   </svg>`;
 }
 
