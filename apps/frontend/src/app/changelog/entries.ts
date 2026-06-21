@@ -83,6 +83,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Filter dropdown options keep their original order instead of jumping to the top as you check them.',
         'Stats page — clicking a Rare Pulls tier now filters the album to that exact variant instead of bundling in the matching Extra background.',
         'Album page — switching tabs or jumping in from the stats page now adds a browser-history entry, so the back button returns you to where you came from.',
+        'Desktop variant popover — "Add to wishlist" and "Add other variant" lists can be collapsed again with a Done button.',
       ],
       Removed: [
         '"Focus on these" card on the album page.',

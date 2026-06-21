@@ -644,12 +644,12 @@ export default function VariantPopover({
           )}
 
           {/* Popover (desktop): keep the disclosure flow. */}
-          {!isSheet && otherUnowned.length > 0 && !showAddPicker && (
+          {!isSheet && otherUnowned.length > 0 && (
             <button
-              onClick={openAddPicker}
+              onClick={() => setShowAddPicker((v) => !v)}
               className="text-xs font-medium text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] self-start"
             >
-              + Add other variant
+              {showAddPicker ? 'Done' : '+ Add other variant'}
             </button>
           )}
           {!isSheet && otherUnowned.length > 0 && showAddPicker && (
@@ -675,14 +675,18 @@ export default function VariantPopover({
               ))}
             </div>
           )}
-          {!isSheet && !showWantedPicker && (() => {
+          {!isSheet && (() => {
             const wantedHere = unownedVariants.filter((v) => wantedVariantIds.has(v.id)).length;
             return (
               <button
-                onClick={() => setShowWantedPicker(true)}
+                onClick={() => setShowWantedPicker((v) => !v)}
                 className="text-xs font-medium text-[var(--cromo-accent)] hover:text-[var(--cromo-accent)] self-start"
               >
-                {wantedHere > 0 ? `★ Edit wishlist (${wantedHere})` : '☆ Add to wishlist'}
+                {showWantedPicker
+                  ? 'Done'
+                  : wantedHere > 0
+                    ? `★ Edit wishlist (${wantedHere})`
+                    : '☆ Add to wishlist'}
               </button>
             );
           })()}
