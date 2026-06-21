@@ -178,7 +178,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const [showScanner, setShowScanner] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   // Overflow menu for the mobile album header. Secondary actions (set default,
-  // edit, new album) collapse behind a "⋯" tap target on small screens so the
+  // share progress) collapse behind a "⋯" tap target on small screens so the
   // primary Scan + Share buttons aren't pushed off-row.
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -721,13 +721,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         variant: 'warning',
       });
     }
-    xs.push({
-      key: 'edit',
-      label: t('edit'),
-      icon: <PencilIcon />,
-      onClick: runAndClose(() => setEditingAlbum(activeAlbum)),
-      variant: 'neutral',
-    });
     if (computedStats) {
       xs.push({
         key: 'share-progress',
@@ -738,17 +731,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         variant: 'accent',
       });
     }
-    if (albums.length < 10) {
-      xs.push({
-        key: 'new-album',
-        label: t('newAlbum'),
-        icon: <PlusIcon />,
-        onClick: runAndClose(() => setShowAddModal(true)),
-        variant: 'accent',
-      });
-    }
     return xs;
-  }, [activeAlbum, albums.length, computedStats, handleSetDefault, runAndClose, t]);
+  }, [activeAlbum, computedStats, handleSetDefault, runAndClose, t]);
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'all', label: t('tabAll') },
@@ -894,6 +878,27 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             </div>
           )}
         </div>
+
+        {activeAlbum && (
+          <div className="flex items-center justify-end gap-1.5 -mt-2">
+            <button
+              onClick={() => setEditingAlbum(activeAlbum)}
+              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+            >
+              <span className="w-3.5 h-3.5"><PencilIcon /></span>
+              {t('edit')}
+            </button>
+            {albums.length < 10 && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent-soft)] transition-colors"
+              >
+                <span className="w-3.5 h-3.5"><PlusIcon /></span>
+                {t('newAlbum')}
+              </button>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)]">

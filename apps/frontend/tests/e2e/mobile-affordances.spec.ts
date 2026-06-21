@@ -79,7 +79,7 @@ test.describe('mobile affordances', () => {
     await overflow.click();
     const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole('menuitem', { name: /edit/i })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: /share progress/i })).toBeVisible();
   });
 
   test('variant sheet exposes thumb-sized +/- without a disclosure tap', async ({ page }) => {
