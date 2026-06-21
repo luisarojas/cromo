@@ -39,7 +39,7 @@
     "jose": "^5.9.6",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
-    "nodemailer": "^8.0.10",
+    "nodemailer": "^9.0.1",
     "pg": "^8.21.0",
     "pino-pretty": "^11.2.1",
     "sharp": "^0.34.5",
