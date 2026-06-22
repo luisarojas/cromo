@@ -56,11 +56,12 @@ test.describe('Trade Hub', () => {
 
     // TradesList renders @username + a status badge per row; the empty-state
     // path renders "You have no trades yet". Either shape proves the tab
-    // mounted and the list endpoint returned. `.first()` disambiguates the
-    // mobile-card vs desktop-table render — both live in the DOM under the
-    // responsive `md:hidden` / `hidden md:block` switch.
+    // mounted and the list endpoint returned. TradesList keeps BOTH the
+    // mobile-card stack and the desktop table mounted under `md:hidden` /
+    // `hidden md:block`, so a bare `getByText` resolves to 2 elements (one
+    // hidden via CSS). Filter on visibility to pin the rendered variant.
     await expect(
-      page.getByText(/@\w+|You have no trades yet/).first()
+      page.getByText(/@\w+|You have no trades yet/).filter({ visible: true }).first()
     ).toBeVisible({ timeout: 8000 });
   });
 
@@ -80,11 +81,14 @@ test.describe('Trade Hub', () => {
     await loginAs(page, ALICE);
     await page.goto('/trade');
 
+    const findMatches = page.getByRole('button', { name: 'Find Matches' });
+    // Wait for albums to load — button enables once the default album is set.
+    await expect(findMatches).toBeEnabled({ timeout: 8000 });
     const albumSelect = page.getByRole('main').getByRole('combobox');
     const albumCount = await albumSelect.locator('option').count();
 
     if (albumCount > 0) {
-      await page.getByRole('button', { name: 'Find Matches' }).click();
+      await findMatches.click();
       // After clicking, the panel renders either "Found N potential partner(s)"
       // (matches found) or "No matches found." (matchesSearched && matches=[]).
       await expect(
@@ -102,6 +106,10 @@ test.describe('Multiple albums', () => {
     await page.goto('/trade');
 
     const albumSelect = page.getByRole('main').getByRole('combobox');
+    // Albums load async after mount; "Find Matches" is disabled until
+    // `selectedAlbumId` is set from the first album in the response, so
+    // gating on it being enabled lets the <option>s populate before we count.
+    await expect(page.getByRole('button', { name: 'Find Matches' })).toBeEnabled({ timeout: 8000 });
     const optionCount = await albumSelect.locator('option').count();
 
     // Alice has north_america (default) + international album seeded
