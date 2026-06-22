@@ -56,10 +56,11 @@ test.describe('Trade Hub', () => {
 
     // TradesList renders @username + a status badge per row; the empty-state
     // path renders "You have no trades yet". Either shape proves the tab
-    // mounted and the list endpoint returned. The old /To:|From:/ regex
-    // matched neither and silently failed against the seeded trade.
+    // mounted and the list endpoint returned. `.first()` disambiguates the
+    // mobile-card vs desktop-table render — both live in the DOM under the
+    // responsive `md:hidden` / `hidden md:block` switch.
     await expect(
-      page.getByText(/@\w+|You have no trades yet/)
+      page.getByText(/@\w+|You have no trades yet/).first()
     ).toBeVisible({ timeout: 8000 });
   });
 
@@ -70,7 +71,8 @@ test.describe('Trade Hub', () => {
     // done before we look for the combobox. Without this gate the default 5s
     // expect timeout races with a cold-CI hydration on the runner.
     await expect(page.getByRole('heading', { name: 'Trades' })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('combobox')).toBeVisible();
+    // Scope to <main> so we don't collide with the LocaleSwitcher <select> in the footer.
+    await expect(page.getByRole('main').getByRole('combobox')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Find Matches' })).toBeVisible();
   });
 
@@ -78,13 +80,15 @@ test.describe('Trade Hub', () => {
     await loginAs(page, ALICE);
     await page.goto('/trade');
 
-    const albumSelect = page.getByRole('combobox');
+    const albumSelect = page.getByRole('main').getByRole('combobox');
     const albumCount = await albumSelect.locator('option').count();
 
     if (albumCount > 0) {
       await page.getByRole('button', { name: 'Find Matches' }).click();
+      // After clicking, the panel renders either "Found N potential partner(s)"
+      // (matches found) or "No matches found." (matchesSearched && matches=[]).
       await expect(
-        page.getByText(/potential partner|No matches found yet/)
+        page.getByText(/potential partner|No matches found/)
       ).toBeVisible({ timeout: 10000 });
     }
   });
@@ -97,7 +101,7 @@ test.describe('Multiple albums', () => {
     await loginAs(page, ALICE);
     await page.goto('/trade');
 
-    const albumSelect = page.getByRole('combobox');
+    const albumSelect = page.getByRole('main').getByRole('combobox');
     const optionCount = await albumSelect.locator('option').count();
 
     // Alice has north_america (default) + international album seeded
