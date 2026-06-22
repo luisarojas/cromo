@@ -40,11 +40,22 @@ test('alice can post a message and bob sees it via SSE', async ({ browser }) => 
     await loginAs(alicePage, ALICE);
     await loginAs(bobPage,   BOB);
 
+    // Bob's tab subscribes to `/api/v1/trade/requests/:id/stream` (SSE) after
+    // hydration. Alice can otherwise post the message before Bob's EventSource
+    // has connected and the broadcast goes nowhere on his side. Set up the
+    // response wait BEFORE navigating so we don't miss the headers, then gate
+    // Alice's send on it.
+    const bobStreamReady = bobPage.waitForResponse(
+      (resp) => resp.url().includes('/trade/requests/') && resp.url().includes('/stream'),
+      { timeout: 10_000 },
+    );
+
     await alicePage.goto(`/trade/${TRADE_A}`);
     await bobPage.goto(  `/trade/${TRADE_A}`);
 
     // Existing seed messages should already be visible.
     await expect(alicePage.getByText(/message|chat/i).first()).toBeVisible({ timeout: 10_000 });
+    await bobStreamReady;
 
     const stamp = Date.now();
     const messageText = `smoke-test ${stamp}`;

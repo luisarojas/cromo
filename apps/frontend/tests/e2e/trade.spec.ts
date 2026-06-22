@@ -23,6 +23,19 @@ const BOB   = { email: 'bob@test.local',   password: 'any' };
 const ALICE_NA_ALBUM_ID   = '00000000-0000-0000-0001-000000000002';
 const ALICE_INTL_ALBUM_ID = '00000000-0000-0000-0001-000000000012';
 
+// First visible row in the My Trades list. TradesList renders both the mobile
+// card stack (md:hidden, <button>) and the desktop table (hidden md:block, <tr>)
+// in the DOM under responsive CSS, so filter on visibility to pin the variant
+// that actually paints at the current viewport. Rows always contain `@<username>`.
+function firstTradeRow(page: import('@playwright/test').Page) {
+  return page
+    .getByRole('main')
+    .locator('button, tr')
+    .filter({ hasText: /@\w+/ })
+    .filter({ visible: true })
+    .first();
+}
+
 async function loginAs(page: import('@playwright/test').Page, user: typeof ALICE) {
   await page.goto('/login');
   await page.fill('input[type="email"]', user.email);
@@ -180,13 +193,11 @@ test.describe('Trade creation and lifecycle', () => {
     await page.goto('/trade');
     await page.getByRole('button', { name: 'My Trades' }).click();
 
-    const tradeTile = page.locator('button').filter({ hasText: /To:|From:/ }).first();
-    const count = await tradeTile.count();
-
-    if (count > 0) {
-      // At least the seeded trade is present
-      expect(count).toBeGreaterThan(0);
-    }
+    // Seeded Trade A is Alice → Bob, so Alice's My Trades must include a row
+    // showing @bob. Assert it directly — the previous `if (count > 0)` guard
+    // silently passed when the locator missed the new row shape.
+    await expect(firstTradeRow(page)).toBeVisible({ timeout: 8000 });
+    await expect(firstTradeRow(page)).toContainText('@bob');
   });
 });
 
@@ -198,15 +209,12 @@ test.describe('Trade messaging via SSE', () => {
     await page.goto('/trade');
     await page.getByRole('button', { name: 'My Trades' }).click();
 
-    const firstTrade = page.locator('button').filter({ hasText: /To:|From:/ }).first();
-    const count = await firstTrade.count();
-
-    if (count > 0) {
-      await firstTrade.click();
-      await expect(page.getByRole('heading', { name: 'Trade Details' })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Messages' })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Trade Items' })).toBeVisible();
-    }
+    const row = firstTradeRow(page);
+    await expect(row).toBeVisible({ timeout: 8000 });
+    await row.click();
+    await expect(page.getByRole('heading', { name: 'Trade Details' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Messages' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Trade Items' })).toBeVisible();
   });
 
   test('seeded Trade A shows pre-seeded messages from Alice and Bob', async ({ page }) => {
@@ -242,20 +250,17 @@ test.describe('Trade messaging via SSE', () => {
     await page.goto('/trade');
     await page.getByRole('button', { name: 'My Trades' }).click();
 
-    const activeTrade = page.locator('button').filter({ hasText: /To:|From:/ }).first();
-    const count = await activeTrade.count();
+    const row = firstTradeRow(page);
+    await expect(row).toBeVisible({ timeout: 8000 });
+    await row.click();
 
-    if (count > 0) {
-      await activeTrade.click();
+    const isTerminal = await page
+      .getByText(/This trade is (completed|declined|cancelled|expired)/)
+      .count();
 
-      const isTerminal = await page
-        .getByText(/This trade is (completed|declined|cancelled|expired)/)
-        .count();
-
-      if (isTerminal === 0) {
-        await expect(page.getByPlaceholder(/Type a message/)).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
-      }
+    if (isTerminal === 0) {
+      await expect(page.getByPlaceholder(/Type a message/)).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
     }
   });
 
