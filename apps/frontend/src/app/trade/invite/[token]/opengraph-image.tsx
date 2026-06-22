@@ -82,7 +82,7 @@ export default function TradeInviteOG() {
               maxWidth: 1000,
             }}
           >
-            Let's trade stickers.
+            Let&apos;s trade stickers.
           </div>
           <div
             style={{
