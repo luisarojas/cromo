@@ -63,10 +63,14 @@ describe.skipIf(!shouldRun)('Trade matching (integration)', () => {
 
   async function insertAlbum(userId: string): Promise<string> {
     const id = randomUUID();
+    const slug = `tm-test-${id.split('-')[0]}`;
+    // Matchmaker now requires visibility = 'public' to surface a candidate
+    // album, so seed these test albums as public — matchmaker filtering is
+    // covered separately and the rest of this suite assumes discoverability.
     await app.db.query(
-      `INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default)
-       VALUES ($1, $2, $3, $4, $5, true)`,
-      [id, userId, albumTypeId, editionId, formatId],
+      `INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default, slug, trade_inventory_visibility)
+       VALUES ($1, $2, $3, $4, $5, true, $6, 'public')`,
+      [id, userId, albumTypeId, editionId, formatId, slug],
     );
     return id;
   }

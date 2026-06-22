@@ -50,7 +50,7 @@ interface Props {
     edition: string;
     format: string;
     settings: AlbumSettings;
-    isTradeInventoryPublic: boolean;
+    tradeInventoryVisibility: 'private' | 'unlisted' | 'public';
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
@@ -129,8 +129,8 @@ export default function AlbumFormModal({
       return { ...prev, defaultBaseVariant: expected };
     });
   }, [edition, mode]);
-  const [isTradeInventoryPublic, setIsTradeInventoryPublic] = useState<boolean>(
-    album?.isTradeInventoryPublic ?? false
+  const [tradeInventoryVisibility, setTradeInventoryVisibility] = useState<'private' | 'unlisted' | 'public'>(
+    album?.tradeInventoryVisibility ?? 'private'
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +165,7 @@ export default function AlbumFormModal({
         edition,
         format,
         settings,
-        isTradeInventoryPublic,
+        tradeInventoryVisibility,
       });
       onClose();
     } catch (err) {
@@ -320,23 +320,45 @@ export default function AlbumFormModal({
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 border-t border-[var(--cromo-border)] pt-4">
-            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">{t('publicTradeInventory')}</span>
-            <label className="flex items-start gap-2.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={isTradeInventoryPublic}
-                onChange={(e) => setIsTradeInventoryPublic(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
-              />
-              <span className="text-sm text-[var(--cromo-fg)]">
-                {t('publicTradeLabel')}
-                <span className="block text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
-                  {t('publicTradeHint')}
+          <fieldset className="flex flex-col gap-2 border-t border-[var(--cromo-border)] pt-4">
+            <legend className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">
+              {t('publicTradeInventory')}
+            </legend>
+            {([
+              {
+                value: 'private',
+                label: t('visibilityPrivateLabel'),
+                hint: t('visibilityPrivateHint'),
+              },
+              {
+                value: 'unlisted',
+                label: t('visibilityUnlistedLabel'),
+                hint: t('visibilityUnlistedHint'),
+              },
+              {
+                value: 'public',
+                label: t('visibilityPublicLabel'),
+                hint: t('visibilityPublicHint'),
+              },
+            ] as const).map((opt) => (
+              <label key={opt.value} className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name="trade-inventory-visibility"
+                  value={opt.value}
+                  checked={tradeInventoryVisibility === opt.value}
+                  onChange={() => setTradeInventoryVisibility(opt.value)}
+                  className="mt-0.5 w-4 h-4 border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+                />
+                <span className="text-sm text-[var(--cromo-fg)]">
+                  {opt.label}
+                  <span className="block text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
+                    {opt.hint}
+                  </span>
                 </span>
-              </span>
-            </label>
-          </div>
+              </label>
+            ))}
+          </fieldset>
 
           {error && (
             <p className="text-xs text-[var(--cromo-danger-text)] rounded-lg bg-[var(--cromo-danger-soft)] px-3 py-2">{error}</p>

@@ -52,6 +52,29 @@ Rules:
 
 If changing casing strategy, update **both** `setSerializerCompiler` and `setReplySerializer` — losing one silently regresses every route on the wrong side of the schema/no-schema split.
 
+### Album Visibility & Slugs — Three Tiers, Slug-as-Capability
+
+Per-album trade-inventory visibility is a 3-tier enum on `user_albums.trade_inventory_visibility`, replacing the old `is_trade_inventory_public` boolean (migration 0022):
+
+| Value      | Public profile listing? | Per-album URL `/profile/<u>/<slug>`? | Trade matchmaker? |
+| ---------- | ----------------------- | ------------------------------------ | ----------------- |
+| `private`  | No                      | 404 → fallback banner                | No                |
+| `unlisted` | No                      | Yes — slug acts as the access token  | No                |
+| `public`   | Yes (in `tradingInventory[]`) | Yes                            | Yes               |
+
+Slug = `{album_type_key}-{edition_key}-{format_key}` (with `-N` on collision), stored on `user_albums.slug`, unique per `(user_id, slug)`, format-checked in SQL (`^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$`). UUIDs remain the API identity — the slug is **only** for human-friendly URLs and unlisted access.
+
+**Architectural rules:**
+
+- **`GET /profiles/:username` returns `public` albums only.** To include an `unlisted` album, the caller passes its slug via `?album=<slug>` — that slug is the capability token. The cache key includes the slug suffix so a request for one unlisted album can't poison the bare-profile cache. Don't bypass this: never expose all `unlisted` albums in a listing endpoint, and don't add a "list my unlisted albums" public surface — that defeats the model.
+- **`GET /profiles/:username/albums/:albumId/{wanted,offered}` accepts `public` + `unlisted`** — the caller already presented the slug at the profile endpoint to resolve `albumId`, so the second hop trusts the capability. Private albums always 404 here. Pattern lives in `sharing.service.ts` (`trade_inventory_visibility != 'private'`).
+- **Matchmaker is `public`-only.** `candidate_albums` in `trade-matching.service.ts` filters `trade_inventory_visibility = 'public'`. Unlisted exists for sharing, not discovery — surfacing it via matchmaking would leak the album to people the owner never linked.
+- **Frontend URLs are slug-based**, never UUID-based. The route is `apps/frontend/src/app/profile/[username]/[slug]/` (renamed from `[albumId]` — UUID URLs were never published). The client resolves `slug → albumId` from `tradingInventory` and uses the UUID for wanted/offered API calls.
+- **Slug generation is one-shot at album create.** `generateAlbumSlug` in `albums.service.ts` queries existing user slugs and picks the lowest unused `-N`. Don't let users edit slugs — link rot in unlisted-share scenarios is exactly the failure mode the column was added to prevent. (If editable slugs ever happen, add a `slug_history` table first; never mutate the live row.)
+- **Bootstrap row in `user-provisioning.ts`** computes its slug inline (`fifa-world-cup-2026-north-america-softcover-standard`) — a fresh user always has zero existing slugs, so the uniqueness probe is wasted. Don't refactor this to call `generateAlbumSlug` "for consistency"; it adds a round-trip to every signup.
+- **Seed data must include a `slug`** — the column is NOT NULL and `scripts/seeds/07_test_users.sql` writes it explicitly. New seed rows: derive from the catalog keys with `_ → -` and unique-per-user-by-construction.
+- **`is_trade_inventory_public` is gone everywhere.** API request bodies use `tradeInventoryVisibility: 'private' | 'unlisted' | 'public'` (camelCase). Tests that toggle visibility must use the new field; the legacy boolean will fail Fastify schema validation and PostgreSQL column existence.
+
 ### Drizzle Migrations — Single Migrations Folder
 Schema in `apps/backend/src/db/schema.ts`; SQL files in `apps/backend/src/db/migrations/` (plus `meta/_journal.json` + per-migration snapshots). Backend auto-applies pending migrations at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`; bookkeeping lives in `drizzle.__drizzle_migrations`.
 

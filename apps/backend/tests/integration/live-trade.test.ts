@@ -57,12 +57,16 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
 
   async function insertAlbum(userId: string): Promise<string> {
     const id = randomUUID();
+    // Slug is required (NOT NULL, unique per user). Derive a fresh one each
+    // call so multiple invocations for the same user don't collide.
+    const slug = `live-trade-test-${id.split('-')[0]}`;
     await app.db.query(
-      `INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default, settings)
-       VALUES ($1, $2, $3, $4, $5, true, $6::jsonb)`,
+      `INSERT INTO user_albums (id, user_id, album_type_id, album_edition_id, album_format_id, is_default, settings, slug)
+       VALUES ($1, $2, $3, $4, $5, true, $6::jsonb, $7)`,
       [
         id, userId, albumTypeId, editionId, formatId,
         JSON.stringify({ includeExtras: true, includeCocaCola: true, defaultBaseVariant: 'base_border' }),
+        slug,
       ],
     );
     return id;

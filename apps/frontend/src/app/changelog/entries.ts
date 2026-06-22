@@ -47,6 +47,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Lopsided-trade warning on third-party matches — Cromo flags trades where one side gives noticeably more scarcity than they\'d receive, based on Panini\'s published pack odds. Guidance only — collectors set the actual price.',
         'One-tap clear (×) button in every search bar.',
         'Double-tap a sticker tile on mobile to favourite (or un-favourite) it without opening the variant sheet.',
+        'Share a specific album from a profile — each public album now has its own URL (/profile/<user>/<album>) and link preview, with a "This album / Whole profile" toggle in the share modal.',
+        'New "Unlisted" album visibility — share an album only with people you send the link to. Unlisted albums are hidden from your profile and not matched with other collectors.',
       ],
       Changed: [
         'Renamed the 1-of-1 Black rarity tier to "Unique".',

@@ -184,12 +184,17 @@ export async function getTradeMatches(
          AND NOT us.trade_hidden
      ),
      candidate_albums AS (
+       -- Matchmaker scope: public albums only. Private (owner-only) and
+       -- unlisted (capability-by-URL only) albums are intentionally excluded
+       -- from discovery so trade matches never surface inventory the owner
+       -- didn't opt into making public.
        SELECT DISTINCT ON (ua.user_id) ua.id AS album_id, ua.user_id
        FROM user_albums ua
        LEFT JOIN user_settings us2 ON us2.user_id = ua.user_id
        JOIN users u ON u.id = ua.user_id
        WHERE ua.user_id != $1
          AND ua.album_type_id = (SELECT album_type_id FROM requester_album)
+         AND ua.trade_inventory_visibility = 'public'
          AND COALESCE(us2.trade_matching_enabled, true) = true
          AND u.deleted_at IS NULL
          AND NOT EXISTS (

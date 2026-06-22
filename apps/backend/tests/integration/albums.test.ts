@@ -166,12 +166,12 @@ describe.skipIf(!shouldRun)('Albums routes (integration)', () => {
           method: 'PATCH',
           url: `/api/v1/users/${ALICE_ID}/albums/${created.id}`,
           headers: { Authorization: `Bearer ${aliceToken}` },
-          payload: { alias: 'renamed', isTradeInventoryPublic: true },
+          payload: { alias: 'renamed', tradeInventoryVisibility: 'public' },
         });
         expect(patchRes.statusCode).toBe(200);
-        const patched = patchRes.json<{ alias: string; isTradeInventoryPublic: boolean }>();
+        const patched = patchRes.json<{ alias: string; tradeInventoryVisibility: 'private' | 'unlisted' | 'public' }>();
         expect(patched.alias).toBe('renamed');
-        expect(patched.isTradeInventoryPublic).toBe(true);
+        expect(patched.tradeInventoryVisibility).toBe('public');
 
         // Verify via direct DB read.
         const { rows } = await app.db.query<{ alias: string }>(

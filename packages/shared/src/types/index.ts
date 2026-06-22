@@ -130,7 +130,9 @@ export interface UserAlbumDto {
   notes: string | null
   isDefault: boolean
   settings: AlbumSettings
-  isTradeInventoryPublic: boolean
+  tradeInventoryVisibility: TradeInventoryVisibility
+  // Stable user-scoped slug used for `/profile/<u>/<slug>` URLs.
+  slug: string
   createdAt: string
   updatedAt: string
 }
@@ -603,6 +605,16 @@ export interface PublicInventoryItem {
   quantity: number | null
 }
 
+/**
+ * Per-album trade-inventory visibility.
+ *   private  — owner only; never appears on the public profile or the matchmaker.
+ *   unlisted — accessible only via the per-album slug URL; hidden from listings
+ *              and matchmaker (anyone with the slug can view).
+ *   public   — listed on the user's public profile and discoverable by the
+ *              trade matchmaker.
+ */
+export type TradeInventoryVisibility = 'private' | 'unlisted' | 'public'
+
 export interface PublicProfileAlbum {
   albumId: string
   albumTypeKey: string
@@ -612,6 +624,11 @@ export interface PublicProfileAlbum {
   formatName: string
   alias: string | null
   isDefault: boolean
+  // URL-safe identifier for `/profile/<u>/<slug>` deep links.
+  slug: string
+  // Always 'public' or 'unlisted' here — 'private' albums never reach this
+  // type because they are filtered out server-side.
+  tradeInventoryVisibility: Exclude<TradeInventoryVisibility, 'private'>
   offered: PublicInventoryItem[]
   wantedCount: number
 }

@@ -7,8 +7,8 @@ import { statusError } from '../utils/errors.js';
 
 const MAX_ALBUMS_PER_USER = 10;
 
-import type { AlbumSettings } from '@cromo/shared';
-export type { AlbumSettings };
+import type { AlbumSettings, TradeInventoryVisibility } from '@cromo/shared';
+export type { AlbumSettings, TradeInventoryVisibility };
 
 export interface UserAlbum {
   id: string;
@@ -27,7 +27,8 @@ export interface UserAlbum {
   notes: string | null;
   is_default: boolean;
   settings: AlbumSettings;
-  is_trade_inventory_public: boolean;
+  trade_inventory_visibility: TradeInventoryVisibility;
+  slug: string;
   created_at: string;
   updated_at: string;
 }
@@ -54,7 +55,7 @@ const ALBUM_SELECT = `
          ua.album_edition_id, ae.key AS edition, ae.name AS edition_name,
          ua.album_format_id,  af.key AS format,  af.name AS format_name,
          ua.alias, ua.notes, ua.is_default, ua.settings,
-         ua.is_trade_inventory_public,
+         ua.trade_inventory_visibility, ua.slug,
          ua.created_at, ua.updated_at
   FROM user_albums ua
   JOIN album_types at ON at.id = ua.album_type_id
@@ -107,7 +108,7 @@ const ALBUM_SELECT_WITH_COUNTS = `
          ua.album_edition_id, ae.key AS edition, ae.name AS edition_name,
          ua.album_format_id,  af.key AS format,  af.name AS format_name,
          ua.alias, ua.notes, ua.is_default, ua.settings,
-         ua.is_trade_inventory_public,
+         ua.trade_inventory_visibility, ua.slug,
          ua.created_at, ua.updated_at,
          ua.total_count, ua.owned_count, ua.duplicate_count
   FROM user_albums ua
@@ -188,6 +189,44 @@ export async function resolveAlbumId(
   return getDefaultAlbumId(db, userId);
 }
 
+/**
+ * Compose an album slug from its catalog keys. The check constraint in SQL
+ * (user_albums_slug_format_check) requires lowercase ASCII with optional
+ * single hyphens — keys come from the catalog and already match, but we
+ * defensively replace anything outside the allowed set.
+ */
+function slugifyKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Generate a unique slug for the user's new album. Format:
+ *   {typeKey}-{editionKey}-{formatKey}[-N]
+ * where -N is appended on collision so a user can hold multiple albums of
+ * the same edition+format (rare, but legal in the schema).
+ */
+async function generateAlbumSlug(
+  db: Pool,
+  userId: string,
+  typeKey: string,
+  editionKey: string,
+  formatKey: string,
+): Promise<string> {
+  const base = [typeKey, editionKey, formatKey].map(slugifyKey).filter(Boolean).join('-');
+  const { rows } = await db.query<{ slug: string }>(
+    `SELECT slug FROM user_albums WHERE user_id = $1 AND (slug = $2 OR slug LIKE $2 || '-%')`,
+    [userId, base],
+  );
+  const taken = new Set(rows.map((r) => r.slug));
+  if (!taken.has(base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  // Pathological — give up to a UUID-style tail rather than loop forever.
+  throw statusError('Could not generate a unique album slug.', 500);
+}
+
 export async function createAlbum(
   db: Pool,
   redis: Redis,
@@ -198,7 +237,7 @@ export async function createAlbum(
     edition?: string;
     format?: string;
     settings?: Partial<AlbumSettings>;
-    isTradeInventoryPublic?: boolean;
+    tradeInventoryVisibility?: TradeInventoryVisibility;
   }
 ): Promise<UserAlbum> {
   const { rows: countRows } = await db.query<{ count: string }>(
@@ -214,13 +253,21 @@ export async function createAlbum(
   const alias = input.alias ?? null;
   const notes = input.notes ?? null;
   const settings = input.settings ? JSON.stringify(input.settings) : null;
-  const isTradeInventoryPublic = input.isTradeInventoryPublic ?? false;
+  const visibility: TradeInventoryVisibility =
+    input.tradeInventoryVisibility ?? 'private';
+  const slug = await generateAlbumSlug(
+    db,
+    userId,
+    DEFAULT_ALBUM_TYPE_KEY,
+    editionKey,
+    formatKey,
+  );
 
   let rows: UserAlbum[];
   try {
     ({ rows } = await db.query<UserAlbum>(
       `WITH ins AS (
-         INSERT INTO user_albums (user_id, album_type_id, album_edition_id, album_format_id, alias, notes, is_default, settings, is_trade_inventory_public)
+         INSERT INTO user_albums (user_id, album_type_id, album_edition_id, album_format_id, alias, notes, is_default, settings, trade_inventory_visibility, slug)
          VALUES (
            $1,
            (SELECT id FROM album_types WHERE key = $5),
@@ -234,12 +281,13 @@ export async function createAlbum(
            $8,
            false,
            COALESCE($4::jsonb, '{"includeExtras":true,"includeCocaCola":true,"defaultBaseVariant":"base_borderless"}'::jsonb),
-           $6
+           $6,
+           $9
          )
          RETURNING *
        )
        ${ALBUM_SELECT.replace('FROM user_albums ua', 'FROM ins ua')}`,
-      [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY, isTradeInventoryPublic, formatKey, notes]
+      [userId, editionKey, alias, settings, DEFAULT_ALBUM_TYPE_KEY, visibility, formatKey, notes, slug]
     ));
   } catch (err) {
     // Composite FK on (edition, format) rejects illegal combinations like
@@ -265,7 +313,7 @@ export async function updateAlbum(
     edition?: string;
     format?: string;
     settings?: Partial<AlbumSettings>;
-    isTradeInventoryPublic?: boolean;
+    tradeInventoryVisibility?: TradeInventoryVisibility;
   }
 ): Promise<UserAlbum | null> {
   if (
@@ -274,7 +322,7 @@ export async function updateAlbum(
     patch.edition === undefined &&
     patch.format === undefined &&
     patch.settings === undefined &&
-    patch.isTradeInventoryPublic === undefined
+    patch.tradeInventoryVisibility === undefined
   ) {
     return getAlbum(db, userId, albumId);
   }
@@ -312,9 +360,9 @@ export async function updateAlbum(
     values.push(JSON.stringify(patch.settings));
     setClauses.push(`settings = settings || $${values.length}::jsonb`);
   }
-  if (patch.isTradeInventoryPublic !== undefined) {
-    values.push(patch.isTradeInventoryPublic);
-    setClauses.push(`is_trade_inventory_public = $${values.length}`);
+  if (patch.tradeInventoryVisibility !== undefined) {
+    values.push(patch.tradeInventoryVisibility);
+    setClauses.push(`trade_inventory_visibility = $${values.length}`);
   }
 
   let rows: UserAlbum[];

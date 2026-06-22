@@ -1,10 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface ShareProfileButtonProps {
   username: string;
+  /**
+   * When set, the share URL points at the per-album route
+   * (`/profile/<username>/<albumSlug>`) and an "Album / Profile" toggle is
+   * shown so the user can broaden the scope back to the bare profile.
+   * Omit when the active context has no specific album (no public
+   * inventory yet, etc.).
+   */
+  albumSlug?: string;
+  albumLabel?: string;
   getListText?: () => Promise<string>;
   /**
    * When set, the "Copy list as text" button renders but is disabled, with
@@ -14,19 +23,40 @@ interface ShareProfileButtonProps {
   listDisabledReason?: string;
 }
 
-export default function ShareProfileButton({ username, getListText, listDisabledReason }: ShareProfileButtonProps) {
+type ShareScope = 'album' | 'profile';
+
+export default function ShareProfileButton({
+  username,
+  albumSlug,
+  albumLabel,
+  getListText,
+  listDisabledReason,
+}: ShareProfileButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [listCopied, setListCopied] = useState(false);
   const [listLoading, setListLoading] = useState(false);
-  const [profileUrl, setProfileUrl] = useState('');
+  const [origin, setOrigin] = useState('');
   const [canNativeShare, setCanNativeShare] = useState(false);
+  const [scope, setScope] = useState<ShareScope>(albumSlug ? 'album' : 'profile');
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setProfileUrl(`${window.location.origin}/profile/${username}`);
+    setOrigin(window.location.origin);
     setCanNativeShare(typeof navigator.share === 'function');
-  }, [username]);
+  }, []);
+
+  // Default to album scope whenever an album is active; if the user
+  // navigates to a different album the toggle re-pins to "album".
+  useEffect(() => {
+    setScope(albumSlug ? 'album' : 'profile');
+  }, [albumSlug]);
+
+  const shareUrl = useMemo(() => {
+    if (!origin) return '';
+    if (scope === 'album' && albumSlug) return `${origin}/profile/${username}/${albumSlug}`;
+    return `${origin}/profile/${username}`;
+  }, [origin, scope, albumSlug, username]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +78,7 @@ export default function ShareProfileButton({ username, getListText, listDisabled
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(profileUrl);
+      await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -72,12 +102,18 @@ export default function ShareProfileButton({ username, getListText, listDisabled
   }
 
   async function handleNativeShare() {
+    const title =
+      scope === 'album' && albumLabel
+        ? `@${username} — ${albumLabel}`
+        : `@${username}'s trading inventory`;
     try {
-      await navigator.share({ url: profileUrl, title: `@${username}'s trading inventory` });
+      await navigator.share({ url: shareUrl, title });
     } catch {
       // user cancelled or not supported
     }
   }
+
+  const showScopeToggle = !!albumSlug;
 
   return (
     <div className="relative shrink-0">
@@ -112,7 +148,9 @@ export default function ShareProfileButton({ username, getListText, listDisabled
             className="bg-[var(--cromo-surface)] rounded-xl shadow-cromo-lg border border-[var(--cromo-border)] w-full max-w-xs p-5 space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">Share profile</h2>
+              <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">
+                {scope === 'album' && albumLabel ? `Share ${albumLabel}` : 'Share profile'}
+              </h2>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close"
@@ -134,16 +172,41 @@ export default function ShareProfileButton({ username, getListText, listDisabled
               </button>
             </div>
 
+            {showScopeToggle && (
+              <div className="flex rounded-md border border-[var(--cromo-border-strong)] p-0.5 text-xs">
+                <button
+                  onClick={() => setScope('album')}
+                  className={`flex-1 px-2 py-1 rounded transition-colors ${
+                    scope === 'album'
+                      ? 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] font-medium'
+                      : 'text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
+                  }`}
+                >
+                  This album
+                </button>
+                <button
+                  onClick={() => setScope('profile')}
+                  className={`flex-1 px-2 py-1 rounded transition-colors ${
+                    scope === 'profile'
+                      ? 'bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)] font-medium'
+                      : 'text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]'
+                  }`}
+                >
+                  Whole profile
+                </button>
+              </div>
+            )}
+
             {/* QR code */}
             <div className="flex justify-center py-2">
-              <QRCodeSVG value={profileUrl || `https://cromo.app/profile/${username}`} size={160} />
+              <QRCodeSVG value={shareUrl || `https://cromo.app/profile/${username}`} size={160} />
             </div>
 
             {/* URL + copy */}
             <div className="flex items-center gap-2">
               <input
                 readOnly
-                value={profileUrl}
+                value={shareUrl}
                 onFocus={(e) => e.target.select()}
                 className="min-w-0 flex-1 rounded-md border border-[var(--cromo-border-strong)] bg-transparent px-3 py-1.5 text-xs text-[var(--cromo-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
               />

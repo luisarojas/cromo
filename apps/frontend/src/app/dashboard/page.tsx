@@ -161,13 +161,13 @@ export default function DashboardPage() {
     setConfirmBulkDelete(false);
   }
 
-  async function bulkSetTrade(value: boolean) {
+  async function bulkSetTrade(visibility: 'private' | 'public') {
     if (!user || !token || selectedIds.size === 0) return;
     setBulkBusy(true);
     try {
       await Promise.all(
         [...selectedIds].map((id) =>
-          updateUserAlbum(user.id, id, { isTradeInventoryPublic: value }, token),
+          updateUserAlbum(user.id, id, { tradeInventoryVisibility: visibility }, token),
         ),
       );
       const userAlbums = await fetchUserAlbums(user.id, token);
@@ -573,10 +573,10 @@ export default function DashboardPage() {
             </span>
             {!confirmBulkDelete ? (
               <>
-                <Button size="sm" variant="secondary" onClick={() => bulkSetTrade(true)} disabled={bulkBusy}>
+                <Button size="sm" variant="secondary" onClick={() => bulkSetTrade('public')} disabled={bulkBusy}>
                   {t('makeTradePublic')}
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => bulkSetTrade(false)} disabled={bulkBusy}>
+                <Button size="sm" variant="secondary" onClick={() => bulkSetTrade('private')} disabled={bulkBusy}>
                   {t('makeTradePrivate')}
                 </Button>
                 <Button size="sm" variant="danger" onClick={() => setConfirmBulkDelete(true)} disabled={bulkBusy}>

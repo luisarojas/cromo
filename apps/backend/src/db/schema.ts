@@ -136,7 +136,15 @@ export const userAlbums = pgTable('user_albums', {
   notes: text('notes'),
   isDefault: boolean('is_default').notNull().default(false),
   settings: jsonb('settings').$type<AlbumSettings>().notNull().default(DEFAULT_ALBUM_SETTINGS),
-  isTradeInventoryPublic: boolean('is_trade_inventory_public').notNull().default(false),
+  // 'private' (owner only, default), 'unlisted' (accessible only with a
+  // direct per-album URL), or 'public' (listed on the user's profile and
+  // included in trade-matchmaking). See migration 0022 and the share-
+  // privacy notes in CLAUDE.md.
+  tradeInventoryVisibility: text('trade_inventory_visibility').notNull().default('private'),
+  // Stable user-scoped slug for `/profile/<u>/<slug>` URLs. Generated at
+  // create-time from album_type_key/edition_key/format_key with a -N
+  // suffix on collision. Format-checked in SQL; never edit directly.
+  slug: text('slug').notNull(),
   ownedCount: integer('owned_count').notNull().default(0),
   duplicateCount: integer('duplicate_count').notNull().default(0),
   totalCount: integer('total_count').notNull().default(0),
@@ -152,9 +160,18 @@ export const userAlbums = pgTable('user_albums', {
   albumTypeIdx: index('idx_user_albums_album_type_id').on(table.albumTypeId),
   albumEditionIdx: index('idx_user_albums_album_edition_id').on(table.albumEditionId),
   albumFormatIdx: index('idx_user_albums_album_format_id').on(table.albumFormatId),
-  publicTradeInventoryIdx: index('idx_user_albums_public_trade_inventory')
-    .on(table.userId)
-    .where(sql`is_trade_inventory_public`),
+  tradeInventoryVisibilityIdx: index('idx_user_albums_trade_inventory_visibility')
+    .on(table.userId, table.tradeInventoryVisibility)
+    .where(sql`trade_inventory_visibility != 'private'`),
+  visibilityCheck: check(
+    'user_albums_trade_inventory_visibility_check',
+    sql`${table.tradeInventoryVisibility} IN ('private', 'unlisted', 'public')`,
+  ),
+  slugUnique: unique('user_albums_user_id_slug_unique').on(table.userId, table.slug),
+  slugFormatCheck: check(
+    'user_albums_slug_format_check',
+    sql`${table.slug} ~ '^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$'`,
+  ),
   aliasLengthCheck: check('user_albums_alias_length', sql`${table.alias} IS NULL OR (char_length(${table.alias}) BETWEEN 1 AND 100)`),
   notesLengthCheck: check('user_albums_notes_length', sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 500`),
   // Composite FK ensures the chosen edition belongs to the chosen album type.

@@ -27,7 +27,7 @@ describe.skipIf(!shouldRun)('Profiles routes (integration)', () => {
       [ALICE_ID],
     );
     await app.db.query(
-      `UPDATE user_albums SET is_trade_inventory_public = TRUE WHERE id = $1`,
+      `UPDATE user_albums SET trade_inventory_visibility = 'public' WHERE id = $1`,
       [ALICE_NA_ALBUM_ID],
     );
     // Bust any cached public-profile entry from a previous test run.
@@ -38,7 +38,7 @@ describe.skipIf(!shouldRun)('Profiles routes (integration)', () => {
     // Restore the album's privacy flag to its seeded default so other tests
     // don't observe a leaked "public" state.
     await app.db.query(
-      `UPDATE user_albums SET is_trade_inventory_public = FALSE WHERE id = $1`,
+      `UPDATE user_albums SET trade_inventory_visibility = 'private' WHERE id = $1`,
       [ALICE_NA_ALBUM_ID],
     );
     await app?.close();

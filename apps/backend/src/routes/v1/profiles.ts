@@ -47,6 +47,15 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
           required: ['username'],
           properties: { username: { type: 'string' } },
         },
+        querystring: {
+          type: 'object',
+          properties: {
+            // Optional album slug. When set AND the slug matches an
+            // unlisted album, that album joins the trading_inventory.
+            // Acts as a capability token — anyone with the slug can view.
+            album: { type: 'string', maxLength: 64 },
+          },
+        },
         response: {
           200: {
             type: 'object',
@@ -68,6 +77,8 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
                     format_name:     { type: 'string' },
                     alias:           { type: 'string', nullable: true },
                     is_default:      { type: 'boolean' },
+                    slug:            { type: 'string' },
+                    trade_inventory_visibility: { type: 'string', enum: ['public', 'unlisted'] },
                     offered_count:   { type: 'integer' },
                     wanted_count:    { type: 'integer' },
                   },
@@ -80,11 +91,13 @@ export async function profileRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { username } = request.params as { username: string };
+      const { album } = request.query as { album?: string };
 
       const profile = await sharingService.getPublicProfile(
         fastify.db,
         fastify.redis,
-        username
+        username,
+        album?.trim() || null,
       );
       if (!profile) {
         return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Profile not found.' });

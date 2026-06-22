@@ -116,7 +116,12 @@ export async function provisionUserProfile(tx: Executor, userId: string): Promis
     albumEditionId: albumIds.editionId,
     albumFormatId: albumIds.formatId,
     isDefault: true,
-    isTradeInventoryPublic: true,
+    tradeInventoryVisibility: 'public',
+    // Provisioning runs once per user with a fixed catalog tuple, so the
+    // first slug never collides — derive it directly without a uniqueness
+    // probe.
+    slug: `${DEFAULT_ALBUM_TYPE_KEY}-${DEFAULT_ALBUM_EDITION_KEY}-${DEFAULT_ALBUM_FORMAT_KEY}`
+      .toLowerCase().replace(/_/g, '-'),
   });
 }
 

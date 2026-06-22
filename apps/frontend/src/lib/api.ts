@@ -58,6 +58,7 @@ import type {
   TradeHistoryItem as SharedTradeHistoryItem,
   CreateLiveTradeResponse as SharedCreateLiveTradeResponse,
   JoinLiveTradeResponse as SharedJoinLiveTradeResponse,
+  TradeInventoryVisibility as SharedTradeInventoryVisibility,
 } from '@cromo/shared';
 
 // Infrastructure (apiFetch / retryFetch / toQueryString / BASE_URL) lives in
@@ -587,7 +588,7 @@ export async function fetchUserAlbumsWithStats(
 
 export async function createUserAlbum(
   userId: string,
-  body: { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: AlbumSettings; isTradeInventoryPublic?: boolean },
+  body: { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: AlbumSettings; tradeInventoryVisibility?: TradeInventoryVisibility },
   token: string,
 ): Promise<UserAlbumWithStats> {
   return apiFetch<UserAlbumWithStats>(
@@ -600,7 +601,7 @@ export async function createUserAlbum(
 export async function updateUserAlbum(
   userId: string,
   albumId: string,
-  patch: { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: Partial<AlbumSettings>; isTradeInventoryPublic?: boolean },
+  patch: { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: Partial<AlbumSettings>; tradeInventoryVisibility?: TradeInventoryVisibility },
   token: string,
 ): Promise<UserAlbumWithStats> {
   return apiFetch<UserAlbumWithStats>(
@@ -978,6 +979,7 @@ export type PublicInventoryItem = SharedPublicInventoryItem;
 export type PublicProfileAlbum = SharedPublicProfileAlbum;
 export type PublicProfile = SharedPublicProfile;
 export type PublicWantedPage = SharedPublicWantedPage;
+export type TradeInventoryVisibility = SharedTradeInventoryVisibility;
 
 // ---------------------------------------------------------------------------
 // Trade API endpoints
@@ -1240,8 +1242,14 @@ export async function fetchPublicList(shareToken: string): Promise<PublicList> {
   return apiFetch<PublicList>(`/api/v1/share/${shareToken}`);
 }
 
-export async function fetchPublicProfile(username: string): Promise<PublicProfile> {
-  return apiFetch<PublicProfile>(`/api/v1/profiles/${encodeURIComponent(username)}`);
+export async function fetchPublicProfile(
+  username: string,
+  // When set, the matching unlisted album joins the returned trading
+  // inventory. Slug acts as a capability token — anyone with it can view.
+  unlistedSlug?: string | null,
+): Promise<PublicProfile> {
+  const qs = unlistedSlug ? `?album=${encodeURIComponent(unlistedSlug)}` : '';
+  return apiFetch<PublicProfile>(`/api/v1/profiles/${encodeURIComponent(username)}${qs}`);
 }
 
 export interface UnlockedAchievementDto {

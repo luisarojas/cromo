@@ -31,10 +31,16 @@ const albumShape = {
     notes:                       { type: 'string', nullable: true },
     is_default:                  { type: 'boolean' },
     settings:                    albumSettingsShape,
-    is_trade_inventory_public:   { type: 'boolean' },
+    trade_inventory_visibility:  { type: 'string', enum: ['private', 'unlisted', 'public'] },
+    slug:                        { type: 'string' },
     created_at:                  { type: 'string' },
     updated_at:                  { type: 'string' },
   },
+} as const;
+
+const tradeInventoryVisibilityField = {
+  type: 'string',
+  enum: ['private', 'unlisted', 'public'],
 } as const;
 
 const albumStatsShape = {
@@ -270,12 +276,12 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            alias:                     { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
-            notes:                     { type: 'string', nullable: true, maxLength: 500 },
-            edition:                   { type: 'string' },
-            format:                    { type: 'string' },
-            settings:                  albumSettingsShape,
-            isTradeInventoryPublic:    { type: 'boolean' },
+            alias:                      { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
+            notes:                      { type: 'string', nullable: true, maxLength: 500 },
+            edition:                    { type: 'string' },
+            format:                     { type: 'string' },
+            settings:                   albumSettingsShape,
+            tradeInventoryVisibility:   tradeInventoryVisibilityField,
           },
         },
         response: { 201: albumWithStatsShape },
@@ -284,7 +290,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId } = request.params as { userId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean; defaultBaseVariant?: 'base_border' | 'base_borderless' }; isTradeInventoryPublic?: boolean };
+      const body = request.body as { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean; defaultBaseVariant?: 'base_border' | 'base_borderless' }; tradeInventoryVisibility?: albumsService.TradeInventoryVisibility };
       const album = await albumsService.createAlbum(fastify.db, fastify.redis, userId, body);
       const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);
       return reply.status(201).send({ ...album, stats });
@@ -310,12 +316,12 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            alias:                     { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
-            notes:                     { type: 'string', nullable: true, maxLength: 500 },
-            edition:                   { type: 'string' },
-            format:                    { type: 'string' },
-            settings:                  albumSettingsShape,
-            isTradeInventoryPublic:    { type: 'boolean' },
+            alias:                      { type: 'string', nullable: true, minLength: 1, maxLength: 100 },
+            notes:                      { type: 'string', nullable: true, maxLength: 500 },
+            edition:                    { type: 'string' },
+            format:                     { type: 'string' },
+            settings:                   albumSettingsShape,
+            tradeInventoryVisibility:   tradeInventoryVisibilityField,
           },
         },
         response: { 200: albumWithStatsShape },
@@ -324,7 +330,7 @@ export async function albumsRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { userId, albumId } = request.params as { userId: string; albumId: string };
       if (!assertAccess(request, reply, userId, 'albums')) return;
-      const body = request.body as { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean; defaultBaseVariant?: 'base_border' | 'base_borderless' }; isTradeInventoryPublic?: boolean };
+      const body = request.body as { alias?: string | null; notes?: string | null; edition?: string; format?: string; settings?: { includeExtras?: boolean; includeCocaCola?: boolean; defaultBaseVariant?: 'base_border' | 'base_borderless' }; tradeInventoryVisibility?: albumsService.TradeInventoryVisibility };
       const album = await albumsService.updateAlbum(fastify.db, fastify.redis, userId, albumId, body);
       if (!album) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Album not found.' });
       const stats = await albumsService.getAlbumStatsForOne(fastify.db, fastify.redis, userId, album.id);

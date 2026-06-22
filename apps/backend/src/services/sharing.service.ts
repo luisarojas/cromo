@@ -398,7 +398,9 @@ export async function getPublicList(
  * Privacy gates:
  *   1. `users.deleted_at IS NULL` and `user_settings.profile_visibility != 'private'`
  *      else returns null (route surfaces 404).
- *   2. Only albums with `user_albums.is_trade_inventory_public = true` are exposed.
+ *   2. Only albums with `trade_inventory_visibility = 'public'` are exposed by
+ *      default; an `unlisted` album joins the inventory only when `unlistedSlug`
+ *      matches its slug (the slug acts as a capability token).
  *   3. The Offered list honors per-variant `trade_hidden` / `trade_forced` flags.
  *
  * Performance:
@@ -414,7 +416,12 @@ export async function getPublicList(
 export async function getPublicProfile(
   db: Pool,
   redis: Redis,
-  username: string
+  username: string,
+  // When set, the album with this slug is included in the returned inventory
+  // even if its visibility is 'unlisted'. The slug acts as the access token
+  // for unlisted albums — anyone who has it can view, but the album is not
+  // discoverable by listing the profile.
+  unlistedSlug: string | null = null,
 ): Promise<PublicProfile | null> {
   const { rows: userRows } = await db.query<{
     id: string;
@@ -438,7 +445,10 @@ export async function getPublicProfile(
   if (user.profile_visibility === 'private') return null;
   const tradingEnabled = user.trade_matching_enabled ?? true;
 
-  const cacheKey = await userCacheKey(redis, user.id, 'public_profile');
+  // Cache key includes the unlistedSlug so a request for one unlisted album
+  // can't poison the cache used by bare-profile requests.
+  const cacheSuffix = unlistedSlug ? `:slug:${unlistedSlug}` : '';
+  const cacheKey = await userCacheKey(redis, user.id, `public_profile${cacheSuffix}`);
   const cached = await redis.get(cacheKey);
   if (cached) {
     const inventory = JSON.parse(cached) as PublicProfileAlbum[];
@@ -453,7 +463,8 @@ export async function getPublicProfile(
     };
   }
 
-  // Two batched queries: public albums + wanted-count, then offered items.
+  // Two batched queries: visible albums + wanted-count, then offered items.
+  // "Visible" = public, plus the unlisted album whose slug was supplied.
   const { rows: albumRows } = await db.query<{
     album_id: string;
     album_type_key: string;
@@ -463,6 +474,8 @@ export async function getPublicProfile(
     format_name: string;
     alias: string | null;
     is_default: boolean;
+    slug: string;
+    trade_inventory_visibility: 'public' | 'unlisted';
     wanted_count: string;
   }>(
     `WITH public_albums AS (
@@ -470,6 +483,8 @@ export async function getPublicProfile(
               ua.album_type_id,
               ua.alias,
               ua.is_default,
+              ua.slug,
+              ua.trade_inventory_visibility,
               ua.created_at,
               at.key             AS album_type_key,
               at.name            AS album_type_name,
@@ -483,7 +498,10 @@ export async function getPublicProfile(
        JOIN album_editions ae ON ae.id = ua.album_edition_id
        JOIN album_formats af  ON af.id = ua.album_format_id
        WHERE ua.user_id = $1
-         AND ua.is_trade_inventory_public = true
+         AND (
+           ua.trade_inventory_visibility = 'public'
+           OR (ua.trade_inventory_visibility = 'unlisted' AND ua.slug = $2)
+         )
      ),
      filtered_stickers AS (
        SELECT pa.album_id, s.id AS sticker_id, s.album_code
@@ -521,11 +539,13 @@ export async function getPublicProfile(
             pa.format_name,
             pa.alias,
             pa.is_default,
+            pa.slug,
+            pa.trade_inventory_visibility,
             COALESCE(wc.wanted_count, '0') AS wanted_count
      FROM public_albums pa
      LEFT JOIN wanted_counts wc ON wc.album_id = pa.album_id
      ORDER BY pa.is_default DESC, pa.created_at ASC`,
-    [user.id]
+    [user.id, unlistedSlug ?? '']
   );
 
   // Fetch all offered items for all public albums in a single query.
@@ -569,6 +589,8 @@ export async function getPublicProfile(
     format_name: a.format_name,
     alias: a.alias,
     is_default: a.is_default,
+    slug: a.slug,
+    trade_inventory_visibility: a.trade_inventory_visibility,
     offered: offeredByAlbum.get(a.album_id) ?? [],
     wanted_count: parseInt(a.wanted_count, 10),
   }));
@@ -670,9 +692,12 @@ export async function getPublicAlbumWanted(
   const { id: userId, profile_visibility } = userRows[0]!;
   if (profile_visibility === 'private') return null;
 
+  // Public + unlisted are both reachable by anyone who has the album id.
+  // (Unlisted relies on the per-album URL slug, which the caller already
+  // resolved to this albumId; private albums are never served here.)
   const { rowCount } = await db.query(
     `SELECT 1 FROM user_albums
-     WHERE id = $1 AND user_id = $2 AND is_trade_inventory_public = true`,
+     WHERE id = $1 AND user_id = $2 AND trade_inventory_visibility != 'private'`,
     [albumId, userId]
   );
   if ((rowCount ?? 0) === 0) return null;
@@ -910,9 +935,10 @@ export async function getPublicAlbumOffered(
   const { id: userId, profile_visibility } = userRows[0]!;
   if (profile_visibility === 'private') return null;
 
+  // Public + unlisted both reachable when the caller already knows the albumId.
   const { rowCount } = await db.query(
     `SELECT 1 FROM user_albums
-     WHERE id = $1 AND user_id = $2 AND is_trade_inventory_public = true`,
+     WHERE id = $1 AND user_id = $2 AND trade_inventory_visibility != 'private'`,
     [albumId, userId],
   );
   if ((rowCount ?? 0) === 0) return null;

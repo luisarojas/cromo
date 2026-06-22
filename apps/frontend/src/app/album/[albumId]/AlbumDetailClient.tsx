@@ -651,7 +651,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   );
 
   const handleAddAlbum = useCallback(
-    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
+    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; tradeInventoryVisibility: 'private' | 'unlisted' | 'public' }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
@@ -663,7 +663,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   );
 
   const handleSaveAlbum = useCallback(
-    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
+    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; tradeInventoryVisibility: 'private' | 'unlisted' | 'public' }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
@@ -845,6 +845,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
               {user && (
                 <ShareProfileButton
                   username={user.username}
+                  albumSlug={activeAlbum.slug}
+                  albumLabel={albumDisplayName(activeAlbum)}
                   getListText={
                     hasTradeInventory
                       ? () =>
@@ -852,7 +854,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                             user.username,
                             activeAlbum.id,
                             albumDisplayName(activeAlbum),
-                            `${window.location.origin}/profile/${user.username}`,
+                            `${window.location.origin}/profile/${user.username}/${activeAlbum.slug}`,
                           )
                       : undefined
                   }

@@ -22,9 +22,9 @@ import type { FastifyInstance } from 'fastify';
  *   wantedCount by exactly 13 (one per code group).
  *
  * Setup / teardown:
- *   beforeAll enables is_trade_inventory_public on Alice's and Bob's NA albums
- *   so that the public profile endpoints return data. afterAll restores them to
- *   false so this suite does not affect other test suites.
+ *   beforeAll sets trade_inventory_visibility = 'public' on Alice's and Bob's NA
+ *   albums so the public profile endpoints return data. afterAll restores them
+ *   to 'private' so this suite does not affect other test suites.
  */
 
 // ─── Fixed test IDs (from 07_test_users.sql) ──────────────────────────────────
@@ -109,13 +109,13 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTradeInventoryPublic: true }),
+        body: JSON.stringify({ tradeInventoryVisibility: 'public' }),
       }),
       app.inject({
         method: 'PATCH',
         url: `/api/v1/users/${BOB_ID}/albums/${BOB_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${bobToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTradeInventoryPublic: true }),
+        body: JSON.stringify({ tradeInventoryVisibility: 'public' }),
       }),
     ]);
   });
@@ -127,13 +127,13 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTradeInventoryPublic: false }),
+        body: JSON.stringify({ tradeInventoryVisibility: 'private' }),
       }),
       app.inject({
         method: 'PATCH',
         url: `/api/v1/users/${BOB_ID}/albums/${BOB_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${bobToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTradeInventoryPublic: false }),
+        body: JSON.stringify({ tradeInventoryVisibility: 'private' }),
       }),
     ]);
     await app?.close();
@@ -235,7 +235,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { includeCocaCola: false }, isTradeInventoryPublic: true }),
+        body: JSON.stringify({ settings: { includeCocaCola: false }, tradeInventoryVisibility: 'public' }),
       });
 
       const after = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
@@ -248,7 +248,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { includeCocaCola: true }, isTradeInventoryPublic: true }),
+        body: JSON.stringify({ settings: { includeCocaCola: true }, tradeInventoryVisibility: 'public' }),
       });
     });
 
@@ -257,7 +257,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { includeCocaCola: false }, isTradeInventoryPublic: true }),
+        body: JSON.stringify({ settings: { includeCocaCola: false }, tradeInventoryVisibility: 'public' }),
       });
 
       const response = await app.inject({
@@ -276,7 +276,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: { includeCocaCola: true }, isTradeInventoryPublic: true }),
+        body: JSON.stringify({ settings: { includeCocaCola: true }, tradeInventoryVisibility: 'public' }),
       });
     });
   });
@@ -284,7 +284,15 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
   // ── GET /api/v1/profiles/:username/albums/:albumId/wanted ────────────────────
 
   describe('GET /api/v1/profiles/:username/albums/:albumId/wanted', () => {
-    it("returns 404 for Alice's international album (not flagged public)", async () => {
+    it("returns 404 for Alice's international album when private", async () => {
+      // Re-pin to private — other suites or manual ops may have flipped it
+      // to unlisted/public on the shared dev DB. See CLAUDE.md "tests share
+      // the dev DB" rule.
+      await app.db.query(
+        `UPDATE user_albums SET trade_inventory_visibility = 'private' WHERE id = $1`,
+        [ALICE_INTL_ALBUM_ID],
+      );
+      await app.redis.flushdb();
       const response = await app.inject({
         method: 'GET',
         url: `/api/v1/profiles/alice/albums/${ALICE_INTL_ALBUM_ID}/wanted`,
@@ -398,7 +406,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alias: testAlias, isTradeInventoryPublic: true }),
+        body: JSON.stringify({ alias: testAlias, tradeInventoryVisibility: 'public' }),
       });
       expect(patchRes.statusCode).toBe(200);
 
@@ -415,7 +423,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
         method: 'PATCH',
         url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
         headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alias: null, isTradeInventoryPublic: true }),
+        body: JSON.stringify({ alias: null, tradeInventoryVisibility: 'public' }),
       });
     });
   });

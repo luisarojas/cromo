@@ -130,7 +130,7 @@ export default function AlbumsPage() {
   }, [ensureModalStickers]);
 
   const handleAddAlbum = useCallback(
-    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
+    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; tradeInventoryVisibility: 'private' | 'unlisted' | 'public' }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr) throw new Error('Not authenticated');
@@ -142,7 +142,7 @@ export default function AlbumsPage() {
   );
 
   const handleSaveAlbum = useCallback(
-    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; isTradeInventoryPublic: boolean }) => {
+    async (data: { alias: string | null; notes: string | null; edition: string; format: string; settings: AlbumSettings; tradeInventoryVisibility: 'private' | 'unlisted' | 'public' }) => {
       const tok = tokenRef.current;
       const usr = userRef.current;
       if (!tok || !usr || !editingAlbum) throw new Error('Not authenticated');
