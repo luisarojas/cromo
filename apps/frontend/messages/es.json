@@ -637,7 +637,12 @@
   "tradePage": {
     "title": "Intercambios",
     "subtitle": "Encuentra coleccionistas o administra tus intercambios activos.",
-    "tradeInPerson": "Intercambiar en persona (QR)",
+    "tradeInPerson": "Intercambiar en persona",
+    "inPersonChooserHint": "¿La otra coleccionista tiene cuenta en Cromo?",
+    "inPersonHasAccount": "Sí — intercambiará desde su cuenta",
+    "inPersonHasAccountHint": "Comparte un QR; al escanearlo propone el intercambio desde su propia cuenta.",
+    "inPersonGuest": "No — intercambiar en una sala compartida",
+    "inPersonGuestHint": "Comparte un código o QR; entra como invitada y preparen el intercambio juntas. Sin registro.",
     "qrModalTitle": "Intercambiar en persona",
     "qrModalHint": "Muestra este QR a la otra coleccionista. Al escanearlo, llegará al flujo de intercambio contigo como destinataria.",
     "qrModalExpires": "Caduca en 30 minutos",

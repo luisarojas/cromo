@@ -187,6 +187,11 @@ function TradePageContent() {
   const [qrError, setQrError] = useState<string | null>(null);
   const [qrCopied, setQrCopied] = useState(false);
 
+  // Single "Trade in person" CTA opens this chooser, which routes to either
+  // the QR invite (other party has an account) or a live-trade session (they
+  // don't). Keeps the two flows discoverable behind one entry point.
+  const [inPersonChooserOpen, setInPersonChooserOpen] = useState(false);
+
   // Live-trade button: route the host into the room for the selected album so
   // they can share the join code with someone who doesn't have an account.
   const { addToast } = useToast();
@@ -196,6 +201,7 @@ function TradePageContent() {
     setLiveTradeBusy(true);
     try {
       const session = await createLiveTradeSession(selectedAlbumId, token);
+      setInPersonChooserOpen(false);
       router.push(`/trade/live/${session.id}`);
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Could not start a live trade.');
@@ -206,6 +212,7 @@ function TradePageContent() {
 
   const handleOpenQr = async () => {
     if (!token) return;
+    setInPersonChooserOpen(false);
     setQrOpen(true);
     setQrCopied(false);
     if (qrInvite) return;
@@ -596,25 +603,13 @@ function TradePageContent() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={handleOpenQr}
+            onClick={() => setInPersonChooserOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
           >
             <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
               <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm6-2h6v6h-6V3zm2 2v2h2V5h-2zM3 11h6v6H3v-6zm2 2v2h2v-2H5zm6 0h2v-2h2v2h2v2h-2v2h-2v-2h-2v2h-2v-4h2v-2zm4 4h2v-2h-2v2z" />
             </svg>
             {t('tradeInPerson')}
-          </button>
-          <button
-            onClick={handleStartLiveTrade}
-            disabled={!selectedAlbumId || liveTradeBusy}
-            title="Trade in person with someone who doesn't have an account"
-            className="inline-flex items-center gap-1.5 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <svg className="h-3 w-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <circle cx="10" cy="10" r="3" />
-              <circle cx="10" cy="10" r="7" />
-            </svg>
-            {liveTradeBusy ? 'Starting…' : 'Live trade'}
           </button>
         </div>
       </div>
@@ -1014,6 +1009,62 @@ function TradePageContent() {
           onCancel={() => { clearDraft(); setProposeModal(null); }}
           onSend={handleSendTradeRequest}
         />
+      )}
+
+      {inPersonChooserOpen && (
+        <BottomSheet
+          open
+          onClose={() => setInPersonChooserOpen(false)}
+          ariaLabel={t('tradeInPerson')}
+        >
+          <div className="p-6 flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-[var(--cromo-fg)] text-center">
+              {t('tradeInPerson')}
+            </h2>
+            <p className="text-xs text-[var(--cromo-fg-muted)] text-center">
+              {t('inPersonChooserHint')}
+            </p>
+            <button
+              onClick={handleOpenQr}
+              className="flex flex-col items-start gap-1 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-4 py-3 text-left text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors"
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm6-2h6v6h-6V3zm2 2v2h2V5h-2zM3 11h6v6H3v-6zm2 2v2h2v-2H5zm6 0h2v-2h2v2h2v2h-2v2h-2v-2h-2v2h-2v-4h2v-2zm4 4h2v-2h-2v2z" />
+                </svg>
+                {t('inPersonHasAccount')}
+              </span>
+              <span className="text-xs text-[var(--cromo-fg-muted)]">
+                {t('inPersonHasAccountHint')}
+              </span>
+            </button>
+            <button
+              onClick={handleStartLiveTrade}
+              disabled={!selectedAlbumId || liveTradeBusy}
+              className="flex flex-col items-start gap-1 rounded-btn border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-4 py-3 text-left text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <circle cx="10" cy="10" r="3" />
+                  <circle cx="10" cy="10" r="7" />
+                </svg>
+                {liveTradeBusy ? 'Starting…' : t('inPersonGuest')}
+              </span>
+              <span className="text-xs text-[var(--cromo-fg-muted)]">
+                {t('inPersonGuestHint')}
+              </span>
+            </button>
+          </div>
+        </BottomSheet>
       )}
 
       {qrOpen && (

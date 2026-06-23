@@ -637,7 +637,12 @@
   "tradePage": {
     "title": "Trades",
     "subtitle": "Find trading partners or manage your active trades.",
-    "tradeInPerson": "Trade in person (QR)",
+    "tradeInPerson": "Trade in person",
+    "inPersonChooserHint": "Does the other collector have a Cromo account?",
+    "inPersonHasAccount": "Yes — they'll trade from their account",
+    "inPersonHasAccountHint": "Share a QR; they scan it and propose the trade from their own account.",
+    "inPersonGuest": "No — trade in a shared room",
+    "inPersonGuestHint": "Share a code or QR; they join as a guest and you stage the swap together. No signup.",
     "qrModalTitle": "Trade in person",
     "qrModalHint": "Show this QR to the other collector. Once they scan it, they'll land on the trade flow with you as the partner.",
     "qrModalExpires": "Expires in 30 minutes",
