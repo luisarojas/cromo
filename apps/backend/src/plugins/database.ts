@@ -1,6 +1,6 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
-import { getPool, getDrizzle } from '../db/index.js';
+import { getPool } from '../db/index.js';
 import { runMigrations } from '../db/migrate.js';
 
 const SLOW_QUERY_MS = 100;
@@ -45,10 +45,7 @@ async function databasePlugin(fastify: FastifyInstance): Promise<void> {
     }
   };
 
-  const drizzleClient = getDrizzle(pool);
-
   fastify.decorate('db', pool);
-  fastify.decorate('drizzle', drizzleClient);
 
   fastify.addHook('onClose', async () => {
     fastify.log.info('Closing database pool...');

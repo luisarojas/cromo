@@ -111,7 +111,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      const { userId } = await authService.register(fastify.drizzle, fastify.redis, parsed.data);
+      const { userId } = await authService.register(fastify.db, fastify.redis, parsed.data);
       return reply.status(201).send({
         message: 'Registration successful. Please check your email to verify your account.',
         userId,
@@ -168,7 +168,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const { accessToken, refreshToken, user } = await authService.login(
-        fastify.drizzle,
+        fastify.db,
         parsed.data
       );
 
@@ -240,7 +240,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       try {
         const { accessToken, refreshToken, user } = await authService.refresh(
-          fastify.drizzle,
+          fastify.db,
           token
         );
 
@@ -291,7 +291,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      await authService.verifyEmail(fastify.drizzle, parsed.data.email, parsed.data.code);
+      await authService.verifyEmail(fastify.db, parsed.data.email, parsed.data.code);
       return reply.status(200).send({ message: 'Email verified successfully.' });
     }
   );
@@ -323,7 +323,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(204).send(); // Anti-enumeration: always 204
       }
 
-      await authService.resendVerification(fastify.drizzle, fastify.redis, parsed.data.email);
+      await authService.resendVerification(fastify.db, fastify.redis, parsed.data.email);
       return reply.status(204).send();
     }
   );
@@ -355,7 +355,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(204).send(); // Anti-enumeration
       }
 
-      await authService.forgotPassword(fastify.drizzle, fastify.redis, parsed.data.email);
+      await authService.forgotPassword(fastify.db, fastify.redis, parsed.data.email);
       return reply.status(204).send();
     }
   );
@@ -399,7 +399,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       await authService.resetPassword(
-        fastify.drizzle,
+        fastify.db,
         parsed.data.email,
         parsed.data.code,
         parsed.data.password,

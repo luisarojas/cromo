@@ -4,7 +4,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { env } from '../../env.js';
 import { verifyToken } from '../../middleware/auth.js';
-import { writeSSEEvent, writeSSEHeartbeat } from '../../utils/sse.js';
+import { checkSoftBan } from '../../middleware/ban-check.js';
+import { writeSSEEvent, writeSSEHead, writeSSEHeartbeat } from '../../utils/sse.js';
 import * as live from '../../services/live-trade.service.js';
 
 // In-person live trade: registered host + anonymous guest share a session;
@@ -101,7 +102,7 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     prefix,
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       config: {
         // Bound a single user to creating ~one session every six seconds —
         // generous for genuine in-person flow, hostile to abuse.
@@ -286,7 +287,7 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post(
     `${prefix}/:id/complete`,
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       schema: {
         tags: ['Trade'], summary: 'Complete a live trade (host-only)',
         security: [{ bearerAuth: [] }],
@@ -309,6 +310,9 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
    * Host-only. Reverses the completion's deltas if within 60s and not yet
    * undone. The session goes back to 'open' for "wait, one more sticker"
    * flows; the host can re-lock and re-complete.
+   *
+   * No checkSoftBan — undo only reverses a prior mutation; refusing it would
+   * leave a banned user's inventory in a half-applied state with no way out.
    */
   fastify.post(
     `${prefix}/:id/undo`,
@@ -392,26 +396,7 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Ticket does not match this session.' });
       }
 
-      // CORS pass-through — same trick the trade SSE uses, since reply.raw
-      // skips the Fastify response pipeline that adds CORS headers.
-      const corsHeaders: Record<string, string> = {};
-      for (const h of [
-        'access-control-allow-origin',
-        'access-control-allow-credentials',
-        'access-control-expose-headers',
-        'vary',
-      ]) {
-        const v = reply.getHeader(h);
-        if (typeof v === 'string') corsHeaders[h] = v;
-      }
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-        ...corsHeaders,
-      });
-      reply.raw.flushHeaders?.();
+      writeSSEHead(reply);
 
       // Initial state push so the client doesn't have to GET separately.
       // If the session evaporated between ticket-mint and stream-open (TTL,

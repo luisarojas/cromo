@@ -72,7 +72,9 @@ export function idempotency(
     const cached = await lookupIdempotent<unknown>(fastify.redis, scope, userId, idempotencyKey);
     if (cached !== null) {
       reply.header('idempotent-replay', 'true');
-      reply.status(200).send(cached);
+      // `return reply` short-circuits the route handler; without it the
+      // downstream handler also runs and would double-execute the side effect.
+      return reply.status(200).send(cached);
     }
   };
 }

@@ -26,9 +26,13 @@ export default defineConfig({
       ],
       exclude: [
         'src/**/*.d.ts',
-        // api.ts is a thin fetch-wrapper layer that's exercised by
-        // integration tests on the backend side and the e2e flow.
+        // api.ts is a thin fetch-wrapper barrel that re-exports per-domain
+        // endpoint modules under src/lib/api/. Both are exercised by the
+        // backend integration tests and the e2e flow — running them through
+        // jsdom would assert the wrong thing (that fetch was called) without
+        // catching the failure modes that matter (wrong URL, wrong shape).
         'src/lib/api.ts',
+        'src/lib/api/**',
         'src/lib/apiClient.ts',
         // Service-worker registration + push subscription helpers run in the
         // browser only; jsdom can't meaningfully execute them.

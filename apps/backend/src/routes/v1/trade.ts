@@ -23,7 +23,7 @@ import {
 } from '../../services/trade-requests.service.js';
 import * as messagingService from '../../services/messaging.service.js';
 import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
-import { writeSSEEvent, writeSSEHeartbeat } from '../../utils/sse.js';
+import { writeSSEEvent, writeSSEHead, writeSSEHeartbeat } from '../../utils/sse.js';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -769,6 +769,13 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
    * EventSource can't set custom headers, so authentication is done with a
    * single-use ticket obtained from POST :id/stream-ticket. A standard
    * Authorization header is also accepted for non-EventSource clients.
+   *
+   * Coverage note: this handler drags the aggregate coverage gate down (see
+   * vitest.config.ts). Unit tests can't exercise the raw-socket lifecycle —
+   * heartbeat interval, idle timer, Last-Event-ID replay, redis-fanout
+   * subscription/unsubscribe — without an in-process EventSource client.
+   * The trade Playwright spec covers the user-visible side; deeper streaming
+   * tests are an open follow-up.
    */
   fastify.get(
     `${prefix}/requests/:id/stream`,
@@ -848,65 +855,17 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'You are not a participant in this trade.' });
       }
 
-      // ── Set SSE headers ────────────────────────────────────────────────────
-      // reply.raw.writeHead bypasses Fastify's response pipeline, so CORS
-      // headers set by the plugin in onRequest are never flushed. Carry every
-      // CORS header from the prepared reply over to the raw socket so changes
-      // to the CORS plugin (origin / credentials / exposed headers) flow here
-      // without a code edit.
-      const corsHeaders: Record<string, string> = {};
-      for (const h of [
-        'access-control-allow-origin',
-        'access-control-allow-credentials',
-        'access-control-expose-headers',
-        'vary',
-      ]) {
-        const v = reply.getHeader(h);
-        if (typeof v === 'string') corsHeaders[h] = v;
-      }
-      reply.raw.writeHead(200, {
-        'Content-Type':  'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection':    'keep-alive',
-        'X-Accel-Buffering': 'no',
-        ...corsHeaders,
-      });
-      reply.raw.flushHeaders?.();
+      writeSSEHead(reply);
 
       // ── Handle Last-Event-ID replay ────────────────────────────────────────
       const lastEventId = request.headers['last-event-id'] as string | undefined;
       if (lastEventId) {
         try {
-          const { rows: replayRows } = await fastify.db.query<{
-            id: string;
-            trade_id: string;
-            sender_id: string | null;
-            sender_username: string | null;
-            sender_display_name: string | null;
-            body: string;
-            sent_at: string;
-            is_system: boolean;
-          }>(
-            `SELECT
-               tm.id,
-               tm.trade_id,
-               tm.sender_id,
-               u.username      AS sender_username,
-               u.display_name  AS sender_display_name,
-               tm.body,
-               tm.sent_at,
-               tm.is_system
-             FROM trade_messages tm
-             LEFT JOIN users u ON u.id = tm.sender_id
-             WHERE tm.trade_id = $1
-               AND tm.sent_at > (
-                 SELECT sent_at FROM trade_messages WHERE id = $2 LIMIT 1
-               )
-             ORDER BY tm.sent_at ASC
-             LIMIT 100`,
-            [tradeId, lastEventId]
+          const replayRows = await messagingService.getMessagesAfter(
+            fastify.db,
+            tradeId,
+            lastEventId,
           );
-
           for (const msg of replayRows) {
             writeSSEEvent(reply, 'new_message', msg, msg.id);
           }

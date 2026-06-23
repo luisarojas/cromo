@@ -52,12 +52,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   // ── Response serializer: convert snake_case keys → camelCase ──────────────
-  // The DB uses snake_case columns; Drizzle exposes camelCase TS fields; but the
-  // legacy raw-SQL services emit snake_case row objects. This serializer
-  // normalises every response payload to camelCase so the wire format matches
-  // the canonical types in @cromo/shared. Response schemas in routes are
-  // now documentation only (fast-json-stringify is bypassed).
-  // setSerializerCompiler runs for routes with a response schema;
+  // Services issue raw SQL via the pg Pool and return Postgres-shaped snake_case
+  // row objects. This serializer normalises every response payload to camelCase
+  // so the wire format matches the canonical types in @cromo/shared. Response
+  // schemas in routes are now documentation only (fast-json-stringify is
+  // bypassed). setSerializerCompiler runs for routes with a response schema;
   // setReplySerializer is the fallback for routes without one (otherwise
   // Fastify's default JSON.stringify would leak snake_case).
   fastify.setSerializerCompiler(() => (data) => JSON.stringify(camelizeKeys(data)));

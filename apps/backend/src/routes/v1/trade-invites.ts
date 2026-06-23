@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { verifyToken } from '../../middleware/auth.js';
+import { checkSoftBan } from '../../middleware/ban-check.js';
 import * as tradeInvitesService from '../../services/trade-invites.service.js';
 
 // QR-based invite into the existing propose-trade flow. The host mints an
@@ -12,7 +13,7 @@ export async function tradeInvitesRoutes(fastify: FastifyInstance): Promise<void
   fastify.post(
     '/api/v1/trade/invites',
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       schema: {
         tags: ['Trade'],
         summary: 'Create a single-use trade invite token',
@@ -28,7 +29,7 @@ export async function tradeInvitesRoutes(fastify: FastifyInstance): Promise<void
   fastify.post(
     '/api/v1/trade/invites/:token/redeem',
     {
-      preHandler: [verifyToken],
+      preHandler: [verifyToken, checkSoftBan(fastify)],
       schema: {
         tags: ['Trade'],
         summary: 'Redeem a trade invite token',

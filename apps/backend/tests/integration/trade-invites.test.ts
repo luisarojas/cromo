@@ -10,34 +10,38 @@ const HAS_REAL_REDIS =
   process.env['REDIS_URL'].startsWith('redis://');
 const shouldRun = HAS_REAL_DB && HAS_REAL_REDIS;
 
-const ALICE_ID = '00000000-0000-0000-0000-000000000002';
-const BOB_ID   = '00000000-0000-0000-0000-000000000003';
+const ALICE_ID   = '00000000-0000-0000-0000-000000000002';
+const BOB_ID     = '00000000-0000-0000-0000-000000000003';
+// Seeded as soft-banned in scripts/seeds/09_trust_safety.sql.
+const CHARLIE_ID = '00000000-0000-0000-0000-000000000004';
 
 describe.skipIf(!shouldRun)('Trade invites routes (integration)', () => {
   let app: FastifyInstance;
   let aliceToken: string;
   let bobToken: string;
+  let charlieToken: string;
 
   beforeAll(async () => {
     const { buildApp } = await import('../../src/app.js');
     const { signAccessToken } = await import('../../src/middleware/auth.js');
     app = await buildApp();
     await app.ready();
-    aliceToken = signAccessToken({ sub: ALICE_ID, email: 'alice@test.local', role: 'user' });
-    bobToken   = signAccessToken({ sub: BOB_ID,   email: 'bob@test.local',   role: 'user' });
+    aliceToken   = signAccessToken({ sub: ALICE_ID,   email: 'alice@test.local',   role: 'user' });
+    bobToken     = signAccessToken({ sub: BOB_ID,     email: 'bob@test.local',     role: 'user' });
+    charlieToken = signAccessToken({ sub: CHARLIE_ID, email: 'charlie@test.local', role: 'user' });
   });
 
   afterAll(async () => {
     // Clean up our own invites; leave any others a different test created.
-    await app.db.query(`DELETE FROM trade_invites WHERE host_user_id IN ($1, $2)`, [
-      ALICE_ID, BOB_ID,
+    await app.db.query(`DELETE FROM trade_invites WHERE host_user_id IN ($1, $2, $3)`, [
+      ALICE_ID, BOB_ID, CHARLIE_ID,
     ]);
     await app?.close();
   });
 
   beforeEach(async () => {
-    await app.db.query(`DELETE FROM trade_invites WHERE host_user_id IN ($1, $2)`, [
-      ALICE_ID, BOB_ID,
+    await app.db.query(`DELETE FROM trade_invites WHERE host_user_id IN ($1, $2, $3)`, [
+      ALICE_ID, BOB_ID, CHARLIE_ID,
     ]);
   });
 
@@ -144,6 +148,37 @@ describe.skipIf(!shouldRun)('Trade invites routes (integration)', () => {
         headers: { Authorization: `Bearer ${bobToken}` },
       });
       expect(second.statusCode).toBe(409);
+    });
+
+    // ── Soft-ban enforcement on both endpoints ───────────────────────────────
+    // checkSoftBan was added to create + redeem in the same change that wired
+    // it onto the live-trade host endpoints. A regression that drops either
+    // preHandler should fail one of these tests.
+
+    it('blocks a soft-banned user from creating an invite (403)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/trade/invites',
+        headers: { Authorization: `Bearer ${charlieToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('blocks a soft-banned user from redeeming an invite (403)', async () => {
+      // Alice mints, Charlie (soft-banned) tries to redeem.
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/v1/trade/invites',
+        headers: { Authorization: `Bearer ${aliceToken}` },
+      });
+      const { token } = created.json<{ invite: { token: string } }>().invite;
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/trade/invites/${token}/redeem`,
+        headers: { Authorization: `Bearer ${charlieToken}` },
+      });
+      expect(res.statusCode).toBe(403);
     });
 
     it('an expired invite returns 409 even before anyone has redeemed it', async () => {

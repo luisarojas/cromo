@@ -57,7 +57,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
       const { refresh } = await import('../../src/services/auth.service.js');
       // A JWT signed with a different secret won't verify.
       const bogus = 'eyJ.bogus.token';
-      await expect(refresh(app.drizzle, bogus)).rejects.toMatchObject({ statusCode: 401 });
+      await expect(refresh(app.db, bogus)).rejects.toMatchObject({ statusCode: 401 });
     });
 
     it('returns 401 when the user the token points to no longer exists', async () => {
@@ -68,14 +68,14 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
         email: 'gone@test.local',
         role: 'user',
       });
-      await expect(refresh(app.drizzle, token)).rejects.toMatchObject({ statusCode: 401 });
+      await expect(refresh(app.db, token)).rejects.toMatchObject({ statusCode: 401 });
     });
 
     it('returns fresh access + refresh tokens for a valid refresh token', async () => {
       const { refresh } = await import('../../src/services/auth.service.js');
       const { signRefreshToken } = await import('../../src/middleware/auth.js');
       const token = signRefreshToken({ sub: FIXTURE_ID, email: FIXTURE_EMAIL, role: 'user' });
-      const result = await refresh(app.drizzle, token);
+      const result = await refresh(app.db, token);
       expect(result.accessToken.split('.').length).toBe(3);
       expect(result.refreshToken.split('.').length).toBe(3);
       expect(result.user.id).toBe(FIXTURE_ID);
@@ -85,7 +85,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
   describe('verifyEmail', () => {
     it('throws 400 when the code does not match any token', async () => {
       const { verifyEmail } = await import('../../src/services/auth.service.js');
-      await expect(verifyEmail(app.drizzle, FIXTURE_EMAIL, 'noresult')).rejects.toMatchObject({
+      await expect(verifyEmail(app.db, FIXTURE_EMAIL, 'noresult')).rejects.toMatchObject({
         statusCode: 400,
       });
     });
@@ -100,7 +100,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
         [hashToken(code), FIXTURE_ID],
       );
 
-      await verifyEmail(app.drizzle, FIXTURE_EMAIL, code);
+      await verifyEmail(app.db, FIXTURE_EMAIL, code);
 
       const { rows: userRows } = await app.db.query<{ email_verified_at: Date | null }>(
         `SELECT email_verified_at FROM users WHERE id = $1`,
@@ -127,7 +127,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
            VALUES ($1, $2, now() - INTERVAL '1 hour')`,
         [hashToken(code), FIXTURE_ID],
       );
-      await expect(verifyEmail(app.drizzle, FIXTURE_EMAIL, code)).rejects.toMatchObject({
+      await expect(verifyEmail(app.db, FIXTURE_EMAIL, code)).rejects.toMatchObject({
         statusCode: 410,
       });
       await app.db.query(`DELETE FROM email_verification_tokens WHERE user_id = $1`, [FIXTURE_ID]);
@@ -138,7 +138,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
     it('is a silent no-op for unknown emails (anti-enumeration)', async () => {
       const { resendVerification } = await import('../../src/services/auth.service.js');
       await expect(
-        resendVerification(app.drizzle, app.redis, 'definitely-not-a-user@test.local'),
+        resendVerification(app.db, app.redis, 'definitely-not-a-user@test.local'),
       ).resolves.toBeUndefined();
     });
 
@@ -146,7 +146,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
       const { resendVerification } = await import('../../src/services/auth.service.js');
       await app.db.query(`UPDATE users SET email_verified_at = now() WHERE id = $1`, [FIXTURE_ID]);
       try {
-        await resendVerification(app.drizzle, app.redis, FIXTURE_EMAIL);
+        await resendVerification(app.db, app.redis, FIXTURE_EMAIL);
         // No token row created since the user is already verified.
         const { rowCount } = await app.db.query(
           `SELECT 1 FROM email_verification_tokens WHERE user_id = $1`,
@@ -164,7 +164,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
         `DELETE FROM email_verification_tokens WHERE user_id = $1`,
         [FIXTURE_ID],
       );
-      await resendVerification(app.drizzle, app.redis, FIXTURE_EMAIL);
+      await resendVerification(app.db, app.redis, FIXTURE_EMAIL);
       const { rowCount } = await app.db.query(
         `SELECT 1 FROM email_verification_tokens WHERE user_id = $1`,
         [FIXTURE_ID],
@@ -178,7 +178,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
     it('forgotPassword is a no-op for unknown emails', async () => {
       const { forgotPassword } = await import('../../src/services/auth.service.js');
       await expect(
-        forgotPassword(app.drizzle, app.redis, 'unknown-' + Date.now() + '@test.local'),
+        forgotPassword(app.db, app.redis, 'unknown-' + Date.now() + '@test.local'),
       ).resolves.toBeUndefined();
     });
 
@@ -188,7 +188,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
         `DELETE FROM password_reset_tokens WHERE user_id = $1`,
         [FIXTURE_ID],
       );
-      await forgotPassword(app.drizzle, app.redis, FIXTURE_EMAIL);
+      await forgotPassword(app.db, app.redis, FIXTURE_EMAIL);
       const { rowCount } = await app.db.query(
         `SELECT 1 FROM password_reset_tokens WHERE user_id = $1`,
         [FIXTURE_ID],
@@ -215,7 +215,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
         [FIXTURE_ID],
       );
 
-      await resetPassword(app.drizzle, FIXTURE_EMAIL, code, 'newpassword123');
+      await resetPassword(app.db, FIXTURE_EMAIL, code, 'newpassword123');
 
       const { rows } = await app.db.query<{ password_hash: string | null }>(
         `SELECT password_hash FROM users WHERE id = $1`,
@@ -242,7 +242,7 @@ describe.skipIf(!shouldRun)('auth.service (integration, local mode)', () => {
     it('resetPassword throws 400 when the code does not match', async () => {
       const { resetPassword } = await import('../../src/services/auth.service.js');
       await expect(
-        resetPassword(app.drizzle, FIXTURE_EMAIL, 'never-issued', 'newpw'),
+        resetPassword(app.db, FIXTURE_EMAIL, 'never-issued', 'newpw'),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
   });

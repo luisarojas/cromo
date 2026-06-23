@@ -695,6 +695,45 @@
     "english": "English",
     "spanish": "Español"
   },
+  "achievements": {
+    "sectionTitle": "Achievements",
+    "first_sticker": {
+      "title": "First sticker",
+      "description": "You added your first sticker to a Cromo album."
+    },
+    "pct_25": {
+      "title": "A quarter of the way",
+      "description": "You filled 25% of an album."
+    },
+    "pct_50": {
+      "title": "Halfway hero",
+      "description": "You filled half of an album."
+    },
+    "pct_75": {
+      "title": "On the home stretch",
+      "description": "You filled 75% of an album."
+    },
+    "team_complete": {
+      "title": "Team complete",
+      "description": "You completed every sticker for at least one national team."
+    },
+    "rare_pull": {
+      "title": "Rare pull",
+      "description": "You logged a parallel of purple rarity or higher."
+    },
+    "first_trade": {
+      "title": "First trade",
+      "description": "You completed your first trade."
+    },
+    "all_teams": {
+      "title": "All 48 teams",
+      "description": "You completed every team in the album."
+    },
+    "pct_100": {
+      "title": "Album complete",
+      "description": "You filled an entire album — every sticker, every page."
+    }
+  },
   "errors": {
     "notFound": {
       "code": "404",

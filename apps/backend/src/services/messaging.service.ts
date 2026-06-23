@@ -165,6 +165,45 @@ export async function sendSystemMessage(
 }
 
 /**
+ * getMessagesAfter — replay rows for SSE Last-Event-ID resync. Returns every
+ * message in the trade newer than the supplied message id, ASC by sent_at.
+ *
+ * **Caller must verify participant status before calling this.** Unlike
+ * `getMessages`, this function does no authorization check: the SSE handler
+ * already verifies the requesting user owns the trade before the replay
+ * runs. Wiring this into a public route without that check would let any
+ * authenticated user read any trade's message history.
+ */
+export async function getMessagesAfter(
+  db: Pool,
+  tradeId: string,
+  afterMessageId: string,
+  limit = 100,
+): Promise<MessageRow[]> {
+  const { rows } = await db.query<MessageRow>(
+    `SELECT
+       tm.id,
+       tm.trade_id,
+       tm.sender_id,
+       u.username      AS sender_username,
+       u.display_name  AS sender_display_name,
+       tm.body,
+       tm.sent_at,
+       tm.is_system
+     FROM trade_messages tm
+     LEFT JOIN users u ON u.id = tm.sender_id
+     WHERE tm.trade_id = $1
+       AND tm.sent_at > (
+         SELECT sent_at FROM trade_messages WHERE id = $2 LIMIT 1
+       )
+     ORDER BY tm.sent_at ASC
+     LIMIT $3`,
+    [tradeId, afterMessageId, limit],
+  );
+  return rows;
+}
+
+/**
  * getMessages — paginated message history for a trade (cursor = sent_at ISO string).
  */
 export async function getMessages(

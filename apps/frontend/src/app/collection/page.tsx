@@ -9,7 +9,7 @@ import {
   fetchAlbumStats,
   fetchAlbumEditions,
   fetchAlbumFormats,
-  fetchAllStickersCached,
+  fetchAllStickers,
   createUserAlbum,
   updateUserAlbum,
   deleteUserAlbum,
@@ -114,7 +114,7 @@ export default function AlbumsPage() {
     const tok = tokenRef.current;
     if (!tok) return;
     try {
-      const all = await fetchAllStickersCached(tok);
+      const all = await fetchAllStickers(tok);
       setModalStickers(all);
     } catch { /* show modal without counts if catalog fetch fails */ }
   }, [modalStickers]);

@@ -9,11 +9,9 @@ import {
   ConfirmForgotPasswordCommand,
   GlobalSignOutCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { eq } from 'drizzle-orm';
-import { env } from '../env.js';
-import type { Drizzle } from '../db/index.js';
-import { users, bannedEmails } from '../db/schema.js';
+import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { env } from '../env.js';
 import { statusError } from '../utils/errors.js';
 import { ensureUser, createUser, deriveUniqueUsernameFromEmail, hashEmailForBan } from './user-provisioning.js';
 import { deleteUser } from './cognito-admin.js';
@@ -83,7 +81,7 @@ function roleFromClaims(claims: IdClaims): 'user' | 'admin' {
   return (claims['cognito:groups'] ?? []).includes('admin') ? 'admin' : 'user';
 }
 
-async function syncFromIdToken(db: Drizzle, idToken: string): Promise<AuthTokens['user']> {
+async function syncFromIdToken(db: Pool, idToken: string): Promise<AuthTokens['user']> {
   const claims = decodeJwt(idToken) as unknown as IdClaims;
   const emailVerified = claims.email_verified === true || claims.email_verified === 'true';
   return ensureUser(db, {
@@ -98,14 +96,17 @@ async function syncFromIdToken(db: Drizzle, idToken: string): Promise<AuthTokens
 // ─── Service surface (mirrors auth.service.ts) ──────────────────────────────
 
 export async function register(
-  db: Drizzle,
+  db: Pool,
   _redis: Redis,
   input: RegisterInput,
 ): Promise<{ userId: string; email: string; username: string }> {
   const email = input.email.toLowerCase().trim();
 
-  const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmailForBan(email))).limit(1);
-  if (blocked) throw statusError('This email address is not eligible for registration.', 403);
+  const { rows: blocked } = await db.query<{ hashed_email: string }>(
+    `SELECT hashed_email FROM banned_emails WHERE hashed_email = $1 LIMIT 1`,
+    [hashEmailForBan(email)],
+  );
+  if (blocked.length > 0) throw statusError('This email address is not eligible for registration.', 403);
 
   const providedUsername = input.username?.trim();
   let username: string;
@@ -113,8 +114,11 @@ export async function register(
     username = providedUsername.toLowerCase();
     // Pre-check DB username uniqueness so we fail before creating the Cognito
     // user (Cognito only enforces email uniqueness, not our app username).
-    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1);
-    if (taken) throw statusError('Username is already taken.', 409);
+    const { rows: taken } = await db.query<{ id: string }>(
+      `SELECT id FROM users WHERE username = $1 LIMIT 1`,
+      [username],
+    );
+    if (taken.length > 0) throw statusError('Username is already taken.', 409);
   } else {
     username = await deriveUniqueUsernameFromEmail(db, email);
   }
@@ -154,7 +158,7 @@ export async function register(
   return { userId: userSub, email, username };
 }
 
-export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens> {
+export async function login(db: Pool, input: LoginInput): Promise<AuthTokens> {
   const email = input.email.toLowerCase().trim();
 
   let res;
@@ -186,7 +190,7 @@ export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens>
   return { accessToken: auth.AccessToken, refreshToken: auth.RefreshToken, user };
 }
 
-export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTokens> {
+export async function refresh(db: Pool, refreshToken: string): Promise<AuthTokens> {
   let res;
   try {
     res = await client().send(
@@ -211,7 +215,7 @@ export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTo
   return { accessToken: auth.AccessToken, refreshToken, user };
 }
 
-export async function verifyEmail(_db: Drizzle, email: string, code: string): Promise<void> {
+export async function verifyEmail(_db: Pool, email: string, code: string): Promise<void> {
   try {
     await client().send(
       new ConfirmSignUpCommand({
@@ -225,7 +229,7 @@ export async function verifyEmail(_db: Drizzle, email: string, code: string): Pr
   }
 }
 
-export async function resendVerification(_db: Drizzle, _redis: Redis, email: string): Promise<void> {
+export async function resendVerification(_db: Pool, _redis: Redis, email: string): Promise<void> {
   try {
     await client().send(
       new ResendConfirmationCodeCommand({
@@ -238,7 +242,7 @@ export async function resendVerification(_db: Drizzle, _redis: Redis, email: str
   }
 }
 
-export async function forgotPassword(_db: Drizzle, _redis: Redis, email: string): Promise<void> {
+export async function forgotPassword(_db: Pool, _redis: Redis, email: string): Promise<void> {
   try {
     await client().send(
       new ForgotPasswordCommand({
@@ -252,7 +256,7 @@ export async function forgotPassword(_db: Drizzle, _redis: Redis, email: string)
 }
 
 export async function resetPassword(
-  _db: Drizzle,
+  _db: Pool,
   email: string,
   code: string,
   newPassword: string,

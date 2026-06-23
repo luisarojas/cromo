@@ -1,8 +1,10 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import * as schema from './schema.js';
 import { env } from '../env.js';
 
+// Services consume the raw pg `Pool` directly (or a `PoolClient` inside a
+// `withTx` block). The Drizzle schema in schema.ts is still the source of
+// truth for migration generation, but the ORM surface is no longer wired up
+// at runtime — query writing stays in raw SQL.
 let _pool: Pool | null = null;
 
 export function getPool(): Pool {
@@ -21,9 +23,3 @@ export function getPool(): Pool {
   }
   return _pool;
 }
-
-export function getDrizzle(pool: Pool) {
-  return drizzle(pool, { schema });
-}
-
-export type Drizzle = ReturnType<typeof getDrizzle>;

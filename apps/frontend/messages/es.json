@@ -695,6 +695,45 @@
     "english": "English",
     "spanish": "Español"
   },
+  "achievements": {
+    "sectionTitle": "Logros",
+    "first_sticker": {
+      "title": "Primer cromo",
+      "description": "Agregaste tu primer cromo a un álbum en Cromo."
+    },
+    "pct_25": {
+      "title": "Un cuarto del camino",
+      "description": "Llenaste el 25% de un álbum."
+    },
+    "pct_50": {
+      "title": "A medio camino",
+      "description": "Llenaste la mitad de un álbum."
+    },
+    "pct_75": {
+      "title": "En la recta final",
+      "description": "Llenaste el 75% de un álbum."
+    },
+    "team_complete": {
+      "title": "Equipo completo",
+      "description": "Completaste todos los cromos de al menos un equipo nacional."
+    },
+    "rare_pull": {
+      "title": "Tirada rara",
+      "description": "Registraste un parallel de rareza púrpura o superior."
+    },
+    "first_trade": {
+      "title": "Primer intercambio",
+      "description": "Completaste tu primer intercambio."
+    },
+    "all_teams": {
+      "title": "Las 48 selecciones",
+      "description": "Completaste todas las selecciones del álbum."
+    },
+    "pct_100": {
+      "title": "Álbum completo",
+      "description": "Llenaste un álbum entero — cada cromo, cada página."
+    }
+  },
   "errors": {
     "notFound": {
       "code": "404",

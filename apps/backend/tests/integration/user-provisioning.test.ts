@@ -9,8 +9,6 @@ import {
   ensureUser,
   createUser,
 } from '../../src/services/user-provisioning.js';
-import { drizzle } from 'drizzle-orm/node-postgres';
-
 const HAS_REAL_DB =
   typeof process.env['DATABASE_URL'] === 'string' &&
   process.env['DATABASE_URL'].includes('@') &&
@@ -27,13 +25,11 @@ const SECOND_EMAIL = 'second-test@cromo.test';
 
 describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
   let app: FastifyInstance;
-  let drizzleDb: ReturnType<typeof drizzle>;
 
   beforeAll(async () => {
     const { buildApp } = await import('../../src/app.js');
     app = await buildApp();
     await app.ready();
-    drizzleDb = drizzle(app.db);
   });
 
   afterAll(async () => {
@@ -70,12 +66,12 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
   describe('deriveUniqueUsernameFromEmail', () => {
     it('returns the email local-part when it is available', async () => {
       // alice@test.local exists; a brand-new email's local-part should be free.
-      const out = await deriveUniqueUsernameFromEmail(drizzleDb, 'noone-' + Date.now() + '@x.com');
+      const out = await deriveUniqueUsernameFromEmail(app.db, 'noone-' + Date.now() + '@x.com');
       expect(out).toMatch(/^noone-/);
     });
 
     it('appends a numeric suffix when the base is taken', async () => {
-      const out = await deriveUniqueUsernameFromEmail(drizzleDb, 'alice@x.com');
+      const out = await deriveUniqueUsernameFromEmail(app.db, 'alice@x.com');
       expect(out).not.toBe('alice');
       expect(out.startsWith('alice')).toBe(true);
       // Suffix is digits-only.
@@ -83,7 +79,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
     });
 
     it('pads short local-parts to ≥3 chars before checking uniqueness', async () => {
-      const out = await deriveUniqueUsernameFromEmail(drizzleDb, 'a@x.com');
+      const out = await deriveUniqueUsernameFromEmail(app.db, 'a@x.com');
       expect(out.length).toBeGreaterThanOrEqual(3);
     });
   });
@@ -99,7 +95,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
         [NEW_USER_ID, NEW_EMAIL, hashEmail(NEW_EMAIL)],
       );
 
-      await provisionUserProfile(drizzleDb, NEW_USER_ID);
+      await provisionUserProfile(app.db, NEW_USER_ID);
 
       const { rowCount: settingsCount } = await app.db.query(
         `SELECT 1 FROM user_settings WHERE user_id = $1`,
@@ -114,7 +110,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
       expect(albumCount).toBe(1);
 
       // Re-running must NOT create a second album.
-      await provisionUserProfile(drizzleDb, NEW_USER_ID);
+      await provisionUserProfile(app.db, NEW_USER_ID);
       const { rowCount: stillOne } = await app.db.query(
         `SELECT 1 FROM user_albums WHERE user_id = $1`,
         [NEW_USER_ID],
@@ -125,7 +121,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
 
   describe('createUser (self-register)', () => {
     it('inserts the user + provisions side tables in one transaction', async () => {
-      await createUser(drizzleDb, {
+      await createUser(app.db, {
         id: NEW_USER_ID,
         email: NEW_EMAIL,
         username: 'newself',
@@ -145,16 +141,16 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
     });
 
     it('a duplicate username surfaces the unique-constraint violation', async () => {
-      await createUser(drizzleDb, { id: NEW_USER_ID,    email: NEW_EMAIL,    username: 'dupuname' });
+      await createUser(app.db, { id: NEW_USER_ID,    email: NEW_EMAIL,    username: 'dupuname' });
       await expect(
-        createUser(drizzleDb, { id: SECOND_USER_ID, email: SECOND_EMAIL, username: 'dupuname' }),
+        createUser(app.db, { id: SECOND_USER_ID, email: SECOND_EMAIL, username: 'dupuname' }),
       ).rejects.toThrow();
     });
   });
 
   describe('ensureUser (Cognito JIT)', () => {
     it('inserts on first call, no-ops on second call (idempotent)', async () => {
-      const first = await ensureUser(drizzleDb, {
+      const first = await ensureUser(app.db, {
         id: NEW_USER_ID,
         email: NEW_EMAIL,
         username: 'jitone',
@@ -164,7 +160,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
       expect(first.id).toBe(NEW_USER_ID);
       expect(first.emailVerifiedAt).not.toBeNull();
 
-      const second = await ensureUser(drizzleDb, {
+      const second = await ensureUser(app.db, {
         id: NEW_USER_ID,
         email: NEW_EMAIL,
         username: 'jitone',
@@ -179,8 +175,8 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
     });
 
     it('promotes role on subsequent ensureUser when cognito:groups change', async () => {
-      await ensureUser(drizzleDb, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'jitrole', role: 'user' });
-      await ensureUser(drizzleDb, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'jitrole', role: 'admin' });
+      await ensureUser(app.db, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'jitrole', role: 'user' });
+      await ensureUser(app.db, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'jitrole', role: 'admin' });
 
       const { rows } = await app.db.query<{ role: string }>(
         `SELECT role FROM users WHERE id = $1`,
@@ -197,7 +193,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
       );
 
       await expect(
-        ensureUser(drizzleDb, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'jitban' }),
+        ensureUser(app.db, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'jitban' }),
       ).rejects.toMatchObject({ statusCode: 403 });
     });
 
@@ -209,7 +205,7 @@ describe.skipIf(!shouldRun)('user-provisioning (integration, real DB)', () => {
         [NEW_USER_ID, NEW_EMAIL, hashEmail(NEW_EMAIL)],
       );
       await expect(
-        ensureUser(drizzleDb, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'deletedtest' }),
+        ensureUser(app.db, { id: NEW_USER_ID, email: NEW_EMAIL, username: 'deletedtest' }),
       ).rejects.toMatchObject({ statusCode: 403 });
     });
   });

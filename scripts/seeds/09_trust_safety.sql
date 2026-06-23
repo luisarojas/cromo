@@ -113,6 +113,11 @@ ON CONFLICT (id) DO NOTHING;
 -- ─────────────────────────────────────────────────────────
 -- User bans
 -- ─────────────────────────────────────────────────────────
+-- Soft-ban with a refreshing expiry. Using `DO UPDATE` (vs DO NOTHING) so a
+-- re-seed extends the window — without this, the ban silently expires after
+-- the first 7-day window and every soft-ban integration test starts passing
+-- 200 instead of 403 with no obvious cause. The 90-day window survives a
+-- typical sprint without ever needing manual intervention.
 INSERT INTO user_bans (id, user_id, ban_type, reason, report_id, banned_by, expires_at)
 VALUES
   (
@@ -122,6 +127,10 @@ VALUES
     'Two reports within 7 days (no_show, spam). Temporarily restricted from initiating new trades.',
     'b0000000-0000-0000-0000-000000000001'::UUID,  -- linked to the resolved report
     '00000000-0000-0000-0000-000000000001'::UUID,  -- banned by admin
-    now() + INTERVAL '7 days'
+    now() + INTERVAL '90 days'
   )
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+  SET expires_at = EXCLUDED.expires_at,
+      lifted_at  = NULL,
+      lift_reason = NULL,
+      lifted_by   = NULL;

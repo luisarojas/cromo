@@ -104,14 +104,6 @@ const CRITERION_QUERIES: Record<AchievementCriterionType, (userId: string) => { 
           ) AS hit`,
     params: [userId],
   }),
-  // No streak data persisted server-side yet — frontend tracks streaks in
-  // localStorage (see lib/lastScan.ts). Returning false here means this
-  // achievement currently never unlocks; add a server-side streak table to
-  // promote it from placeholder to live.
-  streak_7_days: () => ({
-    sql: 'SELECT FALSE AS hit',
-    params: [],
-  }),
 };
 
 function percentageQuery(userId: string, threshold: number) {

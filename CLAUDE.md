@@ -42,7 +42,7 @@ The frontend's localStorage cache is keyed off `GET /api/v1/stickers/version`, d
 After a reseed, also flush Redis (`docker compose ... exec cache redis-cli FLUSHALL`) — the backend caches sticker lists for 1h and the version probe for 5min. Admin edits via `PATCH /api/v1/admin/stickers/:id` bust `cromo:catalog_version` automatically.
 
 ### API Response Casing — Always Use the Global Serializer
-Backend services emit Postgres `snake_case`; a global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response. Wire format is always `camelCase`. Frontend types in `@cromo/shared` and `apps/frontend/src/lib/api.ts` describe that.
+Backend services emit Postgres `snake_case`; a global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response. Wire format is always `camelCase`. Frontend types in `@cromo/shared` and `apps/frontend/src/lib/api/types.ts` describe that; `apps/frontend/src/lib/api.ts` is the per-domain barrel that re-exports them.
 
 Rules:
 - **Don't** add per-endpoint snake→camel mappers in the frontend. If a response looks snake_case, fix the backend.
@@ -77,6 +77,10 @@ Slug = `{album_type_key}-{edition_key}-{format_key}` (with `-N` on collision), s
 
 ### Drizzle Migrations — Single Migrations Folder
 Schema in `apps/backend/src/db/schema.ts`; SQL files in `apps/backend/src/db/migrations/` (plus `meta/_journal.json` + per-migration snapshots). Backend auto-applies pending migrations at startup via `runMigrations()` in `apps/backend/src/db/migrate.ts`; bookkeeping lives in `drizzle.__drizzle_migrations`.
+
+**Drizzle ORM is migration-only.** Services use raw SQL via the pg `Pool` directly (see CLAUDE.md "API Response Casing"). There is no `fastify.drizzle` decoration, no `getDrizzle()` runtime, and no Drizzle ORM type in services — function signatures take `db: Pool` or `client: PoolClient` (inside `withTx`). The trade-matching CTE, the SSE replay query, and most service code reads as straight SQL because that's what they are; introducing the ORM surface gave us no type-safety win and broke uniformity. New services follow the raw-SQL pattern; the only consumer of `drizzle-orm/node-postgres/migrator` is `migrate.ts`.
+
+**Transactions go through `withTx`.** `apps/backend/src/db/transaction.ts` exposes `withTx(db, async (client) => …)`, which runs the body inside a single Postgres transaction, COMMITs on success, ROLLBACKs on any thrown error, and always releases the client. Reach for it instead of issuing your own `BEGIN`/`COMMIT` — error-handling and client-release semantics stay uniform across the codebase, and services that need to call sibling helpers can pass the `PoolClient` straight through. Helpers that accept either form (e.g. `provisionUserProfile`) type the argument as `Executor = Pool | PoolClient` so callers can decide whether to open a fresh transaction or join an existing one.
 
 To change the schema:
 1. Edit `schema.ts`.
@@ -314,6 +318,14 @@ The local docker stack only mounts `apps/backend/vitest.config.ts` after this re
 - **Don't add per-glob entries to the `thresholds` object.** They don't override the global; they add a second constraint that's almost always stricter. If a file genuinely needs a different gate, the answer is either (a) write the missing tests, or (b) add the file to `coverage.exclude[]` with a comment explaining why it can't be unit-tested.
 - **Exclude, don't override.** Files that can't be unit-tested without real infra (Playwright-level browser tests, paid API keys, multi-day fixture builds) belong in `coverage.exclude[]`, not in `include[]` with a lowered threshold. The tests for those files still run — exclude only affects coverage measurement.
 - **The frontend's `include[]` is intentionally narrow.** It tracks pure-logic modules (`lib/*`, `app/scan/pickVariantId.ts`, `variantMeta.ts`, `draftStorage.ts`). React components and pages are Playwright's domain. Adding a file to the frontend `include[]` is a commitment to keep it ≥ 70% — don't add a file just to inflate the headline number.
+
+### Frontend Lint — `next lint` Deprecation Pending Migration
+
+`apps/frontend` still uses the legacy `.eslintrc.json` (`extends: ["next/core-web-vitals", "next/typescript"]`) and invokes it via the `next lint` script. Both surfaces are deprecated in Next 15 and will be removed in Next 16. The migration is one of the next maintenance items, deliberately deferred out of the lib/api split:
+
+- The flat-config bridge needs `@eslint/eslintrc`'s `FlatCompat` added as a dev dep, which on macOS Docker triggers the EBUSY-on-`rename` lockfile problem documented above. That's a multi-step operation, not a one-line edit, and rolling it into a refactor PR is a recipe for a "why is the lockfile in this diff" review back-and-forth.
+- `next lint` still functions today — it prints the deprecation warning and exits 0. CI is not blocked.
+- When you do the migration: install `@eslint/eslintrc` via the dev-container `pnpm-lock.yaml` workaround, replace `.eslintrc.json` with an `eslint.config.mjs` that uses `FlatCompat` to import `eslint-config-next`, and swap the `lint` script from `next lint` to `eslint .` so the package script survives the Next 16 cut. Don't fall back to `next lint --no-deprecation` or similar workarounds — they'll silently break on the upgrade.
 
 ### Sticker Types & Rarities — Source of Truth
 

@@ -1,3 +1,11 @@
+// Coverage note: this file sits in the aggregate-only coverage floor (see
+// vitest.config.ts). The matchmaking CTE is hand-tuned SQL with branches
+// (radius on/off, requester-with-no-coords, Coca-Cola album_code widening,
+// scarcity weighting, cursor decoding) that integration-test through
+// trade.test.ts but resist line-by-line unit tests because the value is in
+// whether the CTE returns the right rows against real fixtures, not in any
+// individual TS branch. Don't chase the missing percentage with mocked DB
+// stubs — they'd lie.
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 import type {

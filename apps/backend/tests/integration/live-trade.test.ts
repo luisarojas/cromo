@@ -390,4 +390,47 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
     await expect(live.undoCompletion(app.db, app.redis, hostId, session.id))
       .rejects.toMatchObject({ statusCode: 410 });
   });
+
+  // ── Soft-ban enforcement on host endpoints ──────────────────────────────────
+  // checkSoftBan is wired onto POST /live-trade and POST /:id/complete. Undo
+  // is intentionally left ungated so a soft-banned host can still reverse a
+  // prior completion (see live-trade.ts comment). These tests pin both
+  // decisions so a regression on either side fails immediately.
+
+  describe('soft-ban enforcement', () => {
+    // Charlie is seeded as soft-banned in 09_trust_safety.sql and owns
+    // album 00000000-0000-0000-0001-000000000004 from 07_test_users.sql.
+    const CHARLIE_ID    = '00000000-0000-0000-0000-000000000004';
+    const CHARLIE_ALBUM = '00000000-0000-0000-0001-000000000004';
+    let charlieToken: string;
+
+    beforeAll(async () => {
+      const { signAccessToken } = await import('../../src/middleware/auth.js');
+      charlieToken = signAccessToken({
+        sub: CHARLIE_ID, email: 'charlie@test.local', role: 'user',
+      });
+    });
+
+    it('blocks a soft-banned host from creating a live session (403)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/live-trade',
+        headers: { Authorization: `Bearer ${charlieToken}` },
+        payload: { albumId: CHARLIE_ALBUM },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('blocks a soft-banned host from completing a session (403)', async () => {
+      // Path-level ban check fires before any session resolution, so we don't
+      // need a real session id — a random UUID is fine. The point is that
+      // verifyToken + checkSoftBan return 403 before the route body runs.
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/live-trade/${randomUUID()}/complete`,
+        headers: { Authorization: `Bearer ${charlieToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+  });
 });

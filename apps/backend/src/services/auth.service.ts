@@ -1,16 +1,9 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { and, eq, sql } from 'drizzle-orm';
-import { env } from '../env.js';
-import type { Drizzle } from '../db/index.js';
-import {
-  users,
-  emailVerificationTokens,
-  passwordResetTokens,
-  auditLog,
-  bannedEmails,
-} from '../db/schema.js';
+import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
+import { env } from '../env.js';
+import { withTx } from '../db/transaction.js';
 import { enqueue } from './jobs.service.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../middleware/auth.js';
 import { statusError } from '../utils/errors.js';
@@ -41,6 +34,17 @@ export interface AuthTokens {
     role: string;
     emailVerifiedAt: Date | null;
   };
+}
+
+interface UserRow {
+  id: string;
+  email: string;
+  username: string;
+  display_name: string | null;
+  role: string;
+  email_verified_at: Date | null;
+  deleted_at: Date | null;
+  password_hash: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -74,6 +78,17 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   return crypto.timingSafeEqual(expected, derived);
 }
 
+function toUserOutput(row: UserRow) {
+  return {
+    id: row.id,
+    email: row.email,
+    username: row.username,
+    displayName: row.display_name,
+    role: row.role,
+    emailVerifiedAt: row.email_verified_at,
+  };
+}
+
 // ─── Service functions ────────────────────────────────────────────────────────
 
 /**
@@ -81,25 +96,34 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
  * Sends a verification email. Does not log the user in.
  */
 export async function register(
-  db: Drizzle,
+  db: Pool,
   redis: Redis,
   input: RegisterInput,
 ): Promise<{ userId: string; email: string; username: string }> {
   const normalizedEmail = input.email.toLowerCase().trim();
   const hashedEmail = hashEmail(normalizedEmail);
 
-  const [existingEmail] = await db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1);
-  if (existingEmail) throw statusError('Email is already registered.', 409);
+  const { rows: existingEmail } = await db.query<{ id: string }>(
+    `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+    [normalizedEmail],
+  );
+  if (existingEmail.length > 0) throw statusError('Email is already registered.', 409);
 
-  const [blocked] = await db.select({ hashedEmail: bannedEmails.hashedEmail }).from(bannedEmails).where(eq(bannedEmails.hashedEmail, hashEmailForBan(normalizedEmail))).limit(1);
-  if (blocked) throw statusError('This email address is not eligible for registration.', 403);
+  const { rows: blocked } = await db.query<{ hashed_email: string }>(
+    `SELECT hashed_email FROM banned_emails WHERE hashed_email = $1 LIMIT 1`,
+    [hashEmailForBan(normalizedEmail)],
+  );
+  if (blocked.length > 0) throw statusError('This email address is not eligible for registration.', 403);
 
   const providedUsername = input.username?.trim();
   let normalizedUsername: string;
   if (providedUsername) {
     normalizedUsername = providedUsername.toLowerCase();
-    const [existingUsername] = await db.select({ id: users.id }).from(users).where(eq(users.username, normalizedUsername)).limit(1);
-    if (existingUsername) throw statusError('Username is already taken.', 409);
+    const { rows: takenRows } = await db.query<{ id: string }>(
+      `SELECT id FROM users WHERE username = $1 LIMIT 1`,
+      [normalizedUsername],
+    );
+    if (takenRows.length > 0) throw statusError('Username is already taken.', 409);
   } else {
     normalizedUsername = await deriveUniqueUsernameFromEmail(db, normalizedEmail);
   }
@@ -107,26 +131,21 @@ export async function register(
   const verificationCode = generateCode();
   const passwordHash = await hashPassword(input.password);
 
-  const userId = await db.transaction(async (tx) => {
-    const [newUser] = await tx
-      .insert(users)
-      .values({
-        email: normalizedEmail,
-        username: normalizedUsername,
-        displayName: input.displayName ?? null,
-        hashedEmail,
-        passwordHash,
-      })
-      .returning({ id: users.id });
-
-    const id = newUser!.id;
+  const userId = await withTx(db, async (tx) => {
+    const { rows: insertedRows } = await tx.query<{ id: string }>(
+      `INSERT INTO users (email, username, display_name, hashed_email, password_hash)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [normalizedEmail, normalizedUsername, input.displayName ?? null, hashedEmail, passwordHash],
+    );
+    const id = insertedRows[0]!.id;
 
     await provisionUserProfile(tx, id);
 
-    await tx.insert(emailVerificationTokens).values({
-      tokenHash: hashToken(verificationCode),
-      userId: id,
-    });
+    await tx.query(
+      `INSERT INTO email_verification_tokens (token_hash, user_id) VALUES ($1, $2)`,
+      [hashToken(verificationCode), id],
+    );
 
     return id;
   });
@@ -144,41 +163,36 @@ export async function register(
 /**
  * login — authenticates a user.
  */
-export async function login(db: Drizzle, input: LoginInput): Promise<AuthTokens> {
+export async function login(db: Pool, input: LoginInput): Promise<AuthTokens> {
   const normalizedEmail = input.email.toLowerCase().trim();
 
-  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+  const { rows } = await db.query<UserRow>(
+    `SELECT id, email, username, display_name, role, email_verified_at, deleted_at, password_hash
+       FROM users WHERE email = $1 LIMIT 1`,
+    [normalizedEmail],
+  );
+  const user = rows[0];
 
   if (!user) throw statusError('Invalid email or password.', 401);
-  if (user.deletedAt) throw statusError('This account has been deactivated.', 403);
+  if (user.deleted_at) throw statusError('This account has been deactivated.', 403);
 
-  const isLocalNoPassword = env.AUTH_MODE === 'local' && !user.passwordHash;
-  if (!isLocalNoPassword && !(user.passwordHash && await verifyPassword(input.password, user.passwordHash))) {
+  const isLocalNoPassword = env.AUTH_MODE === 'local' && !user.password_hash;
+  if (!isLocalNoPassword && !(user.password_hash && await verifyPassword(input.password, user.password_hash))) {
     throw statusError('Invalid email or password.', 401);
   }
 
   const tokenPayload = { sub: user.id, email: user.email, role: user.role };
-  const accessToken = signAccessToken(tokenPayload);
-  const refreshToken = signRefreshToken(tokenPayload);
-
   return {
-    accessToken,
-    refreshToken,
-    user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role,
-      emailVerifiedAt: user.emailVerifiedAt,
-    },
+    accessToken: signAccessToken(tokenPayload),
+    refreshToken: signRefreshToken(tokenPayload),
+    user: toUserOutput(user),
   };
 }
 
 /**
  * refresh — exchanges a valid refresh token for new access + refresh tokens.
  */
-export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTokens> {
+export async function refresh(db: Pool, refreshToken: string): Promise<AuthTokens> {
   let payload;
   try {
     payload = verifyRefreshToken(refreshToken);
@@ -186,69 +200,88 @@ export async function refresh(db: Drizzle, refreshToken: string): Promise<AuthTo
     throw statusError('Invalid or expired refresh token.', 401);
   }
 
-  const [user] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
+  const { rows } = await db.query<UserRow>(
+    `SELECT id, email, username, display_name, role, email_verified_at, deleted_at, password_hash
+       FROM users WHERE id = $1 LIMIT 1`,
+    [payload.sub],
+  );
+  const user = rows[0];
 
   if (!user) throw statusError('User not found.', 401);
-  if (user.deletedAt) throw statusError('This account has been deactivated.', 403);
+  if (user.deleted_at) throw statusError('This account has been deactivated.', 403);
 
   const tokenPayload = { sub: user.id, email: user.email, role: user.role };
   return {
     accessToken: signAccessToken(tokenPayload),
     refreshToken: signRefreshToken(tokenPayload),
-    user: {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      role: user.role,
-      emailVerifiedAt: user.emailVerifiedAt,
-    },
+    user: toUserOutput(user),
   };
 }
 
 /**
  * verifyEmail — marks email_verified_at when given a valid token.
  */
-export async function verifyEmail(db: Drizzle, email: string, code: string): Promise<void> {
+export async function verifyEmail(db: Pool, email: string, code: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
   const codeHash = hashToken(code);
 
-  const [row] = await db
-    .select({ userId: emailVerificationTokens.userId, expiresAt: emailVerificationTokens.expiresAt })
-    .from(emailVerificationTokens)
-    .innerJoin(users, eq(users.id, emailVerificationTokens.userId))
-    .where(and(eq(users.email, normalizedEmail), eq(emailVerificationTokens.tokenHash, codeHash)))
-    .limit(1);
+  const { rows } = await db.query<{ user_id: string; expires_at: Date }>(
+    `SELECT evt.user_id, evt.expires_at
+       FROM email_verification_tokens evt
+       JOIN users u ON u.id = evt.user_id
+      WHERE u.email = $1 AND evt.token_hash = $2
+      LIMIT 1`,
+    [normalizedEmail, codeHash],
+  );
+  const row = rows[0];
 
   if (!row) throw statusError('Invalid verification code.', 400);
-  if (new Date() > row.expiresAt) throw statusError('Verification code has expired.', 410);
+  if (new Date() > row.expires_at) throw statusError('Verification code has expired.', 410);
 
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({ emailVerifiedAt: sql`now()`, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
-    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, row.userId));
+  await withTx(db, async (tx) => {
+    await tx.query(
+      `UPDATE users SET email_verified_at = now(), updated_at = now() WHERE id = $1`,
+      [row.user_id],
+    );
+    await tx.query(
+      `DELETE FROM email_verification_tokens WHERE user_id = $1`,
+      [row.user_id],
+    );
   });
 }
 
 /**
  * resendVerification — deletes existing tokens for a user, creates a new one, re-sends email.
  */
-export async function resendVerification(db: Drizzle, redis: Redis, email: string): Promise<void> {
+export async function resendVerification(db: Pool, redis: Redis, email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const [user] = await db
-    .select({ id: users.id, username: users.username, emailVerifiedAt: users.emailVerifiedAt, deletedAt: users.deletedAt })
-    .from(users)
-    .where(eq(users.email, normalizedEmail))
-    .limit(1);
+  const { rows } = await db.query<{
+    id: string;
+    username: string;
+    email_verified_at: Date | null;
+    deleted_at: Date | null;
+  }>(
+    `SELECT id, username, email_verified_at, deleted_at
+       FROM users WHERE email = $1 LIMIT 1`,
+    [normalizedEmail],
+  );
+  const user = rows[0];
 
   // Always respond 204 to avoid user enumeration
-  if (!user || user.deletedAt) return;
-  if (user.emailVerifiedAt) return;
+  if (!user || user.deleted_at) return;
+  if (user.email_verified_at) return;
 
   const code = generateCode();
-  await db.transaction(async (tx) => {
-    await tx.delete(emailVerificationTokens).where(eq(emailVerificationTokens.userId, user.id));
-    await tx.insert(emailVerificationTokens).values({ tokenHash: hashToken(code), userId: user.id });
+  await withTx(db, async (tx) => {
+    await tx.query(
+      `DELETE FROM email_verification_tokens WHERE user_id = $1`,
+      [user.id],
+    );
+    await tx.query(
+      `INSERT INTO email_verification_tokens (token_hash, user_id) VALUES ($1, $2)`,
+      [hashToken(code), user.id],
+    );
   });
 
   await enqueue(redis, {
@@ -263,22 +296,25 @@ export async function resendVerification(db: Drizzle, redis: Redis, email: strin
  * forgotPassword — generates a reset token and emails it.
  * Always responds the same way regardless of whether email exists (anti-enumeration).
  */
-export async function forgotPassword(db: Drizzle, redis: Redis, email: string): Promise<void> {
+export async function forgotPassword(db: Pool, redis: Redis, email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const [user] = await db
-    .select({ id: users.id, username: users.username, deletedAt: users.deletedAt })
-    .from(users)
-    .where(eq(users.email, normalizedEmail))
-    .limit(1);
+  const { rows } = await db.query<{ id: string; username: string; deleted_at: Date | null }>(
+    `SELECT id, username, deleted_at FROM users WHERE email = $1 LIMIT 1`,
+    [normalizedEmail],
+  );
+  const user = rows[0];
 
-  if (!user || user.deletedAt) return;
+  if (!user || user.deleted_at) return;
 
   const code = generateCode();
   try {
-    await db.transaction(async (tx) => {
-      await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, user.id));
-      await tx.insert(passwordResetTokens).values({ tokenHash: hashToken(code), userId: user.id });
+    await withTx(db, async (tx) => {
+      await tx.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [user.id]);
+      await tx.query(
+        `INSERT INTO password_reset_tokens (token_hash, user_id) VALUES ($1, $2)`,
+        [hashToken(code), user.id],
+      );
     });
   } catch (err) {
     console.error('[auth] forgotPassword error:', err);
@@ -297,30 +333,42 @@ export async function forgotPassword(db: Drizzle, redis: Redis, email: string): 
  * resetPassword — validates the reset token and updates the user's password.
  */
 export async function resetPassword(
-  db: Drizzle,
+  db: Pool,
   email: string,
   code: string,
-  newPassword: string
+  newPassword: string,
 ): Promise<void> {
   const normalizedEmail = email.toLowerCase().trim();
   const codeHash = hashToken(code);
 
-  const [row] = await db
-    .select({ userId: passwordResetTokens.userId, expiresAt: passwordResetTokens.expiresAt })
-    .from(passwordResetTokens)
-    .innerJoin(users, eq(users.id, passwordResetTokens.userId))
-    .where(and(eq(users.email, normalizedEmail), eq(passwordResetTokens.tokenHash, codeHash)))
-    .limit(1);
+  const { rows } = await db.query<{ user_id: string; expires_at: Date }>(
+    `SELECT prt.user_id, prt.expires_at
+       FROM password_reset_tokens prt
+       JOIN users u ON u.id = prt.user_id
+      WHERE u.email = $1 AND prt.token_hash = $2
+      LIMIT 1`,
+    [normalizedEmail, codeHash],
+  );
+  const row = rows[0];
 
-  if (!row || new Date() > row.expiresAt) {
+  if (!row || new Date() > row.expires_at) {
     throw statusError('Reset code is invalid or has expired.', 400);
   }
 
   const passwordHash = await hashPassword(newPassword);
 
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({ passwordHash, updatedAt: sql`now()` }).where(eq(users.id, row.userId));
-    await tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, row.userId));
-    await tx.insert(auditLog).values({ userId: row.userId, action: 'password_reset_completed' });
+  await withTx(db, async (tx) => {
+    await tx.query(
+      `UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1`,
+      [row.user_id, passwordHash],
+    );
+    await tx.query(
+      `DELETE FROM password_reset_tokens WHERE user_id = $1`,
+      [row.user_id],
+    );
+    await tx.query(
+      `INSERT INTO audit_log (user_id, action) VALUES ($1, 'password_reset_completed')`,
+      [row.user_id],
+    );
   });
 }

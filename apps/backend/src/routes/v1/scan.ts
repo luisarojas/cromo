@@ -1,3 +1,9 @@
+// Coverage note: this file sits in the aggregate-only coverage floor (see
+// vitest.config.ts). Unit-testing the upload + multipart parsing + AI provider
+// call surface would require either booking real Gemini/Groq calls or a
+// network-mocking layer we haven't built. Integration tests cover the happy
+// path; the rest is intentionally left to drag the aggregate gate down by a
+// few percent until we add a streamed-mock provider.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -9,7 +15,7 @@ import { identifySticker, extractListFromImage, normalizeAlbumCode, type ScanRes
 import { getStickerByAlbumCode, getStickerByPlayerName } from '../../services/stickers.service.js';
 import { isFeatureFlagEnabled } from '../../services/trust-safety.service.js';
 import { idempotency, storeIdempotent } from '../../services/idempotency.service.js';
-import { writeSSEEvent } from '../../utils/sse.js';
+import { writeSSEEvent, writeSSEHead } from '../../utils/sse.js';
 
 const SCANS_DIR = '/app/uploads/scans';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -269,22 +275,7 @@ export async function scanRoutes(fastify: FastifyInstance): Promise<void> {
       const { albumTypeKey } = request.query as { albumTypeKey?: string };
       const { name: collectionName, scanPrompt } = await getAlbumTypeInfo(fastify.db, request.userId!, albumTypeKey);
 
-      // Carry CORS headers set by the plugin over to the raw socket.
-      // reply.raw.writeHead bypasses Fastify's response pipeline so the plugin's
-      // onRequest-phase headers are never flushed automatically.
-      const corsHeaders: Record<string, string> = {};
-      for (const h of ['access-control-allow-origin', 'access-control-allow-credentials', 'access-control-expose-headers', 'vary']) {
-        const v = reply.getHeader(h);
-        if (typeof v === 'string') corsHeaders[h] = v;
-      }
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-        ...corsHeaders,
-      });
-      reply.raw.flushHeaders?.();
+      writeSSEHead(reply);
 
       const parts = request.files();
       const tempPaths: string[] = [];

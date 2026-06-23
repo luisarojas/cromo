@@ -1,11 +1,9 @@
 import type { Pool } from 'pg';
-import type { Drizzle } from '../db/index.js';
 import type Redis from 'ioredis';
 
 declare module 'fastify' {
   interface FastifyInstance {
     db: Pool;
-    drizzle: Drizzle;
     redis: Redis;
   }
 

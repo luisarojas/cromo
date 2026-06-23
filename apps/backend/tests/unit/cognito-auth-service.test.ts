@@ -51,21 +51,17 @@ vi.mock('../../src/env.js', () => ({
   },
 }));
 
-// Drizzle: only the `select` chain is reached in code paths we test; the
-// generic shape is `db.select(...).from(...).where(...).limit(...)`.
-function makeDrizzle(banSelectResult: unknown[] = [], usernameSelectResult: unknown[] = []) {
-  // We need different responses depending on which table the chain hits.
-  const select = vi.fn((cols: Record<string, unknown>) => {
-    const isBanQuery = 'hashedEmail' in cols;
-    return {
-      from: () => ({
-        where: () => ({
-          limit: async () => (isBanQuery ? banSelectResult : usernameSelectResult),
-        }),
-      }),
-    };
+// Stub the pg Pool used by the service. Each call to db.query is dispatched
+// by the first SQL keyword that follows FROM — `banned_emails` vs `users` —
+// so the test can route queries to the right canned response without parsing
+// parameters.
+function makePool(banRows: unknown[] = [], usernameRows: unknown[] = []) {
+  const query = vi.fn(async (sql: string) => {
+    if (sql.includes('FROM banned_emails')) return { rows: banRows };
+    if (sql.includes('FROM users')) return { rows: usernameRows };
+    return { rows: [] };
   });
-  return { select } as unknown as Parameters<typeof import('../../src/services/cognito-auth.service.js').register>[0];
+  return { query } as unknown as Parameters<typeof import('../../src/services/cognito-auth.service.js').register>[0];
 }
 
 import {
@@ -87,14 +83,14 @@ beforeEach(() => {
 
 describe('register', () => {
   it('rejects with 403 when the canonicalised email is on the banned list', async () => {
-    const db = makeDrizzle([{ hashedEmail: 'banhash' }]); // bannedEmails row present
+    const db = makePool([{ hashed_email: 'banhash' }]); // bannedEmails row present
     await expect(
       register(db, {} as never, { email: 'x@y.z', password: 'pw', username: 'newuser' } as never),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('rejects with 409 when the requested username is already taken in our DB', async () => {
-    const db = makeDrizzle([], [{ id: 'someone-else' }]);
+    const db = makePool([], [{ id: 'someone-else' }]);
     await expect(
       register(db, {} as never, { email: 'x@y.z', password: 'pw', username: 'taken' } as never),
     ).rejects.toMatchObject({ statusCode: 409 });
@@ -104,7 +100,7 @@ describe('register', () => {
     deriveUniqueUsernameFromEmailMock.mockResolvedValue('derived');
     sendMock.mockResolvedValueOnce({ UserSub: 'sub-1' }); // SignUpCommand
     createUserMock.mockResolvedValue(undefined);
-    const db = makeDrizzle();
+    const db = makePool();
     const out = await register(db, {} as never, { email: 'x@y.z', password: 'pw' } as never);
     expect(out).toEqual({ userId: 'sub-1', email: 'x@y.z', username: 'derived' });
     // SignUpCommand was sent.
@@ -117,7 +113,7 @@ describe('register', () => {
   it('rolls back the Cognito user when createUser hits a unique-constraint race', async () => {
     sendMock.mockResolvedValueOnce({ UserSub: 'sub-2' });
     createUserMock.mockRejectedValueOnce(Object.assign(new Error('unique violation'), { code: '23505' }));
-    const db = makeDrizzle();
+    const db = makePool();
     await expect(
       register(db, {} as never, { email: 'x@y.z', password: 'pw', username: 'whoops' } as never),
     ).rejects.toMatchObject({ statusCode: 409 });
@@ -127,7 +123,7 @@ describe('register', () => {
 
   it('maps Cognito UsernameExistsException to a 409 with a generic message', async () => {
     sendMock.mockRejectedValueOnce({ name: 'UsernameExistsException' });
-    const db = makeDrizzle();
+    const db = makePool();
     await expect(
       register(db, {} as never, { email: 'x@y.z', password: 'pw', username: 'newuser' } as never),
     ).rejects.toMatchObject({ statusCode: 409 });
@@ -135,7 +131,7 @@ describe('register', () => {
 
   it('maps InvalidPasswordException to 400', async () => {
     sendMock.mockRejectedValueOnce({ name: 'InvalidPasswordException' });
-    const db = makeDrizzle();
+    const db = makePool();
     await expect(
       register(db, {} as never, { email: 'x@y.z', password: 'pw', username: 'newuser' } as never),
     ).rejects.toMatchObject({ statusCode: 400 });

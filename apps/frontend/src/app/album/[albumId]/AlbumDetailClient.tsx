@@ -10,7 +10,7 @@ import { useWantedVariants } from './useWantedVariants';
 import { useFilterOptions } from './useFilterOptions';
 import { useStickerSelection } from './useStickerSelection';
 import {
-  fetchAllStickersCached,
+  fetchAllStickers,
   fetchAlbumView,
   fetchUserAlbums,
   fetchAlbumEditions,
@@ -254,7 +254,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
       try {
         const [allStickers, userAlbums, editionList, formatList] = await Promise.all([
-          fetchAllStickersCached(tok),
+          fetchAllStickers(tok),
           fetchUserAlbums(usr.id, tok),
           fetchAlbumEditions(DEFAULT_ALBUM_TYPE_KEY),
           fetchAlbumFormats(DEFAULT_ALBUM_TYPE_KEY),
