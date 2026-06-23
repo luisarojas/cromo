@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyError } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyRateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
+import jwt from 'jsonwebtoken';
 
 import { env } from './env.js';
 import { camelizeKeys } from './utils/casing.js';
@@ -74,10 +75,37 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── Multipart (file uploads) ──────────────────────────────────────────────
   await fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
+  // ── Rate-limit key hydration ──────────────────────────────────────────────
+  // `verifyToken` populates `request.userId` as a route-level preHandler, but
+  // @fastify/rate-limit runs in onRequest — before any preHandler. Without this
+  // hook every `keyGenerator: (req) => req.userId ?? req.ip` (here and on the
+  // per-route configs in trade.ts / live-trade.ts) would silently fall through
+  // to IP, and authenticated traffic would share one bucket per IP. We decode
+  // (not verify) the bearer token here purely to derive a bucket key; real auth
+  // still happens at `verifyToken`. A forged sub only buys an attacker the same
+  // bucket isolation they could get by rotating IPs, so this is a key-shape
+  // change, not a trust change.
+  fastify.addHook('onRequest', (request, _reply, done) => {
+    const auth = request.headers.authorization;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.decode(auth.slice(7)) as { sub?: string } | null;
+        if (decoded?.sub) request.userId = decoded.sub;
+      } catch {
+        // Malformed header — leave userId unset, rate-limit falls back to IP.
+      }
+    }
+    done();
+  });
+
   // ── Rate limiting ─────────────────────────────────────────────────────────
   await fastify.register(fastifyRateLimit, {
     max: env.RATE_LIMIT_MAX,
     timeWindow: env.RATE_LIMIT_WINDOW_MS,
+    // Bucket authenticated traffic per-user so one user's page churn (or a
+    // shared dev IP) can't exhaust the global limit. Anonymous traffic still
+    // groups by IP. Per-route configs reuse the same pattern.
+    keyGenerator: (request) => request.userId ?? request.ip,
     // The refresh endpoint is gated by an HTTP-only cookie so the global
     // limit adds no security value but does cause spurious 429s when other
     // API calls saturate the window.
