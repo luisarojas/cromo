@@ -228,11 +228,11 @@ CC: 7`;
       expect(offered.sort()).toEqual(['FWC2', 'FWC3', 'FWC5', 'FWC9']);
     });
 
-    it('handles "Congo DR" (and "DR Congo") for CGO', () => {
+    it('handles "Congo DR" (and "DR Congo") for COD', () => {
       const a = parseTradeList('Congo DR: 1, 5, 7');
       const b = parseTradeList('DR Congo: 1, 5, 7');
-      expect(a.offered.sort()).toEqual(['CGO1', 'CGO5', 'CGO7']);
-      expect(b.offered.sort()).toEqual(['CGO1', 'CGO5', 'CGO7']);
+      expect(a.offered.sort()).toEqual(['COD1', 'COD5', 'COD7']);
+      expect(b.offered.sort()).toEqual(['COD1', 'COD5', 'COD7']);
     });
   });
 
@@ -286,7 +286,7 @@ Turkey: 6, 13`;
       expect(offered.sort()).toEqual([
         'BEL14', 'BEL15', 'BEL2', 'BEL5', 'BEL6', 'BEL7',
         'BIH2', 'BIH3', 'BIH5',
-        'CGO1', 'CGO5',
+        'COD1', 'COD5',
         'CIV1', 'CIV4', 'CIV5',
         'COL4', 'COL6',
         'FWC2', 'FWC3',

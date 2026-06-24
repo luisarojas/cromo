@@ -96,7 +96,7 @@ INSERT INTO teams (fifa_code, name, group_name) VALUES
 ('POR', 'Portugal',            'H'),
 ('COL', 'Colombia',            'H'),
 ('UZB', 'Uzbekistan',          'H'),
-('CGO', 'Congo DR',            'H'),
+('COD', 'Congo DR',            'H'),
 
 -- Group I
 ('FRA', 'France',              'I'),

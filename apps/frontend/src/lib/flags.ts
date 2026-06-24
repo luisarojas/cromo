@@ -8,7 +8,7 @@ const FIFA_TO_ISO: Record<string, string> = {
   BIH: 'ba',
   BRA: 'br',
   CAN: 'ca',
-  CGO: 'cd',
+  COD: 'cd',
   CIV: 'ci',
   COL: 'co',
   CPV: 'cv',

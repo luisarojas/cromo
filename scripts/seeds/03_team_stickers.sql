@@ -1530,7 +1530,7 @@ INSERT INTO stickers
 SELECT
   (SELECT id FROM album_types WHERE key = 'fifa_world_cup_2026'),
   s.number, s.album_code,
-  (SELECT id FROM teams WHERE fifa_code = 'CGO'),
+  (SELECT id FROM teams WHERE fifa_code = 'COD'),
   s.player_name, s.position, s.sticker_type, s.is_foil
 FROM (VALUES
   ( 830, 'COD1', NULL, 'Team Logo - Congo DR', NULL, 'badge', true),
