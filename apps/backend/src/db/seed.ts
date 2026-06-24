@@ -31,6 +31,7 @@ const CATALOG_SEEDS = [
   '10_extra_stickers.sql',
   '13_team_album_pages.sql',
   '14_sticker_album_pages.sql',
+  '15_orphan_team_cleanup.sql',
 ];
 
 const TEST_FIXTURE_SEEDS = [

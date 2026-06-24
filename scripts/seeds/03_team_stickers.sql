@@ -40,7 +40,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP A — SOUTH AFRICA (stickers 30–49, RSA1–RSA20)
@@ -77,7 +79,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP A — SOUTH KOREA (stickers 50–69, KOR1–KOR20)
@@ -114,7 +118,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP A — CZECH REPUBLIC (stickers 70–89, CZE1–CZE20)
@@ -151,7 +157,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP B — CANADA (stickers 90–109, CAN1–CAN20)
@@ -188,7 +196,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP B — BOSNIA & HERZEGOVINA (stickers 110–129, BIH1–BIH20)
@@ -225,7 +235,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP B — QATAR (stickers 130–149, QAT1–QAT20)
@@ -262,7 +274,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP B — SWITZERLAND (stickers 150–169, SUI1–SUI20)
@@ -299,7 +313,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP K — BRAZIL (stickers 170–189, BRA1–BRA20)
@@ -336,7 +352,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP K — MOROCCO (stickers 190–209, MAR1–MAR20)
@@ -373,7 +391,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP G — HAITI (stickers 210–229, HAI1–HAI20)
@@ -410,7 +430,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP F — SCOTLAND (stickers 230–249, SCO1–SCO20)
@@ -447,7 +469,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP D — USA (stickers 250–269, USA1–USA20)
@@ -484,7 +508,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP D — PARAGUAY (stickers 270–289, PAR1–PAR20)
@@ -521,7 +547,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP D — AUSTRALIA (stickers 290–309, AUS1–AUS20)
@@ -558,7 +586,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP D — TÜRKIYE (stickers 310–329, TUR1–TUR20)
@@ -595,7 +625,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP F — GERMANY (stickers 330–349, GER1–GER20)
@@ -632,7 +664,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP F — CURAÇAO (stickers 350–369, CUW1–CUW20)
@@ -669,7 +703,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP E — IVORY COAST (stickers 370–389, CIV1–CIV20)
@@ -706,7 +742,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP E — ECUADOR (stickers 390–409, ECU1–ECU20)
@@ -743,7 +781,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP J — NETHERLANDS (stickers 410–429, NED1–NED20)
@@ -780,7 +820,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP C — JAPAN (stickers 430–449, JPN1–JPN20)
@@ -817,7 +859,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP E — SWEDEN (stickers 450–469, SWE1–SWE20)
@@ -854,7 +898,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP J — TUNISIA (stickers 470–489, TUN1–TUN20)
@@ -891,7 +937,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP G — BELGIUM (stickers 490–509, BEL1–BEL20)
@@ -928,7 +976,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP G — EGYPT (stickers 510–529, EGY1–EGY20)
@@ -965,7 +1015,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP F — IRAN (stickers 530–549, IRN1–IRN20)
@@ -1002,7 +1054,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP C — NEW ZEALAND (stickers 550–569, NZL1–NZL20)
@@ -1039,7 +1093,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP C — SPAIN (stickers 570–589, ESP1–ESP20)
@@ -1076,7 +1132,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP L — CAPE VERDE (stickers 590–609, CPV1–CPV20)
@@ -1113,7 +1171,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP K — SAUDI ARABIA (stickers 610–629, KSA1–KSA20)
@@ -1150,7 +1210,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP L — URUGUAY (stickers 630–649, URU1–URU20)
@@ -1187,7 +1249,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP I — FRANCE (stickers 650–669, FRA1–FRA20)
@@ -1224,7 +1288,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP I — SENEGAL (stickers 670–689, SEN1–SEN20)
@@ -1261,7 +1327,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP I — IRAQ (stickers 690–709, IRQ1–IRQ20)
@@ -1298,7 +1366,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP I — NORWAY (stickers 710–729, NOR1–NOR20)
@@ -1335,7 +1405,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP E — ARGENTINA (stickers 730–749, ARG1–ARG20)
@@ -1372,7 +1444,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP C — ALGERIA (stickers 750–769, ALG1–ALG20)
@@ -1409,7 +1483,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP L — AUSTRIA (stickers 770–789, AUT1–AUT20)
@@ -1446,7 +1522,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP G — JORDAN (stickers 790–809, JOR1–JOR20)
@@ -1483,7 +1561,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP H — PORTUGAL (stickers 810–829, POR1–POR20)
@@ -1520,7 +1600,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP H — CONGO DR (stickers 830–849, COD1–COD20)
@@ -1557,7 +1639,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP H — UZBEKISTAN (stickers 850–869, UZB1–UZB20)
@@ -1594,7 +1678,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP H — COLOMBIA (stickers 870–889, COL1–COL20)
@@ -1631,7 +1717,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP J — ENGLAND (stickers 890–909, ENG1–ENG20)
@@ -1668,7 +1756,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP K — CROATIA (stickers 910–929, CRO1–CRO20)
@@ -1705,7 +1795,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP J — GHANA (stickers 930–949, GHA1–GHA20)
@@ -1742,7 +1834,9 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
 
 -- ─────────────────────────────────────────────────────────
 -- GROUP L — PANAMA (stickers 950–969, PAN1–PAN20)
@@ -1779,4 +1873,6 @@ FROM (VALUES
 ON CONFLICT (album_type_id, number) DO UPDATE SET
   player_name  = EXCLUDED.player_name,
   position     = EXCLUDED.position,
-  is_foil      = EXCLUDED.is_foil;
+  is_foil      = EXCLUDED.is_foil,
+  team_id      = EXCLUDED.team_id,
+  album_code   = EXCLUDED.album_code;
