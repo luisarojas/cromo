@@ -78,10 +78,10 @@ function buildShareText(
   rightReceives: ExternalStickerRef[],
 ): string {
   const lines: string[] = [title, ''];
-  lines.push(`${leftLabel} receives (${leftReceives.length}):`);
+  lines.push(`For ${leftLabel} (${leftReceives.length}):`);
   lines.push(...sectionLines(leftReceives));
   lines.push('');
-  lines.push(`${rightLabel} receives (${rightReceives.length}):`);
+  lines.push(`For ${rightLabel} (${rightReceives.length}):`);
   lines.push(...sectionLines(rightReceives));
   lines.push('');
   lines.push('Matched via cromotrade.ca');
@@ -97,7 +97,7 @@ function ReceivedColumn({ label, refs }: { label: string; refs: ExternalStickerR
   return (
     <div>
       <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
-        {label} receives ({refs.length})
+        For {label} ({refs.length})
       </p>
       {refs.length === 0 ? (
         <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing.</p>
@@ -171,7 +171,7 @@ function balanceMessage(balance: ScarcityTotals, leftLabel: string): {
   if (!balance.lopsided) {
     return {
       tone: 'ok',
-      text: `Roughly fair trade — ${leftLabel} gives ${fmt(balance.give)} scarcity points, receives ${fmt(balance.get)}.`,
+      text: `Roughly fair trade — ${leftLabel} would give ${fmt(balance.give)} scarcity points and receive ${fmt(balance.get)}.`,
     };
   }
   if (ratio < 1) {
@@ -179,13 +179,13 @@ function balanceMessage(balance: ScarcityTotals, leftLabel: string): {
     const multiple = (1 / ratio).toFixed(1);
     return {
       tone: 'warn',
-      text: `${leftLabel} would give about ${multiple}× more scarcity than they receive (${fmt(balance.give)} vs. ${fmt(balance.get)}). Worth a second look before sealing.`,
+      text: `${leftLabel} would give ${fmt(balance.give)} scarcity points and receive only ${fmt(balance.get)} — about ${multiple}× off. Worth a second look before sealing.`,
     };
   }
   const multiple = ratio.toFixed(1);
   return {
     tone: 'warn',
-    text: `${leftLabel} would receive about ${multiple}× more scarcity than they give (${fmt(balance.get)} vs. ${fmt(balance.give)}). The other side may push back.`,
+    text: `${leftLabel} would receive ${fmt(balance.get)} scarcity points and give only ${fmt(balance.give)} — about ${multiple}× off. The other side may push back.`,
   };
 }
 
