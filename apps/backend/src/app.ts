@@ -123,7 +123,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   }
 
   // ── Database & Redis (run migrations before routes) ───────────────────────
-  await fastify.register(databasePluginWrapped);
+  // Cold boot runs drizzle migrations plus ~13 catalog/fixture seed files
+  // (03_team_stickers alone is 120k+ bytes). Avvio's default 10s plugin
+  // timeout fires mid-seed on CI runners — raise only for this plugin.
+  await fastify.register(databasePluginWrapped, { timeout: 120_000 });
   await fastify.register(redisPluginWrapped);
   // The catalog seed (run inside databasePlugin) bumps stickers.updated_at
   // via trigger, but the `cromo:catalog_version` Redis key (5-min TTL) keeps
