@@ -166,6 +166,12 @@ CC: 7`;
       expect(wanted).toEqual([]);
     });
 
+    it('treats "Swaps" as an offered-section marker (synonym for Duplicates)', () => {
+      const { offered, wanted } = parseTradeList('Swaps: BRA5, ARG7\nWant: MEX1');
+      expect(offered.sort()).toEqual(['ARG7', 'BRA5']);
+      expect(wanted).toEqual(['MEX1']);
+    });
+
     it('respects Spanish markers (tengo / busco)', () => {
       const input = 'Tengo: BRA5, ARG7\nBusco: MEX1';
       const { offered, wanted } = parseTradeList(input);

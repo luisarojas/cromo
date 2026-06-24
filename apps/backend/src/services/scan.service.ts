@@ -323,7 +323,7 @@ function buildListPrompt(collectionName: string): string {
 
 The image shows a hand-written, typed, or printed list of stickers. The list may contain BOTH what the person has (their duplicates / offered list) AND what the person is missing (their wanted list), separated by section headers. Common section headers (case-insensitive):
 
-  Offered section: "HAVE", "HAVES", "OFFERED", "OFFERING", "FOR TRADE", "DUPES", "DUPLICATES", "TIENE", "TENGO", "OFREZCO"
+  Offered section: "HAVE", "HAVES", "OFFERED", "OFFERING", "FOR TRADE", "DUPES", "DUPLICATES", "SWAPS", "SWAP", "TIENE", "TENGO", "OFREZCO"
   Wanted section:  "WANT", "WANTS", "WANTED", "NEED", "NEEDS", "LOOKING FOR", "BUSCA", "BUSCO", "FALTA", "NECESITO"
 
 Each entry is an album code — a short alphanumeric token (e.g. "BRA5", "ARG12", "EX3", "CC7", "FWC4", "MEX18"). Codes follow the pattern: 2–4 uppercase letters (country FIFA code or subset prefix like EX/CC/FWC) immediately followed by 1–3 digits.

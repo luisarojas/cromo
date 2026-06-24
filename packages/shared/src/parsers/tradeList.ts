@@ -15,7 +15,7 @@
  *     "19, 20" (only when the split is unambiguous and each half is ≤99,
  *     since no team in this catalog has more than 20 stickers)
  *   • Section headers anywhere in a line: "What I need:", "ISO (Looking for):",
- *     "DUPLICATES:", "Up for trade:"
+ *     "DUPLICATES:", "SWAPS:", "Up for trade:"
  *   • Spanish markers: "tengo", "busco", "falta", etc.
  *   • Commentary lines without codes are skipped without producing garbage.
  *
@@ -32,6 +32,7 @@ export interface TradeListBuckets {
 const OFFERED_MARKERS = [
   'have', 'haves', 'offered', 'offering', 'offer', 'for trade', 'fortrade',
   'up for trade', 'dupes', 'duplicates', 'duplicate', 'dupe',
+  'swap', 'swaps', 'swapping',
   'tiene', 'tengo', 'ofrezco', 'cambio',
 ];
 
@@ -49,7 +50,7 @@ const NON_PREFIX_WORDS = new Set([
   // Section markers — we don't want them re-parsed as codes after we've
   // already used them for bucket detection.
   'HAVE', 'HAVES', 'WANT', 'WANTS', 'NEED', 'NEEDS', 'DUPE', 'DUPES',
-  'ISO', 'LIST', 'FROM', 'TRADE', 'SWAP',
+  'ISO', 'LIST', 'FROM', 'TRADE', 'SWAP', 'SWAPS', 'SWAPPING',
   // Common English filler
   'THE', 'AND', 'FOR', 'WITH', 'ALL', 'ANY', 'OUR', 'YOU', 'WE', 'IT', 'TO',
   'OF', 'IS', 'ARE', 'BUT', 'NOT', 'OR', 'IN', 'ON', 'AT', 'BY', 'AN', 'AS',
