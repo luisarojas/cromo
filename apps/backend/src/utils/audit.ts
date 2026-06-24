@@ -41,6 +41,13 @@ export type AuditMetadataMap = {
     completionId: string;
     sessionId: string;
   };
+  third_party_trade_completed: {
+    completionId: string;
+    hostAlbumId: string;
+    partnerName: string | null;
+    hostGave: { stickerVariantId: string; quantity: number }[];
+    hostReceived: { stickerVariantId: string; quantity: number }[];
+  };
   trade_rating_submitted: {
     tradeId: string;
     ratedUserId: string;

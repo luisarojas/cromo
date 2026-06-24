@@ -21,6 +21,7 @@ import {
   setTradeFlags,
   patchUserPreferences,
   matchAgainstMe,
+  recordThirdPartyTrade,
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
@@ -167,11 +168,17 @@ function TradePageContent() {
 
   // Third-party (external list) state
   const [tpAlbumId, setTpAlbumId] = useState<string>('');
+  const [tpPartnerName, setTpPartnerName] = useState<string>('');
   const [tpOffered, setTpOffered] = useState<ExternalListItem[]>([]);
   const [tpWanted, setTpWanted] = useState<ExternalListItem[]>([]);
   const [tpResult, setTpResult] = useState<MatchAgainstMeResult | null>(null);
   const [tpLoading, setTpLoading] = useState(false);
   const [tpError, setTpError] = useState<string | null>(null);
+  // Tracks the in-flight record-trade call so the button can't be double-clicked
+  // and the modal can show the right state.
+  const [tpRecording, setTpRecording] = useState(false);
+  const [tpConfirmOpen, setTpConfirmOpen] = useState(false);
+  const [tpRecordError, setTpRecordError] = useState<string | null>(null);
 
   // Propose modal
   const [proposeModal, setProposeModal] = useState<ProposeModalState | null>(null);
@@ -521,6 +528,7 @@ function TradePageContent() {
     }
     setTpLoading(true);
     setTpError(null);
+    setTpRecordError(null);
     try {
       const result = await matchAgainstMe(
         { albumId: tpAlbumId, theirOffered: tpOffered, theirWanted: tpWanted },
@@ -531,6 +539,47 @@ function TradePageContent() {
       setTpError(err instanceof Error ? err.message : 'Failed to compute match.');
     } finally {
       setTpLoading(false);
+    }
+  }
+
+  async function handleTpRecord() {
+    if (!token || !tpAlbumId || !tpResult) return;
+    // Map the match output to commit deltas. iGet = I receive (other person
+    // gives me these), theyGet = I give. Variants that didn't resolve against
+    // the catalog can't be committed — strip them out and warn if any drop.
+    const received = tpResult.iGet
+      .filter((r): r is typeof r & { stickerVariantId: string } => r.stickerVariantId !== null)
+      .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
+    const gave = tpResult.theyGet
+      .filter((r): r is typeof r & { stickerVariantId: string } => r.stickerVariantId !== null)
+      .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
+    if (received.length === 0 && gave.length === 0) {
+      setTpRecordError('Nothing to record — the matched stickers couldn\'t be resolved.');
+      return;
+    }
+    setTpRecording(true);
+    setTpRecordError(null);
+    try {
+      await recordThirdPartyTrade(
+        {
+          albumId: tpAlbumId,
+          partnerName: tpPartnerName.trim() || null,
+          gave,
+          received,
+        },
+        token,
+      );
+      addToast('Trade recorded — your collection has been updated.', 'success');
+      // Wipe the staged match so a refresh-and-record can't double-commit
+      // the same trade. The pasted lists stay (user might edit + re-match).
+      setTpResult(null);
+      setTpConfirmOpen(false);
+      // Tell other tabs (My Trades, Collection) to refresh.
+      if (user) publishSync({ type: 'collection:changed', userId: user.id, albumId: tpAlbumId });
+    } catch (err) {
+      setTpRecordError(err instanceof Error ? err.message : 'Failed to record the trade.');
+    } finally {
+      setTpRecording(false);
     }
   }
 
@@ -867,25 +916,40 @@ function TradePageContent() {
               account on their side required.
             </p>
 
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">{t('album')}</label>
-              <select
-                value={tpAlbumId}
-                onChange={(e) => setTpAlbumId(e.target.value)}
-                className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
-              >
-                {albums.length === 0 && <option value="">No albums found</option>}
-                {albums.map((album) => (
-                  <option key={album.id} value={album.id}>{albumDisplayName(album)}</option>
-                ))}
-              </select>
+            <div className="mb-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">{t('album')}</label>
+                <select
+                  value={tpAlbumId}
+                  onChange={(e) => { setTpAlbumId(e.target.value); setTpResult(null); }}
+                  className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+                >
+                  {albums.length === 0 && <option value="">No albums found</option>}
+                  {albums.map((album) => (
+                    <option key={album.id} value={album.id}>{albumDisplayName(album)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">
+                  Their name <span className="text-[var(--cromo-fg-subtle)]">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={tpPartnerName}
+                  onChange={(e) => setTpPartnerName(e.target.value)}
+                  placeholder="e.g. Alex"
+                  maxLength={80}
+                  className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+                />
+              </div>
             </div>
 
             <CombinedListInput
               label="Their list"
               offered={tpOffered}
               wanted={tpWanted}
-              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); }}
+              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); }}
               albumTypeKey={albums.find((a) => a.id === tpAlbumId)?.albumTypeKey}
               token={token ?? undefined}
             />
@@ -904,16 +968,80 @@ function TradePageContent() {
           </div>
 
           {tpResult && (
-            <ExternalMatchResult
-              title={t('optimalTrade')}
-              leftLabel="You"
-              leftReceives={tpResult.iGet}
-              rightLabel="They"
-              rightReceives={tpResult.theyGet}
-              mutualOverlap={tpResult.mutualOverlap}
-              unknownCodes={tpResult.unknownCodes}
-              balance={tpResult.balance}
-            />
+            <>
+              <ExternalMatchResult
+                title={t('optimalTrade')}
+                leftLabel="You"
+                leftReceives={tpResult.iGet}
+                rightLabel={tpPartnerName.trim() || 'They'}
+                rightReceives={tpResult.theyGet}
+                mutualOverlap={tpResult.mutualOverlap}
+                unknownCodes={tpResult.unknownCodes}
+                balance={tpResult.balance}
+              />
+
+              {tpResult.mutualOverlap > 0 && (
+                <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">
+                  <p className="text-xs text-[var(--cromo-fg-muted)] mb-2">
+                    Did you actually make this trade in person? Record it to update your collection.
+                  </p>
+                  <button
+                    onClick={() => { setTpRecordError(null); setTpConfirmOpen(true); }}
+                    disabled={tpRecording}
+                    className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    I made this trade
+                  </button>
+                  {tpRecordError && (
+                    <p className="mt-2 text-xs text-[var(--cromo-danger-text)]">{tpRecordError}</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {tpConfirmOpen && tpResult && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+              onClick={() => !tpRecording && setTpConfirmOpen(false)}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-md rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 space-y-4"
+              >
+                <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Record this trade?</h3>
+                <p className="text-xs text-[var(--cromo-fg-muted)]">
+                  Your collection will be updated immediately: <strong>{tpResult.theyGet.length}</strong> sticker{tpResult.theyGet.length === 1 ? '' : 's'} removed,{' '}
+                  <strong>{tpResult.iGet.length}</strong> added. This is logged in your trade history but can&apos;t be undone from this screen.
+                </p>
+                {tpPartnerName.trim() && (
+                  <p className="text-xs text-[var(--cromo-fg-muted)]">
+                    Partner: <span className="font-medium text-[var(--cromo-fg)]">{tpPartnerName.trim()}</span>
+                  </p>
+                )}
+                {tpRecordError && (
+                  <p className="text-xs text-[var(--cromo-danger-text)]">{tpRecordError}</p>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setTpConfirmOpen(false)}
+                    disabled={tpRecording}
+                    className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleTpRecord}
+                    disabled={tpRecording}
+                    className="rounded-md bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                  >
+                    {tpRecording ? 'Recording…' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

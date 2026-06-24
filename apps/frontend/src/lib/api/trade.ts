@@ -52,6 +52,27 @@ export async function matchPair(body: {
   );
 }
 
+export interface ThirdPartyCompletionDelta {
+  stickerVariantId: string;
+  quantity: number;
+}
+
+export async function recordThirdPartyTrade(
+  body: {
+    albumId: string;
+    partnerName?: string | null;
+    gave: ThirdPartyCompletionDelta[];
+    received: ThirdPartyCompletionDelta[];
+  },
+  token: string,
+): Promise<{ completionId: string; completedAt: string }> {
+  return apiFetch<{ completionId: string; completedAt: string }>(
+    '/api/v1/trade/third-party/complete',
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
 export interface TradesPage {
   items: TradeHistoryItem[];
   nextCursor: string | null;

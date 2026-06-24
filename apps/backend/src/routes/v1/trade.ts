@@ -22,6 +22,7 @@ import {
   listTradeHistory,
 } from '../../services/trade-requests.service.js';
 import * as messagingService from '../../services/messaging.service.js';
+import { recordThirdPartyCompletion } from '../../services/live-trade.service.js';
 import { lookupIdempotent, storeIdempotent } from '../../services/idempotency.service.js';
 import { writeSSEEvent, writeSSEHead, writeSSEHeartbeat } from '../../utils/sse.js';
 
@@ -103,6 +104,20 @@ const MatchPairBody = z.object({
     offered: ItemListSchema.default([]),
     wanted: ItemListSchema.default([]),
   }),
+});
+
+const ThirdPartyDeltaSchema = z.object({
+  stickerVariantId: z.string().uuid(),
+  quantity:         z.number().int().positive(),
+});
+
+const ThirdPartyCompleteBody = z.object({
+  albumId:     z.string().uuid(),
+  // Display-only — null/empty = the trade is logged with no partner name.
+  partnerName: z.string().trim().max(80).optional()
+    .transform((v) => (v && v.length > 0 ? v : null)),
+  gave:        z.array(ThirdPartyDeltaSchema).default([]),
+  received:    z.array(ThirdPartyDeltaSchema).default([]),
 });
 
 // ─── Route registration ───────────────────────────────────────────────────────
@@ -272,6 +287,40 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         albumTypeKey: parsed.data.albumTypeKey,
       });
       return reply.status(200).send(result);
+    },
+  );
+
+  /**
+   * POST /api/v1/trade/third-party/complete
+   * Record a trade the user just made with someone off-platform: write the
+   * deltas to user_stickers and persist a completion row so it shows up in
+   * trade history alongside live and async trades.
+   */
+  fastify.post(
+    `${prefix}/third-party/complete`,
+    {
+      preHandler: [verifyToken, checkSoftBan(fastify)],
+      schema: {
+        tags: ['Trade'],
+        summary: 'Record an off-platform trade executed with a third party',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = ThirdPartyCompleteBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400, error: 'Bad Request', message: parsed.error.message,
+        });
+      }
+      const result = await recordThirdPartyCompletion(fastify.db, fastify.redis, {
+        userId: request.userId!,
+        albumId: parsed.data.albumId,
+        partnerName: parsed.data.partnerName,
+        gave: parsed.data.gave,
+        received: parsed.data.received,
+      });
+      return reply.status(201).send(result);
     },
   );
 

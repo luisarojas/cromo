@@ -1001,13 +1001,195 @@ function enrichDeltas(
   return out;
 }
 
+// ─── Third-party trade completion ──────────────────────────────────────────
+// Reuses live_trade_completions because the storage shape is identical:
+// one logged-in user records what they gave + received from an external
+// person (the "guest_label" in the live model becomes the partner's name).
+// No Redis session, no two-sided staging — the user has already executed
+// the trade off-platform and is logging the result.
+
+export interface ThirdPartyTradeDelta {
+  stickerVariantId: string;
+  quantity: number;
+}
+
+export interface RecordThirdPartyTradeInput {
+  userId: string;
+  albumId: string;
+  partnerName: string | null;
+  gave: ThirdPartyTradeDelta[];
+  received: ThirdPartyTradeDelta[];
+}
+
+export interface RecordThirdPartyTradeResult {
+  completionId: string;
+  completedAt: string;
+}
+
+export async function recordThirdPartyCompletion(
+  db: Pool,
+  redis: Redis,
+  input: RecordThirdPartyTradeInput,
+): Promise<RecordThirdPartyTradeResult> {
+  const { userId, albumId, partnerName } = input;
+  const give = mergeDeltasByVariant(input.gave);
+  const recv = mergeDeltasByVariant(input.received);
+
+  if (give.length === 0 && recv.length === 0) {
+    throw statusError('Trade must include at least one sticker on either side.', 400);
+  }
+  if (give.some((d) => d.quantity <= 0) || recv.some((d) => d.quantity <= 0)) {
+    throw statusError('Sticker quantities must be positive.', 400);
+  }
+
+  const client: PoolClient = await (db as Pool & { connect(): Promise<PoolClient> }).connect();
+  let completionId: string;
+  let completedAt: string;
+  try {
+    await client.query('BEGIN');
+
+    // The album must belong to the caller. Lock the row so a concurrent
+    // delete can't pull it out from under us between this check and the
+    // user_stickers writes.
+    const { rows: albumRows } = await client.query<{ album_type_id: string }>(
+      `SELECT album_type_id FROM user_albums
+        WHERE id = $1 AND user_id = $2
+        FOR UPDATE`,
+      [albumId, userId],
+    );
+    if (albumRows.length === 0) throw statusError('Album not found.', 404);
+    const albumTypeId = albumRows[0]!.album_type_id;
+
+    // Every variant referenced must belong to that album type — otherwise a
+    // client could move stickers between unrelated albums via this endpoint.
+    const allVariantIds = [
+      ...new Set([
+        ...give.map((d) => d.stickerVariantId),
+        ...recv.map((d) => d.stickerVariantId),
+      ]),
+    ];
+    const { rows: variantRows } = await client.query<{ id: string; album_type_id: string }>(
+      `SELECT sv.id, s.album_type_id
+         FROM sticker_variants sv
+         JOIN stickers s ON s.id = sv.sticker_id
+        WHERE sv.id = ANY($1::uuid[])`,
+      [allVariantIds],
+    );
+    if (variantRows.length !== allVariantIds.length) {
+      throw statusError('Unknown sticker variant in trade.', 400);
+    }
+    if (variantRows.some((r) => r.album_type_id !== albumTypeId)) {
+      throw statusError('One or more stickers do not belong to this album.', 400);
+    }
+
+    // Stock check + decrement mirrors completeSession exactly.
+    const { rows: stockRows } = await client.query<{
+      sticker_variant_id: string; quantity: number;
+    }>(
+      `SELECT sticker_variant_id, quantity
+         FROM user_stickers
+        WHERE album_id = $1
+          AND sticker_variant_id = ANY($2::uuid[])
+        FOR UPDATE`,
+      [albumId, allVariantIds],
+    );
+    const stock = new Map(stockRows.map((r) => [r.sticker_variant_id, r.quantity]));
+    for (const d of give) {
+      if ((stock.get(d.stickerVariantId) ?? 0) < d.quantity) {
+        throw statusError(
+          'One or more stickers are no longer available in your collection.',
+          409,
+        );
+      }
+    }
+
+    if (give.length > 0) {
+      await client.query(
+        `UPDATE user_stickers us
+           SET quantity = us.quantity - t.qty, updated_at = NOW()
+          FROM unnest($1::uuid[], $2::int[]) AS t(sticker_variant_id, qty)
+         WHERE us.album_id = $3
+           AND us.sticker_variant_id = t.sticker_variant_id`,
+        [give.map((d) => d.stickerVariantId), give.map((d) => d.quantity), albumId],
+      );
+    }
+
+    if (recv.length > 0) {
+      await client.query(
+        `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
+         SELECT $1, t.sticker_variant_id, t.qty
+           FROM unnest($2::uuid[], $3::int[]) AS t(sticker_variant_id, qty)
+         ON CONFLICT (album_id, sticker_variant_id)
+         DO UPDATE SET quantity = user_stickers.quantity + EXCLUDED.quantity,
+                       updated_at = NOW()`,
+        [albumId, recv.map((d) => d.stickerVariantId), recv.map((d) => d.quantity)],
+      );
+    }
+
+    await client.query(
+      `DELETE FROM user_stickers WHERE album_id = $1 AND quantity <= 0`,
+      [albumId],
+    );
+
+    const { rows: insertedRows } = await client.query<{ id: string; completed_at: Date }>(
+      `INSERT INTO live_trade_completions
+         (host_user_id, host_album_id, guest_label, host_gave, host_received)
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+       RETURNING id, completed_at`,
+      [
+        userId,
+        albumId,
+        partnerName,
+        JSON.stringify(give),
+        JSON.stringify(recv),
+      ],
+    );
+    completionId = insertedRows[0]!.id;
+    completedAt = insertedRows[0]!.completed_at.toISOString();
+
+    await recordAudit(client, userId, 'third_party_trade_completed', {
+      completionId,
+      hostAlbumId: albumId,
+      partnerName,
+      hostGave: give,
+      hostReceived: recv,
+    });
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  await Promise.all([
+    invalidateUserCaches(redis, userId),
+    invalidateMatchesFor(redis, [userId]),
+  ]);
+
+  // Soft-reservation hand-off: like the live and async completion paths,
+  // notify any other pending/accepted trades whose inventory we just drained.
+  await notifyAffectedTrades(db, redis, null, [
+    { userId, variantIds: give.map((d) => d.stickerVariantId) },
+  ]);
+
+  return { completionId, completedAt };
+}
+
 // ─── Pure helpers ──────────────────────────────────────────────────────────
 
 function aggregateDeltas(
   refs: LiveTradeStickerRef[],
 ): Array<{ stickerVariantId: string; quantity: number }> {
+  return mergeDeltasByVariant(refs);
+}
+
+function mergeDeltasByVariant<T extends { stickerVariantId: string; quantity: number }>(
+  rows: T[],
+): Array<{ stickerVariantId: string; quantity: number }> {
   const merged = new Map<string, number>();
-  for (const r of refs) {
+  for (const r of rows) {
     merged.set(r.stickerVariantId, (merged.get(r.stickerVariantId) ?? 0) + r.quantity);
   }
   return [...merged.entries()].map(([stickerVariantId, quantity]) => ({ stickerVariantId, quantity }));

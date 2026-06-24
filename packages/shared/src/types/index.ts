@@ -411,6 +411,10 @@ export interface ExternalStickerRef {
   /** Human label for the variant (e.g. "Red", "Gold Crumple", "Extra · Gold").
    *  Localisable on the frontend; this is the English default. */
   variantLabel: string | null
+  /** Resolved sticker_variants.id. Null when the code couldn't be resolved.
+   *  Frontend uses this to commit a third-party trade execution back to the
+   *  server without re-running the catalog lookup. */
+  stickerVariantId: string | null
   /** Scarcity weight from VARIANT_SCARCITY. */
   scarcity: number
   quantity: number

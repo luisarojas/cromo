@@ -475,6 +475,7 @@ export interface ExternalRef {
   number: number | null;
   variantToken: string | null;
   variantLabel: string | null;
+  stickerVariantId: string | null;
   scarcity: number;
   quantity: number;
 }
@@ -702,6 +703,7 @@ export function refOf(r: ResolvedItem): ExternalRef {
     number: r.entry.number,
     variantToken: r.variantType,
     variantLabel: labelFor(r.variantType),
+    stickerVariantId: r.stickerVariantId,
     scarcity: variantScarcity(r.variantType),
     quantity: r.quantity,
   };
