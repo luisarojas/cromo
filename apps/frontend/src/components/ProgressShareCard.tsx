@@ -36,13 +36,19 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
 function buildSvg(p: Omit<Props, 'onClose' | 'onShared'>): string {
   const pct = Math.max(0, Math.min(100, p.stats.percentage));
-  const pctLabel = pct >= 99.95 ? '100' : pct.toFixed(1);
-  const ringR = 230;
-  const ringStroke = 34;
+  // Integer percentage — at 1080px the share card is consumed at a glance;
+  // decimals add visual noise and risk overflowing the ring's inner diameter.
+  const pctLabel = `${Math.round(pct)}%`;
+  const ringR = 220;
+  const ringStroke = 30;
   const ringCx = SIZE / 2;
-  const ringCy = 500;
+  const ringCy = 540;
   const circumference = 2 * Math.PI * ringR;
   const dash = (pct / 100) * circumference;
   const hasDuplicates = p.stats.duplicates != null && p.stats.duplicates > 0;
@@ -51,6 +57,11 @@ function buildSvg(p: Omit<Props, 'onClose' | 'onShared'>): string {
     ? `${p.stats.missing} missing${hasDuplicates ? `  ·  ${p.stats.duplicates} duplicates` : ''}`
     : '';
 
+  const albumLabel = truncate(p.albumLabel, 32);
+  const collectorLine = p.username
+    ? `${truncate(p.collectorName, 24)}  ·  @${truncate(p.username, 22)}`
+    : truncate(p.collectorName, 40);
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}" width="${SIZE}" height="${SIZE}">
     <defs>
       <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -58,59 +69,37 @@ function buildSvg(p: Omit<Props, 'onClose' | 'onShared'>): string {
         <stop offset="100%" stop-color="#13151B"/>
       </linearGradient>
       <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#22D3EE"/>
-        <stop offset="35%" stop-color="#A78BFA"/>
-        <stop offset="65%" stop-color="#F472B6"/>
-        <stop offset="100%" stop-color="#FBBF24"/>
-      </linearGradient>
-      <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#22D3EE"/>
+        <stop offset="0%" stop-color="#7DD3FC"/>
         <stop offset="50%" stop-color="#A78BFA"/>
         <stop offset="100%" stop-color="#F472B6"/>
       </linearGradient>
     </defs>
 
     <rect width="100%" height="100%" fill="url(#bg)"/>
-    <rect x="0" y="0" width="${SIZE}" height="6" fill="url(#accent)"/>
+    <rect x="0" y="0" width="${SIZE}" height="4" fill="url(#accent)"/>
 
     <!-- Header -->
-    <g transform="translate(${PAD}, ${PAD + 20})">
-      <rect x="0" y="0" width="56" height="56" rx="14" fill="url(#accent)"/>
-      <text x="76" y="24" font-family="Inter, system-ui" font-size="22" font-weight="800" fill="#FFFFFF">Cromo</text>
-      <text x="76" y="50" font-family="Inter, system-ui" font-size="13" letter-spacing="3" font-weight="600" fill="#7DD3FC">COLLECTION · PROGRESS</text>
-    </g>
+    <text x="${SIZE / 2}" y="${PAD + 40}" font-family="Inter, system-ui" font-size="14" letter-spacing="4" font-weight="700" fill="#7DD3FC" text-anchor="middle">CROMO · COLLECTION PROGRESS</text>
 
     <!-- Progress ring -->
     <g transform="translate(${ringCx}, ${ringCy})">
       <circle r="${ringR}" fill="none" stroke="#1A1D24" stroke-width="${ringStroke}"/>
-      <circle r="${ringR}" fill="none" stroke="url(#ringGrad)" stroke-width="${ringStroke}"
+      <circle r="${ringR}" fill="none" stroke="url(#accent)" stroke-width="${ringStroke}"
               stroke-linecap="round"
               stroke-dasharray="${dash} ${circumference - dash}"
               transform="rotate(-90)"/>
-      <text x="0" y="0" font-family="Inter, system-ui" font-size="150" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${pctLabel}<tspan font-size="64" fill="#94A3B8" dx="6" dy="-40">%</tspan></text>
-      <text x="0" y="110" font-family="Inter, system-ui" font-size="28" font-weight="600" fill="#CBD5E1" text-anchor="middle">${p.stats.owned} / ${p.stats.total} stickers</text>
+      <text x="0" y="-8" font-family="Inter, system-ui" font-size="170" font-weight="800" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">${pctLabel}</text>
+      <text x="0" y="115" font-family="Inter, system-ui" font-size="26" font-weight="600" fill="#CBD5E1" text-anchor="middle">${p.stats.owned} / ${p.stats.total} stickers</text>
     </g>
 
     ${statsLine ? `<text x="${SIZE / 2}" y="${ringCy + ringR + 70}" font-family="Inter, system-ui" font-size="22" font-weight="500" fill="#94A3B8" text-anchor="middle">${statsLine}</text>` : ''}
 
-    <!-- Divider -->
-    <line x1="${PAD}" y1="${SIZE - 240}" x2="${SIZE - PAD}" y2="${SIZE - 240}" stroke="#1F2230" stroke-width="1"/>
-
-    <!-- Collector label -->
-    <g transform="translate(${PAD}, ${SIZE - 190})">
-      <text x="0" y="0" font-family="Inter, system-ui" font-size="14" letter-spacing="3" font-weight="700" fill="#7DD3FC">COLLECTOR</text>
-      <text x="0" y="44" font-family="Inter, system-ui" font-size="40" font-weight="800" fill="#FFFFFF">${escapeXml(p.collectorName)}</text>
-      ${p.username ? `<text x="0" y="78" font-family="Inter, system-ui" font-size="20" fill="#94A3B8">@${escapeXml(p.username)}</text>` : ''}
-    </g>
-
-    <!-- Album label -->
-    <g transform="translate(${SIZE - PAD}, ${SIZE - 190})" text-anchor="end">
-      <text x="0" y="0" font-family="Inter, system-ui" font-size="14" letter-spacing="3" font-weight="700" fill="#F472B6">ALBUM</text>
-      <text x="0" y="44" font-family="Inter, system-ui" font-size="28" font-weight="700" fill="#E5E7EB">${escapeXml(p.albumLabel)}</text>
-    </g>
+    <!-- Identity caption -->
+    <text x="${SIZE / 2}" y="${SIZE - 140}" font-family="Inter, system-ui" font-size="40" font-weight="800" fill="#FFFFFF" text-anchor="middle">${escapeXml(albumLabel)}</text>
+    <text x="${SIZE / 2}" y="${SIZE - 92}" font-family="Inter, system-ui" font-size="22" font-weight="500" fill="#94A3B8" text-anchor="middle">${escapeXml(collectorLine)}</text>
 
     <!-- Footer -->
-    <text x="${SIZE / 2}" y="${SIZE - 48}" font-family="Inter, system-ui" font-size="18" letter-spacing="2" font-weight="600" fill="#64748B" text-anchor="middle">cromotrade.ca</text>
+    <text x="${SIZE / 2}" y="${SIZE - 44}" font-family="Inter, system-ui" font-size="16" letter-spacing="3" font-weight="600" fill="#64748B" text-anchor="middle">cromotrade.ca</text>
   </svg>`;
 }
 
