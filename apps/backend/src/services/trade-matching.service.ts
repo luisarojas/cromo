@@ -56,14 +56,36 @@ const PRIORITY_DISTANCE_WEIGHT = 0.05;
 const MATCHES_INDEX_BUFFER_SECONDS = 300;
 
 /**
- * Per-user index of trade-matches cache keys. invalidateMatches() (in
- * trade-requests.service.ts) uses this to drop a user's match cache in O(set
- * size) instead of SCANning the keyspace. The index TTL is kept slightly
- * longer than the cache TTL so a write can never produce an indexed key that
- * outlives its membership.
+ * Per-user index of trade-matches cache keys. invalidateMatchesFor uses this
+ * to drop a user's match cache in O(set size) instead of SCANning the
+ * keyspace. The index TTL is kept slightly longer than the cache TTL so a
+ * write can never produce an indexed key that outlives its membership.
  */
 export function matchesIndexKey(userId: string): string {
   return `trade:matches:idx:${userId}`;
+}
+
+/**
+ * invalidateMatchesFor — drop every cached matchmaker result for the given
+ * users. Call after any event that changes a user's tradable inventory
+ * (trade completion, live-trade commit/undo, sticker scan that adds a
+ * duplicate, etc.) so the next /matches request rebuilds against fresh
+ * counts instead of serving a stale page.
+ */
+export async function invalidateMatchesFor(redis: Redis, userIds: string[]): Promise<void> {
+  const indexKeys = userIds.map(matchesIndexKey);
+  const memberArrays = await Promise.all(indexKeys.map((k) => redis.smembers(k)));
+
+  const allKeys = memberArrays.flat();
+  if (allKeys.length === 0 && indexKeys.length === 0) return;
+
+  const CHUNK = 500;
+  const pipeline = redis.pipeline();
+  for (let i = 0; i < allKeys.length; i += CHUNK) {
+    pipeline.unlink(...allKeys.slice(i, i + CHUNK));
+  }
+  if (indexKeys.length > 0) pipeline.unlink(...indexKeys);
+  await pipeline.exec();
 }
 
 /**

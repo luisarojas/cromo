@@ -17,10 +17,12 @@ import { invalidateUserCaches } from './cache.js';
 import {
   type ResolvedItem,
   dedupeItems,
+  invalidateMatchesFor,
   labelFor,
   lookupCatalogVariants,
   resolveItems,
 } from './trade-matching.service.js';
+import { notifyAffectedTrades, notifyRestoredAvailability } from './trade-availability.service.js';
 
 // ─── Session model ─────────────────────────────────────────────────────────
 // A live-trade session is short-lived shared state: one host + one anonymous
@@ -659,9 +661,24 @@ export async function completeSession(
     await writeSession(redis, session);
     // Host's collection cache is now stale — bump the version so the next
     // /collection read hits the DB. Failure here is non-fatal: cached entries
-    // still expire on their own TTL.
-    await invalidateUserCaches(redis, hostUserId);
+    // still expire on their own TTL. The matchmaker cache is a separate
+    // keyspace and must be dropped explicitly; async completeTrade does the
+    // same after every inventory-changing transfer.
+    await Promise.all([
+      invalidateUserCaches(redis, hostUserId),
+      invalidateMatchesFor(redis, [hostUserId]),
+    ]);
     await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
+
+    // Soft-reservation hand-off: a live commit consumes host inventory that
+    // may also be promised to async pending/accepted trades. Notify those
+    // counterparties the same way async trade completion does (see
+    // trade-requests.service.ts completeTrade). excludeTradeId is null here
+    // because there's no async trade row to skip.
+    await notifyAffectedTrades(db, redis, null, [
+      { userId: hostUserId, variantIds: hostGiveDeltas.map((d) => d.stickerVariantId) },
+    ]);
+
     return toPublicSession(session);
   });
 }
@@ -692,6 +709,7 @@ export async function undoCompletion(
 
     const client: PoolClient = await (db as Pool & { connect(): Promise<PoolClient> }).connect();
     let undoneAt: string;
+    let restoredVariantIds: string[] = [];
     try {
       await client.query('BEGIN');
 
@@ -714,6 +732,7 @@ export async function undoCompletion(
       if (!c) throw statusError('Completion record not found.', 404);
       if (c.host_user_id !== hostUserId) throw statusError('Not the host of this completion.', 403);
       if (c.undone_at) throw statusError('This completion has already been undone.', 410);
+      restoredVariantIds = c.host_gave.map((d) => d.stickerVariantId);
 
       // Restore (host_gave): add back what we previously decremented.
       if (c.host_gave.length > 0) {
@@ -775,8 +794,19 @@ export async function undoCompletion(
     session.hostLocked = false;
     session.guestLocked = false;
     await writeSession(redis, session);
-    await invalidateUserCaches(redis, hostUserId);
+    await Promise.all([
+      invalidateUserCaches(redis, hostUserId),
+      invalidateMatchesFor(redis, [hostUserId]),
+    ]);
     await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
+
+    // Mirror of the completeSession notify: a commit told async trades the
+    // stickers were "no longer available". The undo just put them back, so
+    // pending trades that share those variants may be acceptable again.
+    await notifyRestoredAvailability(db, redis, null, [
+      { userId: hostUserId, variantIds: restoredVariantIds },
+    ]);
+
     return toPublicSession(session);
   });
 }

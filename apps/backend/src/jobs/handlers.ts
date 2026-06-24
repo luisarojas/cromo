@@ -3,30 +3,96 @@
 // directly from tests or the one-off CLI runner without node-cron involved.
 
 import type { JobDeps, JobResult } from './types.js';
+import { sendSystemMessage, publishTradeEvent } from '../services/messaging.service.js';
+import { notifyRestoredAvailability } from '../services/trade-availability.service.js';
 
 // ─── Trade lifecycle ─────────────────────────────────────────────────────────
 
-export async function expirePendingTrades({ db, log }: JobDeps): Promise<JobResult> {
-  const { rowCount } = await db.query(
+export async function expirePendingTrades({ db, redis, log }: JobDeps): Promise<JobResult> {
+  // RETURNING id so we can mirror cancelTrade's thread-side effects per row.
+  // Pending trades hold no soft-reservation, so no notifyRestoredAvailability
+  // — but participants still need a thread message + SSE update so the trade
+  // doesn't appear to silently vanish from their /trades view.
+  const { rows: expired } = await db.query<{ id: string }>(
     `UPDATE trade_requests
         SET status = 'expired', updated_at = now()
       WHERE status = 'pending'
-        AND updated_at < now() - INTERVAL '30 days'`,
+        AND updated_at < now() - INTERVAL '30 days'
+      RETURNING id`,
   );
-  log.info('expire-pending-trades complete', { affected: rowCount ?? 0 });
-  return { affected: rowCount ?? 0 };
+
+  if (expired.length === 0) {
+    log.info('expire-pending-trades complete', { affected: 0 });
+    return { affected: 0 };
+  }
+
+  await Promise.all(expired.flatMap((tr) => [
+    sendSystemMessage(db, redis, tr.id, 'Trade expired.'),
+    publishTradeEvent(redis, tr.id, 'status_changed', { trade_id: tr.id, status: 'expired' }),
+  ]));
+
+  log.info('expire-pending-trades complete', { affected: expired.length });
+  return { affected: expired.length };
 }
 
-export async function expireAcceptedTrades({ db, log }: JobDeps): Promise<JobResult> {
-  const { rowCount } = await db.query(
+export async function expireAcceptedTrades({ db, redis, log }: JobDeps): Promise<JobResult> {
+  // RETURNING the row identities so we can mirror the side-effects of
+  // cancelTrade: post a thread message, fire the SSE status event, and tell
+  // pending trades soft-blocked by this one that the variants are available
+  // again. Without these, an expired trade silently disappears and any
+  // pending trade waiting on its release stays stuck.
+  const { rows: expired } = await db.query<{
+    id: string; requester_id: string; recipient_id: string;
+  }>(
     `UPDATE trade_requests
         SET status = 'expired', updated_at = now()
       WHERE status = 'accepted'
         AND expires_at IS NOT NULL
-        AND expires_at < now()`,
+        AND expires_at < now()
+      RETURNING id, requester_id, recipient_id`,
   );
-  log.info('expire-accepted-trades complete', { affected: rowCount ?? 0 });
-  return { affected: rowCount ?? 0 };
+
+  if (expired.length === 0) {
+    log.info('expire-accepted-trades complete', { affected: 0 });
+    return { affected: 0 };
+  }
+
+  const tradeIds = expired.map((r) => r.id);
+  const { rows: itemRows } = await db.query<{
+    trade_id: string; sticker_variant_id: string; direction: 'offer' | 'want';
+  }>(
+    `SELECT trade_id, sticker_variant_id, direction
+       FROM trade_items WHERE trade_id = ANY($1::uuid[])`,
+    [tradeIds],
+  );
+
+  const itemsByTrade = new Map<string, { sticker_variant_id: string; direction: 'offer' | 'want' }[]>();
+  for (const it of itemRows) {
+    const list = itemsByTrade.get(it.trade_id) ?? [];
+    list.push(it);
+    itemsByTrade.set(it.trade_id, list);
+  }
+
+  await Promise.all(expired.flatMap((tr) => {
+    const items = itemsByTrade.get(tr.id) ?? [];
+    return [
+      sendSystemMessage(db, redis, tr.id, 'Trade expired.'),
+      publishTradeEvent(redis, tr.id, 'status_changed', { trade_id: tr.id, status: 'expired' }),
+      notifyRestoredAvailability(db, redis, tr.id, [
+        {
+          userId: tr.requester_id,
+          variantIds: items.filter((i) => i.direction === 'offer').map((i) => i.sticker_variant_id),
+        },
+        {
+          userId: tr.recipient_id,
+          variantIds: items.filter((i) => i.direction === 'want').map((i) => i.sticker_variant_id),
+        },
+      ]),
+    ];
+  }));
+
+  log.info('expire-accepted-trades complete', { affected: expired.length });
+  return { affected: expired.length };
 }
 
 export async function purgeTradeMessages({ db, log }: JobDeps): Promise<JobResult> {

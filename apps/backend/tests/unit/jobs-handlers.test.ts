@@ -37,6 +37,7 @@ function makeDeps(initialDbResponses: unknown[] = [], initialRedisResponses: unk
     lpush: vi.fn().mockResolvedValue(1),
     set: vi.fn().mockResolvedValue('OK'),
     ping: vi.fn().mockResolvedValue('PONG'),
+    publish: vi.fn().mockResolvedValue(0),
   };
   for (const r of initialRedisResponses) (redis.lpush as ReturnType<typeof vi.fn>).mockResolvedValueOnce(r);
   const log = makeLog();
@@ -62,25 +63,55 @@ beforeEach(() => {
 // observable shape: result object + log payload.
 
 describe('expirePendingTrades', () => {
-  it('returns { affected: N } from pg rowCount and logs the same value', async () => {
-    const { deps, dbQuery, log } = makeDeps([{ rowCount: 4, rows: [] }]);
-    const res = await expirePendingTrades(deps);
-    expect(res).toEqual({ affected: 4 });
+  it('short-circuits when no rows expire', async () => {
+    const { deps, dbQuery, log } = makeDeps([{ rows: [], rowCount: 0 }]);
+    expect(await expirePendingTrades(deps)).toEqual({ affected: 0 });
     expect(dbQuery).toHaveBeenCalledTimes(1);
-    expect(log.calls[0]?.fields).toMatchObject({ affected: 4 });
+    expect(log.calls[0]?.fields).toMatchObject({ affected: 0 });
   });
 
-  it('reports 0 affected when pg returns rowCount: null', async () => {
-    const { deps } = makeDeps([{ rowCount: null, rows: [] }]);
-    expect(await expirePendingTrades(deps)).toEqual({ affected: 0 });
+  it('returns { affected: N } and fans out per-trade thread side effects', async () => {
+    // UPDATE…RETURNING then one INSERT trade_messages per expired trade.
+    const { deps, dbQuery, redis, log } = makeDeps([
+      { rows: [{ id: 't1' }, { id: 't2' }], rowCount: 2 },
+      { rows: [{ id: 'm1', trade_id: 't1', sent_at: new Date().toISOString() }] },
+      { rows: [{ id: 'm2', trade_id: 't2', sent_at: new Date().toISOString() }] },
+    ]);
+    expect(await expirePendingTrades(deps)).toEqual({ affected: 2 });
+    expect(dbQuery).toHaveBeenCalledTimes(3);
+    expect(redis.publish).toHaveBeenCalledTimes(4);
+    expect(log.calls[0]?.fields).toMatchObject({ affected: 2 });
   });
 });
 
 describe('expireAcceptedTrades', () => {
-  it('returns { affected: N }', async () => {
-    const { deps, dbQuery } = makeDeps([{ rowCount: 2 }]);
-    expect(await expireAcceptedTrades(deps)).toEqual({ affected: 2 });
+  it('short-circuits when no rows expire', async () => {
+    const { deps, dbQuery, log } = makeDeps([{ rows: [], rowCount: 0 }]);
+    expect(await expireAcceptedTrades(deps)).toEqual({ affected: 0 });
     expect(dbQuery).toHaveBeenCalledTimes(1);
+    expect(log.calls[0]?.fields).toMatchObject({ affected: 0 });
+  });
+
+  it('returns { affected: N } and fans out per-trade side effects', async () => {
+    // Mocks in call order: UPDATE…RETURNING, SELECT trade_items, then one
+    // INSERT trade_messages per expired trade (from sendSystemMessage).
+    // notifyRestoredAvailability sees empty variantIds for every giver and
+    // skips its own queries, so the chain stops here.
+    const { deps, dbQuery, redis, log } = makeDeps([
+      { rows: [
+        { id: 't1', requester_id: 'r1', recipient_id: 'p1' },
+        { id: 't2', requester_id: 'r2', recipient_id: 'p2' },
+      ], rowCount: 2 },
+      { rows: [], rowCount: 0 },
+      { rows: [{ id: 'm1', trade_id: 't1', sent_at: new Date().toISOString() }] },
+      { rows: [{ id: 'm2', trade_id: 't2', sent_at: new Date().toISOString() }] },
+    ]);
+    expect(await expireAcceptedTrades(deps)).toEqual({ affected: 2 });
+    // 1 UPDATE + 1 SELECT items + 2 INSERTs (one per expired trade).
+    expect(dbQuery).toHaveBeenCalledTimes(4);
+    // 2 publishes from sendSystemMessage + 2 from the explicit status_changed.
+    expect(redis.publish).toHaveBeenCalledTimes(4);
+    expect(log.calls[0]?.fields).toMatchObject({ affected: 2 });
   });
 });
 

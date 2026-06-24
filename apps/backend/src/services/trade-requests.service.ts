@@ -6,27 +6,9 @@ import { invalidateUserCaches } from './cache.js';
 import { publishTradeEvent, sendSystemMessage } from './messaging.service.js';
 import { statusError } from '../utils/errors.js';
 import { recordAuditBulk } from '../utils/audit.js';
-import { matchesIndexKey } from './trade-matching.service.js';
+import { invalidateMatchesFor } from './trade-matching.service.js';
 import { listLiveTradeHistory } from './live-trade.service.js';
-
-async function invalidateMatchesFor(redis: Redis, userIds: string[]): Promise<void> {
-  // Each user owns a Redis SET that lists every active match-cache key they've
-  // produced. Reading the set + unlinking its members is O(N) in the number of
-  // *real* keys, with no SCAN over the entire keyspace.
-  const indexKeys = userIds.map(matchesIndexKey);
-  const memberArrays = await Promise.all(indexKeys.map((k) => redis.smembers(k)));
-
-  const allKeys = memberArrays.flat();
-  if (allKeys.length === 0 && indexKeys.length === 0) return;
-
-  const CHUNK = 500;
-  const pipeline = redis.pipeline();
-  for (let i = 0; i < allKeys.length; i += CHUNK) {
-    pipeline.unlink(...allKeys.slice(i, i + CHUNK));
-  }
-  if (indexKeys.length > 0) pipeline.unlink(...indexKeys);
-  await pipeline.exec();
-}
+import { notifyAffectedTrades, notifyRestoredAvailability } from './trade-availability.service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,70 +107,76 @@ async function assertVariantsBelongToAlbumType(
   }
 }
 
-async function assertNotOfferedInAcceptedTrade(
-  client: PoolClient | Pool,
-  userId: string,
-  variantIds: string[],
-): Promise<void> {
-  if (variantIds.length === 0) return;
-  const { rows } = await client.query<{ sticker_variant_id: string }>(
-    `SELECT ti.sticker_variant_id
-     FROM trade_items ti
-     JOIN trade_requests tr ON tr.id = ti.trade_id
-     WHERE tr.status = 'accepted'
-       AND (
-         (tr.requester_id = $1 AND ti.direction = 'offer')
-         OR (tr.recipient_id = $1 AND ti.direction = 'want')
-       )
-       AND ti.sticker_variant_id = ANY($2::uuid[])
-     LIMIT 1`,
-    [userId, variantIds],
-  );
-  if (rows.length > 0) {
-    throw statusError('One or more stickers are already committed to an accepted trade.', 409);
-  }
+interface SideCommitment {
+  userId: string;
+  albumId: string;
+  items: { variantId: string; quantity: number }[];
 }
 
-async function notifyAffectedTrades(
-  db: Pool,
-  redis: Redis,
-  completedTradeId: string,
-  givers: { userId: string; variantIds: string[] }[],
+/**
+ * assertSufficientUncommittedQuantity — for each (user, album) side of a
+ * proposed trade, ensure that adding the proposed give-quantities to the
+ * quantity already committed across *other* accepted trades does not exceed
+ * the user's owned quantity. The completion path is quantity-aware via
+ * SELECT FOR UPDATE on user_stickers; this pre-flight mirrors that so we
+ * reject early instead of letting the conflict surface only at completion.
+ *
+ * A power trader with 5x BRA5 can therefore have BRA5 across multiple
+ * accepted trades in parallel — the old binary check blocked that even when
+ * spare copies existed. Same-variant rows within one trade are summed before
+ * the comparison so an items list with `[BRA5×2, BRA5×1]` is treated as a
+ * single 3-quantity commitment.
+ */
+async function assertSufficientUncommittedQuantity(
+  client: PoolClient | Pool,
+  sides: SideCommitment[],
 ): Promise<void> {
-  const affectedTradeIds = new Set<string>();
+  for (const { userId, albumId, items } of sides) {
+    if (items.length === 0) continue;
 
-  for (const { userId, variantIds } of givers) {
-    if (variantIds.length === 0) continue;
-    const { rows } = await db.query<{ trade_id: string }>(
-      `SELECT DISTINCT ti.trade_id
-       FROM trade_items ti
-       JOIN trade_requests tr ON tr.id = ti.trade_id
-       WHERE tr.status IN ('pending', 'accepted')
-         AND tr.id != $1
-         AND (
-           (tr.requester_id = $2 AND ti.direction = 'offer')
-           OR (tr.recipient_id = $2 AND ti.direction = 'want')
-         )
-         AND ti.sticker_variant_id = ANY($3::uuid[])
-         AND COALESCE(
-           (SELECT us.quantity FROM user_stickers us
-            WHERE us.album_id = CASE
-              WHEN tr.requester_id = $2 THEN tr.requester_album_id
-              ELSE tr.recipient_album_id
-            END
-            AND us.sticker_variant_id = ti.sticker_variant_id),
-           0
-         ) < ti.quantity`,
-      [completedTradeId, userId, variantIds],
+    const proposedByVariant = new Map<string, number>();
+    for (const it of items) {
+      proposedByVariant.set(it.variantId, (proposedByVariant.get(it.variantId) ?? 0) + it.quantity);
+    }
+    const variantIds = [...proposedByVariant.keys()];
+    const proposedQtys = [...proposedByVariant.values()];
+
+    const { rows } = await client.query(
+      `WITH proposed AS (
+         SELECT t.variant_id, t.qty AS proposed_qty
+         FROM unnest($3::uuid[], $4::int[]) AS t(variant_id, qty)
+       ),
+       committed AS (
+         SELECT ti.sticker_variant_id AS variant_id, SUM(ti.quantity)::int AS committed_qty
+         FROM trade_items ti
+         JOIN trade_requests tr ON tr.id = ti.trade_id
+         WHERE tr.status = 'accepted'
+           AND ((tr.requester_id = $1 AND tr.requester_album_id = $2 AND ti.direction = 'offer')
+                OR (tr.recipient_id = $1 AND tr.recipient_album_id = $2 AND ti.direction = 'want'))
+           AND ti.sticker_variant_id = ANY($3::uuid[])
+         GROUP BY ti.sticker_variant_id
+       ),
+       owned AS (
+         SELECT us.sticker_variant_id AS variant_id, us.quantity AS owned_qty
+         FROM user_stickers us
+         WHERE us.album_id = $2 AND us.sticker_variant_id = ANY($3::uuid[])
+       )
+       SELECT p.variant_id
+       FROM proposed p
+       LEFT JOIN committed c ON c.variant_id = p.variant_id
+       LEFT JOIN owned o ON o.variant_id = p.variant_id
+       WHERE p.proposed_qty + COALESCE(c.committed_qty, 0) > COALESCE(o.owned_qty, 0)
+       LIMIT 1`,
+      [userId, albumId, variantIds, proposedQtys],
     );
-    for (const row of rows) affectedTradeIds.add(row.trade_id);
-  }
 
-  await Promise.all(
-    Array.from(affectedTradeIds).map((id) =>
-      sendSystemMessage(db, redis, id, 'One or more stickers in this trade are no longer available.')
-    )
-  );
+    if (rows.length > 0) {
+      throw statusError(
+        'Insufficient uncommitted quantity for one or more stickers — some copies are already promised to other accepted trades.',
+        409,
+      );
+    }
+  }
 }
 
 async function assertParticipant(
@@ -293,10 +281,12 @@ export async function createTrade(
     // belong to this trade's album type so a client can't mix albums.
     await assertVariantsBelongToAlbumType(client, items.map((i) => i.variantId), albumTypeId);
 
-    const offerVariantIds = items.filter((i) => i.direction === 'offer').map((i) => i.variantId);
-    const wantVariantIds  = items.filter((i) => i.direction === 'want').map((i) => i.variantId);
-    await assertNotOfferedInAcceptedTrade(client, userId, offerVariantIds);
-    await assertNotOfferedInAcceptedTrade(client, recipientId, wantVariantIds);
+    const toCommitItems = (dir: 'offer' | 'want') =>
+      items.filter((i) => i.direction === dir).map((i) => ({ variantId: i.variantId, quantity: i.quantity }));
+    await assertSufficientUncommittedQuantity(client, [
+      { userId, albumId: resolvedRequesterAlbumId, items: toCommitItems('offer') },
+      { userId: recipientId, albumId: resolvedRecipientAlbumId, items: toCommitItems('want') },
+    ]);
 
     const newTradeId = crypto.randomUUID();
     await client.query(
@@ -593,18 +583,65 @@ export async function acceptTrade(
   userId: string,
   tradeId: string
 ): Promise<void> {
-  const trade = await assertParticipant(db, userId, tradeId);
-  if (trade.status !== 'pending') throw statusError(`Trade cannot be accepted in status '${trade.status}'.`, 409);
-  if (trade.recipient_id !== userId) throw statusError('Only the recipient can accept a trade.', 403);
+  await withTx(db, async (client) => {
+    // Lock the trade row so a concurrent accept/cancel can't slip between
+    // the status check and the conflict check.
+    const { rows: lockedRows } = await client.query<{
+      requester_id: string;
+      recipient_id: string;
+      requester_album_id: string;
+      recipient_album_id: string;
+      status: string;
+    }>(
+      `SELECT requester_id, recipient_id, requester_album_id, recipient_album_id, status
+       FROM trade_requests WHERE id = $1 FOR UPDATE`,
+      [tradeId],
+    );
+    if (lockedRows.length === 0) throw statusError('Trade not found.', 404);
+    const locked = lockedRows[0]!;
+    if (locked.requester_id !== userId && locked.recipient_id !== userId) {
+      throw statusError('You are not a participant in this trade.', 403);
+    }
+    if (locked.status !== 'pending') {
+      throw statusError(`Trade cannot be accepted in status '${locked.status}'.`, 409);
+    }
+    if (locked.recipient_id !== userId) {
+      throw statusError('Only the recipient can accept a trade.', 403);
+    }
 
-  await db.query(
-    `UPDATE trade_requests
-     SET status = 'accepted', accepted_at = NOW(),
-         rating_eligible_at = COALESCE(rating_eligible_at, NOW()),
-         expires_at = NOW() + INTERVAL '30 days', updated_at = NOW()
-     WHERE id = $1`,
-    [tradeId]
-  );
+    // Re-assert the soft-reservation invariant before flipping to accepted:
+    // for each side, ensure proposed give-quantities + already-committed in
+    // other accepted trades fit within owned quantity. createTrade enforces
+    // this at creation time, but a parallel pending trade can be accepted
+    // between then and now. Best-effort — two concurrent acceptTrade calls
+    // can still both succeed (we only hold a row lock on this trade, not on
+    // conflicting trades' items); completion-time inventory validation
+    // cancels whichever trade loses the race.
+    const { rows: itemRows } = await client.query<{
+      sticker_variant_id: string; direction: 'offer' | 'want'; quantity: number;
+    }>(
+      `SELECT sticker_variant_id, direction, quantity FROM trade_items WHERE trade_id = $1`,
+      [tradeId],
+    );
+    const sideItems = (dir: 'offer' | 'want') =>
+      itemRows.filter((i) => i.direction === dir).map((i) => ({
+        variantId: i.sticker_variant_id, quantity: i.quantity,
+      }));
+    await assertSufficientUncommittedQuantity(client, [
+      { userId: locked.requester_id, albumId: locked.requester_album_id, items: sideItems('offer') },
+      { userId: locked.recipient_id, albumId: locked.recipient_album_id, items: sideItems('want') },
+    ]);
+
+    await client.query(
+      `UPDATE trade_requests
+       SET status = 'accepted', accepted_at = NOW(),
+           rating_eligible_at = COALESCE(rating_eligible_at, NOW()),
+           expires_at = NOW() + INTERVAL '30 days', updated_at = NOW()
+       WHERE id = $1`,
+      [tradeId],
+    );
+  });
+
   await sendSystemMessage(db, redis, tradeId, 'Trade accepted.');
   await publishTradeEvent(redis, tradeId, 'status_changed', { trade_id: tradeId, status: 'accepted' });
 }
@@ -626,6 +663,7 @@ export async function declineTrade(
     `UPDATE trade_requests SET status = 'declined', updated_at = NOW() WHERE id = $1`,
     [tradeId]
   );
+  await sendSystemMessage(db, redis, tradeId, 'Trade declined.');
   await publishTradeEvent(redis, tradeId, 'status_changed', { trade_id: tradeId, status: 'declined' });
 }
 
@@ -654,13 +692,17 @@ export async function counterTrade(
     const { rows: lockedRows } = await client.query<{
       requester_id: string;
       recipient_id: string;
+      requester_album_id: string;
+      recipient_album_id: string;
       status: string;
       counter_count: number;
       offer_cash: number;
       want_cash: number;
       album_type_id: string;
     }>(
-      `SELECT tr.requester_id, tr.recipient_id, tr.status, tr.counter_count,
+      `SELECT tr.requester_id, tr.recipient_id,
+              tr.requester_album_id, tr.recipient_album_id,
+              tr.status, tr.counter_count,
               tr.offer_cash, tr.want_cash, ua.album_type_id
        FROM trade_requests tr
        JOIN user_albums ua ON ua.id = tr.requester_album_id
@@ -679,17 +721,23 @@ export async function counterTrade(
 
     await assertVariantsBelongToAlbumType(client, items.map((i) => i.variantId), locked.album_type_id);
 
-    // After a counter the submitter becomes the new requester; check their offered
-    // stickers aren't locked in another accepted trade, and likewise for the other party.
+    // After the counter is committed below, the submitter becomes the new
+    // requester and the album IDs swap. Resolve each side's album from the
+    // current row, not the post-swap shape: the submitter's offer items come
+    // from whichever album they currently hold (recipient_album_id if they
+    // were the recipient, requester_album_id otherwise), and the other side's
+    // want items come from the other album.
     const counterOtherUserId = locked.requester_id === userId ? locked.recipient_id : locked.requester_id;
-    await assertNotOfferedInAcceptedTrade(
-      client, userId,
-      items.filter((i) => i.direction === 'offer').map((i) => i.variantId),
-    );
-    await assertNotOfferedInAcceptedTrade(
-      client, counterOtherUserId,
-      items.filter((i) => i.direction === 'want').map((i) => i.variantId),
-    );
+    const submitterAlbumId = locked.recipient_id === userId
+      ? locked.recipient_album_id : locked.requester_album_id;
+    const otherAlbumId = locked.recipient_id === userId
+      ? locked.requester_album_id : locked.recipient_album_id;
+    const toCommitItems = (dir: 'offer' | 'want') =>
+      items.filter((i) => i.direction === dir).map((i) => ({ variantId: i.variantId, quantity: i.quantity }));
+    await assertSufficientUncommittedQuantity(client, [
+      { userId, albumId: submitterAlbumId, items: toCommitItems('offer') },
+      { userId: counterOtherUserId, albumId: otherAlbumId, items: toCommitItems('want') },
+    ]);
 
     // Snapshot old items (with display labels) before deleting them. We pull
     // variant_type too because a trade can now contain multiple variants of
@@ -851,13 +899,17 @@ export async function editTrade(
     const { rows: lockedRows } = await client.query<{
       requester_id: string;
       recipient_id: string;
+      requester_album_id: string;
+      recipient_album_id: string;
       status: string;
       counter_count: number;
       offer_cash: number;
       want_cash: number;
       album_type_id: string;
     }>(
-      `SELECT tr.requester_id, tr.recipient_id, tr.status, tr.counter_count,
+      `SELECT tr.requester_id, tr.recipient_id,
+              tr.requester_album_id, tr.recipient_album_id,
+              tr.status, tr.counter_count,
               tr.offer_cash, tr.want_cash, ua.album_type_id
        FROM trade_requests tr
        JOIN user_albums ua ON ua.id = tr.requester_album_id
@@ -878,14 +930,12 @@ export async function editTrade(
 
     await assertVariantsBelongToAlbumType(client, items.map((i) => i.variantId), locked.album_type_id);
 
-    await assertNotOfferedInAcceptedTrade(
-      client, userId,
-      items.filter((i) => i.direction === 'offer').map((i) => i.variantId),
-    );
-    await assertNotOfferedInAcceptedTrade(
-      client, locked.recipient_id,
-      items.filter((i) => i.direction === 'want').map((i) => i.variantId),
-    );
+    const toCommitItems = (dir: 'offer' | 'want') =>
+      items.filter((i) => i.direction === dir).map((i) => ({ variantId: i.variantId, quantity: i.quantity }));
+    await assertSufficientUncommittedQuantity(client, [
+      { userId, albumId: locked.requester_album_id, items: toCommitItems('offer') },
+      { userId: locked.recipient_id, albumId: locked.recipient_album_id, items: toCommitItems('want') },
+    ]);
 
     // Snapshot old items for the diff message. variant_type tags the rows
     // so multi-variant trades render unambiguously — see counterTrade for
@@ -1017,6 +1067,18 @@ export async function cancelTrade(
     throw statusError(`Trade cannot be cancelled in status '${trade.status}'.`, 409);
   }
 
+  // Snapshot the items + givers before flipping status so we can re-notify
+  // pending trades whose acceptance was soft-blocked by this one. Only
+  // matters when the trade was actually 'accepted' — pending→cancelled
+  // released nothing.
+  const wasAccepted = trade.status === 'accepted';
+  const { rows: itemRows } = wasAccepted
+    ? await db.query<{ sticker_variant_id: string; direction: 'offer' | 'want' }>(
+        `SELECT sticker_variant_id, direction FROM trade_items WHERE trade_id = $1`,
+        [tradeId],
+      )
+    : { rows: [] as { sticker_variant_id: string; direction: 'offer' | 'want' }[] };
+
   await db.query(
     `UPDATE trade_requests
      SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
@@ -1025,6 +1087,19 @@ export async function cancelTrade(
   );
   await sendSystemMessage(db, redis, tradeId, 'Trade cancelled.');
   await publishTradeEvent(redis, tradeId, 'status_changed', { trade_id: tradeId, status: 'cancelled' });
+
+  if (wasAccepted) {
+    await notifyRestoredAvailability(db, redis, tradeId, [
+      {
+        userId: trade.requester_id,
+        variantIds: itemRows.filter((i) => i.direction === 'offer').map((i) => i.sticker_variant_id),
+      },
+      {
+        userId: trade.recipient_id,
+        variantIds: itemRows.filter((i) => i.direction === 'want').map((i) => i.sticker_variant_id),
+      },
+    ]);
+  }
 }
 
 /**
