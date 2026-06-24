@@ -57,14 +57,20 @@ describe('buildAlbumExportText', () => {
     expect(text.endsWith('https://cromotrade.ca/u/luisa')).toBe(true);
   });
 
-  it('groups stickers by team and orders team buckets before special buckets', async () => {
+  it('walks items in album order and re-emits FWC after teams when split', async () => {
+    // Real FIFA album layout: FWC head (00 + FWC1–FWC8), then 48 team pages,
+    // then FWC tail (FWC9–FWC19), then Coca-Cola, then Extras. The export
+    // walks by sticker number and emits a fresh bucket header each time the
+    // section changes, so FWC renders twice — once before and once after teams.
     vi.mocked(fetchPublicOffered).mockResolvedValueOnce({
       items: [
-        item({ albumCode: 'BRA5', number: 5, teamName: 'Brazil' }),
-        item({ albumCode: 'FWC2', number: 2, stickerType: 'intro' }),
-        item({ albumCode: 'EX1', number: 1, stickerType: 'extra' }),
-        item({ albumCode: 'CC4', number: 4, stickerType: 'coca_cola_special' }),
-        item({ albumCode: 'ARG7', number: 7, teamName: 'Argentina' }),
+        item({ albumCode: '00', number: 0, stickerType: 'intro' }),
+        item({ albumCode: 'FWC3', number: 3, stickerType: 'intro' }),
+        item({ albumCode: 'ARG30', number: 30, teamName: 'Argentina' }),
+        item({ albumCode: 'BRA50', number: 50, teamName: 'Brazil' }),
+        item({ albumCode: 'FWC12', number: 600, stickerType: 'intro' }),
+        item({ albumCode: 'CC4', number: 700, stickerType: 'coca_cola_special' }),
+        item({ albumCode: 'EX1', number: 800, stickerType: 'extra' }),
       ],
       nextCursor: null,
     } as any);
@@ -74,21 +80,17 @@ describe('buildAlbumExportText', () => {
     } as any);
 
     const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
-
     const offers = text.split('\n\n')[0]!;
-    const fwcIdx = offers.indexOf('FWC:');
-    const ccIdx = offers.indexOf('Coca-Cola:');
-    const exIdx = offers.indexOf('Extras:');
-    const argIdx = offers.indexOf('Argentina:');
-    const braIdx = offers.indexOf('Brazil:');
+    const lines = offers.split('\n').slice(1); // skip "Offers | Album" header
 
-    // Special buckets (FWC, Coca-Cola, Extras) sort to the END, after teams,
-    // and among themselves they keep the declared FWC → CC → Extras order.
-    expect(argIdx).toBeGreaterThan(-1);
-    expect(braIdx).toBeGreaterThan(argIdx);
-    expect(fwcIdx).toBeGreaterThan(braIdx);
-    expect(ccIdx).toBeGreaterThan(fwcIdx);
-    expect(exIdx).toBeGreaterThan(ccIdx);
+    expect(lines).toEqual([
+      'FWC: 00, FWC3',
+      'Argentina: ARG30',
+      'Brazil: BRA50',
+      'FWC: FWC12',
+      'Coca-Cola: CC4',
+      'Extras: EX1',
+    ]);
   });
 
   it('sorts stickers within a team by sticker number', async () => {

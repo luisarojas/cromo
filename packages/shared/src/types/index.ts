@@ -405,6 +405,8 @@ export interface ExternalListItem {
 export interface ExternalStickerRef {
   albumCode: string
   playerName: string | null
+  /** Team for player/badge/team_photo stickers; null for FWC, CC, Extras. */
+  teamName: string | null
   stickerType: StickerType | null
   number: number | null
   /** Resolved variant. Null means "the input didn't tag a variant and we

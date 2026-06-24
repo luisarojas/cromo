@@ -679,7 +679,7 @@
     "addAtLeastOne": "Agrega al menos un código a alguna lista.",
     "failedToCompute": "Error al calcular el intercambio.",
     "matching": "Calculando…",
-    "findOptimal": "Buscar intercambio óptimo",
+    "findOptimal": "Optimizar intercambio",
     "nameForFirst": "Nombre del primer coleccionista",
     "nameForSecond": "Nombre del segundo coleccionista",
     "theirList": "Su lista",

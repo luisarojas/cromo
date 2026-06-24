@@ -18,15 +18,56 @@ interface Props {
   balance?: ScarcityTotals;
 }
 
+const BUCKET_BY_TYPE: Record<string, string> = {
+  intro: 'FWC',
+  coca_cola_special: 'Coca-Cola',
+  extra: 'Extras',
+};
+
+function bucketFor(ref: ExternalStickerRef): string {
+  if (ref.stickerType && BUCKET_BY_TYPE[ref.stickerType]) {
+    return BUCKET_BY_TYPE[ref.stickerType]!;
+  }
+  return ref.teamName ?? 'Other';
+}
+
+function groupRefs(refs: ExternalStickerRef[]): Array<{ bucket: string; items: ExternalStickerRef[] }> {
+  // Walk refs in album order (by sticker number) and emit a fresh bucket each
+  // time the section changes. Mirrors the album page's StickerGrid: FWC
+  // stickers split into head (FWC1–FWC8) and tail (FWC9+) runs surrounding the
+  // team pages, so the panel reads as FWC → teams → FWC → Coca-Cola → Extras.
+  const sorted = [...refs].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+  const out: Array<{ bucket: string; items: ExternalStickerRef[] }> = [];
+  for (const r of sorted) {
+    const key = bucketFor(r);
+    const last = out[out.length - 1];
+    if (last && last.bucket === key) {
+      last.items.push(r);
+    } else {
+      out.push({ bucket: key, items: [r] });
+    }
+  }
+  return out;
+}
+
 function refLine(r: ExternalStickerRef): string {
   const player = r.playerName ?? 'Unknown';
   const variantSuffix = r.variantLabel && r.variantToken !== 'base_borderless' && r.variantToken !== 'base_border'
     ? ` (${r.variantLabel})` : '';
-  const tag = r.stickerType === 'extra' ? ' [Extra]'
-    : r.stickerType === 'coca_cola_special' ? ' [Coca-Cola]'
-    : '';
   const qty = r.quantity > 1 ? ` ×${r.quantity}` : '';
-  return `  ${r.albumCode.padEnd(6)} ${player}${variantSuffix}${tag}${qty}`;
+  return `  ${r.albumCode.padEnd(6)} ${player}${variantSuffix}${qty}`;
+}
+
+function sectionLines(refs: ExternalStickerRef[]): string[] {
+  if (refs.length === 0) return ['  —'];
+  const groups = groupRefs(refs);
+  const lines: string[] = [];
+  groups.forEach((g, i) => {
+    if (i > 0) lines.push('');
+    lines.push(`${g.bucket}:`);
+    lines.push(...g.items.map(refLine));
+  });
+  return lines;
 }
 
 function buildShareText(
@@ -38,10 +79,10 @@ function buildShareText(
 ): string {
   const lines: string[] = [title, ''];
   lines.push(`${leftLabel} receives (${leftReceives.length}):`);
-  lines.push(...(leftReceives.length === 0 ? ['  —'] : leftReceives.map(refLine)));
+  lines.push(...sectionLines(leftReceives));
   lines.push('');
   lines.push(`${rightLabel} receives (${rightReceives.length}):`);
-  lines.push(...(rightReceives.length === 0 ? ['  —'] : rightReceives.map(refLine)));
+  lines.push(...sectionLines(rightReceives));
   lines.push('');
   lines.push('Matched via cromotrade.ca');
   return lines.join('\n');
@@ -49,6 +90,35 @@ function buildShareText(
 
 function isBaseToken(token: string | null): boolean {
   return token === 'base_border' || token === 'base_borderless';
+}
+
+function ReceivedColumn({ label, refs }: { label: string; refs: ExternalStickerRef[] }) {
+  const groups = groupRefs(refs);
+  return (
+    <div>
+      <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
+        {label} receives ({refs.length})
+      </p>
+      {refs.length === 0 ? (
+        <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing.</p>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((g, i) => (
+            <div key={`${g.bucket}|${i}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-fg-subtle)] mb-1">
+                {g.bucket}
+              </p>
+              <ul className="space-y-1.5">
+                {g.items.map((r) => (
+                  <StickerLine key={`${r.albumCode}|${r.variantToken ?? ''}`} ref={r} />
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function StickerLine({ ref }: { ref: ExternalStickerRef }) {
@@ -67,12 +137,6 @@ function StickerLine({ ref }: { ref: ExternalStickerRef }) {
       )}
       {ref.quantity > 1 && (
         <span className="text-xs text-[var(--cromo-fg-muted)]">×{ref.quantity}</span>
-      )}
-      {ref.stickerType === 'extra' && (
-        <span className="text-xs text-[var(--cromo-accent)]">Extra</span>
-      )}
-      {ref.stickerType === 'coca_cola_special' && (
-        <span className="text-xs text-[var(--cromo-accent)]">Coca-Cola</span>
       )}
     </li>
   );
@@ -217,34 +281,8 @@ export default function ExternalMatchResult({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
-            {leftLabel} receives ({leftReceives.length})
-          </p>
-          {leftReceives.length === 0 ? (
-            <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {leftReceives.map((r) => (
-                <StickerLine key={`${r.albumCode}|${r.variantToken ?? ''}`} ref={r} />
-              ))}
-            </ul>
-          )}
-        </div>
-        <div>
-          <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
-            {rightLabel} receives ({rightReceives.length})
-          </p>
-          {rightReceives.length === 0 ? (
-            <p className="text-xs text-[var(--cromo-fg-subtle)]">Nothing.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {rightReceives.map((r) => (
-                <StickerLine key={`${r.albumCode}|${r.variantToken ?? ''}`} ref={r} />
-              ))}
-            </ul>
-          )}
-        </div>
+        <ReceivedColumn label={leftLabel} refs={leftReceives} />
+        <ReceivedColumn label={rightLabel} refs={rightReceives} />
       </div>
 
       {unknownCodes.length > 0 && (

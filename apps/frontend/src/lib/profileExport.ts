@@ -17,19 +17,9 @@ const BUCKET_BY_TYPE: Record<string, string> = {
   coca_cola_special: 'Coca-Cola',
   extra: 'Extras',
 };
-const SPECIAL_BUCKET_ORDER = ['FWC', 'Coca-Cola', 'Extras', 'Other'];
 
 function bucketFor(item: PublicInventoryItem): string {
   return BUCKET_BY_TYPE[item.stickerType] ?? item.teamName ?? 'Other';
-}
-
-function compareBuckets(a: string, b: string): number {
-  const ai = SPECIAL_BUCKET_ORDER.indexOf(a);
-  const bi = SPECIAL_BUCKET_ORDER.indexOf(b);
-  if (ai !== -1 && bi !== -1) return ai - bi;
-  if (ai !== -1) return 1;
-  if (bi !== -1) return -1;
-  return a.localeCompare(b);
 }
 
 function formatItem(item: PublicInventoryItem, isOffered: boolean): string {
@@ -43,22 +33,29 @@ function formatItem(item: PublicInventoryItem, isOffered: boolean): string {
 
 function formatSection(items: PublicInventoryItem[], isOffered: boolean): string {
   if (items.length === 0) return '(none)';
-  const grouped = new Map<string, PublicInventoryItem[]>();
-  for (const item of items) {
+  // Walk items in album order (by sticker number) and emit a fresh bucket
+  // header each time the section changes. Mirrors the album page's StickerGrid:
+  // FWC stickers split into head (FWC1–FWC8) and tail (FWC9+) runs surrounding
+  // the team pages, so the export reads as FWC → teams → FWC → Coca-Cola → Extras.
+  const sorted = [...items].sort((a, b) => a.number - b.number);
+  const lines: string[] = [];
+  let runKey: string | null = null;
+  let run: PublicInventoryItem[] = [];
+  const flush = () => {
+    if (runKey === null) return;
+    lines.push(`${runKey}: ${run.map((i) => formatItem(i, isOffered)).join(', ')}`);
+  };
+  for (const item of sorted) {
     const key = bucketFor(item);
-    const bucket = grouped.get(key) ?? [];
-    bucket.push(item);
-    grouped.set(key, bucket);
+    if (key !== runKey) {
+      flush();
+      runKey = key;
+      run = [];
+    }
+    run.push(item);
   }
-  return [...grouped.keys()]
-    .sort(compareBuckets)
-    .map((key) => {
-      const sorted = (grouped.get(key) ?? [])
-        .slice()
-        .sort((a, b) => a.number - b.number);
-      return `${key}: ${sorted.map((i) => formatItem(i, isOffered)).join(', ')}`;
-    })
-    .join('\n');
+  flush();
+  return lines.join('\n');
 }
 
 async function fetchAll(

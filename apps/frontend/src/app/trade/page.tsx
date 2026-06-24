@@ -997,7 +997,7 @@ function TradePageContent() {
               disabled={!tpAlbumId || tpLoading}
               className="mt-4 bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {tpLoading ? 'Matching…' : 'Find Trade'}
+              {tpLoading ? 'Matching…' : 'Optimize Trade'}
             </button>
 
             {tpError && (

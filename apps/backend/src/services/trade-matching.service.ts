@@ -11,6 +11,7 @@ import type { Redis } from 'ioredis';
 import type {
   ExternalListItem,
   ScarcityTotals,
+  StickerType,
   VariantWeights,
 } from '@cromo/shared';
 import {
@@ -473,7 +474,9 @@ export async function getTradeMatches(
 export interface ExternalRef {
   albumCode: string;
   playerName: string | null;
-  stickerType: 'extra' | 'coca_cola_special' | null;
+  /** Team for player/badge/team_photo stickers; null for FWC, CC, Extras. */
+  teamName: string | null;
+  stickerType: StickerType | null;
   number: number | null;
   variantToken: string | null;
   variantLabel: string | null;
@@ -574,6 +577,7 @@ export function dedupeItems(input: ExternalListItem[]): NormalisedItem[] {
 interface CatalogVariantRow {
   album_code: string;
   player_name: string | null;
+  team_name: string | null;
   sticker_type: string;
   number: number;
   variant_type: string;
@@ -583,6 +587,7 @@ interface CatalogVariantRow {
 export interface CatalogEntry {
   albumCode: string;
   playerName: string | null;
+  teamName: string | null;
   stickerType: string;
   number: number;
   /** Variants available for this album_code, keyed by variant_type. */
@@ -601,6 +606,7 @@ export async function lookupCatalogVariants(
   const { rows } = await db.query<CatalogVariantRow>(
     `SELECT s.album_code,
             s.player_name,
+            t.name AS team_name,
             s.sticker_type,
             s.number,
             sv.variant_type,
@@ -608,6 +614,7 @@ export async function lookupCatalogVariants(
        FROM stickers s
        JOIN album_types at ON at.id = s.album_type_id
        JOIN sticker_variants sv ON sv.sticker_id = s.id
+       LEFT JOIN teams t ON t.id = s.team_id
       WHERE at.key = $1
         AND s.album_code = ANY($2::text[])`,
     [albumTypeKey, codes],
@@ -620,6 +627,7 @@ export async function lookupCatalogVariants(
       entry = {
         albumCode: r.album_code,
         playerName: r.player_name,
+        teamName: r.team_name,
         stickerType: r.sticker_type,
         number: r.number,
         variants: new Map(),
@@ -629,6 +637,7 @@ export async function lookupCatalogVariants(
       // Stable representative across CC regional alternates: lowest sticker
       // number wins. (Player name displayed in the UI will be that one's.)
       entry.playerName = r.player_name;
+      entry.teamName = r.team_name;
       entry.number = r.number;
     }
     // For shared CC album_codes, the same variant_type may appear once per
@@ -694,14 +703,11 @@ export function resolveItems(
 }
 
 export function refOf(r: ResolvedItem): ExternalRef {
-  const stickerType =
-    r.entry.stickerType === 'extra' ? 'extra'
-    : r.entry.stickerType === 'coca_cola_special' ? 'coca_cola_special'
-    : null;
   return {
     albumCode: r.entry.albumCode,
     playerName: r.entry.playerName,
-    stickerType,
+    teamName: r.entry.teamName,
+    stickerType: r.entry.stickerType as StickerType,
     number: r.entry.number,
     variantToken: r.variantType,
     variantLabel: labelFor(r.variantType),

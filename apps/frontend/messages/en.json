@@ -679,7 +679,7 @@
     "addAtLeastOne": "Add at least one code to one of the lists.",
     "failedToCompute": "Failed to compute match.",
     "matching": "Matching…",
-    "findOptimal": "Find Optimal Trade",
+    "findOptimal": "Optimize Trade",
     "nameForFirst": "Name for the first collector",
     "nameForSecond": "Name for the second collector",
     "theirList": "Their list",
