@@ -87,6 +87,20 @@ const envSchema = z.object({
   // Public base URL the frontend resolves avatar paths against. CloudFront
   // domain in prod (e.g. https://cdn.cromotrade.ca); raw S3 URL in dev.
   UPLOADS_PUBLIC_URL: z.string().url().optional(),
+
+  // Admin sticker edits round-trip back to the seed files in git.
+  // GITHUB_TOKEN: PAT with `repo` scope (or fine-grained Contents+PR write).
+  //   Unset → seed-writer falls back to direct local file writes (dev only),
+  //   so the operator commits manually.
+  // GITHUB_REPO: `<owner>/<name>` (e.g. `luisarojas/cromo`). Required when
+  //   GITHUB_TOKEN is set.
+  // GITHUB_BASE_BRANCH: branch the PR targets. Defaults to `main`.
+  GITHUB_TOKEN:       z.string().optional(),
+  GITHUB_REPO:        z.string().optional(),
+  GITHUB_BASE_BRANCH: z.string().default('main'),
+  // Absolute path to the repo's `scripts/seeds/` dir on disk. In dev this is
+  // bind-mounted at /app/scripts/seeds. Used by the local-file fallback.
+  SEEDS_DIR:          z.string().default('/app/scripts/seeds'),
 });
 
 export type Env = z.infer<typeof envSchema>;

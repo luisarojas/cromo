@@ -370,8 +370,12 @@ describe.skipIf(!shouldRun)('Admin routes (integration)', () => {
         payload: { playerName: newName },
       });
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ playerName: string }>();
+      const body = res.json<{ playerName: string; seedPush: { mode: string; reason?: string } }>();
       expect(body.playerName).toBe(newName);
+      // Tests run with NODE_ENV=test, so the seed-file/PR side effect is
+      // gated off — but the route still surfaces the outcome.
+      expect(body.seedPush.mode).toBe('skipped');
+      expect(body.seedPush.reason).toBe('NODE_ENV=test');
 
       // Audit row written by the admin.
       const { rowCount } = await app.db.query(

@@ -5,8 +5,15 @@ import {
   fetchAllStickers,
   patchAdminSticker,
   type Sticker,
+  type SeedPushOutcome,
 } from '@/lib/api';
 import { foldAccents } from '@/lib/normalize';
+
+interface SeedPushNotice {
+  stickerId: string;
+  albumCode: string;
+  outcome: SeedPushOutcome;
+}
 
 interface EditForm {
   playerName: string;
@@ -95,12 +102,85 @@ function EditRow({
   );
 }
 
+function SeedPushBanner({
+  notice,
+  onDismiss,
+}: {
+  notice: SeedPushNotice;
+  onDismiss: () => void;
+}) {
+  const { albumCode, outcome } = notice;
+  const body = (() => {
+    switch (outcome.mode) {
+      case 'github':
+        return (
+          <>
+            PR opened —{' '}
+            <a
+              href={outcome.pullRequestUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--cromo-accent)] underline hover:no-underline"
+            >
+              merge to persist
+            </a>
+            . Until then, a backend restart will reseed this row back.
+          </>
+        );
+      case 'local':
+        return (
+          <>
+            Wrote local file{' '}
+            <code className="font-mono text-[11px] bg-[var(--cromo-surface-2)] px-1 py-0.5 rounded">
+              {outcome.localPath}
+            </code>{' '}
+            — commit it to make the edit survive a rebuild.
+          </>
+        );
+      case 'skipped':
+        if (outcome.error) {
+          return (
+            <>
+              <span className="font-medium text-[var(--cromo-danger-text)]">
+                Seed-file push failed:
+              </span>{' '}
+              {outcome.error}. Live DB is updated; the seed file is now out of sync.
+            </>
+          );
+        }
+        return (
+          <>No seed-file change required ({outcome.reason ?? 'DB-only field'}).</>
+        );
+    }
+  })();
+  return (
+    <li className="rounded-lg border border-[var(--cromo-accent)]/30 bg-[var(--cromo-accent-soft)] p-3 flex items-start justify-between gap-3">
+      <div className="text-xs text-[var(--cromo-fg-muted)]">
+        <span className="font-mono font-semibold text-[var(--cromo-fg)]">{albumCode}</span>{' '}
+        — {body}
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="shrink-0 rounded text-[var(--cromo-fg-subtle)] text-xs px-2 py-1 hover:text-[var(--cromo-fg-muted)] transition-colors"
+      >
+        ✕
+      </button>
+    </li>
+  );
+}
+
 export default function StickersSection({ token }: { token: string }) {
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Surface the seed-push outcome for recent saves so the operator can
+  // (a) merge the PR or (b) commit the locally-edited seed file. Newest
+  // first; dismissible.
+  const [notices, setNotices] = useState<SeedPushNotice[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,9 +209,17 @@ export default function StickersSection({ token }: { token: string }) {
       const updated = await patchAdminSticker(id, body, token);
       setStickers((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
       setEditingId(null);
+      setNotices((prev) => [
+        { stickerId: id, albumCode: updated.albumCode, outcome: updated.seedPush },
+        ...prev.filter((n) => n.stickerId !== id),
+      ]);
     },
     [token],
   );
+
+  const dismissNotice = useCallback((stickerId: string) => {
+    setNotices((prev) => prev.filter((n) => n.stickerId !== stickerId));
+  }, []);
 
   const filtered = stickers.filter((s) => {
     if (!search) return true;
@@ -178,6 +266,14 @@ export default function StickersSection({ token }: { token: string }) {
         <div className="rounded-lg bg-[var(--cromo-danger-soft)] border border-[var(--cromo-danger)]/30 p-3 text-sm text-[var(--cromo-danger-text)] mb-4">
           {error}
         </div>
+      )}
+
+      {notices.length > 0 && (
+        <ul className="flex flex-col gap-2 mb-4">
+          {notices.map((n) => (
+            <SeedPushBanner key={n.stickerId} notice={n} onDismiss={() => dismissNotice(n.stickerId)} />
+          ))}
+        </ul>
       )}
 
       {loading ? (

@@ -6,6 +6,8 @@ import { getTrustScore } from '../../services/trust-safety.service.js';
 import { hashEmailForBan } from '../../services/user-provisioning.js';
 import { env } from '../../env.js';
 import * as cognitoAdmin from '../../services/cognito-admin.js';
+import { planSeedEdit, SeedEditError } from '../../services/seed-writer.service.js';
+import { pushSeedEdit, GithubPushError } from '../../services/github-pr.service.js';
 
 const adminOnly = { preHandler: [verifyToken, requireRole('admin')] };
 
@@ -33,6 +35,97 @@ async function syncBannedEmailForUser(
     );
   } else {
     await db.query(`DELETE FROM banned_emails WHERE hashed_email = $1`, [hashed]);
+  }
+}
+
+type StickerRow = {
+  id: string;
+  number: number;
+  album_code: string;
+  player_name: string | null;
+  position: string | null;
+  sticker_type: string;
+  notes: string | null;
+};
+
+type PatchBody = {
+  playerName?: string | null;
+  position?: string | null;
+  notes?: string | null;
+};
+
+type SeedPushOutcome =
+  | { mode: 'github'; pull_request_url: string; branch: string }
+  | { mode: 'local'; local_path: string }
+  | { mode: 'skipped'; reason?: string; error?: string };
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+/**
+ * Plans + pushes the seed-file rewrite for an admin sticker edit. Throws on
+ * unexpected failure; returns a `skipped` outcome when the edit doesn't
+ * touch any seed-tracked column (e.g. notes-only).
+ */
+async function tryPushSeedEdit(
+  sticker: StickerRow,
+  changes: PatchBody,
+  request: FastifyRequest,
+): Promise<SeedPushOutcome> {
+  // Integration tests share the dev DB and exercise this endpoint without a
+  // GitHub token; the local-file fallback would dirty the bind-mounted seed
+  // files as a side effect. Skip the push entirely under NODE_ENV=test so
+  // the tests stay isolated; the response still surfaces the outcome.
+  if (env.NODE_ENV === 'test') {
+    return { mode: 'skipped', reason: 'NODE_ENV=test' };
+  }
+
+  // Build the seed-writer input: only forward the seed-tracked columns;
+  // `notes` lives in the DB only, so a notes-only edit has nothing to ship.
+  const seedChanges: { playerName?: string | null; position?: string | null } = {};
+  if ('playerName' in changes) seedChanges.playerName = changes.playerName ?? null;
+  if ('position' in changes) seedChanges.position = changes.position ?? null;
+
+  let plan;
+  try {
+    plan = planSeedEdit({
+      stickerType: sticker.sticker_type,
+      stickerNumber: sticker.number,
+      changes: seedChanges,
+    });
+  } catch (err) {
+    if (err instanceof SeedEditError && (err.code === 'NO_CHANGES' || err.code === 'NO_TARGET_FILE')) {
+      return { mode: 'skipped', reason: err.code };
+    }
+    throw err;
+  }
+
+  const actor = await request.server.db.query<{ username: string }>(
+    `SELECT username FROM users WHERE id = $1`,
+    [request.userId!],
+  );
+  const stickerLabel = `${sticker.album_code} (${sticker.player_name ?? 'no name'})`;
+
+  try {
+    const result = await pushSeedEdit(plan, {
+      stickerLabel,
+      actorUsername: actor.rows[0]?.username ?? 'unknown',
+    });
+    if (result.mode === 'github') {
+      return {
+        mode: 'github',
+        pull_request_url: result.pullRequestUrl!,
+        branch: result.branch!,
+      };
+    }
+    return { mode: 'local', local_path: result.localPath! };
+  } catch (err) {
+    if (err instanceof GithubPushError || err instanceof SeedEditError) {
+      return { mode: 'skipped', error: err.message };
+    }
+    throw err;
   }
 }
 
@@ -553,6 +646,23 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
               position:     { type: 'string', nullable: true },
               sticker_type: { type: 'string' },
               notes:        { type: 'string', nullable: true },
+              // Where the seed-file rewrite landed. `mode: 'github'` →
+              // pull_request_url is the open PR; `mode: 'local'` → the dev
+              // bind-mounted file was edited in place. `mode: 'skipped'`
+              // means only DB-only fields changed (e.g. notes) and no seed
+              // file owns them — DB is updated, nothing to commit. `error`
+              // is the human-readable failure when seed/PR push failed but
+              // the DB UPDATE itself succeeded.
+              seed_push: {
+                type: 'object',
+                properties: {
+                  mode:             { type: 'string' },
+                  pull_request_url: { type: 'string' },
+                  branch:           { type: 'string' },
+                  local_path:       { type: 'string' },
+                  error:            { type: 'string' },
+                },
+              },
             },
           },
           403: {
@@ -636,7 +746,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      const updated = rows[0];
+      const updated = rows[0]!;
 
       await recordAudit(fastify.db, request.userId!, 'sticker_updated', {
         stickerId: id,
@@ -646,7 +756,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       // Bust the catalog version cache so every browser refetches.
       await fastify.redis.del('cromo:catalog_version').catch(() => undefined);
 
-      return reply.status(200).send(updated);
+      // Round-trip the edit back to the seed file in git. Failures here are
+      // surfaced in the response but do NOT roll back the live DB edit — the
+      // admin still sees their change applied, and the operator has signal
+      // (in the UI + audit log) that the seed file is now out of sync.
+      const seedPush = await tryPushSeedEdit(updated, body, request).catch(
+        (err) => ({ mode: 'skipped' as const, error: errorMessage(err) }),
+      );
+
+      return reply.status(200).send({ ...updated, seed_push: seedPush });
     }
   );
 }

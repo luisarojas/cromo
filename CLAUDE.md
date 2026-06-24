@@ -41,6 +41,33 @@ The frontend's localStorage cache is keyed off `GET /api/v1/stickers/version`, d
 
 After a reseed, also flush Redis (`docker compose ... exec cache redis-cli FLUSHALL`) — the backend caches sticker lists for 1h and the version probe for 5min. Admin edits via `PATCH /api/v1/admin/stickers/:id` bust `cromo:catalog_version` automatically.
 
+### Admin Sticker Edits — Round-Trip Back To The Seed Files
+
+The catalog seed SQL files in `scripts/seeds/0{2,3,8}_*.sql` and `10_extra_stickers.sql` are the source of truth for `player_name` / `position`. Their `ON CONFLICT (album_type_id, number) DO UPDATE SET …` clauses include both columns, so a reseed-on-boot (which runs every time `runCatalogSeed` fires — i.e. every container start) overwrites whatever's in the DB with whatever's in the SQL file. **That's intentional.** An admin UI edit that lived only in the DB would be wiped on the next deploy.
+
+`PATCH /api/v1/admin/stickers/:id`:
+
+1. Updates the live DB (`stickers.player_name`, `position`, `notes`) so the admin sees the edit immediately.
+2. Records `sticker_updated` in `audit_log`.
+3. Hands off to `services/seed-writer.service.ts → planSeedEdit`, which locates the matching VALUES tuple in the right seed file (by `sticker_type` → file map) and produces a rewritten file. Pure; no I/O.
+4. Hands off to `services/github-pr.service.ts → pushSeedEdit`, which either:
+   - **GitHub mode** (`GITHUB_TOKEN` + `GITHUB_REPO` set) — creates a per-edit branch off `GITHUB_BASE_BRANCH`, commits the file via the Contents API, opens a PR.
+   - **Local mode** (`GITHUB_TOKEN` unset) — writes the rewritten file under `SEEDS_DIR` (bind-mounted at `/app/scripts/seeds` in dev). The operator commits manually.
+5. Returns the outcome on the PATCH response as `seedPush`, which the admin UI renders as a banner (PR link / local path / failure message).
+
+**The window between PATCH and PR merge is the structural cost** of "seed file = SoT": a backend restart in that window will reseed the live row back to its pre-edit value (the SQL file still has the old text). In prod, mitigate by either merging the PR before the next ASG recycle or accepting that the admin will re-apply the edit. There is no transient buffer table — adding one would silently make the DB the SoT, which is exactly what we're avoiding.
+
+**Notes-only edits skip the seed push** (`seedPush.mode === 'skipped'`, `reason: 'NO_CHANGES'`). `notes` is not in any seed file's `ON CONFLICT DO UPDATE SET` clause, so it lives only in the DB; no round-trip is required.
+
+**Tests skip the seed push entirely** (`NODE_ENV=test` short-circuits in the route). Integration tests share the dev DB (per the "Tests — Integration Tests Share The Dev DB" section); writing to bind-mounted seed files as a side effect would dirty the working tree on every PATCH test. The response still surfaces `seedPush.mode === 'skipped'` so callers can assert on the contract.
+
+**Rules:**
+- **Don't change the seeds' `ON CONFLICT DO UPDATE SET` to skip `player_name` / `position`.** That breaks the SoT model — admin edits would persist through reboots without the seed file ever reflecting them.
+- **Don't bypass `seed-writer.service.ts` to hand-edit the SQL.** The parser handles SQL string literals (including embedded `''`), preserves whitespace and untouched fields verbatim, and updates the dead `player_name_col` mirror in `03_team_stickers.sql` only when it matches. Hand-edits will eventually break the AS-clause column alignment.
+- **Don't add new seed files without registering them in `TARGET_BY_STICKER_TYPE`** (in `seed-writer.service.ts`). The map is the *only* place that knows which file owns which sticker; an unmapped `sticker_type` returns `NO_TARGET_FILE` and the PATCH succeeds in the DB but never reaches git.
+- **Don't reference `stickers.id` (UUID) in any seed-file edit.** Greenfield reseeds regenerate UUIDs; the natural key is `(album_type_id, number)` and the parser locates tuples by `number` alone.
+- **Don't commit `GITHUB_TOKEN` to the repo.** It's a PAT with `repo` scope (or fine-grained Contents + PR write on this one repo). In prod it lives in Secrets Manager and is injected via EC2 user-data → `/etc/cromo/cromo.env`, matching the other secret env vars.
+
 ### API Response Casing — Always Use the Global Serializer
 Backend services emit Postgres `snake_case`; a global serializer in `apps/backend/src/app.ts` runs `camelizeKeys` (from `apps/backend/src/utils/casing.ts`) on every JSON response. Wire format is always `camelCase`. Frontend types in `@cromo/shared` and `apps/frontend/src/lib/api/types.ts` describe that; `apps/frontend/src/lib/api.ts` is the per-domain barrel that re-exports them.
 

@@ -72,6 +72,22 @@ export async function deleteAdminUser(id: string, token: string): Promise<void> 
   );
 }
 
+/**
+ * `seedPush` describes where the seed-file rewrite landed:
+ * - `github` — a PR was opened; `pullRequestUrl` is the URL to merge.
+ * - `local` — dev fallback wrote `localPath` directly; commit it manually.
+ * - `skipped` — nothing to ship (notes-only edit, NODE_ENV=test, or the
+ *   seed-write/PR step failed — `error` carries the message in that last case).
+ */
+export type SeedPushOutcome =
+  | { mode: 'github'; pullRequestUrl: string; branch: string }
+  | { mode: 'local'; localPath: string }
+  | { mode: 'skipped'; reason?: string; error?: string };
+
+export type PatchAdminStickerResponse = Sticker & {
+  seedPush: SeedPushOutcome;
+};
+
 export async function patchAdminSticker(
   id: string,
   body: {
@@ -80,8 +96,8 @@ export async function patchAdminSticker(
     notes?: string;
   },
   token?: string,
-): Promise<Sticker> {
-  return apiFetch<Sticker>(
+): Promise<PatchAdminStickerResponse> {
+  return apiFetch<PatchAdminStickerResponse>(
     `/api/v1/admin/stickers/${id}`,
     {
       method: 'PATCH',
