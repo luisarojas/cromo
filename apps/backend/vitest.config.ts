@@ -20,6 +20,10 @@ export default defineConfig({
         // Owns its own CLI runner branch + integration tests cover the
         // happy path; the runner branch can't execute inside vitest.
         'src/db/migrate.ts',
+        // Catalog seed runner — skipped under NODE_ENV === 'test' (CI calls
+        // scripts/seed-database.sh up front), and exercising it would require
+        // shipping the SQL fixtures into the test denominator for no signal.
+        'src/db/seed.ts',
         // node-cron wiring — exercised via integration tests, not unit
         // tests, and skipped under NODE_ENV === 'test' anyway.
         'src/jobs/scheduler.ts',

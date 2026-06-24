@@ -45,7 +45,7 @@ run_seed scripts/seeds/06_feature_flags.sql
 echo "✓ Feature flags seeded"
 
 run_seed scripts/seeds/08_coca_cola_stickers.sql
-echo "✓ Coca-Cola stickers seeded (CC1–CC12)"
+echo "✓ Coca-Cola stickers seeded (CC1–CC13 + regional alternates)"
 
 run_seed scripts/seeds/10_extra_stickers.sql
 echo "✓ Extra stickers seeded (EX1–EX20, 4 rarities each)"

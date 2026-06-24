@@ -64,6 +64,10 @@ services:
       - ../../apps/backend/tests:/app/apps/backend/tests
       - ../../apps/backend/vitest.config.ts:/app/apps/backend/vitest.config.ts
       - ../../packages/shared/src:/app/packages/shared/src
+      # Catalog seed SQL — the auto-seed runner inside the api container
+      # (src/db/seed.ts) looks here in dev. The production image copies the
+      # same directory into dist/db/seeds via Dockerfile.cloud.
+      - ../../scripts/seeds:/app/scripts/seeds
       - local_uploads:/app/uploads
       # Manifests bind-mounted so the host is the source of truth: dep changes
       # are visible inside the container without rebuilding the image.

@@ -125,6 +125,16 @@ export async function buildApp(): Promise<FastifyInstance> {
   // ── Database & Redis (run migrations before routes) ───────────────────────
   await fastify.register(databasePluginWrapped);
   await fastify.register(redisPluginWrapped);
+  // The catalog seed (run inside databasePlugin) bumps stickers.updated_at
+  // via trigger, but the `cromo:catalog_version` Redis key (5-min TTL) keeps
+  // serving the pre-seed value until it expires — and every `/stickers?v=…`
+  // URL is keyed off that, so browsers + the CDN keep loading the old
+  // snapshot for up to 5 min after a deploy that added/updated catalog rows.
+  // Dropping the key here means the next /version probe recomputes from the
+  // post-seed MAX(updated_at) + COUNT and clients see fresh data immediately.
+  if (env.NODE_ENV !== 'test') {
+    await fastify.redis.del('cromo:catalog_version');
+  }
   await fastify.register(tradeBusPluginWrapped);
   await fastify.register(liveTradeBusPluginWrapped);
 

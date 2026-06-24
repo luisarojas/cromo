@@ -55,6 +55,12 @@ COPY --from=builder /app/apps/backend/dist ./dist
 # JS so the relative path resolution in dist/db/migrate.js still works.
 COPY --from=builder /app/apps/backend/src/db/migrations ./dist/db/migrations
 
+# Catalog seed SQL is read at startup by seed.ts (after migrations). The
+# files live at scripts/seeds/ in the repo for the bash wrapper, but the
+# runtime image needs its own copy alongside the compiled JS so the
+# `path.resolve(__dirname, 'seeds')` candidate in dist/db/seed.js resolves.
+COPY scripts/seeds ./dist/db/seeds
+
 # Run as non-root.
 RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
 USER app

@@ -211,11 +211,11 @@ jobs:
             NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.value }}
 
       - name: Start postgres + redis
-        # Bring infra up first so the seed step has a target. api/frontend
-        # are deferred until after the seed because the backend's startup
-        # path will run drizzle migrations as soon as it can connect — we
-        # want those migrations applied before the seed, which the api's
-        # own startup handles transparently in the next step.
+        # Bring infra up first so the api can connect on its first boot —
+        # the backend startup chain runs drizzle migrations and then the
+        # catalog seed against an empty schema, leaving the e2e stack with
+        # a fully populated dev catalog by the time `Wait for api ready`
+        # returns.
         run: docker compose -f infrastructure/docker/docker-compose.e2e.yml up -d db cache
 
       - name: Wait for postgres
@@ -230,10 +230,11 @@ jobs:
           echo "::error::postgres failed to come up"
           exit 1
 
-      - name: Start api (applies migrations on boot)
-        # The backend image runs `runMigrations()` in its startup chain
-        # (apps/backend/src/db/migrate.ts), so just starting the container
-        # leaves the schema ready for seeding.
+      - name: Start api (applies migrations + catalog seed on boot)
+        # The backend image runs `runMigrations()` and then `runCatalogSeed()`
+        # in its startup chain (apps/backend/src/plugins/database.ts), so by
+        # the time the health probe passes the schema AND the catalog/test-
+        # fixture seeds are in place. No separate seed step needed.
         run: docker compose -f infrastructure/docker/docker-compose.e2e.yml up -d api
 
       - name: Wait for api ready
@@ -248,9 +249,6 @@ jobs:
           echo "::error::api failed to become ready"
           docker compose -f infrastructure/docker/docker-compose.e2e.yml logs api | tail -100
           exit 1
-
-      - name: Seed catalog + test users
-        run: ./scripts/seed-database.sh --remote
 
       - name: Enable scan feature flag
         # The seed already sets FEATURE_AI_SCANNING = true, but assert it
