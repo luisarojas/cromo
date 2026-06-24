@@ -78,7 +78,6 @@ async function gh<T>(token: string, urlPath: string, init: RequestInit = {}): Pr
 }
 
 interface GetBranchResponse { commit: { sha: string } }
-interface CreateRefResponse { ref: string }
 interface GetContentResponse { sha: string; content: string; encoding: string }
 interface CreatePrResponse { html_url: string; number: number }
 
