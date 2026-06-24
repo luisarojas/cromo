@@ -38,6 +38,11 @@ const CRITERION_QUERIES: Record<AchievementCriterionType, (userId: string) => { 
     sql: `SELECT EXISTS(
             -- A team is complete in an album if every album_code for
             -- that team has at least one owned variant in the album.
+            -- Extras (no album slot) and Coca-Cola bonus stickers (back-of-album
+            -- bonus section) are tagged with the player's team_id but are not
+            -- part of the team's album pages, so we exclude them — owning the
+            -- 20 standard stickers (badge + 18 players + team photo) is what
+            -- counts as "team complete" to a collector.
             WITH per_team AS (
               SELECT s.team_id, ua.id AS album_id,
                      COUNT(DISTINCT s.album_code) FILTER (
@@ -50,7 +55,9 @@ const CRITERION_QUERIES: Record<AchievementCriterionType, (userId: string) => { 
                      COUNT(DISTINCT s.album_code) AS total_codes
               FROM user_albums ua
               JOIN stickers s ON s.album_type_id = ua.album_type_id
-              WHERE ua.user_id = $1 AND s.team_id IS NOT NULL
+              WHERE ua.user_id = $1
+                AND s.team_id IS NOT NULL
+                AND s.sticker_type NOT IN ('extra', 'coca_cola_special')
               GROUP BY s.team_id, ua.id
             )
             SELECT 1 FROM per_team WHERE owned_codes = total_codes AND total_codes > 0 LIMIT 1
@@ -60,7 +67,9 @@ const CRITERION_QUERIES: Record<AchievementCriterionType, (userId: string) => { 
   all_teams_complete: (userId) => ({
     sql: `SELECT EXISTS(
             -- A user has "all teams complete" in some album if no team
-            -- in that album has any missing code.
+            -- in that album has any missing code. Same exclusion as
+            -- team_complete_any: Extras and Coca-Cola bonus stickers
+            -- aren't part of the team's album pages.
             WITH per_team AS (
               SELECT ua.id AS album_id, s.team_id,
                      COUNT(DISTINCT s.album_code) FILTER (
@@ -73,7 +82,9 @@ const CRITERION_QUERIES: Record<AchievementCriterionType, (userId: string) => { 
                      COUNT(DISTINCT s.album_code) AS total_codes
               FROM user_albums ua
               JOIN stickers s ON s.album_type_id = ua.album_type_id
-              WHERE ua.user_id = $1 AND s.team_id IS NOT NULL
+              WHERE ua.user_id = $1
+                AND s.team_id IS NOT NULL
+                AND s.sticker_type NOT IN ('extra', 'coca_cola_special')
               GROUP BY ua.id, s.team_id
             ),
             per_album AS (
