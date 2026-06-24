@@ -7,8 +7,14 @@ import type {
   LiveTradeSession,
   LiveTradeStickerRef,
   ScarcityTotals,
+  VariantWeights,
 } from '@cromo/shared';
-import { variantScarcity, TRADE_BALANCE_HIGH, TRADE_BALANCE_LOW } from '@cromo/shared';
+import {
+  effectiveScarcity,
+  TRADE_BALANCE_HIGH,
+  TRADE_BALANCE_LOW,
+  variantScarcity,
+} from '@cromo/shared';
 import { camelizeKeys } from '../utils/casing.js';
 import { env } from '../env.js';
 import { statusError } from '../utils/errors.js';
@@ -74,6 +80,17 @@ interface StoredSession {
   guestStaged: LiveTradeStickerRef[];
   hostLocked: boolean;
   guestLocked: boolean;
+  /** Per-trade weight overrides, applied by computeBalance. Empty object
+   *  means "use the global VARIANT_SCARCITY defaults". Mutated only when the
+   *  opposite party accepts a pending proposal. */
+  activeWeights: VariantWeights;
+  /** Outstanding proposal one party has sent. The other party accepts or
+   *  rejects; whoever proposed can also withdraw. */
+  pendingWeightProposal: {
+    by: 'host' | 'guest';
+    weights: VariantWeights;
+    proposedAt: string;
+  } | null;
   status: 'open' | 'completed';
   completionId: string | null;
   completedAt: string | null;
@@ -213,15 +230,44 @@ function computeSuggestion(session: StoredSession): LiveTradeSession['suggestion
   }
 
   if (hostGives.length === 0 && hostReceives.length === 0) return null;
-  return { hostGives, hostReceives, balance: computeBalance(hostGives, hostReceives) };
+  return {
+    hostGives,
+    hostReceives,
+    balance: computeBalance(hostGives, hostReceives, session.activeWeights ?? {}),
+  };
 }
 
-function computeBalance(give: LiveTradeStickerRef[], get: LiveTradeStickerRef[]): ScarcityTotals {
-  const giveSum = give.reduce((s, r) => s + r.scarcity * r.quantity, 0);
-  const getSum  = get.reduce((s, r) => s + r.scarcity * r.quantity, 0);
+function computeBalance(
+  give: LiveTradeStickerRef[],
+  get: LiveTradeStickerRef[],
+  weights?: VariantWeights | null,
+): ScarcityTotals {
+  const w = (token: string | null) => effectiveScarcity(token, weights);
+  const giveSum = give.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
+  const getSum  = get.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
   const ratio = giveSum === 0 ? null : getSum / giveSum;
-  const lopsided = ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
-  return { give: giveSum, get: getSum, ratio, lopsided };
+  const sameVariant = isSingleVariantTrade(give, get);
+  const lopsided = sameVariant
+    ? ratio !== 1
+    : ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
+  return { give: giveSum, get: getSum, ratio, lopsided, sameVariant };
+}
+
+function isSingleVariantTrade(
+  give: { variantToken: string | null }[],
+  get: { variantToken: string | null }[],
+): boolean {
+  if (give.length === 0 || get.length === 0) return false;
+  const seen = new Set<string>();
+  for (const r of give) {
+    if (!r.variantToken) return false;
+    seen.add(r.variantToken);
+  }
+  for (const r of get) {
+    if (!r.variantToken) return false;
+    seen.add(r.variantToken);
+  }
+  return seen.size === 1;
 }
 
 // ─── Event broadcasting ────────────────────────────────────────────────────
@@ -279,6 +325,8 @@ export function toPublicSession(stored: StoredSession): LiveTradeSession {
     guestStaged: stored.guestStaged,
     hostLocked: stored.hostLocked,
     guestLocked: stored.guestLocked,
+    activeWeights: stored.activeWeights ?? {},
+    pendingWeightProposal: stored.pendingWeightProposal ?? null,
     suggestion: computeSuggestion(stored),
     completion,
     createdAt: stored.createdAt,
@@ -343,6 +391,8 @@ export async function createSession(
     guestStaged: [],
     hostLocked: false,
     guestLocked: false,
+    activeWeights: {},
+    pendingWeightProposal: null,
     status: 'open',
     completionId: null,
     completedAt: null,
@@ -490,6 +540,132 @@ export async function setSideStaged(
     // Editing the pile invalidates locks for the same reason as editing the list.
     session.hostLocked = false;
     session.guestLocked = false;
+    await writeSession(redis, session);
+    await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
+    return toPublicSession(session);
+  });
+}
+
+// ─── Weight negotiation ────────────────────────────────────────────────────
+// Per-trade variant weights live on session.activeWeights; a proposal/accept
+// handshake is required to change them so neither party can rewrite the
+// "value" mid-stage without the other agreeing. Any list/staging edit drops
+// both locks but does NOT clear pending proposals — the proposal can stand
+// across a list edit so the receiver can review it on their own clock.
+
+const MAX_WEIGHT_OVERRIDES = 64;
+
+function sanitiseWeights(input: unknown): VariantWeights {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const out: VariantWeights = {};
+  let count = 0;
+  for (const [rawKey, rawVal] of Object.entries(input as Record<string, unknown>)) {
+    if (count >= MAX_WEIGHT_OVERRIDES) break;
+    const key = rawKey.trim().toLowerCase();
+    if (!/^[a-z0-9_]{1,32}$/.test(key)) continue;
+    const val = typeof rawVal === 'number' ? rawVal : Number(rawVal);
+    if (!Number.isFinite(val) || val <= 0 || val > 100_000) continue;
+    out[key] = Math.round(val * 100) / 100;
+    count++;
+  }
+  return out;
+}
+
+function weightsEqual(a: VariantWeights, b: VariantWeights): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) if (a[k] !== b[k]) return false;
+  return true;
+}
+
+/**
+ * One side proposes a new weight table. The other side must accept before it
+ * takes effect. Replacing an open proposal is allowed only by the original
+ * proposer — withdrawing-and-re-proposing without notice is a worse UX than
+ * just rejecting and counter-proposing.
+ */
+export async function proposeWeights(
+  redis: Redis,
+  sessionId: string,
+  role: Role,
+  rawWeights: unknown,
+): Promise<LiveTradeSession> {
+  return await withSession(redis, sessionId, async (session) => {
+    if (session.status === 'completed') {
+      throw statusError('Cannot negotiate weights on a completed live trade.', 409);
+    }
+    const weights = sanitiseWeights(rawWeights);
+    const existing = session.pendingWeightProposal;
+    if (existing && existing.by !== role) {
+      throw statusError(
+        'The other party already has a proposal open — accept or reject it first.',
+        409,
+      );
+    }
+    // No-op proposals (identical to the active table) are rejected so the UI
+    // doesn't have to special-case "nothing changed" notifications.
+    if (weightsEqual(weights, session.activeWeights ?? {})) {
+      throw statusError('Proposed weights match the active ones — nothing to change.', 409);
+    }
+    session.pendingWeightProposal = {
+      by: role,
+      weights,
+      proposedAt: new Date().toISOString(),
+    };
+    await writeSession(redis, session);
+    await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
+    return toPublicSession(session);
+  });
+}
+
+/**
+ * The non-proposing side accepts: weights become active, both locks drop so
+ * neither side completes against a balance they hadn't seen.
+ */
+export async function acceptWeights(
+  redis: Redis,
+  sessionId: string,
+  role: Role,
+): Promise<LiveTradeSession> {
+  return await withSession(redis, sessionId, async (session) => {
+    if (session.status === 'completed') {
+      throw statusError('Cannot accept weights on a completed live trade.', 409);
+    }
+    const pending = session.pendingWeightProposal;
+    if (!pending) {
+      throw statusError('No weight proposal to accept.', 409);
+    }
+    if (pending.by === role) {
+      throw statusError('Only the other party can accept your proposal.', 409);
+    }
+    session.activeWeights = pending.weights;
+    session.pendingWeightProposal = null;
+    session.hostLocked = false;
+    session.guestLocked = false;
+    await writeSession(redis, session);
+    await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
+    return toPublicSession(session);
+  });
+}
+
+/**
+ * Drop the pending proposal. Either party can reject (the receiver declines,
+ * the proposer withdraws) — same effect, same event.
+ */
+export async function rejectWeights(
+  redis: Redis,
+  sessionId: string,
+  _role: Role,
+): Promise<LiveTradeSession> {
+  return await withSession(redis, sessionId, async (session) => {
+    if (session.status === 'completed') {
+      throw statusError('Cannot reject weights on a completed live trade.', 409);
+    }
+    if (!session.pendingWeightProposal) {
+      throw statusError('No weight proposal to reject.', 409);
+    }
+    session.pendingWeightProposal = null;
     await writeSession(redis, session);
     await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
     return toPublicSession(session);

@@ -88,10 +88,24 @@ const AlbumTypeKeySchema = z
   .max(64)
   .regex(/^[a-z0-9_]+$/, 'albumTypeKey must match /^[a-z0-9_]+$/');
 
+// Per-trade variant weight overrides. The caller's view of what's fair;
+// merged on top of the global VARIANT_SCARCITY defaults inside the service.
+// Bounded the same way variantToken keys are bounded; positive finite values
+// only (the service enforces all three constraints again on receive).
+const VariantWeightsSchema = z
+  .record(
+    VariantTokenSchema.regex(/^[a-z0-9_]+$/),
+    z.number().positive().finite().max(100_000),
+  )
+  .refine((m) => Object.keys(m).length <= 64, {
+    message: 'At most 64 variant weight overrides per trade.',
+  });
+
 const MatchAgainstMeBody = z.object({
   albumId: z.string().uuid(),
   theirOffered: ItemListSchema.default([]),
   theirWanted: ItemListSchema.default([]),
+  variantWeights: VariantWeightsSchema.optional(),
 });
 
 const MatchPairBody = z.object({
@@ -104,6 +118,7 @@ const MatchPairBody = z.object({
     offered: ItemListSchema.default([]),
     wanted: ItemListSchema.default([]),
   }),
+  variantWeights: VariantWeightsSchema.optional(),
 });
 
 const ThirdPartyDeltaSchema = z.object({
@@ -234,6 +249,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           {
             theirOffered: asListItems(parsed.data.theirOffered),
             theirWanted: asListItems(parsed.data.theirWanted),
+            variantWeights: parsed.data.variantWeights,
           },
         );
         return reply.status(200).send(result);
@@ -285,6 +301,7 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
           wanted:  asListItems(parsed.data.b.wanted),
         },
         albumTypeKey: parsed.data.albumTypeKey,
+        variantWeights: parsed.data.variantWeights,
       });
       return reply.status(200).send(result);
     },

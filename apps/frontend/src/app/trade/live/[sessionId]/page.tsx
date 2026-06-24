@@ -6,7 +6,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuthStore } from '@/store/auth';
 import { useToast } from '@/components/ToastProvider';
 import {
+  acceptLiveTradeWeights,
   completeLiveTradeSession,
+  proposeLiveTradeWeights,
+  rejectLiveTradeWeights,
   setLiveTradeList,
   setLiveTradeLock,
   setLiveTradeStaged,
@@ -15,8 +18,10 @@ import {
   type LiveTradeStickerRef,
   type ExternalListItem,
 } from '@/lib/api';
+import type { VariantWeights } from '@cromo/shared';
 import { getGuestToken } from '@/lib/liveTradeStorage';
 import CombinedListInput from '../../components/CombinedListInput';
+import WeightsEditor from '../../components/WeightsEditor';
 import { useLiveTradeSession } from '../useLiveTradeSession';
 
 type Role = 'host' | 'guest';
@@ -223,6 +228,22 @@ function SessionRoom({
     }
   }
 
+  async function handleProposeWeights(weights: VariantWeights) {
+    const next = await withBusy('send proposal', () => proposeLiveTradeWeights(session.id, weights, auth));
+    if (next) onSession(next);
+  }
+  async function handleAcceptWeights() {
+    const next = await withBusy('accept proposal', () => acceptLiveTradeWeights(session.id, auth));
+    if (next) {
+      onSession(next);
+      onToast('Variant weights updated for this trade.', 'success');
+    }
+  }
+  async function handleRejectWeights() {
+    const next = await withBusy('reject proposal', () => rejectLiveTradeWeights(session.id, auth));
+    if (next) onSession(next);
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -266,6 +287,17 @@ function SessionRoom({
           session={session}
           role={role}
           onApply={handleApplySuggestion}
+          busy={busy}
+        />
+      )}
+
+      {!isCompleted && (
+        <WeightsNegotiation
+          session={session}
+          role={role}
+          onPropose={handleProposeWeights}
+          onAccept={handleAcceptWeights}
+          onReject={handleRejectWeights}
           busy={busy}
         />
       )}
@@ -631,6 +663,122 @@ function SuggestionBanner({
       >
         Stage
       </button>
+    </div>
+  );
+}
+
+// ─── Weights negotiation ───────────────────────────────────────────────────
+
+/**
+ * Per-trade variant weight handshake. The session carries an `activeWeights`
+ * table (in effect now) and an optional `pendingWeightProposal` (sent by one
+ * side, awaiting the other's accept/reject). Variant rows shown come from
+ * every variant present in either side's lists — there's no point negotiating
+ * a value for a token nobody's putting on the table.
+ */
+function WeightsNegotiation({
+  session, role, onPropose, onAccept, onReject, busy,
+}: {
+  session: LiveTradeSession;
+  role: Role;
+  onPropose: (weights: VariantWeights) => Promise<void>;
+  onAccept: () => Promise<void>;
+  onReject: () => Promise<void>;
+  busy: boolean;
+}) {
+  const presentVariants = useMemo(() => {
+    const seen = new Set<string>();
+    for (const list of [session.hostList, session.guestList]) {
+      for (const r of [...list.offered, ...list.wanted]) {
+        if (r.variantToken) seen.add(r.variantToken);
+      }
+    }
+    return [...seen];
+  }, [session.hostList, session.guestList]);
+
+  if (presentVariants.length === 0) return null;
+
+  const pending = session.pendingWeightProposal;
+  const proposalIsMine = pending?.by === role;
+
+  return (
+    <div className="mb-4 space-y-3">
+      {pending && (
+        <div
+          className={`rounded-xl border p-3 ${
+            proposalIsMine
+              ? 'border-[var(--cromo-border)] bg-[var(--cromo-surface-2)]'
+              : 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[var(--cromo-fg)]">
+                {proposalIsMine
+                  ? 'You proposed new variant weights'
+                  : 'They proposed new variant weights'}
+              </p>
+              <p className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">
+                {proposalIsMine
+                  ? 'Waiting for the other side to accept or reject.'
+                  : 'Review the override and accept to apply them — locks reset on accept.'}
+              </p>
+            </div>
+            <div className="shrink-0 flex items-center gap-2">
+              {proposalIsMine ? (
+                <button
+                  type="button"
+                  onClick={onReject}
+                  disabled={busy}
+                  className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg)] disabled:opacity-50"
+                >
+                  Withdraw
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={onReject}
+                    disabled={busy}
+                    className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg)] disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onAccept}
+                    disabled={busy}
+                    className="rounded-md bg-[var(--cromo-accent)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
+                  >
+                    Accept
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <ul className="mt-2 grid gap-1 text-xs text-[var(--cromo-fg)]">
+            {Object.entries(pending.weights).map(([token, value]) => (
+              <li key={token} className="flex justify-between gap-2">
+                <span className="truncate">{token}</span>
+                <span className="font-mono">{value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <WeightsEditor
+        presentVariants={presentVariants}
+        weights={session.activeWeights}
+        onCommit={(weights) => onPropose(weights)}
+        busy={busy || !!pending}
+        commitLabel="Propose"
+        hint={
+          pending
+            ? 'A proposal is already on the table — resolve it before sending another.'
+            : 'Propose a per-trade weight table. The other side must accept before it applies.'
+        }
+      />
     </div>
   );
 }

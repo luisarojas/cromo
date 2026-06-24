@@ -40,6 +40,19 @@ const StageBody = z.object({
 
 const LockBody = z.object({ locked: z.boolean() });
 
+// Per-trade variant weight overrides. Same shape and bounds as the
+// third-party match endpoints; the service re-validates inside sanitiseWeights.
+const ProposeWeightsBody = z.object({
+  weights: z
+    .record(
+      z.string().min(1).max(32).regex(/^[a-z0-9_]+$/),
+      z.number().positive().finite().max(100_000),
+    )
+    .refine((m) => Object.keys(m).length <= 64, {
+      message: 'At most 64 variant weight overrides per trade.',
+    }),
+});
+
 function asListItems(items: { albumCode: string; variantToken?: string | null; quantity: number }[]) {
   return items.map((i) => ({
     albumCode: i.albumCode,
@@ -272,6 +285,91 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
       }
       try {
         const session = await live.setSideLock(fastify.redis, id, principal.role, parsed.data.locked);
+        return reply.status(200).send({ session });
+      } catch (err) {
+        return forwardError(reply, err);
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/live-trade/:id/weights/propose
+   * Either party proposes a per-trade variant weight table. The other party
+   * must accept before it becomes the session's active table.
+   */
+  fastify.post(
+    `${prefix}/:id/weights/propose`,
+    {
+      schema: {
+        tags: ['Trade'], summary: 'Propose per-trade variant weights',
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      let principal: ResolvedPrincipal;
+      try { principal = await resolvePrincipal(fastify, request, id); }
+      catch (err) { return forwardError(reply, err); }
+      const parsed = ProposeWeightsBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.message });
+      }
+      try {
+        const session = await live.proposeWeights(
+          fastify.redis, id, principal.role, parsed.data.weights,
+        );
+        return reply.status(200).send({ session });
+      } catch (err) {
+        return forwardError(reply, err);
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/live-trade/:id/weights/accept
+   * The non-proposing party accepts the open proposal; both locks drop.
+   */
+  fastify.post(
+    `${prefix}/:id/weights/accept`,
+    {
+      schema: {
+        tags: ['Trade'], summary: 'Accept a pending weight proposal',
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      let principal: ResolvedPrincipal;
+      try { principal = await resolvePrincipal(fastify, request, id); }
+      catch (err) { return forwardError(reply, err); }
+      try {
+        const session = await live.acceptWeights(fastify.redis, id, principal.role);
+        return reply.status(200).send({ session });
+      } catch (err) {
+        return forwardError(reply, err);
+      }
+    },
+  );
+
+  /**
+   * POST /api/v1/live-trade/:id/weights/reject
+   * Either party drops the open proposal (receiver declines, proposer withdraws).
+   */
+  fastify.post(
+    `${prefix}/:id/weights/reject`,
+    {
+      schema: {
+        tags: ['Trade'], summary: 'Reject or withdraw a pending weight proposal',
+        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      let principal: ResolvedPrincipal;
+      try { principal = await resolvePrincipal(fastify, request, id); }
+      catch (err) { return forwardError(reply, err); }
+      try {
+        const session = await live.rejectWeights(fastify.redis, id, principal.role);
         return reply.status(200).send({ session });
       } catch (err) {
         return forwardError(reply, err);

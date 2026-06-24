@@ -1,3 +1,5 @@
+import type { VariantWeights } from '../constants/index.js'
+
 export type UserRole = 'user' | 'admin'
 export type Locale = 'en' | 'es'
 
@@ -434,8 +436,13 @@ export interface ScarcityTotals {
   /** get / give, or null when give == 0 (no comparison possible). */
   ratio: number | null
   /** True when the ratio falls outside the TRADE_BALANCE band — UI surfaces
-   *  this as a warning, never as an error. */
+   *  this as a warning, never as an error. For single-variant trades the
+   *  band collapses to exact equality. */
   lopsided: boolean
+  /** True when both sides of the trade share exactly one variant token and
+   *  the UI should explain that "fair" here means equal counts, not a
+   *  scarcity-weighted band. */
+  sameVariant: boolean
 }
 
 /** Result of matching a third-party list against the logged-in user. */
@@ -538,6 +545,18 @@ export interface LiveTradeSession {
     hostGives: LiveTradeStickerRef[]
     hostReceives: LiveTradeStickerRef[]
     balance: ScarcityTotals
+  } | null
+  /** Per-trade variant weights. Anything not listed falls back to the global
+   *  VARIANT_SCARCITY table. Empty object means "use defaults everywhere".
+   *  Mutated only via the propose/accept handshake below. */
+  activeWeights: VariantWeights
+  /** A weight table one side has proposed; the other side must accept before
+   *  it becomes `activeWeights`. Cleared on accept or reject. */
+  pendingWeightProposal: {
+    /** Which side sent the proposal. The other side accepts/rejects. */
+    by: 'host' | 'guest'
+    weights: VariantWeights
+    proposedAt: string
   } | null
   /** Set when completion is applied. The 60-second undo window starts here. */
   completion: {

@@ -90,6 +90,20 @@ function balanceMessage(balance: ScarcityTotals, leftLabel: string): {
   if (balance.give === 0 && balance.get === 0) return null;
   const fmt = (n: number) => n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(1);
   const ratio = balance.ratio;
+  // Single-variant trades collapse the band to "equal counts" — scarcity-
+  // weighted math is meaningless when both sides are the same lane.
+  if (balance.sameVariant) {
+    if (!balance.lopsided) {
+      return {
+        tone: 'ok',
+        text: `Same-variant trade — both sides exchange ${fmt(balance.give)} sticker${balance.give === 1 ? '' : 's'}.`,
+      };
+    }
+    return {
+      tone: 'warn',
+      text: `Same-variant trades should be equal counts — ${leftLabel} would give ${fmt(balance.give)} and receive ${fmt(balance.get)}. Even up the piles before sealing.`,
+    };
+  }
   if (!balance.lopsided) {
     return {
       tone: 'ok',

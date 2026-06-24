@@ -12,6 +12,8 @@ import {
 } from '@/lib/api';
 import CombinedListInput from '../components/CombinedListInput';
 import ExternalMatchResult from '../components/ExternalMatchResult';
+import WeightsEditor from '../components/WeightsEditor';
+import type { VariantWeights } from '@cromo/shared';
 
 export default function AnonymousMatchPage() {
   const t = useTranslations('tradeMatch');
@@ -26,6 +28,7 @@ export default function AnonymousMatchPage() {
   const [bOffered, setBOffered] = useState<ExternalListItem[]>([]);
   const [bWanted, setBWanted] = useState<ExternalListItem[]>([]);
   const [result, setResult] = useState<MatchPairResult | null>(null);
+  const [weights, setWeights] = useState<VariantWeights>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +48,7 @@ export default function AnonymousMatchPage() {
     return () => { cancelled = true; };
   }, []);
 
-  async function handleMatch() {
+  async function runMatch(w: VariantWeights) {
     if (
       aOffered.length === 0 && aWanted.length === 0 &&
       bOffered.length === 0 && bWanted.length === 0
@@ -60,6 +63,7 @@ export default function AnonymousMatchPage() {
         albumTypeKey,
         a: { offered: aOffered, wanted: aWanted },
         b: { offered: bOffered, wanted: bWanted },
+        variantWeights: Object.keys(w).length > 0 ? w : undefined,
       });
       setResult(res);
     } catch (err) {
@@ -67,6 +71,16 @@ export default function AnonymousMatchPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleMatch() {
+    return runMatch(weights);
+  }
+
+  async function handleWeightsCommit(next: VariantWeights) {
+    setWeights(next);
+    if (!result) return;
+    return runMatch(next);
   }
 
   return (
@@ -84,7 +98,7 @@ export default function AnonymousMatchPage() {
         </label>
         <select
           value={albumTypeKey}
-          onChange={(e) => { setAlbumTypeKey(e.target.value); setResult(null); }}
+          onChange={(e) => { setAlbumTypeKey(e.target.value); setResult(null); setWeights({}); }}
           className="w-full sm:w-auto rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
         >
           {albumTypes.length === 0 && (
@@ -151,7 +165,7 @@ export default function AnonymousMatchPage() {
       </div>
 
       {result && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-4">
           <ExternalMatchResult
             title={t('optimalTradeTitle')}
             leftLabel={aName.trim() || DEFAULT_A_NAME}
@@ -162,6 +176,20 @@ export default function AnonymousMatchPage() {
             unknownCodes={result.unknownCodes}
             balance={result.balance}
           />
+          {result.mutualOverlap > 0 && (
+            <WeightsEditor
+              presentVariants={[
+                ...new Set(
+                  [...result.aGets, ...result.bGets]
+                    .map((r) => r.variantToken)
+                    .filter((t): t is string => !!t),
+                ),
+              ]}
+              weights={weights}
+              onCommit={handleWeightsCommit}
+              busy={loading}
+            />
+          )}
         </div>
       )}
     </div>

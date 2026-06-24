@@ -72,12 +72,46 @@ export function variantScarcity(token: string | null | undefined): number {
   return VARIANT_SCARCITY[token] ?? 1
 }
 
+/**
+ * Per-trade weight overrides. Each side of a trade can negotiate custom
+ * relative values for any subset of variants; whatever isn't listed falls
+ * back to VARIANT_SCARCITY. Used by the third-party match endpoints (where
+ * the single user sets the table they consider fair) and the live-trade
+ * session (where one party proposes and the other accepts).
+ */
+export type VariantWeights = Record<string, number>
+
+/**
+ * Resolve the active weight for a variant token, preferring per-trade overrides
+ * over the global VARIANT_SCARCITY table. Treats non-finite or non-positive
+ * overrides as "not set" — the same fallback path catches bad input.
+ */
+export function effectiveScarcity(
+  token: string | null | undefined,
+  weights?: VariantWeights | null,
+): number {
+  if (!token) return 1
+  if (weights) {
+    const override = weights[token]
+    if (typeof override === 'number' && Number.isFinite(override) && override > 0) {
+      return override
+    }
+  }
+  return VARIANT_SCARCITY[token] ?? 1
+}
+
 // ─── Trade-balance guidance ───────────────────────────────────────────────────
 // The third-party trade flow computes total scarcity each side gives vs.
 // receives, then flags trades outside this band as lopsided. Inside the band
 // the trade is treated as "roughly fair". These are tuning knobs, not hard
 // gates — every third-party trade ultimately happens in person between the
 // two collectors.
+//
+// Special case: when both sides of the trade are entirely the same variant
+// token, the band collapses to exact equality (ratio === 1). Same-variant
+// trades have a single meaningful definition of fair — equal counts —
+// regardless of how scarce that variant is in the wider economy. See
+// computeBalance() in live-trade.service.ts and trade-matching.service.ts.
 export const TRADE_BALANCE_LOW = 0.5
 export const TRADE_BALANCE_HIGH = 2.0
 

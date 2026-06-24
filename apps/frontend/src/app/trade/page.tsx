@@ -38,6 +38,8 @@ import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
 import CombinedListInput from './components/CombinedListInput';
 import ExternalMatchResult from './components/ExternalMatchResult';
+import WeightsEditor from './components/WeightsEditor';
+import type { VariantWeights } from '@cromo/shared';
 import TradesList from './components/TradesList';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
 import CityAutocomplete from '@/components/CityAutocomplete';
@@ -172,6 +174,11 @@ function TradePageContent() {
   const [tpOffered, setTpOffered] = useState<ExternalListItem[]>([]);
   const [tpWanted, setTpWanted] = useState<ExternalListItem[]>([]);
   const [tpResult, setTpResult] = useState<MatchAgainstMeResult | null>(null);
+  // Per-trade weight overrides. Empty object = "use global defaults" — the
+  // service treats undefined and {} identically. Reset whenever the album or
+  // pasted lists change so a stale "1 red = 5 base" doesn't follow the user
+  // across unrelated trades.
+  const [tpWeights, setTpWeights] = useState<VariantWeights>({});
   const [tpLoading, setTpLoading] = useState(false);
   const [tpError, setTpError] = useState<string | null>(null);
   // Tracks the in-flight record-trade call so the button can't be double-clicked
@@ -531,12 +538,43 @@ function TradePageContent() {
     setTpRecordError(null);
     try {
       const result = await matchAgainstMe(
-        { albumId: tpAlbumId, theirOffered: tpOffered, theirWanted: tpWanted },
+        {
+          albumId: tpAlbumId,
+          theirOffered: tpOffered,
+          theirWanted: tpWanted,
+          variantWeights: Object.keys(tpWeights).length > 0 ? tpWeights : undefined,
+        },
         token,
       );
       setTpResult(result);
     } catch (err) {
       setTpError(err instanceof Error ? err.message : 'Failed to compute match.');
+    } finally {
+      setTpLoading(false);
+    }
+  }
+
+  // Apply a new weight table and immediately re-run the match so the balance
+  // reflects the negotiated value. Reads weights from the argument (not state)
+  // to avoid the stale-closure trap when the editor commits.
+  async function handleTpWeightsCommit(next: VariantWeights) {
+    setTpWeights(next);
+    if (!token || !tpAlbumId || !tpResult) return;
+    setTpLoading(true);
+    setTpError(null);
+    try {
+      const result = await matchAgainstMe(
+        {
+          albumId: tpAlbumId,
+          theirOffered: tpOffered,
+          theirWanted: tpWanted,
+          variantWeights: Object.keys(next).length > 0 ? next : undefined,
+        },
+        token,
+      );
+      setTpResult(result);
+    } catch (err) {
+      setTpError(err instanceof Error ? err.message : 'Failed to recompute match.');
     } finally {
       setTpLoading(false);
     }
@@ -921,7 +959,7 @@ function TradePageContent() {
                 <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">{t('album')}</label>
                 <select
                   value={tpAlbumId}
-                  onChange={(e) => { setTpAlbumId(e.target.value); setTpResult(null); }}
+                  onChange={(e) => { setTpAlbumId(e.target.value); setTpResult(null); setTpWeights({}); }}
                   className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
                 >
                   {albums.length === 0 && <option value="">No albums found</option>}
@@ -949,7 +987,7 @@ function TradePageContent() {
               label="Their list"
               offered={tpOffered}
               wanted={tpWanted}
-              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); }}
+              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); setTpWeights({}); }}
               albumTypeKey={albums.find((a) => a.id === tpAlbumId)?.albumTypeKey}
               token={token ?? undefined}
             />
@@ -979,6 +1017,21 @@ function TradePageContent() {
                 unknownCodes={tpResult.unknownCodes}
                 balance={tpResult.balance}
               />
+
+              {tpResult.mutualOverlap > 0 && (
+                <WeightsEditor
+                  presentVariants={[
+                    ...new Set(
+                      [...tpResult.iGet, ...tpResult.theyGet]
+                        .map((r) => r.variantToken)
+                        .filter((t): t is string => !!t),
+                    ),
+                  ]}
+                  weights={tpWeights}
+                  onCommit={handleTpWeightsCommit}
+                  busy={tpLoading}
+                />
+              )}
 
               {tpResult.mutualOverlap > 0 && (
                 <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">

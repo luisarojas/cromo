@@ -1,4 +1,5 @@
 import { apiFetch, toQueryString, BASE_URL } from '../apiClient';
+import type { VariantWeights } from '@cromo/shared';
 import type {
   CreateLiveTradeResponse,
   ExternalListItem,
@@ -31,7 +32,12 @@ export async function fetchTradeMatches(
 // ─── External-list matching (third-party / anonymous flows) ────────────────
 
 export async function matchAgainstMe(
-  body: { albumId: string; theirOffered: ExternalListItem[]; theirWanted: ExternalListItem[] },
+  body: {
+    albumId: string;
+    theirOffered: ExternalListItem[];
+    theirWanted: ExternalListItem[];
+    variantWeights?: VariantWeights;
+  },
   token: string,
 ): Promise<MatchAgainstMeResult> {
   return apiFetch<MatchAgainstMeResult>(
@@ -45,6 +51,7 @@ export async function matchPair(body: {
   albumTypeKey?: string;
   a: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
   b: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
+  variantWeights?: VariantWeights;
 }): Promise<MatchPairResult> {
   return apiFetch<MatchPairResult>(
     '/api/v1/trade/match-pair',
@@ -335,6 +342,43 @@ export async function setLiveTradeLock(
   const { session } = await apiFetch<{ session: LiveTradeSession }>(
     `/api/v1/live-trade/${encodeURIComponent(sessionId)}/lock`,
     { method: 'POST', body: JSON.stringify({ locked }), headers: liveTradeAuthHeaders(auth) },
+    auth.token,
+  );
+  return session;
+}
+
+export async function proposeLiveTradeWeights(
+  sessionId: string,
+  weights: VariantWeights,
+  auth: LiveTradeAuth,
+): Promise<LiveTradeSession> {
+  const { session } = await apiFetch<{ session: LiveTradeSession }>(
+    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights/propose`,
+    { method: 'POST', body: JSON.stringify({ weights }), headers: liveTradeAuthHeaders(auth) },
+    auth.token,
+  );
+  return session;
+}
+
+export async function acceptLiveTradeWeights(
+  sessionId: string,
+  auth: LiveTradeAuth,
+): Promise<LiveTradeSession> {
+  const { session } = await apiFetch<{ session: LiveTradeSession }>(
+    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights/accept`,
+    { method: 'POST', headers: liveTradeAuthHeaders(auth) },
+    auth.token,
+  );
+  return session;
+}
+
+export async function rejectLiveTradeWeights(
+  sessionId: string,
+  auth: LiveTradeAuth,
+): Promise<LiveTradeSession> {
+  const { session } = await apiFetch<{ session: LiveTradeSession }>(
+    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights/reject`,
+    { method: 'POST', headers: liveTradeAuthHeaders(auth) },
     auth.token,
   );
   return session;

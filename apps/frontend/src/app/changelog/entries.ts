@@ -51,6 +51,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'New "Unlisted" album visibility — share an album only with people you send the link to. Unlisted albums are hidden from your profile and not matched with other collectors.',
       ],
       Changed: [
+        'Same-variant trades — when both sides of a trade are entirely the same variant (e.g. base for base), Cromo now requires equal counts to call it fair instead of grading by scarcity weight.',
+        'Per-trade variant weights — negotiate the value of each variant for a single trade. On third-party matches, set your own table and rerun the match. In a live-trade session, one side proposes a weight table and the other side accepts before it takes effect.',
         'Renamed the 1-of-1 Black rarity tier to "Unique".',
         'Profile "Start a trade" button now shows a disabled state — with a tooltip explaining why — when the collector has trading turned off or no stickers available.',
         'Trade status badges use distinct colors per state, and "Completed" trades now stand out in solid green.',

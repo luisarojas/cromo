@@ -11,10 +11,12 @@ import type { Redis } from 'ioredis';
 import type {
   ExternalListItem,
   ScarcityTotals,
+  VariantWeights,
 } from '@cromo/shared';
 import {
   TRADE_BALANCE_HIGH,
   TRADE_BALANCE_LOW,
+  effectiveScarcity,
   variantScarcity,
 } from '@cromo/shared';
 import { normalizeAlbumCode } from './scan.service.js';
@@ -709,12 +711,40 @@ export function refOf(r: ResolvedItem): ExternalRef {
   };
 }
 
-function computeBalance(give: ExternalRef[], get: ExternalRef[]): ScarcityTotals {
-  const giveSum = give.reduce((s, r) => s + r.scarcity * r.quantity, 0);
-  const getSum  = get.reduce((s, r) => s + r.scarcity * r.quantity, 0);
+function computeBalance(
+  give: ExternalRef[],
+  get: ExternalRef[],
+  weights?: VariantWeights | null,
+): ScarcityTotals {
+  const w = (token: string | null) => effectiveScarcity(token, weights);
+  const giveSum = give.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
+  const getSum  = get.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
   const ratio = giveSum === 0 ? null : getSum / giveSum;
-  const lopsided = ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
-  return { give: giveSum, get: getSum, ratio, lopsided };
+  const sameVariant = isSingleVariantTrade(give, get);
+  // Single-variant trades demand exact equal counts to be fair — scarcity
+  // weighting is meaningless when both sides are the same lane. Mixed-variant
+  // trades fall back to the tunable scarcity band.
+  const lopsided = sameVariant
+    ? ratio !== 1
+    : ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
+  return { give: giveSum, get: getSum, ratio, lopsided, sameVariant };
+}
+
+function isSingleVariantTrade(
+  give: { variantToken: string | null }[],
+  get: { variantToken: string | null }[],
+): boolean {
+  if (give.length === 0 || get.length === 0) return false;
+  const seen = new Set<string>();
+  for (const r of give) {
+    if (!r.variantToken) return false;
+    seen.add(r.variantToken);
+  }
+  for (const r of get) {
+    if (!r.variantToken) return false;
+    seen.add(r.variantToken);
+  }
+  return seen.size === 1;
 }
 
 /**
@@ -729,14 +759,18 @@ export async function matchAgainstUserAlbum(
   db: Pool,
   userId: string,
   albumId: string,
-  input: { theirOffered: ExternalListItem[]; theirWanted: ExternalListItem[] },
+  input: {
+    theirOffered: ExternalListItem[];
+    theirWanted: ExternalListItem[];
+    variantWeights?: VariantWeights | null;
+  },
 ): Promise<MatchAgainstMeOutcome> {
   const offered = dedupeItems(input.theirOffered);
   const wanted = dedupeItems(input.theirWanted);
   if (offered.length === 0 && wanted.length === 0) {
     return {
       iGet: [], theyGet: [], unknownCodes: [], mutualOverlap: 0,
-      balance: { give: 0, get: 0, ratio: null, lopsided: false },
+      balance: { give: 0, get: 0, ratio: null, lopsided: false, sameVariant: false },
     };
   }
 
@@ -801,7 +835,7 @@ export async function matchAgainstUserAlbum(
     .filter((r) => ownedByVariant.get(r.stickerVariantId)?.spare === true)
     .map(refOf);
 
-  const balance = computeBalance(theyGet, iGet);
+  const balance = computeBalance(theyGet, iGet, input.variantWeights);
   const unknownCodes = [...new Set([...unknownOffered, ...unknownWanted])].slice(0, UNKNOWN_ECHO_CAP);
 
   return {
@@ -825,6 +859,7 @@ export async function matchPair(
     a: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
     b: { offered: ExternalListItem[]; wanted: ExternalListItem[] };
     albumTypeKey: string;
+    variantWeights?: VariantWeights | null;
   },
 ): Promise<MatchPairOutcome> {
   const aOffered = dedupeItems(input.a.offered);
@@ -857,7 +892,7 @@ export async function matchPair(
   const aGets = aWantedR.filter((r) => bOfferedSet.has(r.stickerVariantId)).map(refOf);
   const bGets = bWantedR.filter((r) => aOfferedSet.has(r.stickerVariantId)).map(refOf);
 
-  const balance = computeBalance(bGets, aGets);
+  const balance = computeBalance(bGets, aGets, input.variantWeights);
   const unknownCodes = [...new Set([...uAO, ...uAW, ...uBO, ...uBW])].slice(0, UNKNOWN_ECHO_CAP);
 
   return {
