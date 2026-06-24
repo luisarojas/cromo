@@ -1,28 +1,11 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
 import { getPool } from '../db/index.js';
-import { runMigrations } from '../db/migrate.js';
-import { runCatalogSeed } from '../db/seed.js';
-import { env } from '../env.js';
 
 const SLOW_QUERY_MS = 100;
 
 async function databasePlugin(fastify: FastifyInstance): Promise<void> {
   const pool = getPool();
-
-  // Run migrations before anything else
-  await runMigrations(pool);
-
-  // Reseed the catalog on every boot. Idempotent (ON CONFLICT … DO UPDATE),
-  // so every deploy and every ASG scale-out picks up new catalog rows added
-  // since the previous boot — fixes the drift mode where adding stickers
-  // (e.g. CC regional alternates) was code-only and never reached the dev
-  // RDS until someone remembered to `pnpm db:seed --remote` manually.
-  // Skipped in tests: the CI test job runs scripts/seed-database.sh up front,
-  // and re-running the ~14 files per buildApp() call would add real overhead.
-  if (env.NODE_ENV !== 'test') {
-    await runCatalogSeed(pool);
-  }
 
   // Wrap pool.query so queries slower than SLOW_QUERY_MS are logged. Pool.query
   // has multiple overloads; we delegate to the original implementation and
@@ -65,7 +48,7 @@ async function databasePlugin(fastify: FastifyInstance): Promise<void> {
     await pool.end();
   });
 
-  fastify.log.info('Database pool connected and migrations applied.');
+  fastify.log.info('Database pool connected.');
 }
 
 // fp ensures the decoration is available to the entire Fastify instance (not scoped)

@@ -5,6 +5,8 @@ import multipart from '@fastify/multipart';
 import jwt from 'jsonwebtoken';
 
 import { env } from './env.js';
+import { bootstrapDatabase } from './db/bootstrap.js';
+import { getPool } from './db/index.js';
 import { camelizeKeys } from './utils/casing.js';
 import { corsPlugin } from './plugins/cors.js';
 import { helmetPlugin } from './plugins/helmet.js';
@@ -36,6 +38,10 @@ import { unsubscribeRoutes } from './routes/v1/unsubscribe.js';
 import { startSesPoller } from './services/ses-poller.service.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
+  // Migrations + catalog seed run here, not inside databasePlugin — cold boot
+  // can take minutes and exceeds avvio's default plugin timeout.
+  await bootstrapDatabase(getPool());
+
   const fastify = Fastify({
     logger:
       env.NODE_ENV === 'test'
@@ -123,12 +129,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   }
 
   // ── Database & Redis (run migrations before routes) ───────────────────────
-  // Cold boot runs drizzle migrations plus ~13 catalog/fixture seed files
-  // (03_team_stickers alone is 120k+ bytes). Avvio's default 10s plugin
-  // timeout fires mid-seed on CI runners — raise only for this plugin.
-  await fastify.register(databasePluginWrapped, { timeout: 120_000 });
+  await fastify.register(databasePluginWrapped);
   await fastify.register(redisPluginWrapped);
-  // The catalog seed (run inside databasePlugin) bumps stickers.updated_at
+  // The catalog seed (run in bootstrapDatabase) bumps stickers.updated_at
   // via trigger, but the `cromo:catalog_version` Redis key (5-min TTL) keeps
   // serving the pre-seed value until it expires — and every `/stickers?v=…`
   // URL is keyed off that, so browsers + the CDN keep loading the old

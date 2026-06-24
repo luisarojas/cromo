@@ -231,10 +231,10 @@ jobs:
           exit 1
 
       - name: Start api (applies migrations + catalog seed on boot)
-        # The backend image runs `runMigrations()` and then `runCatalogSeed()`
-        # in its startup chain (apps/backend/src/plugins/database.ts), so by
-        # the time the health probe passes the schema AND the catalog/test-
-        # fixture seeds are in place. No separate seed step needed.
+        # bootstrapDatabase() in buildApp runs runMigrations() and then
+        # runCatalogSeed() before Fastify plugins register, so by the time
+        # the health probe passes the schema AND the catalog/test-fixture
+        # seeds are in place. No separate seed step needed.
         run: docker compose -f infrastructure/docker/docker-compose.e2e.yml up -d api
 
       - name: Wait for api ready

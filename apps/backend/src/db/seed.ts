@@ -53,6 +53,7 @@ export async function runCatalogSeed(pool: Pool): Promise<void> {
   console.log(`[seed] Applying ${files.length} seed file(s) from ${SEEDS_FOLDER}`);
   for (const file of files) {
     const full = path.join(SEEDS_FOLDER, file);
+    console.log(`[seed]   … ${file}`);
     const sql = readFileSync(full, 'utf8');
     await pool.query(sql);
     console.log(`[seed]   ✓ ${file}`);
