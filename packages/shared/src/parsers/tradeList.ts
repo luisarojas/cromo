@@ -114,8 +114,8 @@ const COUNTRY_ALIASES: ReadonlyArray<readonly [string, string]> = [
   ['colombia', 'COL'],
   ['columbia', 'COL'],
   ['uzbekistan', 'UZB'],
-  ['congo dr', 'CGO'],
-  ['dr congo', 'CGO'],
+  ['congo dr', 'COD'],
+  ['dr congo', 'COD'],
   // Group I
   ['france', 'FRA'],
   ['norway', 'NOR'],
