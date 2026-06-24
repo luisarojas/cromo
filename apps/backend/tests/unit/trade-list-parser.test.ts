@@ -286,8 +286,8 @@ Turkey: 6, 13`;
       expect(offered.sort()).toEqual([
         'BEL14', 'BEL15', 'BEL2', 'BEL5', 'BEL6', 'BEL7',
         'BIH2', 'BIH3', 'BIH5',
-        'COD1', 'COD5',
         'CIV1', 'CIV4', 'CIV5',
+        'COD1', 'COD5',
         'COL4', 'COL6',
         'FWC2', 'FWC3',
         'KOR1', 'KOR3',
@@ -318,7 +318,7 @@ describe('parseTradeListItems (variant + quantity)', () => {
   it('extracts a parenthesised variant tag glued to the code', () => {
     const { offered } = parseTradeListItems('HAVE: BRA5(red), ARG7(blue)');
     expect(offered).toEqual([
-      { albumCode: 'BRA5', variantToken: 'red',  quantity: 1 },
+      { albumCode: 'BRA5', variantToken: 'red', quantity: 1 },
       { albumCode: 'ARG7', variantToken: 'blue', quantity: 1 },
     ]);
   });
@@ -360,8 +360,8 @@ describe('parseTradeListItems (variant + quantity)', () => {
     // is invariably attached to the nearest code.
     const { offered } = parseTradeListItems('HAVE: BRA 5, 7, 12 (red) x3');
     expect(offered).toEqual([
-      { albumCode: 'BRA5',  variantToken: null,  quantity: 1 },
-      { albumCode: 'BRA7',  variantToken: null,  quantity: 1 },
+      { albumCode: 'BRA5', variantToken: null, quantity: 1 },
+      { albumCode: 'BRA7', variantToken: null, quantity: 1 },
       { albumCode: 'BRA12', variantToken: 'red', quantity: 3 },
     ]);
   });
@@ -376,7 +376,7 @@ describe('parseTradeListItems (variant + quantity)', () => {
   it('keeps the same code under two different variants as distinct items', () => {
     const { offered } = parseTradeListItems('HAVE: BRA5, BRA5(red)');
     expect(offered).toEqual([
-      { albumCode: 'BRA5', variantToken: null,  quantity: 1 },
+      { albumCode: 'BRA5', variantToken: null, quantity: 1 },
       { albumCode: 'BRA5', variantToken: 'red', quantity: 1 },
     ]);
   });
@@ -387,16 +387,16 @@ describe('parseTradeListItems (variant + quantity)', () => {
     );
     expect(offered).toEqual([{ albumCode: 'BRA5', variantToken: 'red', quantity: 2 }]);
     expect(wanted).toEqual([
-      { albumCode: 'MEX10', variantToken: 'purple',       quantity: 1 },
-      { albumCode: 'FWC3',  variantToken: 'gold_crumple', quantity: 1 },
+      { albumCode: 'MEX10', variantToken: 'purple', quantity: 1 },
+      { albumCode: 'FWC3', variantToken: 'gold_crumple', quantity: 1 },
     ]);
   });
 
   it('clamps quantities to [1, 99] without dropping the rest of the line', () => {
     const { offered } = parseTradeListItems('HAVE: BRA5(red) x500, ARG7');
     expect(offered).toEqual([
-      { albumCode: 'BRA5', variantToken: 'red',  quantity: 99 },
-      { albumCode: 'ARG7', variantToken: null,   quantity: 1 },
+      { albumCode: 'BRA5', variantToken: 'red', quantity: 99 },
+      { albumCode: 'ARG7', variantToken: null, quantity: 1 },
     ]);
   });
 
