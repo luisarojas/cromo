@@ -15,9 +15,9 @@ import type {
   VariantWeights,
 } from '@cromo/shared';
 import {
-  TRADE_BALANCE_HIGH,
-  TRADE_BALANCE_LOW,
+  computeScarcityBalance,
   effectiveScarcity,
+  isSingleVariantTrade,
   variantScarcity,
 } from '@cromo/shared';
 import { normalizeAlbumCode } from './scan.service.js';
@@ -481,13 +481,37 @@ export interface ExternalRef {
   variantToken: string | null;
   variantLabel: string | null;
   stickerVariantId: string | null;
+  /** Representative sticker_id (parent of stickerVariantId). Used to match
+   *  favourites — they key by sticker_id, not variant_id. Optional because
+   *  the anonymous matchPair flow has no album-scoped favourites context. */
+  stickerId?: string | null;
   scarcity: number;
   quantity: number;
+  /** Set by matchAgainstUserAlbum when the requester has flagged this sticker
+   *  as a favourite in this album. Drives the "starred" badge + priority sort
+   *  in the editable third-party UI. */
+  favourite?: boolean;
+  /** Set when the requester has explicitly added this variant to their wanted
+   *  list. Independent of `favourite` — wanted is per-variant, favourite is
+   *  per-sticker. */
+  wanted?: boolean;
 }
 
 export interface MatchAgainstMeOutcome {
+  /** Suggested selection — the subset the optimizer recommends the user
+   *  receive. Always a subset of `candidatesIGet`. The third-party UI uses
+   *  this as the default checkbox state; the user can edit. */
   iGet: ExternalRef[];
+  /** Suggested selection — the subset the user would give. Subset of
+   *  `candidatesTheyGet`. */
   theyGet: ExternalRef[];
+  /** Full pool of stickers the requester could receive (their offered ∩ the
+   *  requester's missing). Includes items the suggestion trimmed away so the
+   *  editable UI can offer them as toggleable options. */
+  candidatesIGet: ExternalRef[];
+  /** Full pool of stickers the requester could give (their wanted ∩ the
+   *  requester's spares). */
+  candidatesTheyGet: ExternalRef[];
   unknownCodes: string[];
   mutualOverlap: number;
   balance: ScarcityTotals;
@@ -580,6 +604,7 @@ interface CatalogVariantRow {
   team_name: string | null;
   sticker_type: string;
   number: number;
+  sticker_id: string;
   variant_type: string;
   sticker_variant_id: string;
 }
@@ -590,6 +615,10 @@ export interface CatalogEntry {
   teamName: string | null;
   stickerType: string;
   number: number;
+  /** Representative sticker_id for this album_code. For CC slots with regional
+   *  alternates, this is the lowest-numbered alternate (matches playerName).
+   *  Used by callers that key off `stickers.id` (e.g. user_sticker_favourites). */
+  stickerId: string;
   /** Variants available for this album_code, keyed by variant_type. */
   variants: Map<string, { stickerVariantId: string }>;
 }
@@ -609,6 +638,7 @@ export async function lookupCatalogVariants(
             t.name AS team_name,
             s.sticker_type,
             s.number,
+            s.id AS sticker_id,
             sv.variant_type,
             sv.id AS sticker_variant_id
        FROM stickers s
@@ -630,6 +660,7 @@ export async function lookupCatalogVariants(
         teamName: r.team_name,
         stickerType: r.sticker_type,
         number: r.number,
+        stickerId: r.sticker_id,
         variants: new Map(),
       };
       out.set(r.album_code, entry);
@@ -639,6 +670,7 @@ export async function lookupCatalogVariants(
       entry.playerName = r.player_name;
       entry.teamName = r.team_name;
       entry.number = r.number;
+      entry.stickerId = r.sticker_id;
     }
     // For shared CC album_codes, the same variant_type may appear once per
     // regional row — keep the first; ownership is by sticker_variant_id, so
@@ -712,45 +744,26 @@ export function refOf(r: ResolvedItem): ExternalRef {
     variantToken: r.variantType,
     variantLabel: labelFor(r.variantType),
     stickerVariantId: r.stickerVariantId,
+    stickerId: r.entry.stickerId,
     scarcity: variantScarcity(r.variantType),
     quantity: r.quantity,
   };
 }
 
+// Local convenience around computeScarcityBalance. The shared helper takes a
+// 4-arg shape; this collapses the optional cash hint so the call sites in this
+// service read the same as before the cash extension.
 function computeBalance(
   give: ExternalRef[],
   get: ExternalRef[],
   weights?: VariantWeights | null,
+  cash?: { giveCashCents?: number; getCashCents?: number },
 ): ScarcityTotals {
-  const w = (token: string | null) => effectiveScarcity(token, weights);
-  const giveSum = give.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
-  const getSum  = get.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
-  const ratio = giveSum === 0 ? null : getSum / giveSum;
-  const sameVariant = isSingleVariantTrade(give, get);
-  // Single-variant trades demand exact equal counts to be fair — scarcity
-  // weighting is meaningless when both sides are the same lane. Mixed-variant
-  // trades fall back to the tunable scarcity band.
-  const lopsided = sameVariant
-    ? ratio !== 1
-    : ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
-  return { give: giveSum, get: getSum, ratio, lopsided, sameVariant };
-}
-
-function isSingleVariantTrade(
-  give: { variantToken: string | null }[],
-  get: { variantToken: string | null }[],
-): boolean {
-  if (give.length === 0 || get.length === 0) return false;
-  const seen = new Set<string>();
-  for (const r of give) {
-    if (!r.variantToken) return false;
-    seen.add(r.variantToken);
-  }
-  for (const r of get) {
-    if (!r.variantToken) return false;
-    seen.add(r.variantToken);
-  }
-  return seen.size === 1;
+  return computeScarcityBalance(give, get, {
+    weights,
+    giveCashCents: cash?.giveCashCents,
+    getCashCents: cash?.getCashCents,
+  });
 }
 
 /**
@@ -775,7 +788,8 @@ export async function matchAgainstUserAlbum(
   const wanted = dedupeItems(input.theirWanted);
   if (offered.length === 0 && wanted.length === 0) {
     return {
-      iGet: [], theyGet: [], unknownCodes: [], mutualOverlap: 0,
+      iGet: [], theyGet: [], candidatesIGet: [], candidatesTheyGet: [],
+      unknownCodes: [], mutualOverlap: 0,
       balance: { give: 0, get: 0, ratio: null, lopsided: false, sameVariant: false },
     };
   }
@@ -834,12 +848,41 @@ export async function matchAgainstUserAlbum(
     });
   }
 
-  const iGet = offeredRes
+  // Pull the user's favourites + wanted lists for this album so the optimizer
+  // can surface "you marked this as wanted" / "you starred this" first when
+  // suggesting what to receive. Both queries are tiny (typically <100 rows)
+  // and run in parallel with each other.
+  const [favRows, wantedRows] = await Promise.all([
+    db.query<{ sticker_id: string }>(
+      `SELECT sticker_id FROM user_sticker_favourites WHERE album_id = $1`,
+      [albumId],
+    ),
+    db.query<{ sticker_variant_id: string }>(
+      `SELECT sticker_variant_id FROM user_wanted_variants
+        WHERE user_id = $1 AND album_id = $2`,
+      [userId, albumId],
+    ),
+  ]);
+  const favouriteStickerIds = new Set(favRows.rows.map((r) => r.sticker_id));
+  const wantedVariantIds = new Set(wantedRows.rows.map((r) => r.sticker_variant_id));
+
+  const candidatesIGet = offeredRes
     .filter((r) => (ownedByVariant.get(r.stickerVariantId)?.qty ?? 0) === 0)
-    .map(refOf);
-  const theyGet = wantedRes
+    .map((r) => {
+      const ref = refOf(r);
+      ref.favourite = favouriteStickerIds.has(r.entry.stickerId);
+      ref.wanted = wantedVariantIds.has(r.stickerVariantId);
+      return ref;
+    });
+  const candidatesTheyGet = wantedRes
     .filter((r) => ownedByVariant.get(r.stickerVariantId)?.spare === true)
     .map(refOf);
+
+  const { iGet, theyGet } = selectOptimalSubset(
+    candidatesIGet,
+    candidatesTheyGet,
+    input.variantWeights ?? null,
+  );
 
   const balance = computeBalance(theyGet, iGet, input.variantWeights);
   const unknownCodes = [...new Set([...unknownOffered, ...unknownWanted])].slice(0, UNKNOWN_ECHO_CAP);
@@ -847,10 +890,142 @@ export async function matchAgainstUserAlbum(
   return {
     iGet,
     theyGet,
+    candidatesIGet,
+    candidatesTheyGet,
     unknownCodes,
     mutualOverlap: iGet.length + theyGet.length,
     balance,
   };
+}
+
+/**
+ * priorityScore — higher means "user wants this more".
+ * Favourites trump wanted; both trump untagged stickers. Scarcity is a tiny
+ * tiebreaker so when forced to drop one of two equal-priority items we keep
+ * the rarer one. Cap at 4 priority tiers (fav+want, fav, want, none) so the
+ * sort is stable and explainable.
+ */
+function priorityScore(ref: ExternalRef): number {
+  let score = 0;
+  if (ref.favourite) score += 100;
+  if (ref.wanted) score += 50;
+  return score;
+}
+
+/**
+ * selectOptimalSubset — pick a default suggestion from the full candidate
+ * pools that:
+ *   1. Surfaces favourites and wanted-marked items first on the receive side.
+ *   2. When both sides collapse to a single variant lane, trims to equal
+ *      counts (same-variant trades are only fair at exact parity).
+ *   3. When the receive side has fewer items than the give side, trims the
+ *      give side down to the same length, preferring to keep types that
+ *      mirror the receive side's distribution. This keeps the suggestion
+ *      from looking like "I give you 12 base team stickers for 3 base FWC"
+ *      when a 3-for-3 same-bucket trade is possible.
+ *
+ * Returns subsets — the full pools remain available so the editable UI can
+ * offer the trimmed items as toggleable additions.
+ */
+function selectOptimalSubset(
+  candidatesIGet: ExternalRef[],
+  candidatesTheyGet: ExternalRef[],
+  weights: VariantWeights | null,
+): { iGet: ExternalRef[]; theyGet: ExternalRef[] } {
+  // Honour per-trade weight overrides so the suggestion agrees with the
+  // displayed balance. When weights are null this collapses to variantScarcity
+  // (the value already baked into ref.scarcity), so the legacy behaviour is
+  // preserved.
+  const w = (r: ExternalRef): number => effectiveScarcity(r.variantToken, weights);
+
+  // Sort iGet by priority (favourite > wanted > none), then weighted scarcity
+  // desc so rarer cards float up within the same priority tier, then number
+  // asc for a stable, album-ordered display.
+  const sortedIGet = [...candidatesIGet].sort((a, b) => {
+    const ps = priorityScore(b) - priorityScore(a);
+    if (ps !== 0) return ps;
+    const sw = w(b) - w(a);
+    if (sw !== 0) return sw;
+    return (a.number ?? 0) - (b.number ?? 0);
+  });
+  // Sort theyGet by weighted scarcity asc — when forced to trim, drop the most
+  // valuable stickers I'd be giving up first. Number asc for stable order.
+  const sortedTheyGet = [...candidatesTheyGet].sort((a, b) => {
+    const sw = w(a) - w(b);
+    if (sw !== 0) return sw;
+    return (a.number ?? 0) - (b.number ?? 0);
+  });
+
+  // Same-variant parity: when both sides are a single (matching) variant lane,
+  // any imbalance is unfair regardless of scarcity. Trim both sides to the
+  // smaller length so the suggestion is honest about what the math allows.
+  const sameVariant = isSingleVariantTrade(sortedIGet, sortedTheyGet);
+  if (sameVariant && sortedIGet.length !== sortedTheyGet.length) {
+    const target = Math.min(sortedIGet.length, sortedTheyGet.length);
+    return {
+      iGet: sortedIGet.slice(0, target),
+      theyGet: sortedTheyGet.slice(0, target),
+    };
+  }
+
+  // Mixed-variant case: don't trim iGet (user wants what they want), but if
+  // theyGet is longer than iGet, prefer to mirror iGet's type distribution.
+  if (sortedIGet.length > 0 && sortedTheyGet.length > sortedIGet.length) {
+    return {
+      iGet: sortedIGet,
+      theyGet: pickTypeMirroredSubset(sortedTheyGet, sortedIGet, sortedIGet.length),
+    };
+  }
+
+  return { iGet: sortedIGet, theyGet: sortedTheyGet };
+}
+
+/**
+ * pickTypeMirroredSubset — given a pool and a target distribution (the other
+ * side of the trade), pick `n` items whose sticker_type counts approximate
+ * the target's. Greedy: walk the pool in its pre-sorted order, but prefer
+ * items whose type still has remaining quota in the target. Falls through to
+ * pool order once quotas are met.
+ *
+ * This is a soft heuristic — used only when the give side has more candidates
+ * than the receive side. Not a hard constraint; the user can re-add trimmed
+ * items via the editable UI.
+ */
+function pickTypeMirroredSubset(
+  pool: ExternalRef[],
+  target: ExternalRef[],
+  n: number,
+): ExternalRef[] {
+  if (n >= pool.length) return pool.slice(0);
+  if (n <= 0) return [];
+
+  // Tally target distribution by sticker_type. Untyped items bucket under '_'.
+  const quota = new Map<string, number>();
+  for (const r of target) {
+    const key = r.stickerType ?? '_';
+    quota.set(key, (quota.get(key) ?? 0) + 1);
+  }
+
+  const picked: ExternalRef[] = [];
+  const skipped: ExternalRef[] = [];
+  for (const item of pool) {
+    if (picked.length >= n) break;
+    const key = item.stickerType ?? '_';
+    const remaining = quota.get(key) ?? 0;
+    if (remaining > 0) {
+      picked.push(item);
+      quota.set(key, remaining - 1);
+    } else {
+      skipped.push(item);
+    }
+  }
+  // Fill remaining slots from the items that didn't match the type quota,
+  // preserving the pool's original sort order (scarcity asc).
+  for (const item of skipped) {
+    if (picked.length >= n) break;
+    picked.push(item);
+  }
+  return picked;
 }
 
 /**

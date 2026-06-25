@@ -23,6 +23,7 @@ export default defineConfig({
         'src/app/scan/pickVariantId.ts',
         'src/app/collection/components/variantMeta.ts',
         'src/app/trade/draftStorage.ts',
+        'src/app/trade/components/buildTradeExportText.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

@@ -108,12 +108,49 @@ export function effectiveScarcity(
 // two collectors.
 //
 // Special case: when both sides of the trade are entirely the same variant
-// token, the band collapses to exact equality (ratio === 1). Same-variant
-// trades have a single meaningful definition of fair — equal counts —
-// regardless of how scarce that variant is in the wider economy. See
-// computeBalance() in live-trade.service.ts and trade-matching.service.ts.
+// token AND no cash is involved, the band collapses to exact equality
+// (ratio === 1). Same-variant trades have a single meaningful definition of
+// fair — equal counts — regardless of how scarce that variant is in the
+// wider economy. Cash on either side makes the trade mixed-value and the
+// scarcity band applies again. See computeBalance() in live-trade.service.ts
+// and trade-matching.service.ts.
 export const TRADE_BALANCE_LOW = 0.5
 export const TRADE_BALANCE_HIGH = 2.0
+
+// ─── Cash-equivalent pricing ──────────────────────────────────────────────────
+// Sometimes a trade isn't sticker-for-sticker — one side throws in cash to
+// even up the piles. To feed cash into the same balance arithmetic as
+// stickers, we treat one "scarcity point" as worth a fixed amount of money:
+// the cost of a base sticker, $0.50 USD. From there, every other variant's
+// cash value falls out of its scarcity weight (a `red` at scarcity 25 prices
+// at $12.50, an `extra_gold` at scarcity 2000 prices at $1,000 — these are
+// directional, not market quotes).
+//
+// All cash amounts on the wire are integer cents to avoid float drift; the
+// helpers convert in/out at the boundary.
+export const BASE_STICKER_CASH_CENTS = 50
+
+/**
+ * Cash equivalent (in cents) of one sticker of the given variant, given the
+ * active weight table. Mirrors `effectiveScarcity` — same scarcity, same
+ * price. Used by the editable third-party UI to suggest a fair cash top-up.
+ */
+export function variantCashValueCents(
+  token: string | null | undefined,
+  weights?: VariantWeights | null,
+): number {
+  return Math.round(BASE_STICKER_CASH_CENTS * effectiveScarcity(token, weights))
+}
+
+/**
+ * Convert a cash amount (cents) into scarcity points so it can be added into
+ * a trade's `give`/`get` totals alongside sticker scarcity. The inverse of
+ * `variantCashValueCents(base)`; non-finite or negative input collapses to 0.
+ */
+export function cashToScarcity(cents: number | null | undefined): number {
+  if (typeof cents !== 'number' || !Number.isFinite(cents) || cents <= 0) return 0
+  return cents / BASE_STICKER_CASH_CENTS
+}
 
 export const DEFAULT_PAGE_SIZE = 100
 export const MAX_TRADE_COUNTERS = 5

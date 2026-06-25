@@ -10,9 +10,7 @@ import type {
   VariantWeights,
 } from '@cromo/shared';
 import {
-  effectiveScarcity,
-  TRADE_BALANCE_HIGH,
-  TRADE_BALANCE_LOW,
+  computeScarcityBalance,
   variantScarcity,
 } from '@cromo/shared';
 import { camelizeKeys } from '../utils/casing.js';
@@ -237,37 +235,19 @@ function computeSuggestion(session: StoredSession): LiveTradeSession['suggestion
   };
 }
 
+// Local convenience over computeScarcityBalance to keep the call sites in
+// this service unchanged; the shared helper is the single source of truth.
 function computeBalance(
   give: LiveTradeStickerRef[],
   get: LiveTradeStickerRef[],
   weights?: VariantWeights | null,
+  cash?: { giveCashCents?: number; getCashCents?: number },
 ): ScarcityTotals {
-  const w = (token: string | null) => effectiveScarcity(token, weights);
-  const giveSum = give.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
-  const getSum  = get.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0);
-  const ratio = giveSum === 0 ? null : getSum / giveSum;
-  const sameVariant = isSingleVariantTrade(give, get);
-  const lopsided = sameVariant
-    ? ratio !== 1
-    : ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH);
-  return { give: giveSum, get: getSum, ratio, lopsided, sameVariant };
-}
-
-function isSingleVariantTrade(
-  give: { variantToken: string | null }[],
-  get: { variantToken: string | null }[],
-): boolean {
-  if (give.length === 0 || get.length === 0) return false;
-  const seen = new Set<string>();
-  for (const r of give) {
-    if (!r.variantToken) return false;
-    seen.add(r.variantToken);
-  }
-  for (const r of get) {
-    if (!r.variantToken) return false;
-    seen.add(r.variantToken);
-  }
-  return seen.size === 1;
+  return computeScarcityBalance(give, get, {
+    weights,
+    giveCashCents: cash?.giveCashCents,
+    getCashCents: cash?.getCashCents,
+  });
 }
 
 // ─── Event broadcasting ────────────────────────────────────────────────────

@@ -11,6 +11,11 @@ import {
   matchPair,
 } from '../../services/trade-matching.service.js';
 import {
+  deleteThirdPartyDraft as deleteThirdPartyDraftService,
+  listThirdPartyDrafts,
+  upsertThirdPartyDraft,
+} from '../../services/third-party-drafts.service.js';
+import {
   acceptTrade,
   cancelTrade,
   completeTrade,
@@ -984,5 +989,103 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
         request.raw.on('error', resolve);
       });
     }
+  );
+
+  // ─── Third-party trade drafts ─────────────────────────────────────────────
+  // Parked in-progress trade plans from the Third-Party tab. CRUD only —
+  // there's no counterparty to notify and no Redis session to coordinate.
+
+  const SaveDraftBody = z.object({
+    id: z.string().uuid().nullish(),
+    albumId: z.string().uuid(),
+    partnerName: z.string().trim().max(80).optional()
+      .transform((v) => (v && v.length > 0 ? v : null)),
+    theirOffered: ItemListSchema.default([]),
+    theirWanted: ItemListSchema.default([]),
+    selectionIReceive: z.array(z.string().uuid()).max(500).default([]),
+    selectionIGive: z.array(z.string().uuid()).max(500).default([]),
+    iReceiveCashCents: z.number().int().min(0).max(10_000_000).default(0),
+    iGiveCashCents: z.number().int().min(0).max(10_000_000).default(0),
+  });
+
+  fastify.post(
+    `${prefix}/third-party/drafts`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Trade'],
+        summary: 'Save or update a third-party trade draft',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = SaveDraftBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          statusCode: 400, error: 'Bad Request', message: parsed.error.message,
+        });
+      }
+      try {
+        const draft = await upsertThirdPartyDraft(fastify.db, {
+          id: parsed.data.id ?? null,
+          userId: request.userId!,
+          albumId: parsed.data.albumId,
+          partnerName: parsed.data.partnerName ?? null,
+          theirOffered: asListItems(parsed.data.theirOffered),
+          theirWanted: asListItems(parsed.data.theirWanted),
+          selectionIReceive: parsed.data.selectionIReceive,
+          selectionIGive: parsed.data.selectionIGive,
+          iReceiveCashCents: parsed.data.iReceiveCashCents,
+          iGiveCashCents: parsed.data.iGiveCashCents,
+        });
+        return reply.status(parsed.data.id ? 200 : 201).send(draft);
+      } catch (err) {
+        const e = err as { statusCode?: number; message?: string };
+        return reply.status(e.statusCode ?? 500).send({
+          statusCode: e.statusCode ?? 500,
+          error: e.statusCode === 404 ? 'Not Found' : 'Internal Server Error',
+          message: e.message ?? 'Failed to save draft.',
+        });
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/third-party/drafts`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Trade'],
+        summary: 'List the requester\'s third-party trade drafts',
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const items = await listThirdPartyDrafts(fastify.db, request.userId!);
+      return reply.status(200).send({ items });
+    },
+  );
+
+  fastify.delete(
+    `${prefix}/third-party/drafts/:id`,
+    {
+      preHandler: [verifyToken],
+      schema: {
+        tags: ['Trade'],
+        summary: 'Delete a third-party trade draft',
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        response: { 204: { type: 'null' } },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      await deleteThirdPartyDraftService(fastify.db, request.userId!, id);
+      return reply.status(204).send();
+    },
   );
 }

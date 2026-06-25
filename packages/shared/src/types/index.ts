@@ -1,4 +1,11 @@
-import type { VariantWeights } from '../constants/index.js'
+import {
+  BASE_STICKER_CASH_CENTS,
+  TRADE_BALANCE_HIGH,
+  TRADE_BALANCE_LOW,
+  cashToScarcity,
+  effectiveScarcity,
+  type VariantWeights,
+} from '../constants/index.js'
 
 export type UserRole = 'user' | 'admin'
 export type Locale = 'en' | 'es'
@@ -419,14 +426,141 @@ export interface ExternalStickerRef {
    *  Frontend uses this to commit a third-party trade execution back to the
    *  server without re-running the catalog lookup. */
   stickerVariantId: string | null
+  /** Representative sticker_id (parent of stickerVariantId). Carried so the
+   *  editable third-party UI can render favourite-aware badges without a
+   *  second lookup. Null for anonymous pair matches that have no album
+   *  context. */
+  stickerId?: string | null
   /** Scarcity weight from VARIANT_SCARCITY. */
   scarcity: number
   quantity: number
+  /** True when the requesting user has marked this sticker as a favourite in
+   *  the album under match. Drives priority sort and badge in the editable UI. */
+  favourite?: boolean
+  /** True when the requesting user has the *exact* variant in their wanted
+   *  list. Independent of `favourite` (per-sticker vs per-variant). */
+  wanted?: boolean
 }
 
 export interface ExternalList {
   offered: string[]
   wanted: string[]
+}
+
+/**
+ * Minimal shape needed by `computeScarcityBalance` — anything carrying a
+ * variantToken + quantity satisfies it (live-trade refs, external refs,
+ * client-side trade picker rows). Kept open so the editable third-party UI
+ * can compute balance from any ref-like collection without a per-domain
+ * adapter.
+ */
+export interface BalanceWeightedRef {
+  variantToken: string | null
+  quantity: number
+}
+
+/**
+ * Pure balance compute, shared between the backend services and the editable
+ * third-party UI (which mutates the selection client-side and needs to
+ * refresh the lopsided badge without a round-trip). Mirrors the per-service
+ * `computeBalance` exactly — keep this and the two service-local copies in
+ * sync if you change the algorithm.
+ */
+export function computeScarcityBalance(
+  give: BalanceWeightedRef[],
+  get: BalanceWeightedRef[],
+  opts?: {
+    weights?: VariantWeights | null
+    giveCashCents?: number
+    getCashCents?: number
+  },
+): ScarcityTotals {
+  const weights = opts?.weights ?? null
+  // Convert through cashToScarcity FIRST so negative / NaN / Infinity inputs
+  // collapse to 0 — the single-variant predicate must then be evaluated
+  // against the sanitised contribution, not the raw user input. Otherwise
+  // `giveCashCents: -5` would defeat the same-variant collapse on a valid
+  // equal-count trade.
+  const giveCash = cashToScarcity(opts?.giveCashCents)
+  const getCash = cashToScarcity(opts?.getCashCents)
+  const w = (token: string | null): number => effectiveScarcity(token, weights)
+  const stickerGive = give.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0)
+  const stickerGet  = get.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0)
+  const giveSum = stickerGive + giveCash
+  const getSum  = stickerGet  + getCash
+  const ratio = giveSum === 0 ? null : getSum / giveSum
+  const sameVariant = isSingleVariantTrade(give, get) && giveCash === 0 && getCash === 0
+  const lopsided = sameVariant
+    ? ratio !== 1
+    : ratio !== null && (ratio < TRADE_BALANCE_LOW || ratio > TRADE_BALANCE_HIGH)
+  return { give: giveSum, get: getSum, ratio, lopsided, sameVariant }
+}
+
+/**
+ * Cents one side could add to make the trade exactly fair, given current
+ * balance totals. Returns `null` when the trade is already fair, when the
+ * imbalance can't be closed by cash (both sides empty), or when the suggestion
+ * would be a no-op. Positive integer cents otherwise — clamped to a sensible
+ * cap to stop a single bad sticker classification proposing thousand-dollar
+ * top-ups.
+ *
+ * Pairs with `computeScarcityBalance`: if `balance.lopsided`, ask this for
+ * the cents needed and which side they go on. The result is suggestion-only;
+ * callers free to ignore or round to a friendlier value.
+ */
+export interface BalancingCashSuggestion {
+  /** Which side the cash should be added to. 'give' means the user adds cash
+   *  to even up what they're giving; 'get' means the partner adds cash. */
+  side: 'give' | 'get'
+  cents: number
+}
+
+const SUGGEST_BALANCING_CASH_CAP_CENTS = 1_000_00 // $1,000 — well above any realistic in-person trade
+
+export function suggestBalancingCashCents(
+  balance: ScarcityTotals,
+): BalancingCashSuggestion | null {
+  if (!balance.lopsided) return null
+  if (balance.give === 0 && balance.get === 0) return null
+  // Cents = scarcity-point delta × BASE_STICKER_CASH_CENTS (the inverse of
+  // cashToScarcity). Round up so the suggestion always reaches the fair band,
+  // never falls one cent short.
+  const delta = Math.abs(balance.get - balance.give)
+  const cents = Math.min(
+    Math.ceil(delta * BASE_STICKER_CASH_CENTS),
+    SUGGEST_BALANCING_CASH_CAP_CENTS,
+  )
+  if (cents <= 0) return null
+  // If the user is RECEIVING more value, they owe cash (add to give side).
+  // If the user is GIVING more value, the partner owes cash (add to get side).
+  return {
+    side: balance.get > balance.give ? 'give' : 'get',
+    cents,
+  }
+}
+
+/**
+ * isSingleVariantTrade — true when both sides have at least one item AND every
+ * item shares a single variant token. Used by `computeScarcityBalance` to
+ * collapse the fair-band to exact equality, and by the third-party optimizer
+ * to trigger same-variant parity trimming. Exported so the optimizer doesn't
+ * have to redefine the same predicate.
+ */
+export function isSingleVariantTrade(
+  give: BalanceWeightedRef[],
+  get: BalanceWeightedRef[],
+): boolean {
+  if (give.length === 0 || get.length === 0) return false
+  const seen = new Set<string>()
+  for (const r of give) {
+    if (!r.variantToken) return false
+    seen.add(r.variantToken)
+  }
+  for (const r of get) {
+    if (!r.variantToken) return false
+    seen.add(r.variantToken)
+  }
+  return seen.size === 1
 }
 
 /** Aggregated scarcity totals for a single side of the trade. */
@@ -449,10 +583,20 @@ export interface ScarcityTotals {
 
 /** Result of matching a third-party list against the logged-in user. */
 export interface MatchAgainstMeResult {
-  /** Stickers the requester would receive (their offered ∩ my missing). */
+  /** Suggested receive subset — the items the optimizer recommends out of
+   *  `candidatesIGet`. The third-party UI seeds its checkboxes from this set;
+   *  the user can deselect or add from the full pool. */
   iGet: ExternalStickerRef[]
-  /** Stickers the requester would give (their wanted ∩ my duplicates). */
+  /** Suggested give subset — subset of `candidatesTheyGet`. */
   theyGet: ExternalStickerRef[]
+  /** Full pool of stickers the requester could receive (their offered ∩ my
+   *  missing). Always a superset of `iGet`. Sorted favourites/wanted first,
+   *  then by scarcity desc. */
+  candidatesIGet: ExternalStickerRef[]
+  /** Full pool of stickers the requester could give (their wanted ∩ my
+   *  duplicates). Always a superset of `theyGet`. Sorted by scarcity asc so
+   *  the cheapest-to-give items lead. */
+  candidatesTheyGet: ExternalStickerRef[]
   /** Codes/tokens from the input that could not be resolved against the catalog. */
   unknownCodes: string[]
   mutualOverlap: number

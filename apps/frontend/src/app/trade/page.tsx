@@ -22,6 +22,10 @@ import {
   patchUserPreferences,
   matchAgainstMe,
   recordThirdPartyTrade,
+  saveThirdPartyDraft,
+  deleteThirdPartyDraft,
+  listThirdPartyDrafts,
+  type ThirdPartyDraft,
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
@@ -37,10 +41,15 @@ import { useToast } from '@/components/ToastProvider';
 import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
 import CombinedListInput from './components/CombinedListInput';
-import ExternalMatchResult from './components/ExternalMatchResult';
+import ThirdPartyTradeEditor, {
+  refKey as thirdPartyRefKey,
+  type EditorState,
+} from './components/ThirdPartyTradeEditor';
+import { buildTradeExportText } from './components/buildTradeExportText';
 import WeightsEditor from './components/WeightsEditor';
 import type { VariantWeights } from '@cromo/shared';
 import TradesList from './components/TradesList';
+import DraftCard from './components/DraftCard';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -163,6 +172,10 @@ function TradePageContent() {
   const [tradesMoreLoading, setTradesMoreLoading] = useState(false);
   const [tradesCursor, setTradesCursor] = useState<string | null>(null);
   const [tradesError, setTradesError] = useState<string | null>(null);
+  // Third-party drafts loaded alongside trades — these are surfaced at the top
+  // of My Trades as a "Saved drafts" section. Drafts live in a separate table
+  // and never enter the trade_requests history feed.
+  const [tpDrafts, setTpDrafts] = useState<ThirdPartyDraft[]>([]);
   // Cross-tab reload counter — bumped when another tab signals a collection
   // change. The trades-load effect depends on it so My Trades stays fresh
   // even if the user accepted/declined in a second window.
@@ -181,6 +194,21 @@ function TradePageContent() {
   const [tpWeights, setTpWeights] = useState<VariantWeights>({});
   const [tpLoading, setTpLoading] = useState(false);
   const [tpError, setTpError] = useState<string | null>(null);
+  // Editable trade state — backs the third-party editor. Reset whenever a new
+  // match result lands; mutated by the user via the editor's checkboxes + cash
+  // inputs; consumed by Save / Copy / Record.
+  const [tpEditorState, setTpEditorState] = useState<EditorState>({
+    selectedIGet: new Set(),
+    selectedTheyGet: new Set(),
+    iGetCashCents: 0,
+    theyGetCashCents: 0,
+  });
+  // Tracks an open saved-draft so Save updates in place instead of inserting a
+  // new row. Cleared whenever the user starts over (Optimize Trade with new
+  // inputs, or successfully records the trade).
+  const [tpDraftId, setTpDraftId] = useState<string | null>(null);
+  const [tpSaving, setTpSaving] = useState(false);
+  const [tpCopied, setTpCopied] = useState(false);
   // Tracks the in-flight record-trade call so the button can't be double-clicked
   // and the modal can show the right state.
   const [tpRecording, setTpRecording] = useState(false);
@@ -295,10 +323,16 @@ function TradePageContent() {
       setTradesLoading(true);
       setTradesError(null);
       try {
-        const { items, nextCursor } = await fetchTrades({}, token);
+        // Pull trades + drafts in parallel — they're independent endpoints
+        // and the My Trades tab needs both rendered before it's useful.
+        const [tradesPage, drafts] = await Promise.all([
+          fetchTrades({}, token),
+          listThirdPartyDrafts(token).catch(() => ({ items: [] })),
+        ]);
         if (!cancelled) {
-          setTrades(items);
-          setTradesCursor(nextCursor);
+          setTrades(tradesPage.items);
+          setTradesCursor(tradesPage.nextCursor);
+          setTpDrafts(drafts.items);
         }
       } catch (err) {
         if (!cancelled)
@@ -527,6 +561,20 @@ function TradePageContent() {
     }
   }
 
+  // Default editor state derived from a fresh match result: pre-check the
+  // optimizer's suggestion, zero cash, no draft. Pulled into a helper so
+  // Optimize Trade and weight recompute can share the same reset path.
+  function defaultEditorState(result: MatchAgainstMeResult): EditorState {
+    const selectedIGet = new Set(result.iGet.map(thirdPartyRefKey));
+    const selectedTheyGet = new Set(result.theyGet.map(thirdPartyRefKey));
+    return {
+      selectedIGet,
+      selectedTheyGet,
+      iGetCashCents: 0,
+      theyGetCashCents: 0,
+    };
+  }
+
   async function handleTpMatch() {
     if (!token || !tpAlbumId) return;
     if (tpOffered.length === 0 && tpWanted.length === 0) {
@@ -547,6 +595,17 @@ function TradePageContent() {
         token,
       );
       setTpResult(result);
+      // Re-optimizing is a list-level edit, not a cash-level one — preserve
+      // any cash the user has already typed so a quick "I forgot to add BRA8"
+      // round-trip doesn't wipe their $5 top-up. Mirrors handleTpWeightsCommit.
+      setTpEditorState((prev) => ({
+        ...defaultEditorState(result),
+        iGetCashCents: prev.iGetCashCents,
+        theyGetCashCents: prev.theyGetCashCents,
+      }));
+      // Re-optimizing clears any in-progress draft so the next "Save" creates
+      // a fresh one instead of mutating one the user thought they'd parked.
+      setTpDraftId(null);
     } catch (err) {
       setTpError(err instanceof Error ? err.message : 'Failed to compute match.');
     } finally {
@@ -573,6 +632,13 @@ function TradePageContent() {
         token,
       );
       setTpResult(result);
+      // Weight changes shift the suggestion's "fair subset" — re-seed selection
+      // from the new optimizer output but preserve any cash the user typed.
+      setTpEditorState((prev) => ({
+        ...defaultEditorState(result),
+        iGetCashCents: prev.iGetCashCents,
+        theyGetCashCents: prev.theyGetCashCents,
+      }));
     } catch (err) {
       setTpError(err instanceof Error ? err.message : 'Failed to recompute match.');
     } finally {
@@ -580,19 +646,166 @@ function TradePageContent() {
     }
   }
 
+  function handleTpCopy() {
+    if (!tpResult) return;
+    const meLabel = user?.displayName ?? user?.username ?? 'You';
+    const partnerLabel = tpPartnerName.trim() || 'Partner';
+    const iReceive = tpResult.candidatesIGet.filter((r) =>
+      tpEditorState.selectedIGet.has(thirdPartyRefKey(r)),
+    );
+    const iGive = tpResult.candidatesTheyGet.filter((r) =>
+      tpEditorState.selectedTheyGet.has(thirdPartyRefKey(r)),
+    );
+    const text = buildTradeExportText({
+      meLabel,
+      partnerLabel,
+      iReceive,
+      iGive,
+      iReceiveCashCents: tpEditorState.iGetCashCents,
+      iGiveCashCents: tpEditorState.theyGetCashCents,
+    });
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setTpCopied(true);
+        setTimeout(() => setTpCopied(false), 2000);
+      } catch {
+        // Insecure contexts block clipboard — silently fail; user can re-try.
+      }
+    })();
+  }
+
+  async function handleResumeDraft(draft: ThirdPartyDraft) {
+    if (!token) return;
+    // Switch tabs first so the user sees the editor populate instead of
+    // staring at the My Trades list while the match request runs.
+    setTpAlbumId(draft.albumId);
+    setTpPartnerName(draft.partnerName ?? '');
+    setTpOffered(draft.theirOffered);
+    setTpWanted(draft.theirWanted);
+    setTpDraftId(draft.id);
+    setTpResult(null);
+    setTpEditorState({
+      selectedIGet: new Set(),
+      selectedTheyGet: new Set(),
+      iGetCashCents: draft.iReceiveCashCents,
+      theyGetCashCents: draft.iGiveCashCents,
+    });
+    // Clear any stale errors from a previous attempt so they don't leak into
+    // the resumed editor.
+    setTpRecordError(null);
+    switchTab('third-party');
+
+    setTpLoading(true);
+    setTpError(null);
+    try {
+      const result = await matchAgainstMe(
+        {
+          albumId: draft.albumId,
+          theirOffered: draft.theirOffered,
+          theirWanted: draft.theirWanted,
+          variantWeights: Object.keys(tpWeights).length > 0 ? tpWeights : undefined,
+        },
+        token,
+      );
+      setTpResult(result);
+      // Re-apply the saved selection: any candidate whose stickerVariantId
+      // appears in the persisted arrays is checked. Candidates added since
+      // the draft was saved (or removed from the user's missing/spare set)
+      // simply don't match and stay unchecked, which is the correct fallback.
+      const receiveSet = new Set(draft.selectionIReceive);
+      const giveSet = new Set(draft.selectionIGive);
+      const selectedIGet = new Set(
+        result.candidatesIGet
+          .filter((r) => r.stickerVariantId && receiveSet.has(r.stickerVariantId))
+          .map(thirdPartyRefKey),
+      );
+      const selectedTheyGet = new Set(
+        result.candidatesTheyGet
+          .filter((r) => r.stickerVariantId && giveSet.has(r.stickerVariantId))
+          .map(thirdPartyRefKey),
+      );
+      setTpEditorState({
+        selectedIGet,
+        selectedTheyGet,
+        iGetCashCents: draft.iReceiveCashCents,
+        theyGetCashCents: draft.iGiveCashCents,
+      });
+    } catch (err) {
+      setTpError(err instanceof Error ? err.message : 'Failed to load draft.');
+    } finally {
+      setTpLoading(false);
+    }
+  }
+
+  async function handleDeleteDraft(id: string) {
+    if (!token) return;
+    try {
+      await deleteThirdPartyDraft(id, token);
+      setTpDrafts((prev) => prev.filter((d) => d.id !== id));
+      if (tpDraftId === id) setTpDraftId(null);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to delete draft.');
+    }
+  }
+
+  async function handleTpSave() {
+    if (!token || !tpAlbumId || !tpResult || tpSaving) return;
+    setTpSaving(true);
+    try {
+      const iReceive = tpResult.candidatesIGet.filter((r) =>
+        tpEditorState.selectedIGet.has(thirdPartyRefKey(r)),
+      );
+      const iGive = tpResult.candidatesTheyGet.filter((r) =>
+        tpEditorState.selectedTheyGet.has(thirdPartyRefKey(r)),
+      );
+      const draft = await saveThirdPartyDraft(
+        {
+          id: tpDraftId,
+          albumId: tpAlbumId,
+          partnerName: tpPartnerName.trim() || null,
+          theirOffered: tpOffered,
+          theirWanted: tpWanted,
+          selectionIReceive: iReceive
+            .map((r) => r.stickerVariantId)
+            .filter((id): id is string => !!id),
+          selectionIGive: iGive
+            .map((r) => r.stickerVariantId)
+            .filter((id): id is string => !!id),
+          iReceiveCashCents: tpEditorState.iGetCashCents,
+          iGiveCashCents: tpEditorState.theyGetCashCents,
+        },
+        token,
+      );
+      setTpDraftId(draft.id);
+      // Keep the in-page draft list aligned so a subsequent visit to My Trades
+      // shows the just-saved row without a refetch round-trip.
+      setTpDrafts((prev) => {
+        const without = prev.filter((d) => d.id !== draft.id);
+        return [draft, ...without];
+      });
+      addToast(tpDraftId ? 'Draft updated.' : 'Draft saved.', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to save draft.');
+    } finally {
+      setTpSaving(false);
+    }
+  }
+
   async function handleTpRecord() {
     if (!token || !tpAlbumId || !tpResult) return;
-    // Map the match output to commit deltas. iGet = I receive (other person
-    // gives me these), theyGet = I give. Variants that didn't resolve against
-    // the catalog can't be committed — strip them out and warn if any drop.
-    const received = tpResult.iGet
+    // Read deltas from the editor's current selection, not the optimizer's
+    // initial suggestion — the user may have toggled items on or off.
+    const received = tpResult.candidatesIGet
+      .filter((r) => tpEditorState.selectedIGet.has(thirdPartyRefKey(r)))
       .filter((r): r is typeof r & { stickerVariantId: string } => r.stickerVariantId !== null)
       .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
-    const gave = tpResult.theyGet
+    const gave = tpResult.candidatesTheyGet
+      .filter((r) => tpEditorState.selectedTheyGet.has(thirdPartyRefKey(r)))
       .filter((r): r is typeof r & { stickerVariantId: string } => r.stickerVariantId !== null)
       .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
     if (received.length === 0 && gave.length === 0) {
-      setTpRecordError('Nothing to record — the matched stickers couldn\'t be resolved.');
+      setTpRecordError('Select at least one sticker before recording.');
       return;
     }
     setTpRecording(true);
@@ -607,10 +820,16 @@ function TradePageContent() {
         },
         token,
       );
+      // Recording consumes the draft (if any) so it doesn't linger as an
+      // "open" trade in My Trades after the swap is done.
+      if (tpDraftId) {
+        try { await deleteThirdPartyDraft(tpDraftId, token); } catch { /* best effort */ }
+      }
       addToast('Trade recorded — your collection has been updated.', 'success');
       // Wipe the staged match so a refresh-and-record can't double-commit
       // the same trade. The pasted lists stay (user might edit + re-match).
       setTpResult(null);
+      setTpDraftId(null);
       setTpConfirmOpen(false);
       // Tell other tabs (My Trades, Collection) to refresh.
       if (user) publishSync({ type: 'collection:changed', userId: user.id, albumId: tpAlbumId });
@@ -1007,22 +1226,33 @@ function TradePageContent() {
 
           {tpResult && (
             <>
-              <ExternalMatchResult
+              <ThirdPartyTradeEditor
                 title={t('optimalTrade')}
                 leftLabel="You"
-                leftReceives={tpResult.iGet}
                 rightLabel={tpPartnerName.trim() || 'They'}
-                rightReceives={tpResult.theyGet}
-                mutualOverlap={tpResult.mutualOverlap}
+                candidatesIGet={tpResult.candidatesIGet}
+                candidatesTheyGet={tpResult.candidatesTheyGet}
                 unknownCodes={tpResult.unknownCodes}
-                balance={tpResult.balance}
+                weights={tpWeights}
+                state={tpEditorState}
+                onStateChange={setTpEditorState}
+                onCopy={handleTpCopy}
+                onSave={handleTpSave}
+                onRecord={() => { setTpRecordError(null); setTpConfirmOpen(true); }}
+                saving={tpSaving}
+                recording={tpRecording}
+                saveLabel={tpDraftId ? 'Update draft' : 'Save draft'}
               />
 
-              {tpResult.mutualOverlap > 0 && (
+              {tpCopied && (
+                <p className="text-xs text-[var(--cromo-success-text)] -mt-2">Copied to clipboard.</p>
+              )}
+
+              {(tpResult.candidatesIGet.length > 0 || tpResult.candidatesTheyGet.length > 0) && (
                 <WeightsEditor
                   presentVariants={[
                     ...new Set(
-                      [...tpResult.iGet, ...tpResult.theyGet]
+                      [...tpResult.candidatesIGet, ...tpResult.candidatesTheyGet]
                         .map((r) => r.variantToken)
                         .filter((t): t is string => !!t),
                     ),
@@ -1033,22 +1263,8 @@ function TradePageContent() {
                 />
               )}
 
-              {tpResult.mutualOverlap > 0 && (
-                <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">
-                  <p className="text-xs text-[var(--cromo-fg-muted)] mb-2">
-                    Did you actually make this trade in person? Record it to update your collection.
-                  </p>
-                  <button
-                    onClick={() => { setTpRecordError(null); setTpConfirmOpen(true); }}
-                    disabled={tpRecording}
-                    className="bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    I made this trade
-                  </button>
-                  {tpRecordError && (
-                    <p className="mt-2 text-xs text-[var(--cromo-danger-text)]">{tpRecordError}</p>
-                  )}
-                </div>
+              {tpRecordError && (
+                <p className="text-xs text-[var(--cromo-danger-text)]">{tpRecordError}</p>
               )}
             </>
           )}
@@ -1066,8 +1282,8 @@ function TradePageContent() {
               >
                 <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Record this trade?</h3>
                 <p className="text-xs text-[var(--cromo-fg-muted)]">
-                  Your collection will be updated immediately: <strong>{tpResult.theyGet.length}</strong> sticker{tpResult.theyGet.length === 1 ? '' : 's'} removed,{' '}
-                  <strong>{tpResult.iGet.length}</strong> added. This is logged in your trade history but can&apos;t be undone from this screen.
+                  Your collection will be updated immediately: <strong>{tpEditorState.selectedTheyGet.size}</strong> sticker{tpEditorState.selectedTheyGet.size === 1 ? '' : 's'} removed,{' '}
+                  <strong>{tpEditorState.selectedIGet.size}</strong> added. This is logged in your trade history but can&apos;t be undone from this screen.
                 </p>
                 {tpPartnerName.trim() && (
                   <p className="text-xs text-[var(--cromo-fg-muted)]">
@@ -1116,7 +1332,25 @@ function TradePageContent() {
             </div>
           )}
 
-          {!tradesLoading && !tradesError && trades.length === 0 && (
+          {!tradesLoading && tpDrafts.length > 0 && (
+            <div className="mb-5 space-y-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--cromo-fg-subtle)]">
+                Saved drafts ({tpDrafts.length})
+              </h2>
+              <div className="space-y-2">
+                {tpDrafts.map((draft) => (
+                  <DraftCard
+                    key={draft.id}
+                    draft={draft}
+                    onResume={() => void handleResumeDraft(draft)}
+                    onDelete={() => void handleDeleteDraft(draft.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!tradesLoading && !tradesError && trades.length === 0 && tpDrafts.length === 0 && (
             <div className="text-center py-12">
               <p className="text-sm text-[var(--cromo-fg-muted)]">{t('noTradesYet')}</p>
               <button

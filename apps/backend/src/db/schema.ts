@@ -711,6 +711,36 @@ export const liveTradeCompletions = pgTable('live_trade_completions', {
   hostHistoryIdx: index('idx_live_trade_completions_host_completed').on(table.hostUserId, table.completedAt),
 }));
 
+// ─── third_party_trade_drafts ────────────────────────────────────────────────
+// In-progress third-party trade plan saved by a user from the Third-Party tab.
+// Independent of trade_requests (no counterparty user) and live_trade_completions
+// (no Redis session, not yet executed). The row IS the entire planning state —
+// resume re-renders the editor exactly where the user left off.
+//
+// `their_offered` / `their_wanted` hold the partner's typed list lines so the
+// editor can re-resolve against the live catalog on open (a re-seed between
+// save and resume could shift variant IDs; codes + variant tokens are stable).
+// `selection_*` arrays hold the user's tick-state at save time as variant
+// UUIDs; on resume the editor filters today's candidates by these.
+
+export const thirdPartyTradeDrafts = pgTable('third_party_trade_drafts', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  albumId: uuid('album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  partnerName: text('partner_name'),
+  theirOffered: jsonb('their_offered').$type<{ albumCode: string; variantToken: string | null; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
+  theirWanted: jsonb('their_wanted').$type<{ albumCode: string; variantToken: string | null; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
+  selectionIReceive: uuid('selection_i_receive').array().notNull().default(sql`'{}'::uuid[]`),
+  selectionIGive: uuid('selection_i_give').array().notNull().default(sql`'{}'::uuid[]`),
+  iReceiveCashCents: integer('i_receive_cash_cents').notNull().default(0),
+  iGiveCashCents: integer('i_give_cash_cents').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => ({
+  userUpdatedIdx: index('idx_third_party_trade_drafts_user_updated').on(table.userId, table.updatedAt),
+  cashNonNeg: check('third_party_trade_drafts_cash_nonneg', sql`${table.iReceiveCashCents} >= 0 AND ${table.iGiveCashCents} >= 0`),
+}));
+
 // ─── user_achievements ────────────────────────────────────────────────────────
 // One row per (user, achievement_key) the moment a criterion is first met.
 // Definitions live in code (packages/shared/src/constants/achievements.ts);
@@ -769,3 +799,5 @@ export type TradeInvite = typeof tradeInvites.$inferSelect;
 export type NewTradeInvite = typeof tradeInvites.$inferInsert;
 export type LiveTradeCompletion = typeof liveTradeCompletions.$inferSelect;
 export type NewLiveTradeCompletion = typeof liveTradeCompletions.$inferInsert;
+export type ThirdPartyTradeDraft = typeof thirdPartyTradeDrafts.$inferSelect;
+export type NewThirdPartyTradeDraft = typeof thirdPartyTradeDrafts.$inferInsert;

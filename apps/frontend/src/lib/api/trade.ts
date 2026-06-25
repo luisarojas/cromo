@@ -59,6 +59,67 @@ export async function matchPair(body: {
   );
 }
 
+// ─── Third-party trade drafts ───────────────────────────────────────────────
+// Parked in-progress plans the user can resume from the My Trades tab.
+
+export interface ThirdPartyDraftListItem {
+  albumCode: string;
+  variantToken: string | null;
+  quantity: number;
+}
+
+export interface ThirdPartyDraft {
+  id: string;
+  userId: string;
+  albumId: string;
+  partnerName: string | null;
+  theirOffered: ThirdPartyDraftListItem[];
+  theirWanted: ThirdPartyDraftListItem[];
+  selectionIReceive: string[];
+  selectionIGive: string[];
+  iReceiveCashCents: number;
+  iGiveCashCents: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function saveThirdPartyDraft(
+  body: {
+    id?: string | null;
+    albumId: string;
+    partnerName: string | null;
+    theirOffered: ExternalListItem[];
+    theirWanted: ExternalListItem[];
+    selectionIReceive: string[];
+    selectionIGive: string[];
+    iReceiveCashCents: number;
+    iGiveCashCents: number;
+  },
+  token: string,
+): Promise<ThirdPartyDraft> {
+  return apiFetch<ThirdPartyDraft>(
+    '/api/v1/trade/third-party/drafts',
+    { method: 'POST', body: JSON.stringify(body) },
+    token,
+  );
+}
+
+export async function listThirdPartyDrafts(token: string): Promise<{ items: ThirdPartyDraft[] }> {
+  return apiFetch<{ items: ThirdPartyDraft[] }>(
+    '/api/v1/trade/third-party/drafts',
+    {},
+    token,
+  );
+}
+
+export async function deleteThirdPartyDraft(id: string, token: string): Promise<void> {
+  await apiFetch<void>(
+    `/api/v1/trade/third-party/drafts/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    token,
+  );
+}
+
 export interface ThirdPartyCompletionDelta {
   stickerVariantId: string;
   quantity: number;

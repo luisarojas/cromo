@@ -204,6 +204,80 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
     });
   });
 
+  describe('matchAgainstUserAlbum — same-variant parity', () => {
+    it('trims both sides to equal counts when only the base lane is in play', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_borderless');
+
+      // 3 unique bases the partner offers (I'm missing all 3); 5 unique bases
+      // they want (I have spares of all 5). Same-variant parity should trim
+      // theyGet to 3 and leave iGet at 3 — a fair 3-for-3 same-lane swap.
+      const offered1 = await lookupVariant(840, 'base_borderless');
+      const offered2 = await lookupVariant(841, 'base_borderless');
+      const offered3 = await lookupVariant(842, 'base_borderless');
+      const want1 = await lookupVariant(843, 'base_borderless');
+      const want2 = await lookupVariant(844, 'base_borderless');
+      const want3 = await lookupVariant(845, 'base_borderless');
+      const want4 = await lookupVariant(846, 'base_borderless');
+      const want5 = await lookupVariant(847, 'base_borderless');
+      for (const v of [want1, want2, want3, want4, want5]) {
+        await insertOwned(albumId, v.variantId, 2);
+      }
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [offered1, offered2, offered3].map((o) => ({
+          albumCode: o.albumCode, variantToken: 'base_borderless', quantity: 1,
+        })),
+        theirWanted: [want1, want2, want3, want4, want5].map((w) => ({
+          albumCode: w.albumCode, variantToken: 'base_borderless', quantity: 1,
+        })),
+      });
+
+      // Full candidate pools reflect every match.
+      expect(result.candidatesIGet).toHaveLength(3);
+      expect(result.candidatesTheyGet).toHaveLength(5);
+      // Suggestion is trimmed to a fair 3-for-3.
+      expect(result.iGet).toHaveLength(3);
+      expect(result.theyGet).toHaveLength(3);
+      expect(result.balance.sameVariant).toBe(true);
+      expect(result.balance.lopsided).toBe(false);
+    });
+
+    it('sorts favourites + wanted ahead of plain matches on the receive side', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId);
+
+      const plain = await lookupVariant(850, 'base_border');
+      const fav = await lookupVariant(851, 'base_border');
+      const want = await lookupVariant(852, 'base_border');
+
+      // Flag #851 as a favourite and #852 as wanted.
+      await app.db.query(
+        `INSERT INTO user_sticker_favourites (album_id, sticker_id) VALUES ($1, $2)`,
+        [albumId, fav.stickerId],
+      );
+      await app.db.query(
+        `INSERT INTO user_wanted_variants (user_id, sticker_variant_id, album_id) VALUES ($1, $2, $3)`,
+        [userId, want.variantId, albumId],
+      );
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [plain, fav, want].map((v) => ({
+          albumCode: v.albumCode, variantToken: 'base_border', quantity: 1,
+        })),
+        theirWanted: [],
+      });
+
+      expect(result.iGet).toHaveLength(3);
+      // Favourite first (priority 100), then wanted (50), then plain (0).
+      expect(result.iGet[0]?.albumCode).toBe(fav.albumCode);
+      expect(result.iGet[0]?.favourite).toBe(true);
+      expect(result.iGet[1]?.albumCode).toBe(want.albumCode);
+      expect(result.iGet[1]?.wanted).toBe(true);
+      expect(result.iGet[2]?.albumCode).toBe(plain.albumCode);
+    });
+  });
+
   describe('matchAgainstUserAlbum — scarcity balance', () => {
     it('flags a lopsided trade and reports the give/get totals from the user\'s perspective', async () => {
       const userId = await insertUser();

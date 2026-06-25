@@ -656,7 +656,7 @@
     "citiesHint": "Used to filter trade matches by location.",
     "tabs": {
       "find": "Find Trades",
-      "thirdParty": "Third-Party List",
+      "thirdParty": "Third-Party",
       "my": "My Trades"
     },
     "findTradingPartners": "Find Trading Partners",

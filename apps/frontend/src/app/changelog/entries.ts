@@ -36,6 +36,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
+        'Third-Party trade editor — Cromo\'s suggested optimal trade is now a pre-filled checklist you can edit: tick or untick any sticker from the candidate pool on either side, add cash on top, and the fairness reading updates live. Wanted and favourite stickers float to the top of the receive column. Same-variant trades trim to equal counts automatically.',
+        'Cash in the trade balance — money offered or asked on a third-party trade now feeds into the fairness math at $0.50 per base sticker (scaled by variant scarcity), so an "X stickers + $5" plan reads as roughly fair when the totals line up. Each non-base sticker shows its approximate cash value (≈ $12.50 for a red, ≈ $1,000 for an extra gold), and a one-tap "Add $X" button on the lopsided warning bumps the right side\'s cash by the amount needed to balance.',
+        'Save third-party drafts — park an in-progress third-party trade and resume it from the My Trades tab. Drafts capture the partner\'s list, your selections, and any cash, so you can come back to them later or share-and-confirm before recording.',
+        'Copy a third-party trade as text — drop a formatted "Offers / Needs" summary into messages, with stickers grouped by team/FWC/Coca-Cola/Extras and any cash on either side.',
         'Spanish (Español) language support — pick your language from the footer.',
         'Site-wide SEO — sitemap, robots, OpenGraph cards, hreflang for EN/ES, and a structured Organization profile for search engines.',
         'Link previews — sharing a profile, share list, trade invite, or live-trade join URL now unfurls with a Cromo-branded graphic; profiles show the collector\'s name, album count, and totals.',
