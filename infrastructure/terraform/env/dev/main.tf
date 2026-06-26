@@ -44,8 +44,8 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  env        = "dev"
-  hostname   = "dev.${var.apex_domain}"
+  env          = "dev"
+  hostname     = "dev.${var.apex_domain}"
   account_id   = var.account_id != "" ? var.account_id : data.aws_caller_identity.current.account_id
   ecr_registry = var.ecr_registry != "" ? var.ecr_registry : "${local.account_id}.dkr.ecr.${var.region}.amazonaws.com"
 }
@@ -171,7 +171,13 @@ module "secrets" {
     SCAN_PROVIDER  = var.scan_provider
     GEMINI_API_KEY = var.gemini_api_key
     GROQ_API_KEY   = var.groq_api_key
-    JOBS_MODE      = "enabled"
+
+    # WC 2026 standings. 'mock' keeps the page on sample data; a real
+    # football-data.org key flips it to live fixtures/results.
+    WC_DATA_PROVIDER = "football-data"
+    WC_API_KEY       = var.wc_api_key
+
+    JOBS_MODE = "enabled"
 
     UPLOADS_DRIVER     = "s3"
     UPLOADS_BUCKET     = module.storage.uploads_bucket

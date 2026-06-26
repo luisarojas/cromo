@@ -36,6 +36,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
+        'FIFA World Cup 2026 tracker — a new guide page with live group tables, the official knockout bracket, and a team-by-team view: who has qualified, who is out, each nation\'s 26-man squad with current clubs, and transparent odds to reach the final or lift the trophy. The bracket and forecasts follow the real draw and fill in as results land.',
         'Third-Party trade editor — Cromo\'s suggested optimal trade is now a pre-filled checklist you can edit: tick or untick any sticker from the candidate pool on either side, add cash on top, and the fairness reading updates live. Wanted and favourite stickers float to the top of the receive column. Same-variant trades trim to equal counts automatically.',
         'Cash in the trade balance — money offered or asked on a third-party trade now feeds into the fairness math at $0.50 per base sticker (scaled by variant scarcity), so an "X stickers + $5" plan reads as roughly fair when the totals line up. Each non-base sticker shows its approximate cash value (≈ $12.50 for a red, ≈ $1,000 for an extra gold), and a one-tap "Add $X" button on the lopsided warning bumps the right side\'s cash by the amount needed to balance.',
         'Save third-party drafts — park an in-progress third-party trade and resume it from the My Trades tab. Drafts capture the partner\'s list, your selections, and any cash, so you can come back to them later or share-and-confirm before recording.',

@@ -15,6 +15,11 @@ jwt_secret = "REPLACE_WITH_RANDOM_32_BYTE_BASE64"
 scan_provider  = "gemini"
 gemini_api_key = "REPLACE_WITH_REAL_GEMINI_KEY"
 groq_api_key   = "mock"
+
+# WC 2026 standings. 'mock' keeps the page on deterministic sample data;
+# a real football-data.org key (https://www.football-data.org/client/register)
+# switches it to live fixtures, results, and rosters (WC_DATA_PROVIDER=football-data).
+wc_api_key = "mock"
 # Optional. Leave empty to use the code-side default per provider
 # (gemini-2.5-flash, meta-llama/llama-4-scout-17b-16e-instruct).
 # Set to e.g. "gemini-2.5-pro" to override without a redeploy.

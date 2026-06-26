@@ -62,6 +62,13 @@ variable "groq_api_key" {
   sensitive   = true
 }
 
+variable "wc_api_key" {
+  description = "football-data.org API key (https://www.football-data.org/client/register) for the WC 2026 standings feature, matching WC_DATA_PROVIDER=football-data. 'mock' (default) keeps the standings page on deterministic sample data; set a real key for live fixtures/results."
+  type        = string
+  default     = "mock"
+  sensitive   = true
+}
+
 variable "admin_emails" {
   description = "Email addresses to provision as admin users in Cognito (added to the 'admin' group)."
   type        = list(string)

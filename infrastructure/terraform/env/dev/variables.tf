@@ -61,6 +61,13 @@ variable "groq_api_key" {
   sensitive   = true
 }
 
+variable "wc_api_key" {
+  description = "football-data.org API key (https://www.football-data.org/client/register) for the WC 2026 standings feature, matching WC_DATA_PROVIDER=football-data. 'mock' (default) keeps the standings page on deterministic sample data with no external calls."
+  type        = string
+  default     = "mock"
+  sensitive   = true
+}
+
 variable "github_repo" {
   description = "GitHub repo slug (`owner/name`) that's allowed to assume the deploy role via OIDC."
   type        = string

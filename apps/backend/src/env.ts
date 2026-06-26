@@ -65,6 +65,19 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().default('mock'),
   GROQ_API_KEY: z.string().default('mock'),
 
+  // WC 2026 standings feature. WC_DATA_PROVIDER selects the live data source;
+  // WC_API_KEY is the active provider's key, or 'mock' (default) to short-circuit
+  // to the deterministic mock dataset (no external calls) — same mock-by-default
+  // contract as scanning. Provider errors fall back to mock.
+  //   - 'football-data' → football-data.org (https://www.football-data.org/client/register);
+  //                       the DEFAULT. Free tier covers WC 2026 fixtures/results/
+  //                       standings/squads (no club, no past-year history).
+  //   - 'api-football'  → api-sports.io v3 (https://www.api-football.com). Richer
+  //                       (clubs, match history) but its FREE tier has NO 2026
+  //                       access (2022–2024 only) — needs a paid plan.
+  WC_DATA_PROVIDER: z.enum(['football-data', 'api-football']).default('football-data'),
+  WC_API_KEY: z.string().default('mock'),
+
   // Scheduled jobs. 'enabled' registers the §34 cron catalog at API startup;
   // 'disabled' skips all registration (default for tests + iteration speed in
   // local dev — flip to 'enabled' to exercise the catalog locally).

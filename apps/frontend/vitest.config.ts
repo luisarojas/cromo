@@ -24,6 +24,7 @@ export default defineConfig({
         'src/app/collection/components/variantMeta.ts',
         'src/app/trade/draftStorage.ts',
         'src/app/trade/components/buildTradeExportText.ts',
+        'src/app/guide/wc-2026/standings/format.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

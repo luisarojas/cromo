@@ -17,3 +17,4 @@ export * from './api/sharing';
 export * from './api/wanted';
 export * from './api/trustSafety';
 export * from './api/scan';
+export * from './api/wc2026';

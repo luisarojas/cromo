@@ -53,6 +53,20 @@ export default async function WC2026GuidePage() {
         </p>
       </div>
 
+      {/* Live standings CTA */}
+      <Link
+        href="/guide/wc-2026/standings"
+        className="group flex items-center justify-between gap-4 rounded-xl border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] px-5 py-4 transition-colors hover:border-[var(--cromo-accent)]"
+      >
+        <span>
+          <span className="block text-sm font-bold text-[var(--cromo-accent)]">{t('standingsLink')}</span>
+          <span className="block text-xs text-[var(--cromo-fg-muted)]">{t('standingsLinkDesc')}</span>
+        </span>
+        <span aria-hidden className="text-[var(--cromo-accent)] transition-transform group-hover:translate-x-0.5">
+          →
+        </span>
+      </Link>
+
       {/* TOC */}
       <nav className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--cromo-fg-subtle)] mb-3">

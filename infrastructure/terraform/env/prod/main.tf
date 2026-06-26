@@ -173,7 +173,13 @@ module "secrets" {
     SCAN_PROVIDER  = var.scan_provider
     GEMINI_API_KEY = var.gemini_api_key # consulted when scan_provider='gemini'
     GROQ_API_KEY   = var.groq_api_key   # consulted when scan_provider='groq'
-    JOBS_MODE      = "enabled"
+
+    # WC 2026 standings. 'mock' keeps the page on sample data; a real
+    # football-data.org key flips it to live fixtures/results.
+    WC_DATA_PROVIDER = "football-data"
+    WC_API_KEY       = var.wc_api_key
+
+    JOBS_MODE = "enabled"
 
     UPLOADS_DRIVER     = "s3"
     UPLOADS_BUCKET     = module.storage.uploads_bucket

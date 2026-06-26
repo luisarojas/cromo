@@ -5,6 +5,7 @@
 import type { JobDeps, JobResult } from './types.js';
 import { sendSystemMessage, publishTradeEvent } from '../services/messaging.service.js';
 import { notifyRestoredAvailability } from '../services/trade-availability.service.js';
+import { warmBundle } from '../services/wc2026.service.js';
 
 // ─── Trade lifecycle ─────────────────────────────────────────────────────────
 
@@ -270,6 +271,15 @@ export async function cacheWarmStickers({ db, redis, log }: JobDeps): Promise<Jo
   await redis.set('stickers:all', JSON.stringify(rows), 'EX', 3600);
   log.info('cache-warm-stickers complete', { rows: rows.length });
   return { affected: rows.length };
+}
+
+export async function warmWc2026({ redis, log }: JobDeps): Promise<JobResult> {
+  // Recompute the WC 2026 bundle (standings + bracket + Monte Carlo forecast)
+  // and refresh its cache before the 10-min TTL lapses, so the standings page
+  // and live data stay warm without a request paying the simulation cost.
+  const affected = await warmBundle(redis);
+  log.info('warm-wc2026 complete', { affected });
+  return { affected };
 }
 
 // ─── Cloud-only jobs (registered only when NODE_ENV=production) ──────────────

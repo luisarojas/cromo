@@ -72,6 +72,12 @@ export const JOB_CATALOG: JobDefinition[] = [
     handler: handlers.cacheWarmStickers,
   },
   {
+    name: 'warm-wc2026',
+    cron: '*/9 * * * *',                // every 9 minutes (before the 10-min bundle TTL)
+    flagKey: 'JOB_WARM_WC2026',
+    handler: handlers.warmWc2026,
+  },
+  {
     name: 'dmarc-report-aggregation',
     cron: '0 6 * * 1',                  // weekly Mon 06:00 UTC
     flagKey: 'JOB_DMARC_REPORT_AGG',
