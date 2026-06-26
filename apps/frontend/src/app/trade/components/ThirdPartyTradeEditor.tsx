@@ -173,7 +173,9 @@ function SideColumn({
   }, [cashCents]);
 
   return (
-    <div>
+    // min-w-0 lets this grid column shrink below its content's intrinsic width
+    // so the sticker-name `truncate` engages instead of overflowing on mobile.
+    <div className="min-w-0">
       <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
         For {label} ({totalCount} sticker{totalCount === 1 ? '' : 's'}
         {cashCents > 0 && ` + $${fmtDollars(cashCents)}`})

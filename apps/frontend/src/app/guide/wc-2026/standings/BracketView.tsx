@@ -25,7 +25,7 @@ import { Flag, TeamName } from './parts';
 
 const COLUMN_W = 'w-64';
 const GUTTER_W = 'w-10';
-const SLOT_MIN_H = 'min-h-[150px]';
+const SLOT_MIN_H = 'min-h-[140px]';
 const HEADER_H = 'h-12';
 
 type Hover = { round: number; slot: number } | null;
@@ -69,7 +69,13 @@ export default function BracketView({
 
   return (
     <div className="space-y-6">
-      <div className="overflow-x-auto pb-3">
+      {/* overflow-y-hidden stops the panel from sprouting its OWN vertical
+          scrollbar: `overflow-x-auto` alone makes the browser compute overflow-y
+          to `auto`, so a horizontal scrollbar (in always-show-scrollbars mode)
+          steals a few px of height and triggers a nested vertical scrollbar.
+          The box is exactly as tall as its content, so nothing meaningful clips;
+          the page handles vertical scrolling. */}
+      <div className="overflow-x-auto overflow-y-hidden pb-3">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => (
             <div key={round.stage} className="flex flex-col">
@@ -176,15 +182,15 @@ function MatchCard({
       onMouseLeave={onHoverEnd}
       onFocus={onHover}
       onBlur={onHoverEnd}
-      className={`w-full rounded-xl border bg-[var(--cromo-surface)] p-3 text-sm shadow-sm transition-all ${
+      className={`w-full rounded-xl border bg-[var(--cromo-surface)] p-2.5 text-sm shadow-sm transition-all ${
         highlight ? 'border-[var(--cromo-accent)] ring-1 ring-[var(--cromo-accent)]' : 'border-[var(--cromo-border)]'
       } ${dim ? 'opacity-40' : 'opacity-100'}`}
     >
       <SideRow side={match.home} winner={match.winnerCode === match.home.code} groups={groups} onSelectTeam={onSelectTeam} t={t} />
-      <div className="my-1.5 border-t border-dashed border-[var(--cromo-border)]" />
+      <div className="my-1 border-t border-dashed border-[var(--cromo-border)]" />
       <SideRow side={match.away} winner={match.winnerCode === match.away.code} groups={groups} onSelectTeam={onSelectTeam} t={t} />
 
-      <div className="mt-2.5 space-y-0.5 border-t border-[var(--cromo-border)] pt-2 text-[10px] text-[var(--cromo-fg-subtle)]">
+      <div className="mt-1.5 space-y-0.5 border-t border-[var(--cromo-border)] pt-1.5 text-[10px] leading-tight text-[var(--cromo-fg-subtle)]">
         <p>{formatKickoffET(match.kickoff)}</p>
         <p className="truncate">
           {match.city} · {match.stadium}
