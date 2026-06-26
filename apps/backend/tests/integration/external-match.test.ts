@@ -6,9 +6,12 @@ import { randomUUID } from 'node:crypto';
  * Integration tests for the variant-aware external-list matching paths
  * (apps/backend/src/services/trade-matching.service.ts):
  *   - matchAgainstUserAlbum: a third-party's offered/wanted list matched
- *     against a logged-in user's collection. Identity is (album_code,
- *     variant_type); owning the base variant does NOT satisfy a want for
- *     a parallel.
+ *     against a logged-in user's collection. The give side is per-variant
+ *     (a base spare satisfies a base want only). The RECEIVE side is
+ *     per-sticker: a user is never recommended to receive a sticker they
+ *     already own in ANY variant — owning the base means the red parallel is
+ *     "owned" too and is never offered to them, UNLESS they've explicitly added
+ *     that exact variant to their wanted list (the variant-collector exception).
  *   - matchPair: anonymous two-list match.
  *
  * The third-party flow is the entry point for trade-ratio guidance: the
@@ -85,6 +88,18 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
     );
   }
 
+  async function insertWanted(
+    userId: string,
+    albumId: string,
+    variantId: string,
+  ): Promise<void> {
+    await app.db.query(
+      `INSERT INTO user_wanted_variants (user_id, album_id, sticker_variant_id)
+       VALUES ($1, $2, $3)`,
+      [userId, albumId, variantId],
+    );
+  }
+
   // Test fixtures use sticker numbers 800–810 (well above seeded ranges).
   async function lookupVariant(stickerNumber: number, variantType: string): Promise<{
     stickerId: string; variantId: string; albumCode: string;
@@ -139,7 +154,7 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
   });
 
   describe('matchAgainstUserAlbum — variant identity', () => {
-    it('treats owning the base variant as NOT satisfying a want for the red parallel', async () => {
+    it('never recommends receiving a parallel of a sticker already owned in another variant', async () => {
       const userId = await insertUser();
       const albumId = await insertAlbum(userId, 'base_border');
 
@@ -149,8 +164,31 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
       // User owns the base only.
       await insertOwned(albumId, base.variantId, 1);
 
-      // Third party offers BRA800(red). The user "needs" it because they
-      // don't own the red variant — owning base doesn't fill that lane.
+      // Third party offers BRA800(red). The user already owns BRA800 (in the
+      // base lane), so it must NEVER be recommended as a receive — regardless
+      // of variant, owning the sticker means owning it.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: red.albumCode, variantToken: 'red', quantity: 1 }],
+        theirWanted:  [],
+      });
+
+      expect(result.iGet).toHaveLength(0);
+      expect(result.candidatesIGet).toHaveLength(0);
+      expect(result.unknownCodes).toEqual([]);
+    });
+
+    it('DOES offer a parallel the user explicitly wants, even while owning another variant', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(804, 'base_border');
+      const red = await lookupVariant(804, 'red');
+
+      // User owns the base but has explicitly added the red to their wanted list
+      // — the variant-collector exception: the explicit per-variant want wins.
+      await insertOwned(albumId, base.variantId, 1);
+      await insertWanted(userId, albumId, red.variantId);
+
       const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
         theirOffered: [{ albumCode: red.albumCode, variantToken: 'red', quantity: 1 }],
         theirWanted:  [],
@@ -158,8 +196,7 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
 
       expect(result.iGet).toHaveLength(1);
       expect(result.iGet[0]?.variantToken).toBe('red');
-      expect(result.iGet[0]?.albumCode).toBe(red.albumCode);
-      expect(result.unknownCodes).toEqual([]);
+      expect(result.iGet[0]?.wanted).toBe(true);
     });
 
     it('resolves an untagged code to the album owner\'s defaultBaseVariant', async () => {
@@ -187,11 +224,13 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
       const albumId = await insertAlbum(userId);
       const base = await lookupVariant(802, 'base_border');
       await insertOwned(albumId, base.variantId, 2);
+      // #803 is a sticker the user owns NO variant of, so its red is receivable.
+      const red803 = await lookupVariant(803, 'red');
 
       const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
         theirOffered: [
           { albumCode: 'BRA802', variantToken: 'hologram', quantity: 1 },
-          { albumCode: base.albumCode, variantToken: 'red', quantity: 1 },
+          { albumCode: red803.albumCode, variantToken: 'red', quantity: 1 },
         ],
         theirWanted:  [],
       });
@@ -199,7 +238,7 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
       // hologram is unknown → echoes back with the variant tag attached so
       // the user sees exactly what didn't resolve.
       expect(result.unknownCodes).toContain('BRA802(hologram)');
-      // Real items still resolve: user doesn't own the red, so they receive it.
+      // Real items still resolve: user owns no variant of #803, so they receive it.
       expect(result.iGet.map((r) => r.variantToken)).toContain('red');
     });
   });

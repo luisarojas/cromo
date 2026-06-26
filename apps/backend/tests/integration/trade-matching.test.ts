@@ -345,6 +345,35 @@ describe.skipIf(!shouldRun)('Trade matching (integration)', () => {
     expect(match!.they_have_variant_ids).not.toContain(blue720);
   });
 
+  it('offers an explicitly-wanted variant even when the requester owns another variant of it', async () => {
+    // Variant-collector exception: requester owns 722(red) but explicitly wants
+    // 722(base_border). The explicit per-variant want is a deliberate signal, so
+    // the matcher SHOULD surface 722(base_border) despite owning the red lane.
+    const requesterId      = await insertUser();
+    const requesterAlbumId = await insertAlbum(requesterId);
+
+    const want722Base = await lookupVariantId(722, 'base_border');
+    const red722      = await lookupVariantId(722, 'red');
+    await insertOwned(requesterAlbumId, red722, 1);       // 722 is owned (red lane)
+    await insertWantedVariant(requesterId, requesterAlbumId, want722Base);
+
+    // Independent mutual so the candidate still shows up: requester offers 724,
+    // candidate offers 725 (which the requester is implicitly missing).
+    const offer724 = await lookupVariantId(724);
+    await insertOwned(requesterAlbumId, offer724, 2);
+
+    const candidateId      = await insertUser();
+    const candidateAlbumId = await insertAlbum(candidateId);
+    await insertOwned(candidateAlbumId, want722Base, 2);  // candidate has 722 base spare
+    await insertOwned(candidateAlbumId, await lookupVariantId(725), 2);
+
+    const page = await getTradeMatches(app.db, app.redis, requesterId, requesterAlbumId, { limit: 50 });
+    const match = page.items.find((i) => i.user_id === candidateId);
+
+    expect(match).toBeDefined();
+    expect(match!.they_have_variant_ids).toContain(want722Base);
+  });
+
   // ── Coca-Cola slot identity (album_code, not sticker_id) ─────────────────────
 
   it('excludes other CC9 regional alternates from my_missing when requester owns one', async () => {

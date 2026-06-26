@@ -48,7 +48,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Achievement badges — earn milestones as you fill teams, hit completion percentages, complete a trade, or land a rare pull. Browse them on any collector\'s profile.',
         'Trade in person — generate a QR code from the Trades page; the other collector scans it and lands straight in the propose-trade flow with you as the partner.',
         'Live trade — start a shared in-person trade session with someone who doesn\'t have a Cromo account. Share a 6-digit code, link, or QR; both sides stage stickers, lock in, and the host commits the swap to their album with a 60-second undo window. A suggested split surfaces automatically from your lists. Completed live trades show in My Trades alongside your regular trade history.',
-        'Variant tags in third-party trade lists — paste a friend\'s offered/wanted list with rarities attached (e.g. BRA5(red)x2, MEX10(gold)) and the matcher will check variant-by-variant ownership instead of only album-code overlap.',
+        'Variant tags in third-party trade lists — paste a friend\'s offered/wanted list with rarities attached (e.g. BRA5(red)x2, MEX10(gold)) and the matcher reads each rarity, matching what you can give variant-by-variant instead of only album-code overlap.',
         'Lopsided-trade warning on third-party matches — Cromo flags trades where one side gives noticeably more scarcity than they\'d receive, based on Panini\'s published pack odds. Guidance only — collectors set the actual price.',
         'One-tap clear (×) button in every search bar.',
         'Double-tap a sticker tile on mobile to favourite (or un-favourite) it without opening the variant sheet.',
@@ -56,6 +56,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'New "Unlisted" album visibility — share an album only with people you send the link to. Unlisted albums are hidden from your profile and not matched with other collectors.',
       ],
       Changed: [
+        'Trade suggestions never offer you a sticker you already have — if you own a sticker in any variant, Cromo won\'t recommend you receive it in another variant (a red when you have the base), unless you\'ve explicitly added that variant to your wishlist. It still counts as a duplicate you can give away.',
         'Same-variant trades — when both sides of a trade are entirely the same variant (e.g. base for base), Cromo now requires equal counts to call it fair instead of grading by scarcity weight.',
         'Per-trade variant weights — negotiate the value of each variant for a single trade. On third-party matches, set your own table and rerun the match. In a live-trade session, one side proposes a weight table and the other side accepts before it takes effect.',
         'Renamed the 1-of-1 Black rarity tier to "Unique".',

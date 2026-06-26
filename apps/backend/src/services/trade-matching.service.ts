@@ -174,7 +174,11 @@ export async function getTradeMatches(
        SELECT album_type_id FROM user_albums WHERE id = $2
      ),
      my_missing AS (
-       -- Explicitly wanted variants: respect the user's specific variant preference
+       -- Explicitly wanted variants: respect the user's specific variant
+       -- preference. This is the variant-collector exception to "never offer a
+       -- sticker you already own" — a collector who explicitly wants BRA5(red)
+       -- while owning BRA5(base) DOES want the red, so it's offered. The
+       -- implicit arm below is what enforces the owned-in-any-variant rule.
        SELECT uwv.sticker_variant_id AS variant_id
        FROM user_wanted_variants uwv
        WHERE uwv.album_id = $2
@@ -255,7 +259,8 @@ export async function getTradeMatches(
        JOIN sticker_variants sv ON sv.id = md.variant_id
        JOIN stickers s ON s.id = sv.sticker_id
        WHERE (
-         -- They explicitly want this exact variant
+         -- They explicitly want this exact variant (variant-collector exception:
+         -- honoured even if they own a different variant of the same sticker).
          EXISTS (
            SELECT 1 FROM user_wanted_variants uwv
            WHERE uwv.album_id = ca.album_id
@@ -769,10 +774,18 @@ function computeBalance(
 /**
  * matchAgainstUserAlbum — third-party list vs. a registered user's collection.
  * "iGet" is what the user receives (the third party offers it AND the user
- * doesn't own that exact variant). "theyGet" is what the user gives (the
+ * owns NO variant of that sticker). "theyGet" is what the user gives (the
  * third party wants it AND the user has a spare of that exact variant).
- * Identity is `(album_code, variant_type)` — owning BRA5(base) does not
- * satisfy a want for BRA5(red).
+ *
+ * Receive side is per-STICKER by default: we never recommend the user receive
+ * a sticker they already own in ANY variant — owning BRA5(base) means BRA5(red)
+ * is "owned" and is never suggested (CC widens to album_code: owning any
+ * regional alternate fills the slot). The variant-collector exception: if the
+ * user has explicitly added BRA5(red) to their wanted list, it IS offered even
+ * while they own BRA5(base) — an explicit per-variant want is a deliberate
+ * signal. The exact variant they already own is never offered either way. The
+ * give side stays per-variant: a spare of BRA5(base) only satisfies a want for
+ * BRA5(base).
  */
 export async function matchAgainstUserAlbum(
   db: Pool,
@@ -848,6 +861,31 @@ export async function matchAgainstUserAlbum(
     });
   }
 
+  // Sticker-level ownership for the receive side: a trade must never hand the
+  // user a sticker they already own in ANY variant. Owning BRA5(base) makes
+  // BRA5(red) "owned" for receive purposes too, so it can't be a candidate to
+  // receive. CC widens to album_code (owning any regional alternate fills the
+  // slot). This is the per-STICKER check, distinct from ownedByVariant's
+  // per-variant spare check used on the give side.
+  const { rows: ownedRows } = await db.query<{
+    sticker_id: string;
+    album_code: string;
+    sticker_type: string;
+  }>(
+    `SELECT DISTINCT s.id AS sticker_id, s.album_code, s.sticker_type
+       FROM user_stickers us
+       JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
+      WHERE us.album_id = $1 AND us.quantity > 0`,
+    [albumId],
+  );
+  const ownedStickerIds = new Set(ownedRows.map((r) => r.sticker_id));
+  const ownedCcAlbumCodes = new Set(
+    ownedRows
+      .filter((r) => r.sticker_type === 'coca_cola_special')
+      .map((r) => r.album_code),
+  );
+
   // Pull the user's favourites + wanted lists for this album so the optimizer
   // can surface "you marked this as wanted" / "you starred this" first when
   // suggesting what to receive. Both queries are tiny (typically <100 rows)
@@ -867,7 +905,22 @@ export async function matchAgainstUserAlbum(
   const wantedVariantIds = new Set(wantedRows.rows.map((r) => r.sticker_variant_id));
 
   const candidatesIGet = offeredRes
-    .filter((r) => (ownedByVariant.get(r.stickerVariantId)?.qty ?? 0) === 0)
+    .filter((r) => {
+      // Already own this EXACT variant → never receive it.
+      if ((ownedByVariant.get(r.stickerVariantId)?.qty ?? 0) > 0) return false;
+      // Variant-collector exception: an explicit per-variant want is offered even
+      // when another variant of the sticker is owned.
+      if (wantedVariantIds.has(r.stickerVariantId)) return true;
+      // Otherwise never receive a sticker already owned in any variant (CC: any alternate).
+      if (ownedStickerIds.has(r.entry.stickerId)) return false;
+      if (
+        r.entry.stickerType === 'coca_cola_special' &&
+        ownedCcAlbumCodes.has(r.entry.albumCode)
+      ) {
+        return false;
+      }
+      return true;
+    })
     .map((r) => {
       const ref = refOf(r);
       ref.favourite = favouriteStickerIds.has(r.entry.stickerId);
