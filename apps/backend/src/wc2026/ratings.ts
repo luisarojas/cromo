@@ -73,6 +73,18 @@ export function ratingFor(code: string): number {
   return TEAM_RATINGS[code] ?? DEFAULT_RATING;
 }
 
+/** Whether `code` has a published FIFA rating (i.e. is a known WC nation). Lets
+ * strength.ts apply the FIFA anchor only to rated teams and leave the many
+ * non-WC opponents in the recent-results graph at the neutral common base. */
+export function hasRating(code: string): boolean {
+  return code in TEAM_RATINGS;
+}
+
+/** Mean of the published ratings — the centre the FIFA anchor is taken relative
+ * to, so the anchor adds a *compressed* tilt rather than the full rating level. */
+export const MEAN_RATING =
+  Object.values(TEAM_RATINGS).reduce((s, v) => s + v, 0) / Object.values(TEAM_RATINGS).length;
+
 /**
  * winProbability — logistic (Elo) expectation that team A beats team B in a
  * single match, ignoring draws. The classic Elo formula:

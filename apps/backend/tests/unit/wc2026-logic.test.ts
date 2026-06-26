@@ -268,24 +268,34 @@ describe('strength (results-adjusted Elo)', () => {
     };
   }
 
-  it('returns the baseline rating when there are no finished matches', () => {
-    const rating = buildStrength([]);
-    expect(rating('ARG')).toBe(ratingFor('ARG'));
-    expect(rating('ZZZ')).toBe(DEFAULT_RATING);
+  it('seeds an unknown, never-played team at the neutral common base', () => {
+    // No FIFA rating and not in the recent-results graph → the 1500 common base.
+    expect(buildStrength([])('ZZZ')).toBe(1500);
   });
 
-  it('raises the winner above its baseline and lowers the loser', () => {
-    const baseWin = ratingFor('CRO');
-    const baseLose = ratingFor('CAN');
-    const rating = buildStrength([koFinished('CRO', 'CAN', 2, 0)]);
-    expect(rating('CRO')).toBeGreaterThan(baseWin);
-    expect(rating('CAN')).toBeLessThan(baseLose);
+  it('raises a tournament winner and lowers the loser, relative to not playing it', () => {
+    const without = buildStrength([]); // recent-form background only
+    const withMatch = buildStrength([koFinished('CRO', 'CAN', 2, 0)]);
+    expect(withMatch('CRO')).toBeGreaterThan(without('CRO'));
+    expect(withMatch('CAN')).toBeLessThan(without('CAN'));
   });
 
   it('moves ratings more for a bigger upset than an expected win', () => {
-    const upsetGain = buildStrength([koFinished('HAI', 'ARG', 1, 0)])('HAI') - ratingFor('HAI');
-    const expectedGain = buildStrength([koFinished('ARG', 'HAI', 1, 0)])('ARG') - ratingFor('ARG');
+    const base = buildStrength([]);
+    const upsetGain = buildStrength([koFinished('HAI', 'ARG', 1, 0)])('HAI') - base('HAI');
+    const expectedGain = buildStrength([koFinished('ARG', 'HAI', 1, 0)])('ARG') - base('ARG');
     expect(upsetGain).toBeGreaterThan(expectedGain);
+  });
+
+  it('lets results dominate the FIFA seed (FIFA is only a light anchor)', () => {
+    // NZL has the lowest FIFA rating, ARG the highest. Repeated heavy NZL wins
+    // must lift NZL above ARG — recent/tournament results decide, not pedigree.
+    const rating = buildStrength([
+      koFinished('NZL', 'ARG', 4, 0),
+      koFinished('NZL', 'ARG', 3, 0),
+      koFinished('NZL', 'ARG', 3, 0),
+    ]);
+    expect(rating('NZL')).toBeGreaterThan(rating('ARG'));
   });
 });
 
