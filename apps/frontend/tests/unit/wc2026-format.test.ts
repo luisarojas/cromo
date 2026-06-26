@@ -16,12 +16,13 @@ function matchAt(kickoff: string): WcMatch {
     id: kickoff,
     stage: 'R32',
     group: null,
+    slot: 0,
     kickoff,
     city: 'X',
     stadium: 'Y',
     status: 'SCHEDULED',
-    home: { code: null, name: null, placeholder: '1A', score: null, pens: null },
-    away: { code: null, name: null, placeholder: '2B', score: null, pens: null },
+    home: { code: null, name: null, placeholder: '1A', feed: '1A', score: null, pens: null },
+    away: { code: null, name: null, placeholder: '2B', feed: '2B', score: null, pens: null },
     winnerCode: null,
     favourite: null,
   };
@@ -83,6 +84,11 @@ describe('shortPlaceholder', () => {
     expect(shortPlaceholder('Loser SF1')).toBe('Loser');
     expect(shortPlaceholder(null)).toBe('—');
   });
+  it('renders winner/loser feeds as a stage + 1-based match number', () => {
+    expect(shortPlaceholder('W:R32:0')).toBe('R32 W1');
+    expect(shortPlaceholder('W:R16:3')).toBe('R16 W4');
+    expect(shortPlaceholder('L:SF:1')).toBe('SF L2');
+  });
 });
 
 describe('placeholderCandidates', () => {
@@ -107,9 +113,44 @@ describe('placeholderCandidates', () => {
     // Can finish 3rd across groups: KOR, RSA (A); SUI, QAT (B). Not CAN (locked 1st).
     expect(placeholderCandidates('T2', groups).map((c) => c.code)).toEqual(['KOR', 'RSA', 'SUI', 'QAT']);
   });
-  it('returns nothing for winner/loser slots or null', () => {
+  it('returns nothing for winner/loser slots without a bracket, or null', () => {
     expect(placeholderCandidates('Winner R32#1', groups)).toEqual([]);
+    expect(placeholderCandidates('W:R32:0', groups)).toEqual([]); // no bracket → can't resolve
     expect(placeholderCandidates(null, groups)).toEqual([]);
+  });
+
+  // A later-round slot ("W:STAGE:n") resolves to everyone who could be in that
+  // feeding match, walking the tree down to group/third slots.
+  const koSide = (feed: string, code: string | null = null) => ({
+    code, name: code, placeholder: feed, feed: code ? null : feed, score: null, pens: null,
+  });
+  const ko = (stage: WcMatch['stage'], slot: number, home: WcMatch['home'], away: WcMatch['home']): WcMatch => ({
+    id: `${stage}${slot}`, stage, group: null, slot, kickoff: '2026-07-01T18:00:00Z',
+    city: 'X', stadium: 'Y', status: 'SCHEDULED', home, away, winnerCode: null, favourite: null,
+  });
+  const bracket: WcMatch[] = [
+    ko('R32', 0, koSide('1A'), koSide('2B')), // → MEX,KOR | SUI,QAT
+    ko('R32', 1, koSide('1B'), koSide('2A')), // → CAN | MEX,KOR,RSA
+    ko('R32', 2, koSide('1A'), koSide('1B', 'BRA')), // away already resolved to BRA
+    ko('R16', 0, koSide('W:R32:0'), koSide('W:R32:1')),
+  ];
+
+  it('unions the candidates of the feeding match for a "W:STAGE:n" slot', () => {
+    expect(placeholderCandidates('W:R32:0', groups, bracket).map((c) => c.code).sort()).toEqual(
+      ['KOR', 'MEX', 'QAT', 'SUI'],
+    );
+  });
+  it('uses a resolved team directly instead of recursing into its (absent) feed', () => {
+    // R32 match 2: home "1A" (MEX,KOR) + away already BRA.
+    expect(placeholderCandidates('W:R32:2', groups, bracket).map((c) => c.code).sort()).toEqual(
+      ['BRA', 'KOR', 'MEX'],
+    );
+  });
+  it('recurses through multiple rounds and de-dupes teams', () => {
+    // R16 match 0 ← R32#0 (MEX,KOR,SUI,QAT) ∪ R32#1 (CAN,MEX,KOR,RSA).
+    expect(placeholderCandidates('W:R16:0', groups, bracket).map((c) => c.code).sort()).toEqual(
+      ['CAN', 'KOR', 'MEX', 'QAT', 'RSA', 'SUI'],
+    );
   });
 });
 

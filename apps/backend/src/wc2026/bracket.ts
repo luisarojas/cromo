@@ -30,6 +30,7 @@ function winnerOf(m: RawMatch): string | null {
 function side(
   code: string | null,
   placeholder: string | null,
+  feed: string | null | undefined,
   score: number | null,
   pens: number | null,
   nameOf: (c: string) => string,
@@ -39,6 +40,7 @@ function side(
     name: code ? nameOf(code) : null,
     // Unknown side → "TBD" (teams aren't known until the post-group-stage draw).
     placeholder: code ? null : placeholder || 'TBD',
+    feed: code ? null : (feed ?? null),
     score,
     pens,
   };
@@ -66,12 +68,13 @@ export function toWireMatch(
     id: m.id,
     stage: m.stage,
     group: m.group,
+    slot: m.slot,
     kickoff: m.kickoff,
     city: venue.city,
     stadium: venue.stadium,
     status: m.status,
-    home: side(m.homeCode, m.homeSlot, m.homeScore, m.homePens, nameOf),
-    away: side(m.awayCode, m.awaySlot, m.awayScore, m.awayPens, nameOf),
+    home: side(m.homeCode, m.homeSlot, m.homeFeed, m.homeScore, m.homePens, nameOf),
+    away: side(m.awayCode, m.awaySlot, m.awayFeed, m.awayScore, m.awayPens, nameOf),
     winnerCode: winnerOf(m),
     favourite: favourite(m.homeCode, m.awayCode, rating),
   };

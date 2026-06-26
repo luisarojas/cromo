@@ -92,6 +92,7 @@ export default function BracketView({
                         <MatchCard
                           match={m}
                           groups={overview.groups}
+                          bracket={overview.bracket}
                           dim={active && !onPath}
                           highlight={onPath}
                           onSelectTeam={onSelectTeam}
@@ -115,7 +116,7 @@ export default function BracketView({
       {third.length > 0 && (
         <div className="max-w-sm">
           <h3 className="mb-2 text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS.THIRD}</h3>
-          <MatchCard match={third[0]} groups={overview.groups} onSelectTeam={onSelectTeam} t={t} />
+          <MatchCard match={third[0]} groups={overview.groups} bracket={overview.bracket} onSelectTeam={onSelectTeam} t={t} />
         </div>
       )}
     </div>
@@ -157,6 +158,7 @@ function ConnectorGutter({
 function MatchCard({
   match,
   groups,
+  bracket,
   dim,
   highlight,
   onSelectTeam,
@@ -166,6 +168,7 @@ function MatchCard({
 }: {
   match: WcMatch;
   groups: WcGroupStanding[];
+  bracket: WcMatch[];
   dim?: boolean;
   highlight?: boolean;
   onSelectTeam: (code: string) => void;
@@ -186,9 +189,9 @@ function MatchCard({
         highlight ? 'border-[var(--cromo-accent)] ring-1 ring-[var(--cromo-accent)]' : 'border-[var(--cromo-border)]'
       } ${dim ? 'opacity-40' : 'opacity-100'}`}
     >
-      <SideRow side={match.home} winner={match.winnerCode === match.home.code} groups={groups} onSelectTeam={onSelectTeam} t={t} />
+      <SideRow side={match.home} winner={match.winnerCode === match.home.code} groups={groups} bracket={bracket} onSelectTeam={onSelectTeam} t={t} />
       <div className="my-1 border-t border-dashed border-[var(--cromo-border)]" />
-      <SideRow side={match.away} winner={match.winnerCode === match.away.code} groups={groups} onSelectTeam={onSelectTeam} t={t} />
+      <SideRow side={match.away} winner={match.winnerCode === match.away.code} groups={groups} bracket={bracket} onSelectTeam={onSelectTeam} t={t} />
 
       <div className="mt-1.5 space-y-0.5 border-t border-[var(--cromo-border)] pt-1.5 text-[10px] leading-tight text-[var(--cromo-fg-subtle)]">
         <p>{formatKickoffET(match.kickoff)}</p>
@@ -207,12 +210,14 @@ function SideRow({
   side,
   winner,
   groups,
+  bracket,
   onSelectTeam,
   t,
 }: {
   side: WcMatchSide;
   winner: boolean;
   groups: WcGroupStanding[];
+  bracket: WcMatch[];
   onSelectTeam: (code: string) => void;
   t: ReturnType<typeof useTranslations>;
 }) {
@@ -240,7 +245,12 @@ function SideRow({
     );
   }
 
-  const candidates = placeholderCandidates(side.placeholder, groups);
+  const candidates = placeholderCandidates(side.feed, groups, bracket);
+  // Deep rounds can have many possible teams (the final's whole half of the
+  // draw); cap the popover and summarise the rest so it stays compact.
+  const MAX_SHOWN = 12;
+  const shown = candidates.slice(0, MAX_SHOWN);
+  const extra = candidates.length - shown.length;
   const titleAttr = candidates.length ? `${t('couldFace')} ${candidates.map((c) => c.name).join(', ')}` : undefined;
   return (
     <div className="group relative flex items-center justify-between gap-2">
@@ -249,15 +259,15 @@ function SideRow({
         title={titleAttr}
         className="truncate rounded text-[var(--cromo-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
       >
-        <span className="font-mono text-xs italic">{shortPlaceholder(side.placeholder)}</span>
+        <span className="font-mono text-xs italic">{shortPlaceholder(side.feed ?? side.placeholder)}</span>
       </span>
       {candidates.length > 0 && (
         <span className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1 w-max max-w-[14rem] rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-bg)] p-2 text-left shadow-lg group-hover:visible group-focus-within:visible">
           <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-subtle)]">
-            {t('couldFace')}
+            {t('couldFace')} ({candidates.length})
           </span>
           <span className="flex flex-col gap-1">
-            {candidates.map((c) => (
+            {shown.map((c) => (
               <span key={c.code} className="flex items-center gap-1.5 text-xs">
                 <Flag code={c.code} />
                 <span className="text-[var(--cromo-fg)]">
@@ -265,6 +275,7 @@ function SideRow({
                 </span>
               </span>
             ))}
+            {extra > 0 && <span className="text-[10px] text-[var(--cromo-fg-subtle)]">+{extra} more</span>}
           </span>
         </span>
       )}

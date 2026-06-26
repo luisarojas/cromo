@@ -63,6 +63,9 @@ export interface WcMatchSide {
   code: string | null;
   name: string | null;
   placeholder: string | null; // "1A", "Winner M73", etc. when code is null
+  /** Structured provenance ("1A", "3ABCDF", "W:R32:0") so the UI can resolve
+   * the set of teams that could still fill this slot. Null once `code` is known. */
+  feed: string | null;
   score: number | null;
   pens: number | null;
 }
@@ -71,6 +74,9 @@ export interface WcMatch {
   id: string;
   stage: WcStage;
   group: string | null;
+  /** Bracket position within the stage (0-based) — lets the UI find the match a
+   * "W:STAGE:n" feed points at. */
+  slot: number;
   kickoff: string;
   city: string;
   stadium: string;

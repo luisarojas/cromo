@@ -57,34 +57,47 @@ export function pct(prob: number): string {
 
 /**
  * Concise label for an unresolved bracket slot. Group/third slots ("1A", "2B",
- * "T3") are already short and meaningful; the canonical "Winner R32#1" template
- * labels are noise to a viewer, so collapse them to "Winner" / "Loser".
+ * "T3") are already short and meaningful. A winner/loser feed ("W:R32:0",
+ * "L:SF:1") renders as "R32 W1" / "SF L2" so each later-round slot is
+ * distinguishable; the old "Winner R32#1" template labels collapse to a plain
+ * "Winner" / "Loser".
  */
 export function shortPlaceholder(placeholder: string | null): string {
   if (!placeholder) return '—';
   if (/^[12][A-L]$/.test(placeholder) || /^T\d$/.test(placeholder)) return placeholder;
   if (/^3[A-L]+$/.test(placeholder) || placeholder === '3') return '3rd'; // best-third slot
+  const wl = /^([WL]):(\w+):(\d+)$/.exec(placeholder);
+  if (wl) return `${wl[2]} ${wl[1]}${Number(wl[3]) + 1}`; // "W:R32:0" → "R32 W1"
   if (/^winner/i.test(placeholder)) return 'Winner';
   if (/^loser/i.test(placeholder)) return 'Loser';
   return placeholder;
 }
 
 /**
- * The teams that could REALISTICALLY fill a group-position slot, using each
- * team's possible final-rank range. "1A" → group A teams that can still finish
- * 1st; "2L" → group L teams that can finish 2nd; "T3" → every group's teams that
- * can still finish 3rd (the best-thirds pool). A team locked out of that
- * position (or eliminated) is excluded. Returns [] for "winner of match" slots.
+ * The teams that could REALISTICALLY fill a bracket slot.
+ *
+ * Group/third slots use each team's possible final-rank range: "1A" → group A
+ * teams that can still finish 1st; "2L" → group L teams that can finish 2nd;
+ * "3ABCDF"/"T3" → teams from those groups that can still finish 3rd. A team
+ * locked out of that position (or eliminated) is excluded.
+ *
+ * Later-round slots carry a "W:STAGE:n" / "L:STAGE:n" feed (winner/loser of an
+ * earlier match): the candidates are the union of the teams that could fill
+ * EITHER side of that feeding match, resolved recursively down the tree. So a
+ * Round-of-16 slot lists everyone who could win its two Round-of-32 matches,
+ * a quarter-final lists the four R32 matches behind it, and so on.
  */
 export function placeholderCandidates(
-  placeholder: string | null,
+  feed: string | null,
   groups: WcGroupStanding[],
+  bracket: WcMatch[] = [],
+  seen: Set<string> = new Set(),
 ): { code: string; name: string }[] {
-  if (!placeholder) return [];
+  if (!feed) return [];
   const canFinish = (r: WcGroupStanding['rows'][number], rank: number) =>
     r.qualification !== 'ELIMINATED' && r.minRank <= rank && r.maxRank >= rank;
 
-  const gm = /^([12])([A-L])$/.exec(placeholder);
+  const gm = /^([12])([A-L])$/.exec(feed);
   if (gm) {
     const rank = Number(gm[1]);
     const grp = groups.find((g) => g.group === gm[2]);
@@ -92,13 +105,27 @@ export function placeholderCandidates(
   }
   // ESPN third-place slot: "3ABCDF" = thirds of groups A,B,C,D,F. Mock uses "T#"
   // (any group's third). Either way, list teams that can still finish 3rd.
-  const third = /^3([A-L]*)$/.exec(placeholder);
-  if (third || /^T\d$/.test(placeholder)) {
+  const third = /^3([A-L]*)$/.exec(feed);
+  if (third || /^T\d$/.test(feed)) {
     const onlyGroups = third && third[1] ? new Set(third[1].split('')) : null;
     return groups
       .filter((g) => !onlyGroups || onlyGroups.has(g.group))
       .flatMap((g) => g.rows.filter((r) => canFinish(r, 3)))
       .map((r) => ({ code: r.code, name: r.name }));
+  }
+  // Winner/loser of an earlier match → everyone who could be in that match.
+  const wl = /^[WL]:(\w+):(\d+)$/.exec(feed);
+  if (wl) {
+    const key = `${wl[1]}:${wl[2]}`;
+    if (seen.has(key)) return []; // guard against a malformed cyclic feed
+    seen.add(key);
+    const m = bracket.find((b) => b.stage === wl[1] && b.slot === Number(wl[2]));
+    if (!m) return [];
+    const fromSide = (s: WcMatch['home']) =>
+      s.code ? [{ code: s.code, name: s.name ?? s.code }] : placeholderCandidates(s.feed, groups, bracket, seen);
+    const byCode = new Map<string, { code: string; name: string }>();
+    for (const c of [...fromSide(m.home), ...fromSide(m.away)]) byCode.set(c.code, c);
+    return [...byCode.values()];
   }
   return [];
 }
