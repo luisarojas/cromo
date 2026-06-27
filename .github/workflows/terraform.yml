@@ -260,9 +260,16 @@ jobs:
     # Prod applies ONLY on a v* tag push. The act of cutting a release
     # (`scripts/release.sh X.Y.Z && git push origin main --tags`) is the
     # human gate — release.sh enforces clean tree + valid semver + unique
-    # tag, and the OIDC trust policy on cromo-tf-runner requires the
-    # ref:refs/tags/v* sub-claim, so even a forced workflow_dispatch
-    # without a tag won't be allowed by STS.
+    # tag, and the OIDC trust policy on cromo-tf-runner only accepts a
+    # `ref:refs/tags/v*` sub-claim for prod, so even a forced
+    # workflow_dispatch without a tag won't be allowed by STS.
+    #
+    # Intentionally NO `environment:` — declaring one makes GitHub issue an
+    # `environment:tf-prod` subject that DROPS the ref, which can't match the
+    # ref-gated trust pattern (that's what broke the first prod apply). With
+    # no environment, the subject is `repo:luisarojas/cromo:ref:refs/tags/vX`,
+    # which the trust pattern matches and which enforces the tag gate. The
+    # repo secrets below are repo-level, so no environment is needed for them.
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.stack == 'prod')
@@ -271,7 +278,6 @@ jobs:
     # push, while prod only applies on a tag push — they never run in the
     # same workflow run.
     runs-on: ubuntu-latest
-    environment: tf-prod
     env:
       # Non-sensitive (vars):
       # Shared stack:

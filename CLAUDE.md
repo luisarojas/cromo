@@ -228,12 +228,12 @@ The role is **not** subject to `cromo-shared-require-mfa` — that policy attach
 **One-time repo config** (not in Terraform):
 - Repo **secret** `AWS_TF_RUNNER_ROLE_ARN` = `module.terraform_runner.role_arn` from `env/shared`.
 - Repo **variable** `AWS_REGION` = `ca-central-1`. (Workflow reads `vars.AWS_REGION`, not `secrets.AWS_REGION` — different namespaces.)
-- GitHub Environments `tf-shared`, `tf-dev`, `tf-prod` created in settings. No protection rules required on Free — prod is gated at the OIDC-trust + workflow-condition layer.
+- GitHub Environments `tf-shared`, `tf-dev` created in settings (their apply jobs declare `environment:`, so OIDC issues `environment:tf-{shared,dev}` subjects). **`apply-prod` declares NO environment on purpose** — an environment subject drops the git ref, which can't match the ref-gated prod trust pattern (`repo:…:ref:refs/tags/v*`); declaring `environment: tf-prod` is what broke the first prod apply (STS `Not authorized`). With no environment, GitHub issues a `ref:refs/tags/v*` subject that matches and enforces the tag gate. No protection rules required on Free (they're unavailable on private repos anyway) — prod is gated at the OIDC-trust + workflow-condition layer.
 
 **Rules:**
 - **Never run `terraform apply` from a laptop for routine changes** — bypasses PR review, plan comment, and prod gate. Local apply stays for genuine emergencies via the `cromo` profile + MFA.
 - **Never widen the `tf-prod` sub-pattern** to drop `:ref:refs/tags/v*`. That suffix is what stops a workflow misconfig from applying prod without a release tag.
-- **The role intentionally has `AdministratorAccess`.** Defence is trust policy + Environment protection, not narrow permissions — scoping further means a new IAM error every time you add a service.
+- **The role intentionally has `AdministratorAccess`.** Defence is the OIDC trust policy + the workflow/tag gate, not narrow permissions — scoping further means a new IAM error every time you add a service.
 - **Local `terraform state` operations** (`mv`/`rm`/`push`/`force-unlock`) still happen from the laptop via the `cromo` profile — recovery ops, not routine flow.
 
 ### SES Bounce/Complaint Pipeline — SES → SNS → SQS → Poller

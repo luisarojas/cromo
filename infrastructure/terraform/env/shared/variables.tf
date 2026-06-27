@@ -52,17 +52,23 @@ variable "tf_runner_sub_patterns" {
   description = <<-EOT
     GitHub OIDC sub-claim patterns the cromo-tf-runner role accepts.
 
-    tf-shared and tf-dev apply on push to `main` and have no extra ref
-    constraint. tf-prod combines `environment:tf-prod` with
-    `ref:refs/tags/v*` so even a misconfigured workflow can't apply
-    prod without a v-prefix tag pushed by `scripts/release.sh`. This
-    is the IAM-level equivalent of a Required Reviewer protection
-    rule (which the Free plan doesn't expose on private repos).
+    tf-shared and tf-dev apply on push to `main` via their GitHub
+    Environments, so their subjects are `environment:tf-{shared,dev}`.
+
+    tf-prod is gated on the git ref instead: the apply-prod job does NOT
+    declare a GitHub Environment, so GitHub issues a REF-based subject
+    (`ref:refs/tags/v0.2.0` on a release-tag push). That's why the prod
+    pattern is `ref:refs/tags/v*` and NOT `environment:tf-prod:...` — an
+    environment-scoped subject never carries the ref, so the old combined
+    pattern could never match (STS denied every prod apply). This keeps
+    the IAM-level "prod only from a v* release tag" gate, which is the
+    equivalent of a Required Reviewer rule the Free plan doesn't expose on
+    private repos. Keep `:ref:refs/tags/v*` — it's the gate.
   EOT
   type        = list(string)
   default = [
     "repo:luisarojas/cromo:environment:tf-shared",
     "repo:luisarojas/cromo:environment:tf-dev",
-    "repo:luisarojas/cromo:environment:tf-prod:ref:refs/tags/v*",
+    "repo:luisarojas/cromo:ref:refs/tags/v*",
   ]
 }
