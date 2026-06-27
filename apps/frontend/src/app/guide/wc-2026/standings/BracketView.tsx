@@ -38,18 +38,58 @@ export default function BracketView({
   onSelectTeam: (code: string) => void;
 }) {
   const t = useTranslations('wc2026Standings');
-  const rounds = useMemo(
-    () =>
-      KNOCKOUT_ORDER.map((stage) => ({ stage, matches: overview.bracket.filter((m) => m.stage === stage) })).filter(
-        (r) => r.matches.length > 0,
-      ),
-    [overview],
-  );
+  // Lay each round out as a proper bracket TREE derived from the feeds, so the
+  // matches the connectors join (positionally-adjacent rows 2i,2i+1 → parent i)
+  // are the ones that ACTUALLY feed the next round. ESPN orders matches
+  // chronologically (slot), not by tree position — e.g. R16 #0 is fed by R32 #0
+  // and #2, not #0 and #1 — so rendering by slot drew connectors between matches
+  // that don't feed each other. We walk FINAL → R32, ordering each stage by its
+  // parents' `W:STAGE:n` feeds; if the feeds don't reconstruct a full tree
+  // (football-data fallback has none) we fall back to slot order.
+  const rounds = useMemo(() => {
+    const present = KNOCKOUT_ORDER.filter((stage) => overview.bracket.some((m) => m.stage === stage));
+    const slotSorted = (stage: WcStage) =>
+      overview.bracket.filter((m) => m.stage === stage).sort((a, b) => a.slot - b.slot);
+
+    const bySlot = new Map<string, WcMatch>();
+    for (const m of overview.bracket) bySlot.set(`${m.stage}:${m.slot}`, m);
+    const feederOf = (feed: string | null): WcMatch | undefined => {
+      const mm = /^[WL]:(\w+):(\d+)$/.exec(feed ?? '');
+      return mm ? bySlot.get(`${mm[1]}:${mm[2]}`) : undefined;
+    };
+
+    const chain: WcStage[] = ['FINAL', 'SF', 'QF', 'R16', 'R32'];
+    const ordered: Partial<Record<WcStage, WcMatch[]>> = {};
+    const root = overview.bracket.find((m) => m.stage === 'FINAL');
+    let treeOk = Boolean(root);
+    if (root) {
+      ordered.FINAL = [root];
+      for (let i = 0; i < chain.length - 1 && treeOk; i += 1) {
+        const kids: WcMatch[] = [];
+        for (const parent of ordered[chain[i]] ?? []) {
+          for (const feed of [parent.home.feed, parent.away.feed]) {
+            const m = feederOf(feed);
+            if (m) kids.push(m);
+          }
+        }
+        // Trust the tree only if it recovered every match in the child stage.
+        if (kids.length !== slotSorted(chain[i + 1]).length) treeOk = false;
+        else ordered[chain[i + 1]] = kids;
+      }
+    }
+
+    return present.map((stage) => ({
+      stage,
+      matches: treeOk && ordered[stage] ? ordered[stage]! : slotSorted(stage),
+    }));
+  }, [overview]);
   const third = overview.bracket.filter((m) => m.stage === 'THIRD');
 
   const [hover, setHover] = useState<Hover>(null);
 
   // Path from a hovered tile up to the final: tile (r, slot) feeds (r+1, slot/2).
+  // Correct because `rounds` is in tree-layout order (above), so display index
+  // 2i,2i+1 really are the children of parent i.
   const path = useMemo(() => {
     const tiles = new Set<string>();
     const connectors = new Set<string>();
