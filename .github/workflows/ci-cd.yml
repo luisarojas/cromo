@@ -428,10 +428,15 @@ jobs:
             NEXT_PUBLIC_ENV=dev
             NEXT_PUBLIC_APP_VERSION=${{ steps.version.outputs.value }}
 
-      - name: Upload docker-compose.prod.yml to S3
+      - name: Upload deploy bundle to S3
         run: |
           aws s3 cp infrastructure/docker/docker-compose.prod.yml \
             "s3://${{ vars.DEV_S3_BUCKET }}/_deploy/docker-compose.prod.yml"
+          # Shipped so the deploy can re-render /etc/cromo/cromo.env from Secrets
+          # Manager — otherwise config/secret changes never reach a running
+          # instance (user-data only renders it at boot).
+          aws s3 cp scripts/render-cromo-env.sh \
+            "s3://${{ vars.DEV_S3_BUCKET }}/_deploy/render-cromo-env.sh"
 
       - name: Trigger rolling redeploy via SSM
         run: |
@@ -490,8 +495,11 @@ jobs:
               \"export ECR_REGISTRY=${{ vars.ECR_REGISTRY }}\",
               \"export IMAGE_TAG=${{ env.IMAGE_TAG }}\",
               \"export CROMO_ENV=dev\",
+              \"export AWS_REGION=${{ env.AWS_REGION }}\",
               \"cd /opt/cromo\",
               \"aws s3 cp s3://${{ vars.DEV_S3_BUCKET }}/_deploy/docker-compose.prod.yml docker-compose.yml\",
+              \"aws s3 cp s3://${{ vars.DEV_S3_BUCKET }}/_deploy/render-cromo-env.sh render-cromo-env.sh\",
+              \"bash render-cromo-env.sh\",
               \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ vars.ECR_REGISTRY }}\",
               \"docker compose pull\",
               \"docker compose up -d\",
