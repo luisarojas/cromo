@@ -34,6 +34,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
+    changes: {},
+  },
+  {
+    version: 'v0.2.0',
+    date: '2026-06-27',
     changes: {
       Added: [
         'FIFA World Cup 2026 tracker — a new guide page with live group tables, the official knockout bracket, and a team-by-team view: who has qualified, who is out, each nation\'s 26-man squad with current clubs, and transparent odds to reach the final or lift the trophy. The bracket and forecasts follow the real draw and fill in as results land.',
