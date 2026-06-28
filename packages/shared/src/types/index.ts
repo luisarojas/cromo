@@ -1,9 +1,9 @@
 import {
-  BASE_STICKER_CASH_CENTS,
   TRADE_BALANCE_HIGH,
   TRADE_BALANCE_LOW,
   cashToScarcity,
   effectiveScarcity,
+  resolveBaseStickerCents,
   type VariantWeights,
 } from '../constants/index.js'
 
@@ -331,6 +331,20 @@ export interface TradeMessage {
   isSystem: boolean
 }
 
+/**
+ * Lightweight per-sticker line carried on a trade-history summary row so the
+ * "My Trades" list can show what changed hands without opening the detail page.
+ * A subset of `TradeItemDetail` (which the detail endpoint still returns in
+ * full); both share `direction` from the requester's perspective.
+ */
+export interface TradeSummaryItem {
+  stickerVariantId: string
+  direction: TradeDirection
+  quantity: number
+  albumCode: string
+  playerName: string | null
+}
+
 export interface TradeSummary {
   /** Discriminator for the unified history list. Optional + 'request' default
    *  so existing consumers that don't narrow still type-check. */
@@ -349,6 +363,10 @@ export interface TradeSummary {
   completedAt: string | null
   cancelledAt: string | null
   messageCount: number
+  /** The stickers on this trade, from the requester's perspective ('offer' =
+   *  requester gives, 'want' = requester receives). Present on history-list
+   *  rows so My Trades can render the swapped stickers inline. */
+  items?: TradeSummaryItem[]
 }
 
 /**
@@ -473,6 +491,10 @@ export function computeScarcityBalance(
     weights?: VariantWeights | null
     giveCashCents?: number
     getCashCents?: number
+    /** Personalised per-base-sticker price (cents). Cash is converted to
+     *  scarcity at this rate so a custom base price keeps both sides of the
+     *  balance on the same scale. Defaults to BASE_STICKER_CASH_CENTS. */
+    baseCents?: number | null
   },
 ): ScarcityTotals {
   const weights = opts?.weights ?? null
@@ -481,8 +503,8 @@ export function computeScarcityBalance(
   // against the sanitised contribution, not the raw user input. Otherwise
   // `giveCashCents: -5` would defeat the same-variant collapse on a valid
   // equal-count trade.
-  const giveCash = cashToScarcity(opts?.giveCashCents)
-  const getCash = cashToScarcity(opts?.getCashCents)
+  const giveCash = cashToScarcity(opts?.giveCashCents, opts?.baseCents)
+  const getCash = cashToScarcity(opts?.getCashCents, opts?.baseCents)
   const w = (token: string | null): number => effectiveScarcity(token, weights)
   const stickerGive = give.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0)
   const stickerGet  = get.reduce((s, r) => s + w(r.variantToken) * r.quantity, 0)
@@ -519,15 +541,16 @@ const SUGGEST_BALANCING_CASH_CAP_CENTS = 1_000_00 // $1,000 — well above any r
 
 export function suggestBalancingCashCents(
   balance: ScarcityTotals,
+  baseCents?: number | null,
 ): BalancingCashSuggestion | null {
   if (!balance.lopsided) return null
   if (balance.give === 0 && balance.get === 0) return null
-  // Cents = scarcity-point delta × BASE_STICKER_CASH_CENTS (the inverse of
+  // Cents = scarcity-point delta × base-sticker price (the inverse of
   // cashToScarcity). Round up so the suggestion always reaches the fair band,
   // never falls one cent short.
   const delta = Math.abs(balance.get - balance.give)
   const cents = Math.min(
-    Math.ceil(delta * BASE_STICKER_CASH_CENTS),
+    Math.ceil(delta * resolveBaseStickerCents(baseCents)),
     SUGGEST_BALANCING_CASH_CAP_CENTS,
   )
   if (cents <= 0) return null

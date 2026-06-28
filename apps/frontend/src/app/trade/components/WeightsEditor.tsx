@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { VariantWeights } from '@cromo/shared';
-import { VARIANT_SCARCITY } from '@cromo/shared';
+import { BASE_STICKER_CASH_CENTS, VARIANT_SCARCITY } from '@cromo/shared';
 import { compareVariantTypes, variantLabel } from '../../collection/components/variantMeta';
 
 interface Props {
@@ -25,6 +25,24 @@ interface Props {
   /** Extra explanatory line below the heading — used by the live-trade flow
    *  to explain the proposal/accept handshake. */
   hint?: string;
+  /** Personalised cost per base sticker (cents). Drives every variant's
+   *  derived cash value. Omit to hide the base-price field entirely (e.g. the
+   *  live-trade flow, where pricing is scarcity-only). */
+  baseStickerCents?: number;
+  /** Called when the user edits the base-sticker price. Unlike `onCommit`,
+   *  this applies immediately — base price is display-only and never needs a
+   *  backend re-match. */
+  onBaseStickerCentsChange?: (cents: number) => void;
+}
+
+function fmtCents(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function parseDollarsToCents(value: string): number {
+  const num = parseFloat(value);
+  if (!Number.isFinite(num) || num <= 0) return BASE_STICKER_CASH_CENTS;
+  return Math.round(num * 100);
 }
 
 function fmtDefault(token: string): string {
@@ -34,7 +52,23 @@ function fmtDefault(token: string): string {
 
 export default function WeightsEditor({
   presentVariants, weights, onCommit, busy, commitLabel, hint,
+  baseStickerCents, onBaseStickerCentsChange,
 }: Props) {
+  // Base-price editing is local + immediate (it only rescales the displayed
+  // dollar values), so it has its own text-draft separate from the weights
+  // draft below. Mirror external resets back into the field.
+  const showBasePrice = baseStickerCents !== undefined && !!onBaseStickerCentsChange;
+  const [baseText, setBaseText] = useState(
+    fmtCents(baseStickerCents ?? BASE_STICKER_CASH_CENTS),
+  );
+  useEffect(() => {
+    if (baseStickerCents === undefined) return;
+    if (parseDollarsToCents(baseText) !== baseStickerCents) {
+      setBaseText(fmtCents(baseStickerCents));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseStickerCents]);
+
   // Editing happens against a local draft keyed by variant token. Empty string
   // means "no override" — committing strips empty entries before sending.
   const [draft, setDraft] = useState<Record<string, string>>(() =>
@@ -85,6 +119,32 @@ export default function WeightsEditor({
           {hint ?? 'Override the default scarcity ratio for any variant in this trade. Blank means "use the default".'}
         </p>
       </div>
+      {showBasePrice && (
+        <div className="flex items-center gap-2 rounded-md bg-[var(--cromo-surface-2)] px-2.5 py-2">
+          <span className="flex-1 text-sm text-[var(--cromo-fg)]">Cost per base sticker</span>
+          <span className="text-xs text-[var(--cromo-fg-muted)]">$</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            disabled={busy}
+            value={baseText}
+            placeholder={fmtCents(BASE_STICKER_CASH_CENTS)}
+            onChange={(e) => {
+              setBaseText(e.target.value);
+              onBaseStickerCentsChange?.(parseDollarsToCents(e.target.value));
+            }}
+            aria-label="Cost per base sticker"
+            className="w-24 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-sm text-[var(--cromo-fg)] focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
+          />
+        </div>
+      )}
+      {showBasePrice && (
+        <p className="-mt-1 text-[11px] text-[var(--cromo-fg-subtle)]">
+          Every other variant&apos;s value is this price scaled by its scarcity ratio.
+        </p>
+      )}
       <ul className="space-y-1.5">
         {sorted.map((t) => {
           const placeholder = fmtDefault(t);

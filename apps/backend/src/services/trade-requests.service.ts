@@ -362,7 +362,8 @@ export async function listTrades(
        tr.requester_completed_at, tr.recipient_completed_at,
        tr.cancelled_at, tr.expires_at,
        tr.created_at, tr.updated_at,
-       COALESCE(mc.message_count, 0)::int AS message_count
+       COALESCE(mc.message_count, 0)::int AS message_count,
+       COALESCE(items.items, '[]'::jsonb) AS items
      FROM trade_requests tr
      JOIN users ru ON ru.id = tr.requester_id
      JOIN users re ON re.id = tr.recipient_id
@@ -371,6 +372,22 @@ export async function listTrades(
        FROM trade_messages tm
        WHERE tm.trade_id = tr.id
      ) mc ON true
+     LEFT JOIN LATERAL (
+       -- Lightweight item lines so My Trades can show the swapped stickers
+       -- inline without an extra round trip per row (mirrors getTrade, fewer
+       -- columns). Keys are snake_case; the global serializer camelizes them.
+       SELECT jsonb_agg(jsonb_build_object(
+         'sticker_variant_id', ti.sticker_variant_id,
+         'direction', ti.direction,
+         'quantity', ti.quantity,
+         'album_code', s.album_code,
+         'player_name', s.player_name
+       ) ORDER BY ti.direction, s.number) AS items
+       FROM trade_items ti
+       JOIN sticker_variants sv ON sv.id = ti.sticker_variant_id
+       JOIN stickers s ON s.id = sv.sticker_id
+       WHERE ti.trade_id = tr.id
+     ) items ON true
      WHERE (tr.requester_id = $1 OR tr.recipient_id = $1)
        AND ($2::text IS NULL OR tr.status = $2)
        AND (

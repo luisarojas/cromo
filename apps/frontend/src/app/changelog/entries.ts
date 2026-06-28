@@ -34,7 +34,16 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     version: 'Unreleased',
     date: null,
-    changes: {},
+    changes: {
+      Added: [
+        'Set your own price per base sticker on a third-party trade — every other variant\'s cash value is rescaled from it by scarcity, so the fairness math and the per-sticker estimates match what you actually trade for.',
+        'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
+      ],
+      Fixed: [
+        'A third-party trade with no partner name now reads "For Them" instead of "For They", and a partner\'s name keeps the capitalisation you typed in the trade summary.',
+        'Favourite and wanted stickers in the third-party trade editor now use distinct icons — a heart for favourites, a star for wanted.',
+      ],
+    },
   },
   {
     version: 'v0.2.0',

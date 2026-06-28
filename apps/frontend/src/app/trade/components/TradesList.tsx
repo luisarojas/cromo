@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { isLiveTradeRow, type LiveTradeHistorySummary, type TradeHistoryItem, type TradeSummary } from '@/lib/api';
+import { isLiveTradeRow, type LiveTradeHistorySummary, type TradeHistoryItem, type TradeSummary, type TradeSummaryItem } from '@/lib/api';
 
 // Renders "My Trades" as cards on mobile and a sortable table on md+. The list
 // is heterogeneous: classic trade requests AND live in-person trades are
@@ -219,16 +219,19 @@ function RequestDesktopRow({
       onClick={() => onOpen(trade.id)}
       className="border-b border-[var(--cromo-border)] hover:bg-[var(--cromo-accent-soft)] cursor-pointer transition-colors"
     >
-      <td className="px-3 py-2 text-[var(--cromo-fg)] font-medium">@{otherUser}</td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2 text-[var(--cromo-fg)] font-medium">
+        <div>@{otherUser}</div>
+        <RequestSummaryLine trade={trade} isRequester={isRequester} />
+      </td>
+      <td className="px-3 py-2 align-top">
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
           {badge.label}
         </span>
       </td>
-      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums">
+      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums align-top">
         {new Date(trade.createdAt).toLocaleDateString()}
       </td>
-      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums">
+      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums align-top">
         {closed ? new Date(closed).toLocaleDateString() : '—'}
       </td>
     </tr>
@@ -312,6 +315,7 @@ function RequestMobileCard({
           {badge.label}
         </span>
       </div>
+      <RequestSummaryLine trade={trade} isRequester={isRequester} />
     </button>
   );
 }
@@ -353,39 +357,88 @@ function LiveBadge() {
   );
 }
 
-function LiveSummaryLine({ trade }: { trade: LiveTradeHistorySummary }) {
-  const gaveCount = trade.hostGave.reduce((s, r) => s + r.quantity, 0);
-  const gotCount = trade.hostReceived.reduce((s, r) => s + r.quantity, 0);
-  // Up to ~4 codes per side keeps the row compact; anything beyond becomes
-  // "+N more" so the table still reads as a glanceable history list.
+// Split a request trade's items into gave/got piles from the *viewer's*
+// perspective. Item direction is stored from the requester's side ('offer' =
+// requester gives, 'want' = requester receives), so a recipient sees it
+// flipped.
+function viewerPiles(
+  items: TradeSummaryItem[],
+  isRequester: boolean,
+): { gave: TradeSummaryItem[]; got: TradeSummaryItem[] } {
+  const giveDir = isRequester ? 'offer' : 'want';
+  return {
+    gave: items.filter((i) => i.direction === giveDir),
+    got: items.filter((i) => i.direction !== giveDir),
+  };
+}
+
+// Renders the stickers on a request trade so every kind of trade in My Trades
+// shows what's involved. Past-tense "Gave/Got" only fits a settled trade; an
+// in-progress one is still a proposal, so it reads "You give/You get".
+function RequestSummaryLine({ trade, isRequester }: { trade: TradeSummary; isRequester: boolean }) {
+  const items = trade.items ?? [];
+  if (items.length === 0) return null;
+  const { gave, got } = viewerPiles(items, isRequester);
+  const settled = trade.status === 'completed';
+  return (
+    <PileSummary
+      gave={gave}
+      got={got}
+      giveLabel={settled ? 'Gave' : 'You give'}
+      gotLabel={settled ? 'Got' : 'You get'}
+    />
+  );
+}
+
+function PileSummary({
+  gave,
+  got,
+  giveLabel = 'Gave',
+  gotLabel = 'Got',
+}: {
+  gave: { albumCode: string; quantity: number }[];
+  got: { albumCode: string; quantity: number }[];
+  giveLabel?: string;
+  gotLabel?: string;
+}) {
+  const gaveCount = gave.reduce((s, r) => s + r.quantity, 0);
+  const gotCount = got.reduce((s, r) => s + r.quantity, 0);
   const previewLimit = 4;
-  const gavePreview = trade.hostGave.slice(0, previewLimit).map((r) => r.albumCode).join(', ');
-  const gotPreview  = trade.hostReceived.slice(0, previewLimit).map((r) => r.albumCode).join(', ');
-  const gaveExtra = trade.hostGave.length > previewLimit
-    ? ` +${trade.hostGave.length - previewLimit} more` : '';
-  const gotExtra = trade.hostReceived.length > previewLimit
-    ? ` +${trade.hostReceived.length - previewLimit} more` : '';
+  const gavePreview = gave.slice(0, previewLimit).map((r) => r.albumCode).join(', ');
+  const gotPreview = got.slice(0, previewLimit).map((r) => r.albumCode).join(', ');
+  const gaveExtra = gave.length > previewLimit ? ` +${gave.length - previewLimit} more` : '';
+  const gotExtra = got.length > previewLimit ? ` +${got.length - previewLimit} more` : '';
+  if (gaveCount === 0 && gotCount === 0) return null;
   return (
     <div className="text-xs text-[var(--cromo-fg-muted)] mt-0.5 space-y-0.5">
       {gaveCount > 0 && (
         <div>
-          <span className="text-[var(--cromo-fg-subtle)]">Gave</span>{' '}
+          <span className="text-[var(--cromo-fg-subtle)]">{giveLabel}</span>{' '}
           <span className="tabular-nums">×{gaveCount}</span>
           <span className="font-mono ml-1.5">{gavePreview}{gaveExtra}</span>
         </div>
       )}
       {gotCount > 0 && (
         <div>
-          <span className="text-[var(--cromo-fg-subtle)]">Got</span>{' '}
+          <span className="text-[var(--cromo-fg-subtle)]">{gotLabel}</span>{' '}
           <span className="tabular-nums">×{gotCount}</span>
           <span className="font-mono ml-1.5">{gotPreview}{gotExtra}</span>
         </div>
       )}
-      {gaveCount === 0 && gotCount === 0 && (
-        <div className="italic">Empty trade.</div>
-      )}
     </div>
   );
+}
+
+function LiveSummaryLine({ trade }: { trade: LiveTradeHistorySummary }) {
+  const empty = trade.hostGave.length === 0 && trade.hostReceived.length === 0;
+  if (empty) {
+    return (
+      <div className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">
+        <span className="italic">Empty trade.</span>
+      </div>
+    );
+  }
+  return <PileSummary gave={trade.hostGave} got={trade.hostReceived} />;
 }
 
 function SortHeader({

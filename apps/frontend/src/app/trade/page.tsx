@@ -47,7 +47,7 @@ import ThirdPartyTradeEditor, {
 } from './components/ThirdPartyTradeEditor';
 import { buildTradeExportText } from './components/buildTradeExportText';
 import WeightsEditor from './components/WeightsEditor';
-import type { VariantWeights } from '@cromo/shared';
+import { BASE_STICKER_CASH_CENTS, type VariantWeights } from '@cromo/shared';
 import TradesList from './components/TradesList';
 import DraftCard from './components/DraftCard';
 import { publishSync, subscribeSync } from '@/lib/syncBus';
@@ -192,6 +192,10 @@ function TradePageContent() {
   // pasted lists change so a stale "1 red = 5 base" doesn't follow the user
   // across unrelated trades.
   const [tpWeights, setTpWeights] = useState<VariantWeights>({});
+  // Personalised cost per base sticker (cents). Display-only — rescales the
+  // editor's dollar values without a backend re-match. Reset alongside weights
+  // so a custom price doesn't follow the user into an unrelated trade.
+  const [tpBaseStickerCents, setTpBaseStickerCents] = useState(BASE_STICKER_CASH_CENTS);
   const [tpLoading, setTpLoading] = useState(false);
   const [tpError, setTpError] = useState<string | null>(null);
   // Editable trade state — backs the third-party editor. Reset whenever a new
@@ -1178,7 +1182,7 @@ function TradePageContent() {
                 <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">{t('album')}</label>
                 <select
                   value={tpAlbumId}
-                  onChange={(e) => { setTpAlbumId(e.target.value); setTpResult(null); setTpWeights({}); }}
+                  onChange={(e) => { setTpAlbumId(e.target.value); setTpResult(null); setTpWeights({}); setTpBaseStickerCents(BASE_STICKER_CASH_CENTS); }}
                   className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)]"
                 >
                   {albums.length === 0 && <option value="">No albums found</option>}
@@ -1206,7 +1210,7 @@ function TradePageContent() {
               label="Their list"
               offered={tpOffered}
               wanted={tpWanted}
-              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); setTpWeights({}); }}
+              onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); setTpWeights({}); setTpBaseStickerCents(BASE_STICKER_CASH_CENTS); }}
               albumTypeKey={albums.find((a) => a.id === tpAlbumId)?.albumTypeKey}
               token={token ?? undefined}
             />
@@ -1229,11 +1233,12 @@ function TradePageContent() {
               <ThirdPartyTradeEditor
                 title={t('optimalTrade')}
                 leftLabel="You"
-                rightLabel={tpPartnerName.trim() || 'They'}
+                rightLabel={tpPartnerName.trim() || 'Them'}
                 candidatesIGet={tpResult.candidatesIGet}
                 candidatesTheyGet={tpResult.candidatesTheyGet}
                 unknownCodes={tpResult.unknownCodes}
                 weights={tpWeights}
+                baseStickerCents={tpBaseStickerCents}
                 state={tpEditorState}
                 onStateChange={setTpEditorState}
                 onCopy={handleTpCopy}
@@ -1260,6 +1265,8 @@ function TradePageContent() {
                   weights={tpWeights}
                   onCommit={handleTpWeightsCommit}
                   busy={tpLoading}
+                  baseStickerCents={tpBaseStickerCents}
+                  onBaseStickerCentsChange={setTpBaseStickerCents}
                 />
               )}
 

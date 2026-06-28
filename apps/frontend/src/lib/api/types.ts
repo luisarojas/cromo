@@ -34,6 +34,7 @@ export type {
   TradeItemDetail,
   TradeMessage,
   TradeSummary,
+  TradeSummaryItem,
   TradeDetail,
   ShareLink,
   PublicListItem,

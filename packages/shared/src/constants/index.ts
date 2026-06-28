@@ -131,25 +131,46 @@ export const TRADE_BALANCE_HIGH = 2.0
 export const BASE_STICKER_CASH_CENTS = 50
 
 /**
+ * Resolve the per-base-sticker cash price to use. Callers may personalise it
+ * (the third-party trade editor exposes a "cost per base sticker" field); a
+ * missing or non-positive value falls back to the global default so the rest
+ * of the pricing math never divides by zero.
+ */
+export function resolveBaseStickerCents(baseCents?: number | null): number {
+  if (typeof baseCents === 'number' && Number.isFinite(baseCents) && baseCents > 0) {
+    return baseCents
+  }
+  return BASE_STICKER_CASH_CENTS
+}
+
+/**
  * Cash equivalent (in cents) of one sticker of the given variant, given the
  * active weight table. Mirrors `effectiveScarcity` — same scarcity, same
  * price. Used by the editable third-party UI to suggest a fair cash top-up.
+ * `baseCents` lets the caller override the base-sticker price; every other
+ * variant's value derives from it via the scarcity ratio.
  */
 export function variantCashValueCents(
   token: string | null | undefined,
   weights?: VariantWeights | null,
+  baseCents?: number | null,
 ): number {
-  return Math.round(BASE_STICKER_CASH_CENTS * effectiveScarcity(token, weights))
+  return Math.round(resolveBaseStickerCents(baseCents) * effectiveScarcity(token, weights))
 }
 
 /**
  * Convert a cash amount (cents) into scarcity points so it can be added into
  * a trade's `give`/`get` totals alongside sticker scarcity. The inverse of
  * `variantCashValueCents(base)`; non-finite or negative input collapses to 0.
+ * `baseCents` mirrors `variantCashValueCents` so a personalised base price
+ * keeps the cash and sticker sides of the balance on the same scale.
  */
-export function cashToScarcity(cents: number | null | undefined): number {
+export function cashToScarcity(
+  cents: number | null | undefined,
+  baseCents?: number | null,
+): number {
   if (typeof cents !== 'number' || !Number.isFinite(cents) || cents <= 0) return 0
-  return cents / BASE_STICKER_CASH_CENTS
+  return cents / resolveBaseStickerCents(baseCents)
 }
 
 export const DEFAULT_PAGE_SIZE = 100

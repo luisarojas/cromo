@@ -29,6 +29,9 @@ interface Props {
   candidatesTheyGet: ExternalStickerRef[];
   unknownCodes: string[];
   weights?: VariantWeights | null;
+  /** Personalised cost per base sticker (cents). Every variant's displayed
+   *  cash value and the balancing-cash suggestion scale off this. */
+  baseStickerCents?: number;
   state: EditorState;
   onStateChange: (next: EditorState) => void;
   onCopy?: () => void;
@@ -55,6 +58,14 @@ function bucketFor(ref: ExternalStickerRef): string {
 
 function isBaseToken(token: string | null): boolean {
   return token === 'base_border' || token === 'base_borderless';
+}
+
+// "You"/"Them"/"They" are pronoun fallbacks that read naturally lowercased
+// mid-sentence ("3 for you, 2 for them"); a partner's typed name keeps the
+// casing they entered ("3 for you, 2 for Alex").
+const PRONOUN_LABELS = new Set(['You', 'Them', 'They']);
+function inlineLabel(label: string): string {
+  return PRONOUN_LABELS.has(label) ? label.toLowerCase() : label;
 }
 
 function refKey(ref: ExternalStickerRef): string {
@@ -145,6 +156,7 @@ function SideColumn({
   onCashChange,
   starredHint,
   weights,
+  baseStickerCents,
 }: {
   label: string;
   candidates: ExternalStickerRef[];
@@ -157,6 +169,7 @@ function SideColumn({
   onCashChange: (cents: number) => void;
   starredHint: boolean;
   weights?: VariantWeights | null;
+  baseStickerCents?: number;
 }) {
   const groups = groupRefs(candidates);
   const [cashText, setCashText] = useState(cashCents > 0 ? fmtDollars(cashCents) : '');
@@ -219,12 +232,10 @@ function SideColumn({
                           {r.playerName ?? <span className="italic text-[var(--cromo-fg-muted)]">Unknown</span>}
                         </span>
                         {starredHint && r.favourite && (
-                          <span title="You favourited this" aria-label="Favourite" className="text-xs text-[var(--cromo-warning-text)]">★</span>
+                          <span title="You favourited this" aria-label="Favourite" className="text-xs text-[var(--cromo-danger-text)]">♥</span>
                         )}
                         {starredHint && r.wanted && !r.favourite && (
-                          <span title="You added this to your wanted list" aria-label="Wanted" className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-accent)]">
-                            Want
-                          </span>
+                          <span title="You added this to your wanted list" aria-label="Wanted" className="text-xs text-[var(--cromo-warning-text)]">★</span>
                         )}
                         {r.variantLabel && !isBaseToken(r.variantToken) && (
                           <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">
@@ -233,10 +244,10 @@ function SideColumn({
                         )}
                         {!isBaseToken(r.variantToken) && (
                           <span
-                            title="Approximate cash value at $0.50 per base sticker scaled by variant scarcity"
+                            title="Approximate cash value: cost per base sticker scaled by variant scarcity"
                             className="text-[10px] tabular-nums text-[var(--cromo-fg-subtle)] shrink-0"
                           >
-                            ≈ ${fmtDollars(variantCashValueCents(r.variantToken, weights))}
+                            ≈ ${fmtDollars(variantCashValueCents(r.variantToken, weights, baseStickerCents))}
                           </span>
                         )}
                       </label>
@@ -277,6 +288,7 @@ export default function ThirdPartyTradeEditor({
   candidatesTheyGet,
   unknownCodes,
   weights,
+  baseStickerCents,
   state,
   onStateChange,
   onCopy,
@@ -304,8 +316,9 @@ export default function ThirdPartyTradeEditor({
         weights,
         giveCashCents: state.theyGetCashCents,
         getCashCents: state.iGetCashCents,
+        baseCents: baseStickerCents,
       }),
-    [totalSelectedTheyGet, totalSelectedIGet, weights, state.theyGetCashCents, state.iGetCashCents],
+    [totalSelectedTheyGet, totalSelectedIGet, weights, state.theyGetCashCents, state.iGetCashCents, baseStickerCents],
   );
 
   const balanceLine = balanceMessage(balance, leftLabel);
@@ -314,12 +327,12 @@ export default function ThirdPartyTradeEditor({
   // but reads as "buy the stickers from me", which isn't what the third-party
   // flow is for.
   const cashSuggestion = useMemo(() => {
-    const s = suggestBalancingCashCents(balance);
+    const s = suggestBalancingCashCents(balance, baseStickerCents);
     if (!s) return null;
     if (s.side === 'give' && totalSelectedTheyGet.length === 0 && state.theyGetCashCents === 0) return null;
     if (s.side === 'get' && totalSelectedIGet.length === 0 && state.iGetCashCents === 0) return null;
     return s;
-  }, [balance, totalSelectedTheyGet.length, totalSelectedIGet.length, state.theyGetCashCents, state.iGetCashCents]);
+  }, [balance, baseStickerCents, totalSelectedTheyGet.length, totalSelectedIGet.length, state.theyGetCashCents, state.iGetCashCents]);
 
   function toggleIGet(key: string, next: boolean): void {
     const set = new Set(state.selectedIGet);
@@ -364,8 +377,8 @@ export default function ThirdPartyTradeEditor({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">{title}</h2>
           <p className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">
-            {totalSelectedIGet.length} for {leftLabel.toLowerCase()}, {totalSelectedTheyGet.length} for{' '}
-            {rightLabel.toLowerCase()}. Untick anything you don&apos;t want; tick more from the pool.
+            {totalSelectedIGet.length} for {inlineLabel(leftLabel)}, {totalSelectedTheyGet.length} for{' '}
+            {inlineLabel(rightLabel)}. Untick anything you don&apos;t want; tick more from the pool.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -451,6 +464,7 @@ export default function ThirdPartyTradeEditor({
           onCashChange={(c) => onStateChange({ ...state, iGetCashCents: c })}
           starredHint
           weights={weights}
+          baseStickerCents={baseStickerCents}
         />
         <SideColumn
           label={rightLabel}
@@ -464,6 +478,7 @@ export default function ThirdPartyTradeEditor({
           onCashChange={(c) => onStateChange({ ...state, theyGetCashCents: c })}
           starredHint={false}
           weights={weights}
+          baseStickerCents={baseStickerCents}
         />
       </div>
 
