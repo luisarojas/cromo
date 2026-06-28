@@ -9,7 +9,16 @@ import { buildStrength } from './strength.js';
 import { deriveStructure } from './structure.js';
 import type { RawMatch, TeamMeta, WcStage } from './types.js';
 
-const DRAW_SHARE = 0.26; // share of group games that end level, spread over Elo
+// Draw rate for a group game, as a function of how even it is. Even matchups
+// draw most often; lopsided ones almost never do — so a flat share would both
+// over-draw mismatches and under-draw coin-flips, distorting who finishes 2nd on
+// points. `MAX_DRAW` is the rate for a 50/50 game; it tapers linearly to ~0 as
+// the single-match win probability approaches 0 or 1. Averaged over a real group
+// schedule this lands near the historical WC group draw rate (~22%).
+const MAX_DRAW = 0.3;
+function drawProbability(pHome: number): number {
+  return MAX_DRAW * (1 - Math.abs(2 * pHome - 1));
+}
 
 export interface Forecast {
   championOdds: Record<string, number>;
@@ -193,9 +202,10 @@ export function runForecast(
       const h = g.get(m.homeCode!)!;
       const a = g.get(m.awayCode!)!;
       const pHome = winProbability(rating(m.homeCode!), rating(m.awayCode!));
+      const draw = drawProbability(pHome);
       const r = rand();
-      if (r < DRAW_SHARE) { h.points += 1; a.points += 1; h.gf += 1; a.gf += 1; h.ga += 1; a.ga += 1; }
-      else if (r < DRAW_SHARE + (1 - DRAW_SHARE) * pHome) { h.points += 3; h.gf += 2; a.ga += 2; }
+      if (r < draw) { h.points += 1; a.points += 1; h.gf += 1; a.gf += 1; h.ga += 1; a.ga += 1; }
+      else if (r < draw + (1 - draw) * pHome) { h.points += 3; h.gf += 2; a.ga += 2; }
       else { a.points += 3; a.gf += 2; h.ga += 2; }
     }
 

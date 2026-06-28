@@ -268,8 +268,9 @@ describe('strength (results-adjusted Elo)', () => {
     };
   }
 
-  it('seeds an unknown, never-played team at the neutral common base', () => {
-    // No FIFA rating and not in the recent-results graph → the 1500 common base.
+  it('seeds an unknown, never-played team at the neutral mean', () => {
+    // Not in the recent-results graph and never played → the 1500 mean. No FIFA
+    // pedigree is consulted; strength comes only from results.
     expect(buildStrength([])('ZZZ')).toBe(1500);
   });
 
@@ -287,15 +288,30 @@ describe('strength (results-adjusted Elo)', () => {
     expect(upsetGain).toBeGreaterThan(expectedGain);
   });
 
-  it('lets results dominate the FIFA seed (FIFA is only a light anchor)', () => {
-    // NZL has the lowest FIFA rating, ARG the highest. Repeated heavy NZL wins
-    // must lift NZL above ARG — recent/tournament results decide, not pedigree.
-    const rating = buildStrength([
+  it('lets results drive the rating — no pedigree floor protects a name', () => {
+    // The model has NO FIFA anchor: strength IS recent form. So repeated heavy
+    // wins must lift even the weakest-on-form side above a strong-on-form one —
+    // the property the FIFA-anchored predecessor got wrong (it kept a pedigree
+    // team "favourite" while it lost). See the strength section in CLAUDE.md.
+    const base = buildStrength([]);
+    expect(base('ARG')).toBeGreaterThan(base('NZL')); // ARG stronger on recent form
+    const after = buildStrength([
       koFinished('NZL', 'ARG', 4, 0),
       koFinished('NZL', 'ARG', 3, 0),
       koFinished('NZL', 'ARG', 3, 0),
     ]);
-    expect(rating('NZL')).toBeGreaterThan(rating('ARG'));
+    expect(after('NZL')).toBeGreaterThan(after('ARG')); // results flip the order
+  });
+
+  it('is opponent-adjusted — beating a strong team is worth more than beating a weak one', () => {
+    // Fit all teams together, so an opponent's own results set how much beating
+    // them is worth. JOR beating in-form ARG must raise it more than JOR beating
+    // out-of-form NZL — without any external rating telling us ARG > NZL.
+    const base = buildStrength([]);
+    expect(base('ARG')).toBeGreaterThan(base('NZL'));
+    const overStrong = buildStrength([koFinished('JOR', 'ARG', 1, 0)])('JOR') - base('JOR');
+    const overWeak = buildStrength([koFinished('JOR', 'NZL', 1, 0)])('JOR') - base('JOR');
+    expect(overStrong).toBeGreaterThan(overWeak);
   });
 });
 

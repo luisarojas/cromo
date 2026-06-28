@@ -40,7 +40,11 @@ import type {
 
 const BUNDLE_KEY = 'wc2026:bundle:v1';
 const BUNDLE_TTL = 600; // 10 min — matches the warm job cadence
-const SIMS = env.NODE_ENV === 'test' ? 600 : 4000;
+// 20k sims keeps the long tail (sub-1% teams) stable to ~0.1% run-to-run; it
+// costs ~1s and the result is cached for 10 min (warmed out-of-band), so the
+// request path never pays it. Tests use far fewer for speed — they assert the
+// champion-odds sum and ordering, which converge well before the tail does.
+const SIMS = env.NODE_ENV === 'test' ? 600 : 20000;
 
 export type WcDataSource = 'live' | 'sample';
 
