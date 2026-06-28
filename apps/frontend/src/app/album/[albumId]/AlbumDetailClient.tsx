@@ -113,6 +113,30 @@ function isDuplicateSticker(
   return false;
 }
 
+// Coca-Cola slots (CC1–CC13) arrive ordered by sticker `number`, which doesn't
+// match the album-code order collectors expect — and regional alternates share
+// one code with different players. Reorder just the (already-contiguous) CC run
+// by album code, then by player name, leaving every other section untouched so
+// StickerGrid's contiguous-run sectioning still holds.
+function orderCocaColaStickers(list: Sticker[]): Sticker[] {
+  const ccIndices: number[] = [];
+  list.forEach((s, i) => { if (s.stickerType === 'coca_cola_special') ccIndices.push(i); });
+  if (ccIndices.length < 2) return list;
+
+  const codeNum = (code: string): number => {
+    const m = code.match(/(\d+)$/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+  const sorted = ccIndices
+    .map((i) => list[i]!)
+    .sort((a, b) => codeNum(a.albumCode) - codeNum(b.albumCode)
+      || (a.playerName ?? '').localeCompare(b.playerName ?? ''));
+
+  const out = list.slice();
+  ccIndices.forEach((idx, k) => { out[idx] = sorted[k]!; });
+  return out;
+}
+
 export default function AlbumDetailClient({ albumId }: { albumId: string }) {
 
   const t = useTranslations('albumDetail');
@@ -261,7 +285,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         ]);
 
         if (cancelled) return;
-        setStickers(allStickers);
+        setStickers(orderCocaColaStickers(allStickers));
         setAlbums(userAlbums);
         setEditions(editionList);
         setFormats(formatList);
