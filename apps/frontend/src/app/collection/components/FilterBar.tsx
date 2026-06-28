@@ -183,7 +183,7 @@ export default function FilterBar({
   // through a single function to keep the two layouts in lockstep without
   // duplicating five MultiSelects.
   const advancedPanel = (
-    <div className="flex flex-wrap gap-3 items-end">
+    <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:gap-3 md:items-end">
       {groupOptions.length > 0 && (
         <MultiSelect
           id="filter-group"

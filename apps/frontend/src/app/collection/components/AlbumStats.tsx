@@ -304,7 +304,7 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet, onJumpTo 
       <div className="grid gap-5 lg:grid-cols-3">
         {/* ─── Favourites — centered ring hero, stretches to row height ─── */}
         {favouriteStats.inAlbum === 0 ? (
-          <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col lg:col-span-1">
+          <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col min-w-0 lg:col-span-1">
             <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
               {t('favouritesOwned')}
             </h3>
@@ -316,7 +316,7 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet, onJumpTo 
           <button
             type="button"
             onClick={() => onJumpTo({ tab: 'have', filters: { favouritesOnly: true } })}
-            className="text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col lg:col-span-1 hover:border-[var(--cromo-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)] transition-colors"
+            className="text-left rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 flex flex-col min-w-0 lg:col-span-1 hover:border-[var(--cromo-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cromo-accent)] transition-colors"
           >
             <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
               {t('favouritesOwned')}
@@ -347,7 +347,7 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet, onJumpTo 
         )}
 
         {/* ─── Countries — sortable list, defaults to most-complete first ─── */}
-        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 lg:col-span-2">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 min-w-0 lg:col-span-2">
           <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div className="flex items-baseline gap-3 flex-wrap">
               <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
@@ -433,7 +433,7 @@ export default function AlbumStats({ stickers, ownedMap, favouriteSet, onJumpTo 
       {/* ─── Lists row: Top Duplicates + Rare Pulls, equal width ─── */}
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
         {/* ─── Top tradeable duplicates ─── */}
-        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
+        <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 min-w-0">
           <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
             <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
               {t('topDuplicates')}
@@ -543,13 +543,13 @@ function CountryRowItem({ c, onClick }: { c: CountryRow; onClick: () => void }) 
       <span className="flex-1 min-w-0 text-sm text-[var(--cromo-fg)] truncate">
         {c.teamName}
       </span>
-      <div className="w-24 h-1.5 rounded-full bg-[var(--cromo-surface-2)] overflow-hidden shrink-0">
+      <div className="hidden sm:block w-24 h-1.5 rounded-full bg-[var(--cromo-surface-2)] overflow-hidden shrink-0">
         <div
           className="h-full bg-[var(--cromo-accent)] transition-all"
           style={{ width: `${c.pct}%` }}
         />
       </div>
-      <span className="text-xs tabular-nums min-w-[7rem] text-right text-[var(--cromo-fg-muted)] shrink-0 whitespace-nowrap">
+      <span className="text-xs tabular-nums sm:min-w-[7rem] text-right text-[var(--cromo-fg-muted)] shrink-0 whitespace-nowrap">
         {`${c.owned}/${c.total} · ${c.pct}%`}
       </span>
     </button>
@@ -559,7 +559,7 @@ function CountryRowItem({ c, onClick }: { c: CountryRow; onClick: () => void }) 
 function RarePulls({ trophy, onTierClick }: { trophy: TrophyTier[]; onTierClick: (tier: string) => void }) {
   const t = useTranslations('albumStats');
   return (
-    <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
+    <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 min-w-0">
       <div className="flex items-baseline justify-between gap-3 mb-4 flex-wrap">
         <h3 className="text-xs font-semibold text-[var(--cromo-fg-muted)] uppercase tracking-wide">
           {t('rarePulls')}
@@ -597,7 +597,7 @@ function RarePulls({ trophy, onTierClick }: { trophy: TrophyTier[]; onTierClick:
                       {t('ownedCount', { count: entries.length })}
                     </span>
                   </div>
-                  <p className="text-xs text-[var(--cromo-fg-subtle)] pl-4 leading-relaxed">
+                  <p className="text-xs text-[var(--cromo-fg-subtle)] pl-4 leading-relaxed break-words">
                     {shown.map((e) => e.playerName).join(', ')}
                     {hidden > 0 && <span>{t('morePulls', { count: hidden })}</span>}
                   </p>

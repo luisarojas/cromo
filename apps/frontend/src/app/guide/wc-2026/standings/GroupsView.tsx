@@ -16,7 +16,10 @@ export default function GroupsView({
 }) {
   const t = useTranslations('wc2026Standings');
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    // Single column through tablet widths — two side-by-side group tables only
+    // get enough room to breathe at `lg`. Below that each table is full-width,
+    // so it never has to scroll horizontally inside a cramped half-column.
+    <div className="grid gap-4 lg:grid-cols-2">
       {overview.groups.map((g) => (
         <GroupCard
           key={g.group}
@@ -47,13 +50,15 @@ function GroupCard({
         <h3 className="text-sm font-bold text-[var(--cromo-fg)]">{groupLabel}</h3>
       </div>
       <div className="overflow-x-auto">
-      <table className="w-full min-w-[20rem] text-sm">
+      <table className="w-full text-sm">
         <thead>
           <tr className="text-[10px] uppercase tracking-wide text-[var(--cromo-fg-subtle)]">
             <th className="px-3 py-1.5 text-left font-semibold">{t('th.team')}</th>
             <th className="px-1.5 py-1.5 text-center font-semibold" title={t('th.playedHint')}>{t('th.played')}</th>
-            <th className="px-1.5 py-1.5 text-center font-semibold">{t('th.won')}</th>
-            <th className="px-1.5 py-1.5 text-center font-semibold">{t('th.lost')}</th>
+            {/* Won/Lost are the lowest-value columns; hide them on phones so the
+                table fits without horizontal scroll. Played, GD and Points stay. */}
+            <th className="hidden px-1.5 py-1.5 text-center font-semibold sm:table-cell">{t('th.won')}</th>
+            <th className="hidden px-1.5 py-1.5 text-center font-semibold sm:table-cell">{t('th.lost')}</th>
             <th className="px-1.5 py-1.5 text-center font-semibold" title={t('th.gdHint')}>{t('th.gd')}</th>
             <th className="px-2.5 py-1.5 text-center font-semibold">{t('th.points')}</th>
           </tr>
@@ -72,7 +77,7 @@ function GroupCard({
               }`}
             >
               <td className="px-3 py-2">
-                <span className="flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   {/* The rank number itself turns into an accent badge when the
                       team's final position is mathematically locked. */}
                   {r.guaranteedRank !== null ? (
@@ -91,8 +96,8 @@ function GroupCard({
                 </span>
               </td>
               <td className="px-1.5 py-2 text-center tabular-nums text-[var(--cromo-fg-muted)]">{r.played}</td>
-              <td className="px-1.5 py-2 text-center tabular-nums text-[var(--cromo-fg-muted)]">{r.won}</td>
-              <td className="px-1.5 py-2 text-center tabular-nums text-[var(--cromo-fg-muted)]">{r.lost}</td>
+              <td className="hidden px-1.5 py-2 text-center tabular-nums text-[var(--cromo-fg-muted)] sm:table-cell">{r.won}</td>
+              <td className="hidden px-1.5 py-2 text-center tabular-nums text-[var(--cromo-fg-muted)] sm:table-cell">{r.lost}</td>
               <td className="px-1.5 py-2 text-center tabular-nums text-[var(--cromo-fg-muted)]">
                 {r.gd > 0 ? `+${r.gd}` : r.gd}
               </td>

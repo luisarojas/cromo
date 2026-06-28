@@ -109,13 +109,43 @@ export default function BracketView({
 
   return (
     <div className="space-y-6">
-      {/* overflow-y-hidden stops the panel from sprouting its OWN vertical
+      {/* ─── Mobile / tablet: stacked round-by-round list ───
+          The connector-tree below is ~1600px wide and leans on hover for the
+          path highlight — neither works on a phone. Under `lg` we instead stack
+          each round vertically as full-width match cards: no horizontal scroll,
+          and the "could face" popover (tap-to-focus) isn't trapped in an
+          overflow-clipped scroller. */}
+      <div className="space-y-6 lg:hidden">
+        {rounds.map((round) => (
+          <section key={round.stage}>
+            <div className="mb-2">
+              <h3 className="text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS[round.stage]}</h3>
+              <p className="text-[11px] text-[var(--cromo-fg-subtle)]">{dateSpanET(round.matches)} ET</p>
+            </div>
+            <div className="space-y-3">
+              {round.matches.map((m) => (
+                <MatchCard
+                  key={m.id}
+                  match={m}
+                  groups={overview.groups}
+                  bracket={overview.bracket}
+                  onSelectTeam={onSelectTeam}
+                  t={t}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      {/* ─── Desktop: the connector-joined bracket tree ───
+          overflow-y-hidden stops the panel from sprouting its OWN vertical
           scrollbar: `overflow-x-auto` alone makes the browser compute overflow-y
           to `auto`, so a horizontal scrollbar (in always-show-scrollbars mode)
           steals a few px of height and triggers a nested vertical scrollbar.
           The box is exactly as tall as its content, so nothing meaningful clips;
           the page handles vertical scrolling. */}
-      <div className="overflow-x-auto overflow-y-hidden pb-3">
+      <div className="hidden overflow-x-auto overflow-y-hidden pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => (
             <div key={round.stage} className="flex flex-col">
