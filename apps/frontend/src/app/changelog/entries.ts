@@ -46,6 +46,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'The World Cup 2026 bracket is easier to read — rounds collapse on phones (finished rounds start closed), the bracket scrolls to your filtered team, the "could face" list opens on tap, and finished and live matches are clearly tagged.',
       ],
       Fixed: [
+        'The World Cup 2026 bracket connectors once again link each match to the right next-round game — they no longer scramble after the first knockout results come in.',
         'A third-party trade with no partner name now reads "For Them" instead of "For They", and a partner\'s name keeps the capitalisation you typed in the trade summary.',
         'Favourite and wanted stickers in the third-party trade editor now use distinct icons — a heart for favourites, a star for wanted.',
       ],

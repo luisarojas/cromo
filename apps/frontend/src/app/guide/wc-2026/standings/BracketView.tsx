@@ -73,9 +73,18 @@ export default function BracketView({
 
     const bySlot = new Map<string, WcMatch>();
     for (const m of overview.bracket) bySlot.set(`${m.stage}:${m.slot}`, m);
-    const feederOf = (feed: string | null): WcMatch | undefined => {
-      const mm = /^[WL]:(\w+):(\d+)$/.exec(feed ?? '');
-      return mm ? bySlot.get(`${mm[1]}:${mm[2]}`) : undefined;
+    // Which earlier-round match feeds a parent's side. Prefer the structured
+    // feed ("W:R32:2"); but once a side is decided ESPN replaces its feed with
+    // the winning team's code, so fall back to the child-round match that team
+    // won. Without that fallback the walk loses a child the moment any knockout
+    // result lands — the count check then trips and the whole tree silently
+    // reverts to (chronological) slot order, drawing connectors between matches
+    // that don't actually feed each other.
+    const feederOf = (side: WcMatchSide, pool: WcMatch[]): WcMatch | undefined => {
+      const mm = /^[WL]:(\w+):(\d+)$/.exec(side.feed ?? '');
+      if (mm) return bySlot.get(`${mm[1]}:${mm[2]}`);
+      if (side.code) return pool.find((m) => m.winnerCode === side.code);
+      return undefined;
     };
 
     const chain: WcStage[] = ['FINAL', 'SF', 'QF', 'R16', 'R32'];
@@ -85,15 +94,16 @@ export default function BracketView({
     if (root) {
       ordered.FINAL = [root];
       for (let i = 0; i < chain.length - 1 && treeOk; i += 1) {
+        const pool = slotSorted(chain[i + 1]);
         const kids: WcMatch[] = [];
         for (const parent of ordered[chain[i]] ?? []) {
-          for (const feed of [parent.home.feed, parent.away.feed]) {
-            const m = feederOf(feed);
+          for (const side of [parent.home, parent.away]) {
+            const m = feederOf(side, pool);
             if (m) kids.push(m);
           }
         }
         // Trust the tree only if it recovered every match in the child stage.
-        if (kids.length !== slotSorted(chain[i + 1]).length) treeOk = false;
+        if (kids.length !== pool.length) treeOk = false;
         else ordered[chain[i + 1]] = kids;
       }
     }
