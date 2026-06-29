@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   dateSpanET,
@@ -16,12 +17,18 @@ import {
   type WcOverview,
   type WcStage,
 } from '@/lib/api';
-import { Flag, TeamName } from './parts';
+import { Flag, TeamName, useTeamName } from './parts';
 
 // Bracket view: knockout rounds as columns left→right, joined into a tree by
 // connector gutters. Hovering/focusing a tile highlights the whole path to the
 // final; clicking a team name opens its profile modal. Tiles have generous
 // vertical spacing and scroll horizontally on small screens.
+//
+// A team filter (works on both layouts) highlights where one nation plays —
+// and, because the knockout draw is mostly placeholders until the groups end,
+// also the rounds it *could still reach* (via `placeholderCandidates`). On
+// desktop the tree dims the rest; on mobile the round list collapses to just the
+// matching matches. Mobile rounds are also independently collapsible.
 
 const COLUMN_W = 'w-64';
 const GUTTER_W = 'w-10';
@@ -29,6 +36,18 @@ const SLOT_MIN_H = 'min-h-[140px]';
 const HEADER_H = 'h-12';
 
 type Hover = { round: number; slot: number } | null;
+type Involve = 'definite' | 'possible' | 'none';
+
+/** How a team relates to a knockout match: it's actually IN it (`definite`), it
+ * could still land in one of the slots (`possible`), or neither (`none`). */
+function involvementOf(match: WcMatch, focus: string, groups: WcGroupStanding[], bracket: WcMatch[]): Involve {
+  if (match.home.code === focus || match.away.code === focus) return 'definite';
+  const candidates = [
+    ...placeholderCandidates(match.home.feed, groups, bracket),
+    ...placeholderCandidates(match.away.feed, groups, bracket),
+  ];
+  return candidates.some((c) => c.code === focus) ? 'possible' : 'none';
+}
 
 export default function BracketView({
   overview,
@@ -38,6 +57,7 @@ export default function BracketView({
   onSelectTeam: (code: string) => void;
 }) {
   const t = useTranslations('wc2026Standings');
+  const teamName = useTeamName();
   // Lay each round out as a proper bracket TREE derived from the feeds, so the
   // matches the connectors join (positionally-adjacent rows 2i,2i+1 → parent i)
   // are the ones that ACTUALLY feed the next round. ESPN orders matches
@@ -83,7 +103,95 @@ export default function BracketView({
       matches: treeOk && ordered[stage] ? ordered[stage]! : slotSorted(stage),
     }));
   }, [overview]);
-  const third = overview.bracket.filter((m) => m.stage === 'THIRD');
+  const third = useMemo(() => overview.bracket.filter((m) => m.stage === 'THIRD'), [overview]);
+
+  // ─── Team filter ───
+  // The selection lives in the URL (`?team=`), shared with the Teams tab, so a
+  // filtered bracket is shareable and the choice carries across tabs.
+  const router = useRouter();
+  const params = useSearchParams();
+  const teams = useMemo(
+    () =>
+      overview.groups
+        .flatMap((g) => g.rows.map((r) => ({ code: r.code, name: r.name })))
+        .sort((a, b) => teamName(a.code, a.name).localeCompare(teamName(b.code, b.name))),
+    [overview, teamName],
+  );
+  const urlTeam = (params.get('team') ?? '').toUpperCase();
+  const [focus, setFocus] = useState<string>(urlTeam && teams.some((tm) => tm.code === urlTeam) ? urlTeam : '');
+  const setFilter = (next: string) => {
+    setFocus(next);
+    const qs = new URLSearchParams(Array.from(params.entries()));
+    qs.set('view', 'bracket');
+    next ? qs.set('team', next) : qs.delete('team');
+    router.replace(`?${qs.toString()}`, { scroll: false });
+  };
+  const involveMap = useMemo(() => {
+    const map = new Map<string, Involve>();
+    if (!focus) return map;
+    for (const m of overview.bracket) map.set(m.id, involvementOf(m, focus, overview.groups, overview.bracket));
+    return map;
+  }, [focus, overview]);
+  const filtering = focus !== '';
+  const involveOf = (m: WcMatch): Involve => (filtering ? (involveMap.get(m.id) ?? 'none') : 'none');
+
+  // When a team is filtered, scroll the desktop tree so its first match (a
+  // definite slot, else the earliest round it could reach) is in view — the
+  // highlighted tile can otherwise sit off-screen in the horizontal scroller.
+  const scrollTargetId = useMemo(() => {
+    if (!filtering) return null;
+    let firstPossible: string | null = null;
+    for (const r of rounds) {
+      for (const m of r.matches) {
+        const inv = involveMap.get(m.id);
+        if (inv === 'definite') return m.id;
+        if (inv === 'possible' && !firstPossible) firstPossible = m.id;
+      }
+    }
+    return firstPossible;
+  }, [filtering, rounds, involveMap]);
+  const scrollTileRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (scrollTargetId) scrollTileRef.current?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [scrollTargetId]);
+
+  // Whether the active filter matched any knockout match at all (false when an
+  // eliminated team is picked) — drives the empty state on BOTH layouts.
+  const filteredEmpty = filtering && involveMap.size > 0 && ![...involveMap.values()].some((v) => v !== 'none');
+
+  // ─── Mobile round collapse ───
+  const allStages = useMemo<WcStage[]>(
+    () => [...rounds.map((r) => r.stage), ...(third.length ? (['THIRD'] as WcStage[]) : [])],
+    [rounds, third],
+  );
+  // Default: collapse rounds that are entirely played, so the upcoming stages
+  // sit front-and-centre instead of behind a wall of finished results. Computed
+  // once on mount; the user can still expand/collapse freely afterwards.
+  const [collapsed, setCollapsed] = useState<Set<WcStage>>(() => {
+    const finished = new Set<WcStage>();
+    const isDone = (ms: WcMatch[]) => ms.length > 0 && ms.every((m) => m.status === 'FINISHED');
+    for (const r of rounds) if (isDone(r.matches)) finished.add(r.stage);
+    if (isDone(third)) finished.add('THIRD');
+    return finished;
+  });
+  const toggleStage = (stage: WcStage) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(stage) ? next.delete(stage) : next.add(stage);
+      return next;
+    });
+  };
+
+  // Mobile sections: knockout rounds plus the third-place match. When a filter
+  // is active we drop rounds the team can't appear in and force the rest open.
+  const mobileSections = useMemo(() => {
+    const secs: { stage: WcStage; matches: WcMatch[] }[] = rounds.map((r) => ({ stage: r.stage, matches: r.matches }));
+    if (third.length) secs.push({ stage: 'THIRD', matches: third });
+    if (!filtering) return secs;
+    return secs
+      .map((s) => ({ stage: s.stage, matches: s.matches.filter((m) => involveMap.get(m.id) !== 'none') }))
+      .filter((s) => s.matches.length > 0);
+  }, [rounds, third, filtering, involveMap]);
 
   const [hover, setHover] = useState<Hover>(null);
 
@@ -105,37 +213,126 @@ export default function BracketView({
     return { tiles, connectors };
   }, [hover, rounds.length]);
 
-  const active = hover !== null;
+  // Desktop dims the tree whenever a path is highlighted OR a team is filtered.
+  const active = hover !== null || filtering;
 
   return (
     <div className="space-y-6">
-      {/* ─── Mobile / tablet: stacked round-by-round list ───
+      {/* ─── Toolbar: team filter + (mobile) expand/collapse all ─── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={focus}
+          onChange={(e) => setFilter(e.target.value)}
+          aria-label={t('bracketFilter')}
+          className="min-w-0 max-w-full rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-bg)] px-3 py-2 text-sm text-[var(--cromo-fg)] focus:border-[var(--cromo-accent)] focus:outline-none"
+        >
+          <option value="">{t('filterTeamAll')}</option>
+          {teams.map((tm) => (
+            <option key={tm.code} value={tm.code}>
+              {teamName(tm.code, tm.name)} ({tm.code})
+            </option>
+          ))}
+        </select>
+        {filtering && (
+          <button
+            type="button"
+            onClick={() => setFilter('')}
+            className="rounded-lg border border-[var(--cromo-border)] px-2.5 py-2 text-xs font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] hover:text-[var(--cromo-fg)]"
+          >
+            ✕ {t('clearFilter')}
+          </button>
+        )}
+        {!filtering && allStages.length > 0 && (
+          <div className="ml-auto flex gap-1 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setCollapsed(new Set())}
+              className="rounded-lg border border-[var(--cromo-border)] px-2.5 py-1.5 text-xs font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] hover:text-[var(--cromo-fg)]"
+            >
+              {t('expandAll')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCollapsed(new Set(allStages))}
+              className="rounded-lg border border-[var(--cromo-border)] px-2.5 py-1.5 text-xs font-medium text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] hover:text-[var(--cromo-fg)]"
+            >
+              {t('collapseAll')}
+            </button>
+          </div>
+        )}
+      </div>
+      {filtering && (
+        <p className="-mt-3 text-xs text-[var(--cromo-fg-subtle)]">
+          {t('filterHint', { team: teamName(focus, teams.find((tm) => tm.code === focus)?.name) })}
+        </p>
+      )}
+
+      {/* ─── Mobile / tablet: stacked, collapsible round list ───
           The connector-tree below is ~1600px wide and leans on hover for the
           path highlight — neither works on a phone. Under `lg` we instead stack
           each round vertically as full-width match cards: no horizontal scroll,
           and the "could face" popover (tap-to-focus) isn't trapped in an
-          overflow-clipped scroller. */}
-      <div className="space-y-6 lg:hidden">
-        {rounds.map((round) => (
-          <section key={round.stage}>
-            <div className="mb-2">
-              <h3 className="text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS[round.stage]}</h3>
-              <p className="text-[11px] text-[var(--cromo-fg-subtle)]">{dateSpanET(round.matches)} ET</p>
-            </div>
-            <div className="space-y-3">
-              {round.matches.map((m) => (
-                <MatchCard
-                  key={m.id}
-                  match={m}
-                  groups={overview.groups}
-                  bracket={overview.bracket}
-                  onSelectTeam={onSelectTeam}
-                  t={t}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+          overflow-clipped scroller. Each round collapses independently so a long
+          bracket is navigable. */}
+      <div className="space-y-3 lg:hidden">
+        {mobileSections.length === 0 ? (
+          <p className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 text-sm text-[var(--cromo-fg-muted)]">
+            {t('noBracketForTeam')}
+          </p>
+        ) : (
+          mobileSections.map((round) => {
+            // While filtering we force every shown round open; the filtered list
+            // is short and hiding matches behind a collapsed header would defeat
+            // the filter.
+            const isOpen = filtering || !collapsed.has(round.stage);
+            return (
+              <section key={round.stage} className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)]">
+                <button
+                  type="button"
+                  onClick={() => !filtering && toggleStage(round.stage)}
+                  aria-expanded={isOpen}
+                  disabled={filtering}
+                  className="flex w-full items-center gap-2 px-3 py-3 text-left"
+                >
+                  {!filtering && (
+                    <span
+                      aria-hidden
+                      className={`text-xs text-[var(--cromo-fg-subtle)] transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                    >
+                      ▶
+                    </span>
+                  )}
+                  <span className="flex-1">
+                    <span className="block text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS[round.stage]}</span>
+                    <span className="block text-[11px] text-[var(--cromo-fg-subtle)]">{dateSpanET(round.matches)} ET</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-[var(--cromo-surface-2)] px-2 py-0.5 text-[11px] font-semibold text-[var(--cromo-fg-muted)]">
+                    {round.matches.length}
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="space-y-3 border-t border-[var(--cromo-border)] p-3">
+                    {round.matches.map((m) => {
+                      const inv = involveOf(m);
+                      return (
+                        <MatchCard
+                          key={m.id}
+                          match={m}
+                          groups={overview.groups}
+                          bracket={overview.bracket}
+                          highlight={inv === 'definite'}
+                          possible={inv === 'possible'}
+                          onSelectTeam={onSelectTeam}
+                          t={t}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            );
+          })
+        )}
       </div>
 
       {/* ─── Desktop: the connector-joined bracket tree ───
@@ -145,6 +342,11 @@ export default function BracketView({
           steals a few px of height and triggers a nested vertical scrollbar.
           The box is exactly as tall as its content, so nothing meaningful clips;
           the page handles vertical scrolling. */}
+      {filteredEmpty ? (
+        <p className="hidden rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 text-sm text-[var(--cromo-fg-muted)] lg:block">
+          {t('noBracketForTeam')}
+        </p>
+      ) : (
       <div className="hidden overflow-x-auto overflow-y-hidden pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => (
@@ -156,18 +358,26 @@ export default function BracketView({
               <div className="flex flex-1">
                 <div className={`${COLUMN_W} flex flex-col`}>
                   {round.matches.map((m, si) => {
+                    const inv = involveOf(m);
                     const onPath = path.tiles.has(`${ri}:${si}`);
+                    const dim = filtering ? inv === 'none' : active && !onPath;
+                    const highlight = filtering ? inv === 'definite' : onPath;
                     return (
-                      <div key={m.id} className={`flex flex-1 items-center px-1.5 ${SLOT_MIN_H}`}>
+                      <div
+                        key={m.id}
+                        ref={m.id === scrollTargetId ? scrollTileRef : undefined}
+                        className={`flex flex-1 items-center px-1.5 ${SLOT_MIN_H}`}
+                      >
                         <MatchCard
                           match={m}
                           groups={overview.groups}
                           bracket={overview.bracket}
-                          dim={active && !onPath}
-                          highlight={onPath}
+                          dim={dim}
+                          highlight={highlight}
+                          possible={filtering && inv === 'possible'}
                           onSelectTeam={onSelectTeam}
-                          onHover={() => setHover({ round: ri, slot: si })}
-                          onHoverEnd={() => setHover(null)}
+                          onHover={() => !filtering && setHover({ round: ri, slot: si })}
+                          onHoverEnd={() => !filtering && setHover(null)}
                           t={t}
                         />
                       </div>
@@ -175,23 +385,40 @@ export default function BracketView({
                   })}
                 </div>
                 {ri < rounds.length - 1 && (
-                  <ConnectorGutter count={round.matches.length} roundIdx={ri} active={active} pathConnectors={path.connectors} />
+                  <ConnectorGutter
+                    count={round.matches.length}
+                    roundIdx={ri}
+                    active={active}
+                    pathConnectors={filtering ? EMPTY_CONNECTORS : path.connectors}
+                  />
                 )}
               </div>
             </div>
           ))}
         </div>
       </div>
+      )}
 
-      {third.length > 0 && (
-        <div className="max-w-sm">
+      {third.length > 0 && !filteredEmpty && (!filtering || involveOf(third[0]) !== 'none') && (
+        <div className="hidden max-w-sm lg:block">
           <h3 className="mb-2 text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS.THIRD}</h3>
-          <MatchCard match={third[0]} groups={overview.groups} bracket={overview.bracket} onSelectTeam={onSelectTeam} t={t} />
+          <MatchCard
+            match={third[0]}
+            groups={overview.groups}
+            bracket={overview.bracket}
+            dim={filtering && involveOf(third[0]) === 'none'}
+            highlight={filtering && involveOf(third[0]) === 'definite'}
+            possible={filtering && involveOf(third[0]) === 'possible'}
+            onSelectTeam={onSelectTeam}
+            t={t}
+          />
         </div>
       )}
     </div>
   );
 }
+
+const EMPTY_CONNECTORS = new Set<string>();
 
 function ConnectorGutter({
   count,
@@ -231,6 +458,7 @@ function MatchCard({
   bracket,
   dim,
   highlight,
+  possible,
   onSelectTeam,
   onHover,
   onHoverEnd,
@@ -241,12 +469,18 @@ function MatchCard({
   bracket: WcMatch[];
   dim?: boolean;
   highlight?: boolean;
+  possible?: boolean;
   onSelectTeam: (code: string) => void;
   onHover?: () => void;
   onHoverEnd?: () => void;
   t: ReturnType<typeof useTranslations>;
 }) {
   const fav = match.favourite;
+  const border = highlight
+    ? 'border-[var(--cromo-accent)] ring-1 ring-[var(--cromo-accent)]'
+    : possible
+      ? 'border-[var(--cromo-accent)]/40 ring-1 ring-[var(--cromo-accent)]/30'
+      : 'border-[var(--cromo-border)]';
   return (
     <article
       // Highlight the path only while pointing at the tile itself, not the gap
@@ -255,16 +489,28 @@ function MatchCard({
       onMouseLeave={onHoverEnd}
       onFocus={onHover}
       onBlur={onHoverEnd}
-      className={`w-full rounded-xl border bg-[var(--cromo-surface)] p-2.5 text-sm shadow-sm transition-all ${
-        highlight ? 'border-[var(--cromo-accent)] ring-1 ring-[var(--cromo-accent)]' : 'border-[var(--cromo-border)]'
-      } ${dim ? 'opacity-40' : 'opacity-100'}`}
+      className={`w-full rounded-xl border bg-[var(--cromo-surface)] p-2.5 text-sm shadow-sm transition-all ${border} ${
+        dim ? 'opacity-40' : 'opacity-100'
+      }`}
     >
       <SideRow side={match.home} winner={match.winnerCode === match.home.code} groups={groups} bracket={bracket} onSelectTeam={onSelectTeam} t={t} />
       <div className="my-1 border-t border-dashed border-[var(--cromo-border)]" />
       <SideRow side={match.away} winner={match.winnerCode === match.away.code} groups={groups} bracket={bracket} onSelectTeam={onSelectTeam} t={t} />
 
       <div className="mt-1.5 space-y-0.5 border-t border-[var(--cromo-border)] pt-1.5 text-[10px] leading-tight text-[var(--cromo-fg-subtle)]">
-        <p>{formatKickoffET(match.kickoff)}</p>
+        <p className="flex items-center gap-1.5">
+          {match.status === 'FINISHED' && (
+            <span className="shrink-0 rounded bg-[var(--cromo-surface-2)] px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[var(--cromo-fg-muted)]">
+              {t('ftBadge')}
+            </span>
+          )}
+          {match.status === 'LIVE' && (
+            <span className="shrink-0 animate-pulse rounded bg-[var(--cromo-danger)]/15 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[var(--cromo-danger)]">
+              {t('liveBadge')}
+            </span>
+          )}
+          <span>{formatKickoffET(match.kickoff)}</span>
+        </p>
         <p className="truncate">
           {match.city} · {match.stadium}
         </p>
@@ -315,6 +561,23 @@ function SideRow({
     );
   }
 
+  return <PlaceholderRow side={side} groups={groups} bracket={bracket} t={t} />;
+}
+
+// Unresolved bracket slot: shows the short feed label and, on hover (desktop) or
+// tap (mobile), a popover listing the teams that could still fill it.
+function PlaceholderRow({
+  side,
+  groups,
+  bracket,
+  t,
+}: {
+  side: WcMatchSide;
+  groups: WcGroupStanding[];
+  bracket: WcMatch[];
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const [open, setOpen] = useState(false);
   const candidates = placeholderCandidates(side.feed, groups, bracket);
   // Deep rounds can have many possible teams (the final's whole half of the
   // draw); cap the popover and summarise the rest so it stays compact.
@@ -324,15 +587,22 @@ function SideRow({
   const titleAttr = candidates.length ? `${t('couldFace')} ${candidates.map((c) => c.name).join(', ')}` : undefined;
   return (
     <div className="group relative flex items-center justify-between gap-2">
-      <span
-        tabIndex={candidates.length ? 0 : undefined}
+      <button
+        type="button"
+        onClick={() => candidates.length && setOpen((o) => !o)}
+        aria-expanded={candidates.length ? open : undefined}
         title={titleAttr}
-        className="truncate rounded text-[var(--cromo-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+        className="flex min-w-0 items-center gap-1 rounded text-left text-[var(--cromo-fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
       >
-        <span className="font-mono text-xs italic">{shortPlaceholder(side.feed ?? side.placeholder)}</span>
-      </span>
+        <span className="truncate font-mono text-xs italic">{shortPlaceholder(side.feed ?? side.placeholder)}</span>
+        {candidates.length > 0 && <span aria-hidden className="text-[8px] leading-none">▾</span>}
+      </button>
       {candidates.length > 0 && (
-        <span className="pointer-events-none invisible absolute left-0 top-full z-20 mt-1 w-max max-w-[14rem] rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-bg)] p-2 text-left shadow-lg group-hover:visible group-focus-within:visible">
+        <span
+          className={`pointer-events-none absolute left-0 top-full z-20 mt-1 w-max max-w-[14rem] rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-bg)] p-2 text-left shadow-lg group-hover:visible group-focus-within:visible ${
+            open ? 'visible' : 'invisible'
+          }`}
+        >
           <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-[var(--cromo-fg-subtle)]">
             {t('couldFace')} ({candidates.length})
           </span>

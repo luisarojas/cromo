@@ -837,7 +837,16 @@
     "historyLine": "{appearances} Mundiales · {titles} títulos · {last}",
     "groupStageHeading": "Fase de grupos",
     "knockoutHeading": "Cuadro eliminatorio",
-    "filterStatus": "Estado"
+    "filterStatus": "Estado",
+    "bracketFilter": "Filtrar el cuadro por equipo",
+    "filterTeamAll": "Todos los equipos",
+    "clearFilter": "Quitar",
+    "filterHint": "Resaltando dónde juega {team} y las rondas que aún podría alcanzar.",
+    "noBracketForTeam": "Este equipo no tiene partidos de eliminatoria que aún pueda alcanzar.",
+    "expandAll": "Expandir todo",
+    "collapseAll": "Contraer todo",
+    "ftBadge": "FIN",
+    "liveBadge": "En vivo"
   },
   "teamNames": {
     "MEX": "México",

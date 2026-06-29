@@ -837,7 +837,16 @@
     "historyLine": "{appearances} WC appearances · {titles} titles · {last}",
     "groupStageHeading": "Group stage",
     "knockoutHeading": "Knockout bracket",
-    "filterStatus": "Status"
+    "filterStatus": "Status",
+    "bracketFilter": "Filter bracket by team",
+    "filterTeamAll": "All teams",
+    "clearFilter": "Clear",
+    "filterHint": "Highlighting where {team} plays — and the rounds it could still reach.",
+    "noBracketForTeam": "This team has no knockout matches it can still reach.",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "ftBadge": "FT",
+    "liveBadge": "Live"
   },
   "teamNames": {
     "MEX": "Mexico",
