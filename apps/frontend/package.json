@@ -20,6 +20,7 @@
     "@tanstack/react-virtual": "^3.13.24",
     "next": "15.5.18",
     "next-intl": "^4.9.2",
+    "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.6",

@@ -36,6 +36,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
+        'Scan a Figuritas app QR code on the Trade page to instantly see which stickers you and another collector can swap.',
         'Set your own price per base sticker on a third-party trade — every other variant\'s cash value is rescaled from it by scarcity, so the fairness math and the per-sticker estimates match what you actually trade for.',
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
       ],

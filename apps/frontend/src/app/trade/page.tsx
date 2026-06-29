@@ -41,6 +41,7 @@ import { useToast } from '@/components/ToastProvider';
 import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
 import CombinedListInput from './components/CombinedListInput';
+import FiguritasScanButton from './components/FiguritasScanButton';
 import ThirdPartyTradeEditor, {
   refKey as thirdPartyRefKey,
   type EditorState,
@@ -186,6 +187,10 @@ function TradePageContent() {
   const [tpPartnerName, setTpPartnerName] = useState<string>('');
   const [tpOffered, setTpOffered] = useState<ExternalListItem[]>([]);
   const [tpWanted, setTpWanted] = useState<ExternalListItem[]>([]);
+  // Bumped when a Figuritas QR scan replaces the lists, forcing CombinedListInput
+  // to re-seed its textarea from the new offered/wanted props (it only reads them
+  // on mount, so a key change is how we push scanned codes into the box).
+  const [tpInputKey, setTpInputKey] = useState(0);
   const [tpResult, setTpResult] = useState<MatchAgainstMeResult | null>(null);
   // Per-trade weight overrides. Empty object = "use global defaults" — the
   // service treats undefined and {} identically. Reset whenever the album or
@@ -579,9 +584,14 @@ function TradePageContent() {
     };
   }
 
-  async function handleTpMatch() {
+  // Accepts optional bucket overrides so callers that have *just* set the lists
+  // (e.g. a QR scan) can match against the fresh values without waiting for the
+  // tpOffered/tpWanted state to settle.
+  async function handleTpMatch(offeredArg?: ExternalListItem[], wantedArg?: ExternalListItem[]) {
     if (!token || !tpAlbumId) return;
-    if (tpOffered.length === 0 && tpWanted.length === 0) {
+    const theirOffered = offeredArg ?? tpOffered;
+    const theirWanted = wantedArg ?? tpWanted;
+    if (theirOffered.length === 0 && theirWanted.length === 0) {
       setTpError('Add at least one code to the offered or wanted list.');
       return;
     }
@@ -592,8 +602,8 @@ function TradePageContent() {
       const result = await matchAgainstMe(
         {
           albumId: tpAlbumId,
-          theirOffered: tpOffered,
-          theirWanted: tpWanted,
+          theirOffered,
+          theirWanted,
           variantWeights: Object.keys(tpWeights).length > 0 ? tpWeights : undefined,
         },
         token,
@@ -615,6 +625,21 @@ function TradePageContent() {
     } finally {
       setTpLoading(false);
     }
+  }
+
+  // A Figuritas QR scan lands here: it carries the other collector's SWAP (their
+  // dupes → offered) and NEED (their wants → wanted) as Cromo album codes. Drop
+  // them into the third-party lists, re-seed the textarea (via the input key),
+  // and run the match immediately so the user sees the overlap without a tap.
+  function handleFiguritasResult({ offered, wanted }: { offered: ExternalListItem[]; wanted: ExternalListItem[] }) {
+    setTpResult(null);
+    setTpWeights({});
+    setTpBaseStickerCents(BASE_STICKER_CASH_CENTS);
+    setTpOffered(offered);
+    setTpWanted(wanted);
+    setTpInputKey((k) => k + 1);
+    if (!tpPartnerName.trim()) setTpPartnerName('Figuritas user');
+    void handleTpMatch(offered, wanted);
   }
 
   // Apply a new weight table and immediately re-run the match so the balance
@@ -1172,9 +1197,9 @@ function TradePageContent() {
               Match someone&apos;s list against your collection
             </h2>
             <p className="text-xs text-[var(--cromo-fg-muted)] mb-4">
-              Paste a friend&apos;s offered and wanted album codes, or upload a photo
-              of their list. We&apos;ll show what you could trade with them — no
-              account on their side required.
+              Scan a friend&apos;s Figuritas app QR, paste their offered and wanted album
+              codes, or upload a photo of their list. We&apos;ll show what you could trade
+              with them — no Cromo account on their side required.
             </p>
 
             <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -1206,7 +1231,13 @@ function TradePageContent() {
               </div>
             </div>
 
+            <div className="mb-3 flex items-center gap-3">
+              <FiguritasScanButton onResult={handleFiguritasResult} disabled={!tpAlbumId || tpLoading} />
+              <span className="text-xs text-[var(--cromo-fg-subtle)]">Trading with someone on the Figuritas app? Scan their QR to fill this in.</span>
+            </div>
+
             <CombinedListInput
+              key={tpInputKey}
               label="Their list"
               offered={tpOffered}
               wanted={tpWanted}
@@ -1216,7 +1247,7 @@ function TradePageContent() {
             />
 
             <button
-              onClick={handleTpMatch}
+              onClick={() => handleTpMatch()}
               disabled={!tpAlbumId || tpLoading}
               className="mt-4 bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
