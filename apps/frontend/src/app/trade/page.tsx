@@ -41,7 +41,7 @@ import { useToast } from '@/components/ToastProvider';
 import { type TradePickerItem } from './components/TradeStickerPicker';
 import ProposeTradeModal from './components/ProposeTradeModal';
 import CombinedListInput from './components/CombinedListInput';
-import FiguritasScanButton from './components/FiguritasScanButton';
+import ThirdPartyAppImport from './components/ThirdPartyAppImport';
 import ThirdPartyTradeEditor, {
   refKey as thirdPartyRefKey,
   type EditorState,
@@ -627,18 +627,17 @@ function TradePageContent() {
     }
   }
 
-  // A Figuritas QR scan lands here: it carries the other collector's SWAP (their
-  // dupes → offered) and NEED (their wants → wanted) as Cromo album codes. Drop
-  // them into the third-party lists, re-seed the textarea (via the input key),
-  // and run the match immediately so the user sees the overlap without a tap.
-  function handleFiguritasResult({ offered, wanted }: { offered: ExternalListItem[]; wanted: ExternalListItem[] }) {
+  // A third-party app QR scan (Figuritas, …) lands here: it carries the other
+  // collector's offered (their dupes) and wanted (their needs) as Cromo album
+  // codes. Drop them into the third-party lists, re-seed the textarea (via the
+  // input key), and run the match immediately so the overlap shows without a tap.
+  function handleImportedList({ offered, wanted }: { offered: ExternalListItem[]; wanted: ExternalListItem[] }) {
     setTpResult(null);
     setTpWeights({});
     setTpBaseStickerCents(BASE_STICKER_CASH_CENTS);
     setTpOffered(offered);
     setTpWanted(wanted);
     setTpInputKey((k) => k + 1);
-    if (!tpPartnerName.trim()) setTpPartnerName('Figuritas user');
     void handleTpMatch(offered, wanted);
   }
 
@@ -1197,9 +1196,9 @@ function TradePageContent() {
               Match someone&apos;s list against your collection
             </h2>
             <p className="text-xs text-[var(--cromo-fg-muted)] mb-4">
-              Scan a friend&apos;s Figuritas app QR, paste their offered and wanted album
-              codes, or upload a photo of their list. We&apos;ll show what you could trade
-              with them — no Cromo account on their side required.
+              Import their list from another sticker app, paste their offered and wanted
+              album codes, or snap a photo of their list. We&apos;ll show what you could
+              trade with them — no Cromo account on their side required.
             </p>
 
             <div className="mb-4 grid gap-4 sm:grid-cols-2">
@@ -1231,11 +1230,6 @@ function TradePageContent() {
               </div>
             </div>
 
-            <div className="mb-3 flex items-center gap-3">
-              <FiguritasScanButton onResult={handleFiguritasResult} disabled={!tpAlbumId || tpLoading} />
-              <span className="text-xs text-[var(--cromo-fg-subtle)]">Trading with someone on the Figuritas app? Scan their QR to fill this in.</span>
-            </div>
-
             <CombinedListInput
               key={tpInputKey}
               label="Their list"
@@ -1244,6 +1238,7 @@ function TradePageContent() {
               onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); setTpWeights({}); setTpBaseStickerCents(BASE_STICKER_CASH_CENTS); }}
               albumTypeKey={albums.find((a) => a.id === tpAlbumId)?.albumTypeKey}
               token={token ?? undefined}
+              actions={<ThirdPartyAppImport onResult={handleImportedList} disabled={!tpAlbumId || tpLoading} />}
             />
 
             <button

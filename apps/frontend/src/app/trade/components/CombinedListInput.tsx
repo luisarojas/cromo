@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { parseTradeListItems, type TradeListItem } from '@cromo/shared';
 import { scanList } from '@/lib/api';
+import { TOOLBAR_BTN_CLASS } from './toolbarButton';
 
 export type ListItem = TradeListItem;
 
@@ -16,6 +17,10 @@ interface Props {
   /** Optional bearer; /scan/list is public but logged-in callers attach it to
    *  use their authenticated rate-limit bucket. */
   token?: string;
+  /** Extra input-source buttons rendered alongside Take/Upload photo in the
+   *  toolbar (e.g. "Import from another app"). Styled by the caller with
+   *  TOOLBAR_BTN_CLASS so the whole row reads as one consistent group. */
+  actions?: ReactNode;
 }
 
 // Client-side guard rails. The server already caps each bucket at 500 items
@@ -59,7 +64,7 @@ function serialise(buckets: { offered: ListItem[]; wanted: ListItem[] }): string
  * which the backend uses for variant-scoped matching and trade-ratio guidance.
  */
 export default function CombinedListInput({
-  label, helper, offered, wanted, onChange, albumTypeKey, token,
+  label, helper, offered, wanted, onChange, albumTypeKey, token, actions,
 }: Props) {
   // The textarea is the source of truth for the keyboard path. When the user
   // uploads a photo or pastes a new block, we replace its content with a
@@ -126,9 +131,43 @@ export default function CombinedListInput({
 
   return (
     <div>
-      <label className="block text-xs font-medium text-[var(--cromo-fg-muted)] mb-1">
-        {label}
-      </label>
+      {/* One toolbar holds every way to fill in the list — imported, snapped,
+          or uploaded — so the input sources read as a single consistent group
+          above the textarea instead of a scatter of mixed-style links. */}
+      <div className="mb-1.5 flex items-end justify-between gap-2 flex-wrap">
+        <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">{label}</label>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {actions}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => handleFiles(e.target.files)}
+            className="hidden"
+          />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => handleFiles(e.target.files)}
+            className="hidden"
+          />
+          <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={scanning} className={TOOLBAR_BTN_CLASS}>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.382a1 1 0 01-.894-.553l-.448-.894A1 1 0 0012.382 3H7.618a1 1 0 00-.894.553l-.448.894A1 1 0 015.382 5H4zm6 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" />
+            </svg>
+            Take photo
+          </button>
+          <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={scanning} className={TOOLBAR_BTN_CLASS}>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L11 5.414V12a1 1 0 11-2 0V5.414L7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zM4 14a1 1 0 011 1v1h10v-1a1 1 0 112 0v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1z" />
+            </svg>
+            Upload photo
+          </button>
+        </div>
+      </div>
       <textarea
         value={text}
         onChange={(e) => handleTextChange(e.target.value)}
@@ -153,41 +192,7 @@ export default function CombinedListInput({
             </span>
           )}
         </p>
-        <div className="flex items-center gap-3">
-          {scanning && <span className="text-xs text-[var(--cromo-fg-subtle)]">Scanning…</span>}
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => handleFiles(e.target.files)}
-            className="hidden"
-          />
-          <input
-            ref={galleryInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => handleFiles(e.target.files)}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={() => cameraInputRef.current?.click()}
-            disabled={scanning}
-            className="text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
-          >
-            Take photo
-          </button>
-          <button
-            type="button"
-            onClick={() => galleryInputRef.current?.click()}
-            disabled={scanning}
-            className="text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
-          >
-            Upload photo
-          </button>
-        </div>
+        {scanning && <span className="text-xs text-[var(--cromo-fg-subtle)]">Scanning…</span>}
       </div>
       {scanError && (
         <p className="mt-1 text-xs text-[var(--cromo-danger-text)]">{scanError}</p>

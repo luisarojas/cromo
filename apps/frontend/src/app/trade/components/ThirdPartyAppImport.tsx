@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import type { TradeListItem } from '@cromo/shared';
-import { parseFiguritas } from '@/app/trade/figuritas/parseFiguritas';
+import { BottomSheet } from '@/components/BottomSheet';
+import { THIRD_PARTY_APPS, type ThirdPartyApp } from '@/app/trade/thirdPartyImport';
+import { TOOLBAR_BTN_CLASS } from './toolbarButton';
 
 interface Props {
-  /** Fired once a Figuritas QR is decoded and parsed into Cromo buckets. */
-  onResult: (buckets: { offered: TradeListItem[]; wanted: TradeListItem[]; album: string }) => void;
+  /** Fired once a supported app's QR is decoded into Cromo trade buckets. */
+  onResult: (buckets: { offered: TradeListItem[]; wanted: TradeListItem[] }) => void;
   disabled?: boolean;
 }
 
@@ -29,7 +31,8 @@ type ScanError =
   | { kind: 'unrecognized' }
   | { kind: 'camera'; message: string };
 
-function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onClose: () => void }) {
+/** Camera + jsQR loop, decoding against one app's parser. */
+function QrScanModal({ app, onResult, onClose }: { app: ThirdPartyApp; onResult: Props['onResult']; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -63,9 +66,9 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
     };
   }, [primed]);
 
-  // Decode loop: grab a frame ~4×/s, run it through jsQR, and parse any hit.
-  // A successful parse stops the camera and hands the buckets up; a malformed
-  // or non-Figuritas QR surfaces an inline message and pauses for "Try again".
+  // Decode loop: grab a frame ~4×/s, run it through jsQR, and parse any hit
+  // with the active app's parser. A success stops the camera and hands the
+  // buckets up; an unreadable/foreign QR surfaces an inline message and pauses.
   useEffect(() => {
     if (!ready || paused) return;
     let cancelled = false;
@@ -88,15 +91,14 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
       const hit = jsQR(image.data, image.width, image.height, { inversionAttempts: 'dontInvert' });
       if (!hit) { scheduleNext(); return; }
 
-      const parsed = parseFiguritas(hit.data);
+      const parsed = app.parseQr(hit.data);
       if (parsed.kind === 'ok') {
         cancelled = true;
         streamRef.current?.getTracks().forEach((t) => t.stop());
-        onResult({ offered: parsed.offered, wanted: parsed.wanted, album: parsed.album });
+        onResult({ offered: parsed.offered, wanted: parsed.wanted });
         onClose();
         return;
       }
-      // A readable QR that isn't a usable Figuritas export: explain and pause.
       setError(parsed);
       setPaused(true);
     };
@@ -104,7 +106,7 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
     const scheduleNext = () => { if (!cancelled) setTimeout(tick, SCAN_INTERVAL_MS); };
     const t = setTimeout(tick, SCAN_INTERVAL_MS);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [ready, paused, onResult, onClose]);
+  }, [ready, paused, app, onResult, onClose]);
 
   function retry() {
     setError(null);
@@ -115,7 +117,7 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
       <div className="bg-[var(--cromo-surface)] rounded-2xl overflow-hidden w-full max-w-sm">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--cromo-border)]">
-          <span className="font-medium text-sm text-[var(--cromo-fg)]">Scan a Figuritas QR</span>
+          <span className="font-medium text-sm text-[var(--cromo-fg)]">Scan a {app.name} QR</span>
           <button
             onClick={onClose}
             className="text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] text-xl leading-none"
@@ -127,7 +129,7 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
 
         {!primed ? (
           <div className="p-5 space-y-4 text-sm text-[var(--cromo-fg)]">
-            <p className="font-medium leading-tight">Point your camera at a Figuritas app QR.</p>
+            <p className="font-medium leading-tight">Point your camera at a {app.name} trade QR.</p>
             <p className="text-xs text-[var(--cromo-fg-muted)] leading-relaxed">
               We open the camera on your device and read the code locally — nothing about the other
               collector is sent anywhere. We just compare their list with your collection.
@@ -157,8 +159,8 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
             {error?.kind === 'unrecognized' && (
               <div className="space-y-2">
                 <p className="text-xs text-[var(--cromo-warning-text)]">
-                  That doesn&apos;t look like a Figuritas trade QR. Make sure it&apos;s the
-                  intercambio / swap code, not a profile or app-store link.
+                  That doesn&apos;t look like a {app.name} trade QR. Make sure it&apos;s their swap /
+                  intercambio code, not a profile or app-store link.
                 </p>
                 <button onClick={retry} className="text-xs font-medium text-[var(--cromo-accent)] hover:underline">Try again</button>
               </div>
@@ -174,7 +176,7 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
             {error?.kind === 'unsupported-encoding' && (
               <div className="space-y-2">
                 <p className="text-xs text-[var(--cromo-warning-text)]">
-                  This Figuritas QR uses a compact format Cromo can&apos;t read yet. Ask them to share
+                  This {app.name} QR uses a compact format Cromo can&apos;t read yet. Ask them to share
                   their list as text, or paste their codes below instead.
                 </p>
                 <button onClick={retry} className="text-xs font-medium text-[var(--cromo-accent)] hover:underline">Try again</button>
@@ -192,22 +194,54 @@ function ScannerModal({ onResult, onClose }: { onResult: Props['onResult']; onCl
   );
 }
 
-export default function FiguritasScanButton({ onResult, disabled }: Props) {
-  const [open, setOpen] = useState(false);
+/**
+ * "Import from another app" — one button that opens a chooser of supported
+ * sticker apps, then launches that app's QR scanner. Generic by construction:
+ * the chooser and scanner are driven by the `THIRD_PARTY_APPS` registry, so a
+ * new app needs no changes here.
+ */
+export default function ThirdPartyAppImport({ onResult, disabled }: Props) {
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [activeApp, setActiveApp] = useState<ThirdPartyApp | null>(null);
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        disabled={disabled}
-        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent)]/10 px-3 py-2 text-sm font-medium text-[var(--cromo-accent)] hover:bg-[var(--cromo-accent)]/20 disabled:opacity-50 transition-colors"
-      >
-        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <button type="button" onClick={() => setChooserOpen(true)} disabled={disabled} className={TOOLBAR_BTN_CLASS}>
+        <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
           <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm6-2h6v6h-6V3zm2 2v2h2V5h-2zM3 11h6v6H3v-6zm2 2v2h2v-2H5zm6 0h2v-2h2v2h2v2h-2v2h-2v-2h-2v2h-2v-4h2v-2zm4 4h2v-2h-2v2z" />
         </svg>
-        Scan a Figuritas QR
+        Import from another app
       </button>
-      {open && <ScannerModal onResult={onResult} onClose={() => setOpen(false)} />}
+
+      <BottomSheet open={chooserOpen} onClose={() => setChooserOpen(false)} ariaLabel="Import from another app">
+        <div className="p-5">
+          <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Import from another app</h3>
+          <p className="mt-1 text-xs text-[var(--cromo-fg-muted)]">
+            Scan a trade QR from a supported app to fill in their list automatically.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {THIRD_PARTY_APPS.map((app) => (
+              <li key={app.id}>
+                <button
+                  type="button"
+                  onClick={() => { setChooserOpen(false); setActiveApp(app); }}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-4 py-3 text-left hover:border-[var(--cromo-accent)] transition-colors"
+                >
+                  <span>
+                    <span className="block text-sm font-medium text-[var(--cromo-fg)]">{app.name}</span>
+                    <span className="block text-xs text-[var(--cromo-fg-muted)]">{app.blurb}</span>
+                  </span>
+                  <span className="text-xs font-medium text-[var(--cromo-accent)] shrink-0">Scan QR →</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </BottomSheet>
+
+      {activeApp && (
+        <QrScanModal app={activeApp} onResult={onResult} onClose={() => setActiveApp(null)} />
+      )}
     </>
   );
 }
