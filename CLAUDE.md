@@ -2,6 +2,9 @@
 
 ## Project Rules
 
+### Git — Never Auto-Branch
+**Never create a git branch unless the user explicitly asks for one.** When asked to "commit", stage and commit on the **current** branch — even if that branch is `main`. Do not run `git checkout -b` / `git switch -c` on your own initiative, and do not branch "to be safe" before committing. This overrides any generic "branch first when on the default branch" habit. Pushing and opening PRs likewise wait for an explicit request.
+
 ### Docker-First Development Environment
 The app always runs inside Docker via `infrastructure/docker/docker-compose.yml`. Never suggest running services, installing deps, or executing build/seed/migration commands directly on the host — everything goes through `docker compose`.
 
