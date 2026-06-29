@@ -230,19 +230,7 @@ export default function BracketView({
     <div className="space-y-6">
       {/* ─── Toolbar: team filter + (mobile) expand/collapse all ─── */}
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={focus}
-          onChange={(e) => setFilter(e.target.value)}
-          aria-label={t('bracketFilter')}
-          className="min-w-0 max-w-full rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-bg)] px-3 py-2 text-sm text-[var(--cromo-fg)] focus:border-[var(--cromo-accent)] focus:outline-none"
-        >
-          <option value="">{t('filterTeamAll')}</option>
-          {teams.map((tm) => (
-            <option key={tm.code} value={tm.code}>
-              {teamName(tm.code, tm.name)} ({tm.code})
-            </option>
-          ))}
-        </select>
+        <TeamCombobox teams={teams} value={focus} onChange={setFilter} teamName={teamName} t={t} />
         {filtering && (
           <button
             type="button"
@@ -429,6 +417,153 @@ export default function BracketView({
 }
 
 const EMPTY_CONNECTORS = new Set<string>();
+
+// Searchable single-select for the team filter — a native <select> over 48
+// nations is a slog to scan, so this is a type-to-filter combobox (same idiom
+// as CityAutocomplete): arrow/enter/escape keys, click-outside to close,
+// flags + codes in the list. Empty value = "All teams".
+function TeamCombobox({
+  teams,
+  value,
+  onChange,
+  teamName,
+  t,
+}: {
+  teams: { code: string; name: string }[];
+  value: string;
+  onChange: (code: string) => void;
+  teamName: (code: string, fallback?: string | null) => string;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(
+    () =>
+      q
+        ? teams.filter(
+            (tm) =>
+              teamName(tm.code, tm.name).toLowerCase().includes(q) ||
+              tm.name.toLowerCase().includes(q) ||
+              tm.code.toLowerCase().includes(q),
+          )
+        : teams,
+    [teams, q, teamName],
+  );
+
+  useEffect(() => setActiveIndex(0), [q]);
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    (listRef.current.children[activeIndex] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex, open]);
+
+  const pick = (code: string) => {
+    onChange(code);
+    setOpen(false);
+    setQuery('');
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((p) => Math.min(filtered.length - 1, p + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((p) => Math.max(0, p - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const tm = filtered[activeIndex];
+      if (tm) pick(tm.code);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setOpen(false);
+      setQuery('');
+    }
+  };
+
+  const fieldCls =
+    'flex w-full items-center gap-2 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-bg)] px-3 py-2 text-sm text-[var(--cromo-fg)] focus:border-[var(--cromo-accent)] focus:outline-none';
+
+  return (
+    <div ref={containerRef} className="relative w-60 max-w-full">
+      {open ? (
+        <input
+          autoFocus
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={t('searchTeams')}
+          aria-label={t('bracketFilter')}
+          autoComplete="off"
+          className={fieldCls}
+        />
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} aria-label={t('bracketFilter')} className={fieldCls}>
+          {value ? (
+            <>
+              <Flag code={value} />
+              <span className="min-w-0 flex-1 truncate text-left">{teamName(value)}</span>
+            </>
+          ) : (
+            <span className="min-w-0 flex-1 truncate text-left text-[var(--cromo-fg-muted)]">{t('filterTeamAll')}</span>
+          )}
+          <span aria-hidden className="text-[10px] text-[var(--cromo-fg-subtle)]">▾</span>
+        </button>
+      )}
+      {open && (
+        <ul
+          ref={listRef}
+          className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] py-1 shadow-lg"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-[var(--cromo-fg-muted)]">{t('noTeamsMatch')}</li>
+          ) : (
+            filtered.map((tm, i) => (
+              <li key={tm.code}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(tm.code);
+                  }}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                    i === activeIndex ? 'bg-[var(--cromo-accent-soft)]' : ''
+                  } ${tm.code === value ? 'font-semibold' : ''}`}
+                >
+                  <Flag code={tm.code} />
+                  <span className="font-mono text-[10px] font-semibold text-[var(--cromo-fg-muted)]">{tm.code}</span>
+                  <span className="min-w-0 flex-1 truncate text-[var(--cromo-fg)]">{teamName(tm.code, tm.name)}</span>
+                  {tm.code === value && (
+                    <span aria-hidden className="text-[var(--cromo-accent)]">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ConnectorGutter({
   count,
