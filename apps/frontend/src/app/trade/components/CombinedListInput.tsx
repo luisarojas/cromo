@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { parseTradeListItems, type TradeListItem } from '@cromo/shared';
 import { scanList } from '@/lib/api';
+import { useClickOutside } from '@/lib/useClickOutside';
 import { TOOLBAR_BTN_CLASS } from './toolbarButton';
 
 export type ListItem = TradeListItem;
@@ -75,10 +76,19 @@ export default function CombinedListInput({
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  // A single photo input with no `capture` hint: on mobile the OS picker
-  // natively offers both "Take Photo" and the gallery, so one button covers the
-  // in-person case (snap their list now) and the pre-existing-photo case.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  // Two file inputs behind one "Add photo" button. `photoInputRef` has no
+  // `capture` hint — selecting it opens the gallery / file picker for an
+  // existing photo (and the textarea also accepts a drag-and-drop onto it).
+  // `cameraInputRef` carries `capture="environment"` so mobile jumps straight
+  // to the rear camera to snap the list in person. Desktop browsers ignore
+  // `capture` and fall back to a normal picker, so the camera item degrades
+  // gracefully there.
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useClickOutside(menuRef, () => setMenuOpen(false), menuOpen);
 
   function handleTextChange(value: string) {
     // Hard-cap the text so a paste-bomb can't hang the parser. The user sees
@@ -122,8 +132,9 @@ export default function CombinedListInput({
       setScanError(err instanceof Error ? err.message : 'Failed to scan image.');
     } finally {
       setScanning(false);
-      // Reset the input so re-selecting the same file fires `onChange` again.
+      // Reset both inputs so re-selecting the same file fires `onChange` again.
       if (photoInputRef.current) photoInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
     }
   }
 
@@ -136,6 +147,7 @@ export default function CombinedListInput({
         <label className="text-xs font-medium text-[var(--cromo-fg-muted)]">{label}</label>
         <div className="flex items-center gap-1.5 flex-wrap">
           {actions}
+          {/* Upload an existing photo (gallery / file picker, no capture hint). */}
           <input
             ref={photoInputRef}
             type="file"
@@ -144,22 +156,90 @@ export default function CombinedListInput({
             onChange={(e) => handleFiles(e.target.files)}
             className="hidden"
           />
-          <button type="button" onClick={() => photoInputRef.current?.click()} disabled={scanning} className={TOOLBAR_BTN_CLASS}>
-            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.382a1 1 0 01-.894-.553l-.448-.894A1 1 0 0012.382 3H7.618a1 1 0 00-.894.553l-.448.894A1 1 0 015.382 5H4zm6 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" />
-            </svg>
-            Add photo
-          </button>
+          {/* Take a photo — `capture` jumps mobile straight to the rear camera. */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => handleFiles(e.target.files)}
+            className="hidden"
+          />
+          <div ref={menuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((o) => !o)}
+              disabled={scanning}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className={TOOLBAR_BTN_CLASS}
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.382a1 1 0 01-.894-.553l-.448-.894A1 1 0 0012.382 3H7.618a1 1 0 00-.894.553l-.448.894A1 1 0 015.382 5H4zm6 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" />
+              </svg>
+              Add photo
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-[var(--cromo-border)] bg-[var(--cromo-surface)] shadow-cromo-lg py-1.5"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); cameraInputRef.current?.click(); }}
+                  className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                >
+                  <svg className="h-4 w-4 text-[var(--cromo-fg-muted)]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                    <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.382a1 1 0 01-.894-.553l-.448-.894A1 1 0 0012.382 3H7.618a1 1 0 00-.894.553l-.448.894A1 1 0 015.382 5H4zm6 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" />
+                  </svg>
+                  Take photo
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); photoInputRef.current?.click(); }}
+                  className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                >
+                  <svg className="h-4 w-4 text-[var(--cromo-fg-muted)]" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                    <path d="M3 17a1 1 0 01-1-1V4a1 1 0 011-1h14a1 1 0 011 1v12a1 1 0 01-1 1H3zm2.5-7.5l2 2.5 3-4 4 5.5H5l.5-4z" />
+                    <path d="M10 2.5l3 3h-2v3H9v-3H7l3-3z" />
+                  </svg>
+                  Upload photo
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <textarea
-        value={text}
-        onChange={(e) => handleTextChange(e.target.value)}
-        rows={6}
-        maxLength={MAX_TEXT_LENGTH}
-        placeholder={'HAVE\nBRA: 5, 7, 12\nARG 4, 9 (red)\n\nWANT\nMEX 1, 10\nFWC: 3 (purple) x2'}
-        className="w-full rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] font-mono"
-      />
+      {/* The textarea doubles as a drop zone: dragging an image onto it scans
+          the same way the "Upload photo" picker does. */}
+      <div
+        className="relative"
+        onDragOver={(e) => { e.preventDefault(); if (!scanning) setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (!scanning) handleFiles(e.dataTransfer.files);
+        }}
+      >
+        <textarea
+          value={text}
+          onChange={(e) => handleTextChange(e.target.value)}
+          rows={6}
+          maxLength={MAX_TEXT_LENGTH}
+          placeholder={'HAVE\nBRA: 5, 7, 12\nARG 4, 9 (red)\n\nWANT\nMEX 1, 10\nFWC: 3 (purple) x2'}
+          className={`w-full rounded-md border bg-[var(--cromo-surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--cromo-accent)] font-mono ${
+            dragging ? 'border-[var(--cromo-accent)]' : 'border-[var(--cromo-border-strong)]'
+          }`}
+        />
+        {dragging && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] text-sm font-medium text-[var(--cromo-accent)]">
+            Drop a photo to scan
+          </div>
+        )}
+      </div>
       {truncated && (
         <p className="mt-1 text-xs text-[var(--cromo-warning-text)]">
           Input was truncated to {MAX_TEXT_LENGTH.toLocaleString()} characters.

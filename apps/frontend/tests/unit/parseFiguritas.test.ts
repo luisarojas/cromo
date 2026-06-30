@@ -48,7 +48,19 @@ describe('parseFiguritas', () => {
     expect(result.kind).toBe('ok');
   });
 
-  it('flags the Method-2 hex bitstring as unsupported', () => {
+  it('flags the Method-2 compact binary export as unsupported', () => {
+    // The real Figuritas QR: `⋋~` magic + `;`-separated gzip+base64 bitfields.
+    // (Real sample, two 984-bit blobs over the album's 980 slots.)
+    const real =
+      '⋋~H4sIAAAAAAAAE2NgYGQAgQYGJjDNwIJCgYEAAwODMkQZAyMDB1RWEaQJIgTXrMCCosuBAc0UBWQBAFASmTR7AAAA;' +
+      'H4sIAAAAAAAAEy3LsQ3CMBhE4S/GRCai+EEpUjqbeISIicJmFAyGnPCKuyedDvNVIWrPjTULrQUDkZJp0gb0vXey1Lc/ZRPcv7K0fgKVZ/HiIfab43BS2ZG7X4w/N0+DmXsAAAA=';
+    expect(parseFiguritas(real).kind).toBe('unsupported-encoding');
+    // The gzip+base64 signature alone is enough to recognise the format.
+    expect(parseFiguritas('H4sIAAAAAAAAE2NgYGQAgQ==;H4sIAAAAAAAAEy3L==').kind)
+      .toBe('unsupported-encoding');
+  });
+
+  it('flags the older speculative Method-2 hex bitstring as unsupported', () => {
     expect(parseFiguritas('fig://trade/v2?album=wc26&swaps=4A8F91C0E3B&needs=01F2C8D7').kind)
       .toBe('unsupported-encoding');
     // …even without the fig:// scheme, the hex `swaps=` query is the tell.

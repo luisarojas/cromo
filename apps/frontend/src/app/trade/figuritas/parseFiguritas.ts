@@ -19,11 +19,18 @@
  *     reuse the shared `parseTradeListItems` so section expansion, dedup, and
  *     offered/wanted classification stay in one tested place.
  *
- *   Method 2 — compact hex bitstring (NOT YET SUPPORTED):
- *       fig://trade/v2?album=wc26&swaps=4A8F91C0E3B&needs=01F2C8D7
- *     The hex is a bitstring over the album's canonical slot order, which we
- *     don't have. Decoding it without that ordering would fabricate matches, so
- *     we detect it and report it honestly rather than guess.
+ *   Method 2 — compact binary export (NOT YET SUPPORTED):
+ *       ⋋~H4sI…;H4sI…=
+ *     A 2-char magic header (`⋋~`, UTF-8 `e2 8b 8b 7e`) followed by two
+ *     `;`-separated gzip+base64 blobs (each begins `H4sI`, the base64 of the
+ *     gzip magic `1f 8b 08`). Each blob inflates to a ~984-bit bitfield — one
+ *     bit per printed album slot (the set has 980: 864 player + 48 badge + 48
+ *     team_photo + 20 intro), in the album's canonical order. The first blob is
+ *     the needs set, the second the duplicates. We can read the envelope but NOT
+ *     the bit→slot ordering Figuritas assigns, so decoding it would fabricate
+ *     matches; we detect it and report it honestly rather than guess. (An older
+ *     speculative variant — a `fig://trade/` deep link or a `swaps=<hex>` query
+ *     — is detected too.)
  *
  * Pure + total: never throws, no I/O. The camera/UI layer handles the rest.
  */
@@ -66,9 +73,19 @@ export function parseFiguritas(raw: string): FiguritasParseResult {
   const text = (raw ?? '').trim();
   if (!text) return { kind: 'unrecognized' };
 
-  // Method 2: compact bitstring deep-link. We can read the album but not the
-  // payload — surface it as explicitly unsupported.
-  if (/^fig:\/\/trade\//i.test(text) || /\bswaps=[0-9a-f]+/i.test(text)) {
+  // Method 2: compact binary export. The real Figuritas QR is a `⋋~` magic
+  // header plus `;`-separated gzip+base64 bitfields (each blob starts `H4sI`,
+  // the base64 of the gzip magic). We can inflate the envelope but not map its
+  // bits to album slots, so we report it as unsupported rather than guess. The
+  // `H4sI` substring is the load-bearing tell; the magic and the older
+  // `fig://`/`swaps=<hex>` shapes are caught too.
+  const COMPACT_MAGIC = '⋋~'; // ⋋~
+  if (
+    text.startsWith(COMPACT_MAGIC) ||
+    text.includes('H4sI') ||
+    /^fig:\/\/trade\//i.test(text) ||
+    /\bswaps=[0-9a-f]+/i.test(text)
+  ) {
     return { kind: 'unsupported-encoding' };
   }
 

@@ -36,7 +36,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
-        'Import another collector\'s list from a sticker app like Figuritas — scan their trade QR with your camera or upload a photo of it on the Trade page to instantly see which stickers you can swap.',
         'Set your own price per base sticker on a third-party trade — every other variant\'s cash value is rescaled from it by scarcity, so the fairness math and the per-sticker estimates match what you actually trade for.',
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
       ],
@@ -44,7 +43,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'World Cup 2026 odds to reach the final and lift the trophy are now driven by actual results — the past year of internationals plus each team\'s games at this tournament, weighted heavily — instead of historical ranking. Strength of schedule is built in, so the odds line up with how teams are really doing: win your group and your odds rise, stumble and they fall.',
         'Filter the World Cup 2026 knockout bracket to a single nation — it highlights where that team plays plus the rounds it could still reach, and the filtered view has its own shareable link.',
         'The World Cup 2026 bracket is easier to read — rounds collapse on phones (finished rounds start closed), the bracket scrolls to your filtered team, the "could face" list opens on tap, and finished and live matches are clearly tagged.',
-        'Adding a photo of a hand-written trade list is now one "Add photo" button — your phone offers the camera or your gallery, instead of two separate buttons.',
+        'The "Add photo" button on a third-party trade now lets you take a photo with your camera, pick one from your gallery, or drag and drop an image straight onto the list.',
       ],
       Fixed: [
         'A World Cup 2026 team profile no longer overflows its pop-up on phones — the standings table and other panels stay within the card.',

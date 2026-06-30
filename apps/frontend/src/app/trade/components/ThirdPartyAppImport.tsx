@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import type { TradeListItem } from '@cromo/shared';
 import { BottomSheet } from '@/components/BottomSheet';
-import { THIRD_PARTY_APPS, type ThirdPartyApp } from '@/app/trade/thirdPartyImport';
+import { AVAILABLE_THIRD_PARTY_APPS, type ThirdPartyApp } from '@/app/trade/thirdPartyImport';
 import { TOOLBAR_BTN_CLASS } from './toolbarButton';
 
 interface Props {
@@ -28,7 +28,13 @@ function markCameraPrimed(): void {
 type ScanError =
   | { kind: 'unsupported-encoding' }
   | { kind: 'wrong-album'; album: string }
+  /** No QR could be decoded from the image/frame at all. */
   | { kind: 'unrecognized' }
+  /** A QR *was* decoded, but its text isn't a shape this app's parser knows.
+   *  We carry the raw payload so the UI can show it — both to be honest (the
+   *  code read fine; "in focus / in frame" is the wrong advice) and so the
+   *  user can share the real format when the parser needs to learn it. */
+  | { kind: 'foreign-qr'; raw: string }
   | { kind: 'camera'; message: string };
 
 /**
@@ -64,6 +70,30 @@ async function decodeQrFromImage(file: File): Promise<string | null> {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * Shown when a QR decoded cleanly but its text isn't a shape the app's parser
+ * recognises. Distinct from the "no QR found" copy on purpose: the code read
+ * fine, so the fix isn't refocusing — it's that we may not yet support this
+ * app's actual QR format. We show the decoded payload (truncated) so the user
+ * can share it; that raw text is exactly what the parser needs to learn the
+ * real format.
+ */
+function ForeignQrNotice({ app, raw }: { app: ThirdPartyApp; raw: string }) {
+  const MAX = 280;
+  const shown = raw.length > MAX ? `${raw.slice(0, MAX)}…` : raw;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-[var(--cromo-warning-text)]">
+        We read a QR, but it isn&apos;t in a {app.name} trade format Cromo recognises yet. Here&apos;s
+        what it decoded to — share this so we can add support:
+      </p>
+      <pre className="max-h-32 overflow-auto rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] px-2.5 py-2 text-[11px] leading-snug text-[var(--cromo-fg-muted)] whitespace-pre-wrap break-all select-all">
+        {shown}
+      </pre>
+    </div>
+  );
 }
 
 /** Camera + jsQR loop, decoding against one app's parser. */
@@ -135,7 +165,9 @@ function QrScanModal({ app, onResult, onClose }: { app: ThirdPartyApp; onResult:
         finish(parsed.offered, parsed.wanted);
         return;
       }
-      setError(parsed);
+      // A QR decoded but the parser couldn't place it. Keep the raw payload so
+      // the error can show what we actually read instead of blaming framing.
+      setError(parsed.kind === 'unrecognized' ? { kind: 'foreign-qr', raw: hit.data } : parsed);
       setPaused(true);
     };
 
@@ -162,6 +194,7 @@ function QrScanModal({ app, onResult, onClose }: { app: ThirdPartyApp; onResult:
     try {
       const raw = await decodeQrFromImage(file);
       if (raw === null) {
+        // Genuinely no QR in the image — the "in frame / in focus" copy fits.
         setError({ kind: 'unrecognized' });
         return;
       }
@@ -170,7 +203,9 @@ function QrScanModal({ app, onResult, onClose }: { app: ThirdPartyApp; onResult:
         finish(parsed.offered, parsed.wanted);
         return;
       }
-      setError(parsed);
+      // We read a QR but the parser couldn't place it. Surface the decoded text
+      // rather than telling the user to refocus a code that scanned fine.
+      setError(parsed.kind === 'unrecognized' ? { kind: 'foreign-qr', raw } : parsed);
     } catch {
       setError({ kind: 'unrecognized' });
     } finally {
@@ -243,6 +278,7 @@ function QrScanModal({ app, onResult, onClose }: { app: ThirdPartyApp; onResult:
                 No {app.name} QR found in that image. Make sure the whole code is in frame and in focus.
               </p>
             )}
+            {error?.kind === 'foreign-qr' && <ForeignQrNotice app={app} raw={error.raw} />}
             {error?.kind === 'wrong-album' && (
               <p className="text-xs text-[var(--cromo-warning-text)]">
                 That QR is for a different album ({error.album}). Cromo can only match World Cup 2026 codes.
@@ -275,6 +311,12 @@ function QrScanModal({ app, onResult, onClose }: { app: ThirdPartyApp; onResult:
                   That doesn&apos;t look like a {app.name} trade QR. Make sure it&apos;s their swap /
                   intercambio code, not a profile or app-store link.
                 </p>
+                <button onClick={retry} className="text-xs font-medium text-[var(--cromo-accent)] hover:underline">Try again</button>
+              </div>
+            )}
+            {error?.kind === 'foreign-qr' && (
+              <div className="space-y-2">
+                <ForeignQrNotice app={app} raw={error.raw} />
                 <button onClick={retry} className="text-xs font-medium text-[var(--cromo-accent)] hover:underline">Try again</button>
               </div>
             )}
@@ -323,6 +365,10 @@ export default function ThirdPartyAppImport({ onResult, disabled }: Props) {
   const [chooserOpen, setChooserOpen] = useState(false);
   const [activeApp, setActiveApp] = useState<ThirdPartyApp | null>(null);
 
+  // No importable apps → no entry point. Today this hides the button entirely
+  // because Figuritas (the only app) is disabled while its QR decode is parked.
+  if (AVAILABLE_THIRD_PARTY_APPS.length === 0) return null;
+
   return (
     <>
       <button type="button" onClick={() => setChooserOpen(true)} disabled={disabled} className={TOOLBAR_BTN_CLASS}>
@@ -339,7 +385,7 @@ export default function ThirdPartyAppImport({ onResult, disabled }: Props) {
             Scan or upload a trade QR from a supported app to fill in their list automatically.
           </p>
           <ul className="mt-4 space-y-2">
-            {THIRD_PARTY_APPS.map((app) => (
+            {AVAILABLE_THIRD_PARTY_APPS.map((app) => (
               <li key={app.id}>
                 <button
                   type="button"
