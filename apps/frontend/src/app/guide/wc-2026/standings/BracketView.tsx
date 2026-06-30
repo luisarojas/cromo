@@ -75,15 +75,17 @@ export default function BracketView({
     for (const m of overview.bracket) bySlot.set(`${m.stage}:${m.slot}`, m);
     // Which earlier-round match feeds a parent's side. Prefer the structured
     // feed ("W:R32:2"); but once a side is decided ESPN replaces its feed with
-    // the winning team's code, so fall back to the child-round match that team
-    // won. Without that fallback the walk loses a child the moment any knockout
-    // result lands — the count check then trips and the whole tree silently
-    // reverts to (chronological) slot order, drawing connectors between matches
-    // that don't actually feed each other.
+    // the team's code, so fall back to the child-round match that team PLAYED
+    // IN (it's a participant in exactly one). We match participation, not
+    // `winnerCode`: ESPN sometimes advances a team into the next round before it
+    // flags the feeder match FINISHED, so a winner-only lookup misses that one
+    // child — the count check then trips and the whole tree silently reverts to
+    // (chronological) slot order, drawing connectors between matches that don't
+    // actually feed each other.
     const feederOf = (side: WcMatchSide, pool: WcMatch[]): WcMatch | undefined => {
       const mm = /^[WL]:(\w+):(\d+)$/.exec(side.feed ?? '');
       if (mm) return bySlot.get(`${mm[1]}:${mm[2]}`);
-      if (side.code) return pool.find((m) => m.winnerCode === side.code);
+      if (side.code) return pool.find((m) => m.home.code === side.code || m.away.code === side.code);
       return undefined;
     };
 
