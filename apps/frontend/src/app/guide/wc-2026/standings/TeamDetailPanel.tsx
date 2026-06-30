@@ -285,7 +285,7 @@ function Num({ children }: { children: React.ReactNode }) {
 
 function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 sm:p-5 ${className}`}>
+    <div className={`min-w-0 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 sm:p-5 ${className}`}>
       {children}
     </div>
   );

@@ -47,6 +47,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Adding a photo of a hand-written trade list is now one "Add photo" button — your phone offers the camera or your gallery, instead of two separate buttons.',
       ],
       Fixed: [
+        'A World Cup 2026 team profile no longer overflows its pop-up on phones — the standings table and other panels stay within the card.',
         'The World Cup 2026 bracket connectors once again link each match to the right next-round game — they no longer scramble after the first knockout results come in.',
         'A third-party trade with no partner name now reads "For Them" instead of "For They", and a partner\'s name keeps the capitalisation you typed in the trade summary.',
         'Favourite and wanted stickers in the third-party trade editor now use distinct icons — a heart for favourites, a star for wanted.',
