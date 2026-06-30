@@ -1,5 +1,5 @@
 // Shared style for the secondary "fill in their list" actions (import from
-// another app, take photo, upload photo). Keeping them on one class string is
+// another app, add photo). Keeping them on one class string is
 // what makes the toolbar read as a single, consistent group rather than the
 // earlier mix of outlined chips and bare text links.
 export const TOOLBAR_BTN_CLASS =

@@ -75,11 +75,10 @@ export default function CombinedListInput({
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  // Two distinct entry points: gallery picker (no capture hint) for a
-  // pre-existing photo, and camera capture for the in-person case where the
-  // collector hands the phone to a friend who'll snap their list right then.
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  // A single photo input with no `capture` hint: on mobile the OS picker
+  // natively offers both "Take Photo" and the gallery, so one button covers the
+  // in-person case (snap their list now) and the pre-existing-photo case.
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   function handleTextChange(value: string) {
     // Hard-cap the text so a paste-bomb can't hang the parser. The user sees
@@ -123,9 +122,8 @@ export default function CombinedListInput({
       setScanError(err instanceof Error ? err.message : 'Failed to scan image.');
     } finally {
       setScanning(false);
-      // Reset both inputs so re-selecting the same file fires `onChange` again.
-      if (galleryInputRef.current) galleryInputRef.current.value = '';
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
+      // Reset the input so re-selecting the same file fires `onChange` again.
+      if (photoInputRef.current) photoInputRef.current.value = '';
     }
   }
 
@@ -139,32 +137,18 @@ export default function CombinedListInput({
         <div className="flex items-center gap-1.5 flex-wrap">
           {actions}
           <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => handleFiles(e.target.files)}
-            className="hidden"
-          />
-          <input
-            ref={galleryInputRef}
+            ref={photoInputRef}
             type="file"
             accept="image/*"
             multiple
             onChange={(e) => handleFiles(e.target.files)}
             className="hidden"
           />
-          <button type="button" onClick={() => cameraInputRef.current?.click()} disabled={scanning} className={TOOLBAR_BTN_CLASS}>
+          <button type="button" onClick={() => photoInputRef.current?.click()} disabled={scanning} className={TOOLBAR_BTN_CLASS}>
             <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
               <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.382a1 1 0 01-.894-.553l-.448-.894A1 1 0 0012.382 3H7.618a1 1 0 00-.894.553l-.448.894A1 1 0 015.382 5H4zm6 9a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" />
             </svg>
-            Take photo
-          </button>
-          <button type="button" onClick={() => galleryInputRef.current?.click()} disabled={scanning} className={TOOLBAR_BTN_CLASS}>
-            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-              <path d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L11 5.414V12a1 1 0 11-2 0V5.414L7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zM4 14a1 1 0 011 1v1h10v-1a1 1 0 112 0v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1a1 1 0 011-1z" />
-            </svg>
-            Upload photo
+            Add photo
           </button>
         </div>
       </div>
