@@ -355,7 +355,7 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
       await app.redis.flushdb();
     });
 
-    it('one copy in each of two variants → both offered with 1 available (count-all default)', async () => {
+    it('one copy in each of two variants → the common is offered, the rarest is kept (count-all default)', async () => {
       const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
       const offered = response.json<PublicProfile>().tradingInventory[0]!.offered;
 
@@ -363,7 +363,54 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
       const blue = offered.find((i) => i.stickerVariantId === blueVariantId);
 
       expect(base?.quantity).toBe(1);
-      expect(blue?.quantity).toBe(1);
+      expect(blue).toBeUndefined();
+    });
+
+    it('force-offering the rarest trades it and shifts the keep to the next variant', async () => {
+      await app.db.query(
+        `UPDATE user_stickers SET trade_forced = true
+         WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [ALICE_NA_ALBUM_ID, blueVariantId],
+      );
+      await app.redis.flushdb();
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
+      const offered = response.json<PublicProfile>().tradingInventory[0]!.offered;
+
+      expect(offered.find((i) => i.stickerVariantId === blueVariantId)?.quantity).toBe(1);
+      expect(offered.find((i) => i.stickerVariantId === baseVariantId)).toBeUndefined();
+
+      // Restore the pinned fixture state for the tests that follow.
+      await app.db.query(
+        `UPDATE user_stickers SET trade_forced = false
+         WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [ALICE_NA_ALBUM_ID, blueVariantId],
+      );
+      await app.redis.flushdb();
+    });
+
+    it('hiding the rarest keeps it and still releases the common copy', async () => {
+      await app.db.query(
+        `UPDATE user_stickers SET trade_hidden = true
+         WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [ALICE_NA_ALBUM_ID, blueVariantId],
+      );
+      await app.redis.flushdb();
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
+      const offered = response.json<PublicProfile>().tradingInventory[0]!.offered;
+
+      // The hidden blue is the kept copy: never listed, and the base stays
+      // tradeable rather than being auto-kept on top.
+      expect(offered.find((i) => i.stickerVariantId === blueVariantId)).toBeUndefined();
+      expect(offered.find((i) => i.stickerVariantId === baseVariantId)?.quantity).toBe(1);
+
+      await app.db.query(
+        `UPDATE user_stickers SET trade_hidden = false
+         WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [ALICE_NA_ALBUM_ID, blueVariantId],
+      );
+      await app.redis.flushdb();
     });
 
     it('turning duplicatesCountAllVariants off removes both single copies from the offered list', async () => {

@@ -85,11 +85,12 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
     albumId: string,
     variantId: string,
     quantity: number,
+    flags: { tradeForced?: boolean; tradeHidden?: boolean } = {},
   ): Promise<void> {
     await app.db.query(
-      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity)
-       VALUES ($1, $2, $3)`,
-      [albumId, variantId, quantity],
+      `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity, trade_forced, trade_hidden)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [albumId, variantId, quantity, flags.tradeForced ?? false, flags.tradeHidden ?? false],
     );
   }
 
@@ -289,6 +290,65 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
 
       expect(result.candidatesTheyGet).toHaveLength(0);
       expect(result.theyGet).toHaveLength(0);
+    });
+
+    it('keeps the rarest single even when the partner explicitly wants it', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(806, 'base_border');
+      const blue = await lookupVariant(806, 'blue');
+      await insertOwned(albumId, base.variantId, 1);
+      await insertOwned(albumId, blue.variantId, 1);
+
+      // Blue is the rarest owned variant → auto-kept. The partner's explicit
+      // want does not override the keep; Force offer is the only escape hatch.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: blue.albumCode, variantToken: 'blue', quantity: 1 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(0);
+      expect(result.theyGet).toHaveLength(0);
+    });
+
+    it('force-offering the rarest trades it and shifts the keep to the next variant', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(806, 'base_border');
+      const blue = await lookupVariant(806, 'blue');
+      await insertOwned(albumId, base.variantId, 1);
+      await insertOwned(albumId, blue.variantId, 1, { tradeForced: true });
+
+      // Blue forced → tradeable; the keep shifts to the base, which is now
+      // withheld even though the partner asks for both.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [
+          { albumCode: blue.albumCode, variantToken: 'blue', quantity: 1 },
+          { albumCode: base.albumCode, variantToken: 'base_border', quantity: 1 },
+        ],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.variantToken).toBe('blue');
+    });
+
+    it('a second copy of the kept variant is a duplicate — the spare is offered', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const blue = await lookupVariant(806, 'blue');
+      await insertOwned(albumId, blue.variantId, 2);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: blue.albumCode, variantToken: 'blue', quantity: 1 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.variantToken).toBe('blue');
     });
 
     it('never offers the only copy of a sticker, even with all-variants counting on', async () => {

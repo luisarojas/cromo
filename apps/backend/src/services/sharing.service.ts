@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { env } from '../env.js';
 import { statusError } from '../utils/errors.js';
 import { userCacheKey } from './cache.js';
+import { keptVariantSql } from './spare-rules.js';
 
 const PUBLIC_PROFILE_CACHE_TTL_S = 60 * 60;
 const PUBLIC_WANTED_DEFAULT_LIMIT = 100;
@@ -107,45 +108,35 @@ function buildShareUrl(token: string): string {
 
 // ─── Offered-list spare semantics ─────────────────────────────────────────────
 // Every public "offered/duplicates" surface shares the matchmaker's spare rule
-// (my_duplicates in trade-matching.service.ts): a variant row is tradeable when
-// it has per-variant excess (quantity > 1), is trade_forced ("offer even as
-// last copy"), or — when the album counts all variants as duplicates — when
-// another copy of the same sticker (any variant) stays behind.
+// (keep-the-rarest — see spare-rules.ts): when the album counts all variants
+// as duplicates, one copy of the rarest owned non-forced variant is auto-kept
+// and everything else is tradeable; otherwise each variant keeps its own last
+// copy. trade_forced rows are always fully offered; trade_hidden rows never.
 //
 // The fragments assume fixed aliases: us (user_stickers), sv (sticker_variants),
-// ua (user_albums, joined on us.album_id), tot (STICKER_TOTAL_LATERAL_SQL).
+// ua (user_albums, joined on us.album_id), kept (KEPT_VARIANT_LATERAL_SQL).
 
 const COUNT_ALL_VARIANTS_SQL = `COALESCE((ua.settings->>'duplicatesCountAllVariants')::boolean, true)`;
 
-// Total copies of the sticker across all its variants in this album. Hidden
-// rows still count toward the total — a hidden copy can be the one the owner
-// keeps (same as the matchmaker's sum).
-const STICKER_TOTAL_LATERAL_SQL = `
-  CROSS JOIN LATERAL (
-    SELECT COALESCE(SUM(us_tot.quantity), 0)::int AS total_qty
-    FROM user_stickers us_tot
-    JOIN sticker_variants sv_tot ON sv_tot.id = us_tot.sticker_variant_id
-    WHERE us_tot.album_id = us.album_id
-      AND sv_tot.sticker_id = sv.sticker_id
-  ) tot`;
+// The auto-kept variant for this row's sticker. LEFT (not CROSS) join: when
+// every owned copy is trade_forced the subquery is empty and nothing is kept.
+const KEPT_VARIANT_LATERAL_SQL = `
+  LEFT JOIN LATERAL ${keptVariantSql('us.album_id', 'sv.sticker_id')} kept(kept_variant_id) ON true`;
 
-const OFFERED_SPARE_PREDICATE_SQL = `
-  NOT us.trade_hidden
-  AND (
-    us.quantity > 1 OR us.trade_forced
-    OR (${COUNT_ALL_VARIANTS_SQL} AND us.quantity > 0 AND tot.total_qty > 1)
-  )`;
-
-// quantity = copies available to trade, NOT copies owned: the owner keeps one
-// copy of the sticker (any variant when the album counts all variants as
-// duplicates, one of this variant otherwise) unless the row is trade_forced,
-// where every copy is up for grabs.
+// quantity = copies available to trade, NOT copies owned: trade_forced rows
+// offer everything; under count-all only the auto-kept variant withholds one
+// copy; per-variant mode withholds one copy of each variant.
 const OFFERED_QUANTITY_SQL = `
   CASE
     WHEN us.trade_forced THEN us.quantity
-    WHEN ${COUNT_ALL_VARIANTS_SQL} THEN LEAST(us.quantity, tot.total_qty - 1)
+    WHEN ${COUNT_ALL_VARIANTS_SQL} THEN
+      us.quantity - CASE WHEN us.sticker_variant_id = kept.kept_variant_id THEN 1 ELSE 0 END
     ELSE us.quantity - 1
   END`;
+
+const OFFERED_SPARE_PREDICATE_SQL = `
+  NOT us.trade_hidden
+  AND ${OFFERED_QUANTITY_SQL} >= 1`;
 
 /**
  * publicFilterOptions — full universe of filter chips for a public album's
@@ -203,7 +194,7 @@ async function publicFilterOptions(
        JOIN user_albums ua      ON ua.id = us.album_id
        JOIN stickers s          ON s.id = sv.sticker_id
        LEFT JOIN teams t        ON t.id = s.team_id
-       ${STICKER_TOTAL_LATERAL_SQL}
+       ${KEPT_VARIANT_LATERAL_SQL}
        WHERE us.album_id = $1
          AND ${OFFERED_SPARE_PREDICATE_SQL}`;
 
@@ -398,7 +389,7 @@ export async function getPublicList(
        JOIN user_albums ua ON ua.id = us.album_id
        JOIN stickers s ON s.id = sv.sticker_id
        LEFT JOIN teams t ON t.id = s.team_id
-       ${STICKER_TOTAL_LATERAL_SQL}
+       ${KEPT_VARIANT_LATERAL_SQL}
        WHERE us.album_id = $1
          AND ${OFFERED_SPARE_PREDICATE_SQL}
        ORDER BY s.number`,
@@ -614,7 +605,7 @@ export async function getPublicProfile(
        JOIN user_albums ua      ON ua.id = us.album_id
        JOIN stickers s          ON s.id = sv.sticker_id
        LEFT JOIN teams t        ON t.id = s.team_id
-       ${STICKER_TOTAL_LATERAL_SQL}
+       ${KEPT_VARIANT_LATERAL_SQL}
        WHERE us.album_id = ANY($1::uuid[])
          AND ${OFFERED_SPARE_PREDICATE_SQL}
        ORDER BY us.album_id, s.number, sv.variant_type`,
@@ -1038,7 +1029,7 @@ export async function getPublicAlbumOffered(
      JOIN user_albums ua      ON ua.id = us.album_id
      JOIN stickers s          ON s.id = sv.sticker_id
      LEFT JOIN teams t        ON t.id = s.team_id
-     ${STICKER_TOTAL_LATERAL_SQL}
+     ${KEPT_VARIANT_LATERAL_SQL}
      WHERE us.album_id = $1
        AND ${OFFERED_SPARE_PREDICATE_SQL}
        AND ($2::int IS NULL OR s.number > $2)
@@ -1062,7 +1053,7 @@ export async function getPublicAlbumOffered(
      JOIN user_albums ua      ON ua.id = us.album_id
      JOIN stickers s          ON s.id = sv.sticker_id
      LEFT JOIN teams t        ON t.id = s.team_id
-     ${STICKER_TOTAL_LATERAL_SQL}
+     ${KEPT_VARIANT_LATERAL_SQL}
      WHERE us.album_id = $1
        AND ${OFFERED_SPARE_PREDICATE_SQL}
        ${cStickerType}

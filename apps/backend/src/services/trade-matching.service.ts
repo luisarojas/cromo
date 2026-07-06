@@ -21,6 +21,7 @@ import {
   variantScarcity,
 } from '@cromo/shared';
 import { normalizeAlbumCode } from './scan.service.js';
+import { keptVariantSql, scarcityOrderSql } from './spare-rules.js';
 
 export interface TradeMatch {
   user_id: string;
@@ -216,10 +217,10 @@ export async function getTradeMatches(
          )
      ),
      my_duplicates AS (
-       -- Spares I could give away. Per-variant excess (qty > 1 / trade_forced)
-       -- always counts; when the album counts all variants as duplicates, a
-       -- single copy also counts as long as another copy of the same sticker
-       -- (any variant) stays behind.
+       -- Spares I could give away. Keep-the-rarest rule (spare-rules.ts):
+       -- per-variant excess (qty > 1 / trade_forced) always counts; when the
+       -- album counts all variants as duplicates, a single copy also counts
+       -- unless it IS the auto-kept (rarest non-forced) variant.
        SELECT us.sticker_variant_id AS variant_id
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
@@ -230,11 +231,7 @@ export async function getTradeMatches(
            OR (
              (SELECT count_all FROM requester_album)
              AND us.quantity > 0
-             AND (SELECT SUM(us3.quantity)
-                    FROM user_stickers us3
-                    JOIN sticker_variants sv3 ON sv3.id = us3.sticker_variant_id
-                   WHERE us3.album_id = $2
-                     AND sv3.sticker_id = sv.sticker_id) > 1
+             AND us.sticker_variant_id <> ${keptVariantSql('$2', 'sv.sticker_id')}
            )
          )
      ),
@@ -276,11 +273,7 @@ export async function getTradeMatches(
            OR (
              ca.count_all
              AND uss.quantity > 0
-             AND (SELECT SUM(q.quantity)
-                    FROM user_stickers q
-                    JOIN sticker_variants qv ON qv.id = q.sticker_variant_id
-                   WHERE q.album_id = ca.album_id
-                     AND qv.sticker_id = sv.sticker_id) > 1
+             AND uss.sticker_variant_id <> ${keptVariantSql('ca.album_id', 'sv.sticker_id')}
            )
          )
      ),
@@ -345,11 +338,7 @@ export async function getTradeMatches(
            OR (
              thm.count_all
              AND uss.quantity > 0
-             AND (SELECT SUM(q.quantity)
-                    FROM user_stickers q
-                    JOIN sticker_variants qv ON qv.id = q.sticker_variant_id
-                   WHERE q.album_id = thm.album_id
-                     AND qv.sticker_id = sv_all.sticker_id) > 1
+             AND uss.sticker_variant_id <> ${keptVariantSql('thm.album_id', 'sv_all.sticker_id')}
            )
          )
        WHERE sv_all.id IN (SELECT variant_id FROM my_missing)
@@ -830,8 +819,9 @@ function computeBalance(
  * give side stays per-variant for MATCHING (a spare of BRA5(base) only
  * satisfies a want for BRA5(base)), but what counts as a "spare" follows the
  * album's duplicatesCountAllVariants setting: when on, a single copy of a
- * variant is a spare as long as the user owns another copy of the sticker in
- * any variant.
+ * variant is a spare unless it is the auto-kept rarest variant of the sticker
+ * (keep-the-rarest, see spare-rules.ts). The partner's explicit want for the
+ * kept variant does NOT override the keep — Force offer is the escape hatch.
  */
 export async function matchAgainstUserAlbum(
   db: Pool,
@@ -923,15 +913,12 @@ export async function matchAgainstUserAlbum(
     sticker_id: string;
     album_code: string;
     sticker_type: string;
-    total_qty: string;
   }>(
-    `SELECT s.id AS sticker_id, s.album_code, s.sticker_type,
-            SUM(us.quantity) AS total_qty
+    `SELECT DISTINCT s.id AS sticker_id, s.album_code, s.sticker_type
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id
-      WHERE us.album_id = $1 AND us.quantity > 0
-      GROUP BY s.id, s.album_code, s.sticker_type`,
+      WHERE us.album_id = $1 AND us.quantity > 0`,
     [albumId],
   );
   const ownedStickerIds = new Set(ownedRows.map((r) => r.sticker_id));
@@ -940,11 +927,19 @@ export async function matchAgainstUserAlbum(
       .filter((r) => r.sticker_type === 'coca_cola_special')
       .map((r) => r.album_code),
   );
-  // Copies owned per sticker across ALL its variants — the all-variants
-  // duplicates rule needs the sticker-level total to decide whether a
-  // single-copy variant still leaves the slot filled after being traded away.
-  const totalOwnedBySticker = new Map(
-    ownedRows.map((r) => [r.sticker_id, Number(r.total_qty)]),
+  // The auto-kept variant per sticker (keep-the-rarest, see spare-rules.ts) —
+  // the all-variants duplicates rule offers any single-copy variant EXCEPT
+  // the rarest non-forced one, which stays for the album.
+  const { rows: keptRows } = await db.query<{ sticker_id: string; sticker_variant_id: string }>(
+    `SELECT DISTINCT ON (sv.sticker_id) sv.sticker_id, us.sticker_variant_id
+       FROM user_stickers us
+       JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+      WHERE us.album_id = $1 AND us.quantity > 0 AND NOT us.trade_forced
+      ORDER BY sv.sticker_id, ${scarcityOrderSql('sv')}`,
+    [albumId],
+  );
+  const keptVariantBySticker = new Map(
+    keptRows.map((r) => [r.sticker_id, r.sticker_variant_id]),
   );
 
   // Pull the user's favourites + wanted lists for this album so the optimizer
@@ -995,13 +990,14 @@ export async function matchAgainstUserAlbum(
       // Per-variant spare: a second copy of this exact variant (or trade_forced).
       if (st.spare) return true;
       // All-variants duplicates: when the album counts variants as duplicates,
-      // a single tradeable copy is a spare as long as another copy of the same
-      // sticker (any variant) stays behind — owning NED3(base)+NED3(blue) means
-      // either one can be given away.
+      // any single tradeable copy is a spare EXCEPT the auto-kept (rarest
+      // non-forced) variant — owning NED3(base)+NED3(blue) offers the base
+      // and keeps the blue. An explicit partner want does not override the
+      // keep; Force offer is the only escape hatch.
       return (
         countAllVariants &&
         st.visibleQty > 0 &&
-        (totalOwnedBySticker.get(st.stickerId) ?? 0) > 1
+        keptVariantBySticker.get(st.stickerId) !== r.stickerVariantId
       );
     })
     .map(refOf);

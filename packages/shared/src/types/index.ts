@@ -799,10 +799,10 @@ export interface PublicInventoryItem {
   groupName: string | null
   variantType: string | null
   /**
-   * Copies available to trade, NOT total copies owned. The owner keeps one
-   * copy of the sticker — any variant when the album counts all variants as
-   * duplicates, one of this variant otherwise — unless the row is
-   * trade_forced, where every copy is offered. Always ≥ 1 for offered items.
+   * Copies available to trade, NOT total copies owned. The owner auto-keeps
+   * one copy of the rarest owned variant when the album counts all variants
+   * as duplicates (one copy of each variant otherwise); trade_forced rows
+   * offer every copy. Always ≥ 1 for offered items.
    */
   quantity: number | null
 }
