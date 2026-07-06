@@ -68,6 +68,12 @@ export interface ThirdPartyDraftListItem {
   quantity: number;
 }
 
+export interface ThirdPartyDraftSelection {
+  stickerVariantId: string;
+  /** Copies to trade; null = the pool default (the matcher-capped maximum). */
+  quantity: number | null;
+}
+
 export interface ThirdPartyDraft {
   id: string;
   userId: string;
@@ -75,8 +81,8 @@ export interface ThirdPartyDraft {
   partnerName: string | null;
   theirOffered: ThirdPartyDraftListItem[];
   theirWanted: ThirdPartyDraftListItem[];
-  selectionIReceive: string[];
-  selectionIGive: string[];
+  selectionIReceive: ThirdPartyDraftSelection[];
+  selectionIGive: ThirdPartyDraftSelection[];
   iReceiveCashCents: number;
   iGiveCashCents: number;
   createdAt: string;
@@ -90,8 +96,8 @@ export async function saveThirdPartyDraft(
     partnerName: string | null;
     theirOffered: ExternalListItem[];
     theirWanted: ExternalListItem[];
-    selectionIReceive: string[];
-    selectionIGive: string[];
+    selectionIReceive: ThirdPartyDraftSelection[];
+    selectionIGive: ThirdPartyDraftSelection[];
     iReceiveCashCents: number;
     iGiveCashCents: number;
   },

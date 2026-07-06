@@ -8,15 +8,22 @@ import type { Pool } from 'pg';
  * The row IS the entire planning state — the editor re-runs `match-against-me`
  * against the partner's typed list to rebuild today's candidate pool, then
  * pre-checks any candidate whose stickerVariantId appears in the selection
- * array. A re-seed between save and resume could swing variant IDs, but the
- * partner list (album_code + variant token) is stable across reseeds so the
- * editor can always re-render the layout.
+ * array and restores its quantity stepper. A re-seed between save and resume
+ * could swing variant IDs, but the partner list (album_code + variant token)
+ * is stable across reseeds so the editor can always re-render the layout.
  */
 
 export interface ListItemRow {
   albumCode: string;
   variantToken: string | null;
   quantity: number;
+}
+
+export interface SelectionRow {
+  stickerVariantId: string;
+  /** Copies to trade; null = the pool default (the matcher-capped maximum).
+   *  Old drafts converted by migration 0025 carry null. */
+  quantity: number | null;
 }
 
 export interface ThirdPartyDraft {
@@ -26,8 +33,8 @@ export interface ThirdPartyDraft {
   partnerName: string | null;
   theirOffered: ListItemRow[];
   theirWanted: ListItemRow[];
-  selectionIReceive: string[];
-  selectionIGive: string[];
+  selectionIReceive: SelectionRow[];
+  selectionIGive: SelectionRow[];
   iReceiveCashCents: number;
   iGiveCashCents: number;
   createdAt: string;
@@ -41,8 +48,8 @@ interface DraftRow {
   partner_name: string | null;
   their_offered: ListItemRow[];
   their_wanted: ListItemRow[];
-  selection_i_receive: string[];
-  selection_i_give: string[];
+  selection_i_receive: SelectionRow[];
+  selection_i_give: SelectionRow[];
   i_receive_cash_cents: number;
   i_give_cash_cents: number;
   created_at: Date;
@@ -74,8 +81,8 @@ export interface UpsertDraftInput {
   partnerName: string | null;
   theirOffered: ListItemRow[];
   theirWanted: ListItemRow[];
-  selectionIReceive: string[];
-  selectionIGive: string[];
+  selectionIReceive: SelectionRow[];
+  selectionIGive: SelectionRow[];
   iReceiveCashCents: number;
   iGiveCashCents: number;
 }
@@ -101,8 +108,8 @@ export async function upsertThirdPartyDraft(
               partner_name = $2,
               their_offered = $3::jsonb,
               their_wanted = $4::jsonb,
-              selection_i_receive = $5::uuid[],
-              selection_i_give = $6::uuid[],
+              selection_i_receive = $5::jsonb,
+              selection_i_give = $6::jsonb,
               i_receive_cash_cents = $7,
               i_give_cash_cents = $8,
               updated_at = now()
@@ -113,8 +120,8 @@ export async function upsertThirdPartyDraft(
         input.partnerName,
         JSON.stringify(input.theirOffered),
         JSON.stringify(input.theirWanted),
-        input.selectionIReceive,
-        input.selectionIGive,
+        JSON.stringify(input.selectionIReceive),
+        JSON.stringify(input.selectionIGive),
         input.iReceiveCashCents,
         input.iGiveCashCents,
         input.id,
@@ -131,7 +138,7 @@ export async function upsertThirdPartyDraft(
     `INSERT INTO third_party_trade_drafts
        (user_id, album_id, partner_name, their_offered, their_wanted,
         selection_i_receive, selection_i_give, i_receive_cash_cents, i_give_cash_cents)
-     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::uuid[], $7::uuid[], $8, $9)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)
      RETURNING *`,
     [
       input.userId,
@@ -139,8 +146,8 @@ export async function upsertThirdPartyDraft(
       input.partnerName,
       JSON.stringify(input.theirOffered),
       JSON.stringify(input.theirWanted),
-      input.selectionIReceive,
-      input.selectionIGive,
+      JSON.stringify(input.selectionIReceive),
+      JSON.stringify(input.selectionIGive),
       input.iReceiveCashCents,
       input.iGiveCashCents,
     ],

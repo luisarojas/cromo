@@ -59,6 +59,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'A third-party trade never gives away more copies than you can spare — a partner asking for three of a sticker you own three of gets your two spares and your own copy stays.',
         'Receiving a sticker you\'re missing in a third-party trade takes one copy, not every duplicate the partner listed.',
         'Third-party trade rows show how many copies change hands (×N) with a stepper to adjust, and the totals, fairness reading, and confirmation count copies rather than list lines.',
+        'Saved third-party drafts remember the adjusted copy counts — resuming a draft restores each row\'s ×N, not just which rows were ticked.',
       ],
     },
   },

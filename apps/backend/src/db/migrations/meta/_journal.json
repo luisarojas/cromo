@@ -176,6 +176,13 @@
       "when": 1813400000000,
       "tag": "0024_per_album_duplicates_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1813500000000,
+      "tag": "0025_draft_selection_quantities",
+      "breakpoints": true
     }
   ]
 }

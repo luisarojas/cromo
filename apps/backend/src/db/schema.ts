@@ -720,8 +720,10 @@ export const liveTradeCompletions = pgTable('live_trade_completions', {
 // `their_offered` / `their_wanted` hold the partner's typed list lines so the
 // editor can re-resolve against the live catalog on open (a re-seed between
 // save and resume could shift variant IDs; codes + variant tokens are stable).
-// `selection_*` arrays hold the user's tick-state at save time as variant
-// UUIDs; on resume the editor filters today's candidates by these.
+// `selection_*` hold the user's tick-state at save time as
+// { stickerVariantId, quantity } rows; on resume the editor filters today's
+// candidates by variant id and restores each row's quantity stepper.
+// quantity null = "use the pool default" (the matcher-capped maximum).
 
 export const thirdPartyTradeDrafts = pgTable('third_party_trade_drafts', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -730,8 +732,8 @@ export const thirdPartyTradeDrafts = pgTable('third_party_trade_drafts', {
   partnerName: text('partner_name'),
   theirOffered: jsonb('their_offered').$type<{ albumCode: string; variantToken: string | null; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
   theirWanted: jsonb('their_wanted').$type<{ albumCode: string; variantToken: string | null; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
-  selectionIReceive: uuid('selection_i_receive').array().notNull().default(sql`'{}'::uuid[]`),
-  selectionIGive: uuid('selection_i_give').array().notNull().default(sql`'{}'::uuid[]`),
+  selectionIReceive: jsonb('selection_i_receive').$type<{ stickerVariantId: string; quantity: number | null }[]>().notNull().default(sql`'[]'::jsonb`),
+  selectionIGive: jsonb('selection_i_give').$type<{ stickerVariantId: string; quantity: number | null }[]>().notNull().default(sql`'[]'::jsonb`),
   iReceiveCashCents: integer('i_receive_cash_cents').notNull().default(0),
   iGiveCashCents: integer('i_give_cash_cents').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),

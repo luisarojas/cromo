@@ -21,8 +21,12 @@ function fmtDollars(cents: number): string {
  */
 export default function DraftCard({ draft, onResume, onDelete }: Props) {
   const partner = draft.partnerName?.trim() || 'Unnamed partner';
-  const receiveCount = draft.selectionIReceive.length;
-  const giveCount = draft.selectionIGive.length;
+  // Copy counts. quantity null (drafts saved before per-row counts existed)
+  // counts as one copy — the exact number isn't known until resume re-matches.
+  const copies = (rows: { quantity: number | null }[]): number =>
+    rows.reduce((s, r) => s + (r.quantity ?? 1), 0);
+  const receiveCount = copies(draft.selectionIReceive);
+  const giveCount = copies(draft.selectionIGive);
   const updated = new Date(draft.updatedAt).toLocaleDateString();
   const hasCash = draft.iReceiveCashCents > 0 || draft.iGiveCashCents > 0;
 

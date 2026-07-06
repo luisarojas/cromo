@@ -995,6 +995,14 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
   // Parked in-progress trade plans from the Third-Party tab. CRUD only —
   // there's no counterparty to notify and no Redis session to coordinate.
 
+  // Selections carry the editor's per-row copy count; quantity null/omitted
+  // means "the pool default" (the matcher-capped maximum on resume).
+  const SelectionRowSchema = z.object({
+    stickerVariantId: z.string().uuid(),
+    quantity: z.number().int().min(1).max(99).nullish()
+      .transform((v) => v ?? null),
+  });
+
   const SaveDraftBody = z.object({
     id: z.string().uuid().nullish(),
     albumId: z.string().uuid(),
@@ -1002,8 +1010,8 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       .transform((v) => (v && v.length > 0 ? v : null)),
     theirOffered: ItemListSchema.default([]),
     theirWanted: ItemListSchema.default([]),
-    selectionIReceive: z.array(z.string().uuid()).max(500).default([]),
-    selectionIGive: z.array(z.string().uuid()).max(500).default([]),
+    selectionIReceive: z.array(SelectionRowSchema).max(500).default([]),
+    selectionIGive: z.array(SelectionRowSchema).max(500).default([]),
     iReceiveCashCents: z.number().int().min(0).max(10_000_000).default(0),
     iGiveCashCents: z.number().int().min(0).max(10_000_000).default(0),
   });

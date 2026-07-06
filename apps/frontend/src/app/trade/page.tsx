@@ -741,24 +741,31 @@ function TradePageContent() {
       );
       setTpResult(result);
       // Re-apply the saved selection: any candidate whose stickerVariantId
-      // appears in the persisted arrays is checked. Candidates added since
+      // appears in the persisted arrays is checked, and its saved copy count
+      // restores the quantity stepper (clamped by the editor to today's pool
+      // max, which may have shrunk since the save). Candidates added since
       // the draft was saved (or removed from the user's missing/spare set)
       // simply don't match and stay unchecked, which is the correct fallback.
-      const receiveSet = new Set(draft.selectionIReceive);
-      const giveSet = new Set(draft.selectionIGive);
-      const selectedIGet = new Set(
-        result.candidatesIGet
-          .filter((r) => r.stickerVariantId && receiveSet.has(r.stickerVariantId))
-          .map(thirdPartyRefKey),
-      );
-      const selectedTheyGet = new Set(
-        result.candidatesTheyGet
-          .filter((r) => r.stickerVariantId && giveSet.has(r.stickerVariantId))
-          .map(thirdPartyRefKey),
-      );
+      const receiveQty = new Map(draft.selectionIReceive.map((s) => [s.stickerVariantId, s.quantity]));
+      const giveQty = new Map(draft.selectionIGive.map((s) => [s.stickerVariantId, s.quantity]));
+      const quantities: Record<string, number> = {};
+      const applySide = (
+        candidates: typeof result.candidatesIGet,
+        saved: Map<string, number | null>,
+      ): Set<string> => {
+        const selected = new Set<string>();
+        for (const r of candidates) {
+          if (!r.stickerVariantId || !saved.has(r.stickerVariantId)) continue;
+          selected.add(thirdPartyRefKey(r));
+          const qty = saved.get(r.stickerVariantId);
+          if (qty != null) quantities[thirdPartyRefKey(r)] = qty;
+        }
+        return selected;
+      };
       setTpEditorState({
-        selectedIGet,
-        selectedTheyGet,
+        selectedIGet: applySide(result.candidatesIGet, receiveQty),
+        selectedTheyGet: applySide(result.candidatesTheyGet, giveQty),
+        quantities,
         iGetCashCents: draft.iReceiveCashCents,
         theyGetCashCents: draft.iGiveCashCents,
       });
@@ -784,12 +791,18 @@ function TradePageContent() {
     if (!token || !tpAlbumId || !tpResult || tpSaving) return;
     setTpSaving(true);
     try {
-      const iReceive = tpResult.candidatesIGet.filter((r) =>
-        tpEditorState.selectedIGet.has(thirdPartyRefKey(r)),
+      // Persist effective quantities (stepper overrides included) so a
+      // resumed draft restores the exact copy counts, not just the ticks.
+      const iReceive = effectiveSelectedRefs(
+        tpResult.candidatesIGet, tpEditorState.selectedIGet, tpEditorState,
       );
-      const iGive = tpResult.candidatesTheyGet.filter((r) =>
-        tpEditorState.selectedTheyGet.has(thirdPartyRefKey(r)),
+      const iGive = effectiveSelectedRefs(
+        tpResult.candidatesTheyGet, tpEditorState.selectedTheyGet, tpEditorState,
       );
+      const toSelection = (refs: typeof iReceive) =>
+        refs
+          .filter((r): r is typeof r & { stickerVariantId: string } => !!r.stickerVariantId)
+          .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
       const draft = await saveThirdPartyDraft(
         {
           id: tpDraftId,
@@ -797,12 +810,8 @@ function TradePageContent() {
           partnerName: tpPartnerName.trim() || null,
           theirOffered: tpOffered,
           theirWanted: tpWanted,
-          selectionIReceive: iReceive
-            .map((r) => r.stickerVariantId)
-            .filter((id): id is string => !!id),
-          selectionIGive: iGive
-            .map((r) => r.stickerVariantId)
-            .filter((id): id is string => !!id),
+          selectionIReceive: toSelection(iReceive),
+          selectionIGive: toSelection(iGive),
           iReceiveCashCents: tpEditorState.iGetCashCents,
           iGiveCashCents: tpEditorState.theyGetCashCents,
         },

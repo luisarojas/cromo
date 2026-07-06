@@ -218,7 +218,7 @@ describe.skipIf(!shouldRun)('Third-party trade drafts (integration)', () => {
       expect(reread?.partnerName).toBe('Mine');
     });
 
-    it('preserves variant UUIDs in the selection arrays through a round-trip', async () => {
+    it('preserves selections — variant UUIDs and copy counts — through a round-trip', async () => {
       const userId = await insertUser();
       const albumId = await insertAlbum(userId);
 
@@ -231,17 +231,30 @@ describe.skipIf(!shouldRun)('Third-party trade drafts (integration)', () => {
       const variantIds = variantRows.map((r) => r.id);
       expect(variantIds).toHaveLength(3);
 
+      // Mixed quantities: an explicit stepper override (2), an explicit 1,
+      // and a null ("pool default" — the shape pre-0025 drafts convert to).
+      const receive = [
+        { stickerVariantId: variantIds[0]!, quantity: 2 },
+        { stickerVariantId: variantIds[1]!, quantity: 1 },
+      ];
+      const give = [{ stickerVariantId: variantIds[2]!, quantity: null }];
+
       const draft = await upsertThirdPartyDraft(app.db, {
         id: null, userId, albumId,
         partnerName: null,
         theirOffered: [], theirWanted: [],
-        selectionIReceive: variantIds.slice(0, 2),
-        selectionIGive: variantIds.slice(2, 3),
+        selectionIReceive: receive,
+        selectionIGive: give,
         iReceiveCashCents: 0, iGiveCashCents: 0,
       });
 
-      expect(draft.selectionIReceive).toEqual(variantIds.slice(0, 2));
-      expect(draft.selectionIGive).toEqual(variantIds.slice(2, 3));
+      expect(draft.selectionIReceive).toEqual(receive);
+      expect(draft.selectionIGive).toEqual(give);
+
+      // And again through a fresh read, not just the RETURNING row.
+      const reread = await getThirdPartyDraft(app.db, userId, draft.id);
+      expect(reread?.selectionIReceive).toEqual(receive);
+      expect(reread?.selectionIGive).toEqual(give);
     });
   });
 
