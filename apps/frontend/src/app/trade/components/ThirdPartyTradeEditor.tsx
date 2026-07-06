@@ -13,10 +13,40 @@ import {
 export interface EditorState {
   selectedIGet: Set<string>;
   selectedTheyGet: Set<string>;
+  /** Per-row copy-count overrides keyed by refKey, bounded [1, ref.quantity].
+   *  Absent rows trade the ref's full quantity (the matcher already caps it
+   *  to what the user can spare / the partner asked for). */
+  quantities?: Record<string, number>;
   /** Cents the third party gives me on top of stickers. */
   iGetCashCents: number;
   /** Cents I give the third party on top of stickers. */
   theyGetCashCents: number;
+}
+
+/** Copies this row trades: the user's override, clamped to the pool max. */
+function effectiveQty(state: EditorState, ref: ExternalStickerRef): number {
+  const max = Math.max(1, ref.quantity);
+  const override = state.quantities?.[refKey(ref)];
+  if (override === undefined) return max;
+  return Math.min(Math.max(1, Math.floor(override)), max);
+}
+
+/**
+ * The selected refs with their effective (possibly reduced) quantities —
+ * what the balance, the record call, and the text export must all agree on.
+ */
+export function effectiveSelectedRefs(
+  candidates: ExternalStickerRef[],
+  selected: Set<string>,
+  state: EditorState,
+): ExternalStickerRef[] {
+  return candidates
+    .filter((r) => selected.has(refKey(r)))
+    .map((r) => ({ ...r, quantity: effectiveQty(state, r) }));
+}
+
+function copyCount(refs: ExternalStickerRef[]): number {
+  return refs.reduce((s, r) => s + r.quantity, 0);
 }
 
 interface Props {
@@ -148,11 +178,13 @@ function SideColumn({
   label,
   candidates,
   selected,
+  qtyOf,
   cashCents,
   totalCount,
   cashLabel,
   emptyText,
   onToggle,
+  onQtyChange,
   onCashChange,
   starredHint,
   weights,
@@ -161,11 +193,14 @@ function SideColumn({
   label: string;
   candidates: ExternalStickerRef[];
   selected: Set<string>;
+  /** Effective copy count for a row (override or pool max). */
+  qtyOf: (ref: ExternalStickerRef) => number;
   cashCents: number;
   totalCount: number;
   cashLabel: string;
   emptyText: string;
   onToggle: (key: string, next: boolean) => void;
+  onQtyChange: (key: string, next: number) => void;
   onCashChange: (cents: number) => void;
   starredHint: boolean;
   weights?: VariantWeights | null;
@@ -207,6 +242,8 @@ function SideColumn({
                   const key = refKey(r);
                   const isSelected = selected.has(key);
                   const disabled = !r.stickerVariantId;
+                  const maxQty = Math.max(1, r.quantity);
+                  const qty = qtyOf(r);
                   return (
                     <li key={key}>
                       <label
@@ -231,6 +268,39 @@ function SideColumn({
                         <span className="text-[var(--cromo-fg)] truncate min-w-0 flex-1">
                           {r.playerName ?? <span className="italic text-[var(--cromo-fg-muted)]">Unknown</span>}
                         </span>
+                        {maxQty > 1 && (isSelected ? (
+                          <span
+                            className="flex items-center gap-0.5 shrink-0"
+                            // Keep stepper taps from toggling the row checkbox.
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <button
+                              type="button"
+                              aria-label="Fewer copies"
+                              disabled={qty <= 1}
+                              onClick={() => onQtyChange(key, qty - 1)}
+                              className="h-5 w-5 rounded border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-xs leading-none text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              −
+                            </button>
+                            <span className="w-7 text-center text-xs tabular-nums font-medium text-[var(--cromo-fg)]">
+                              ×{qty}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label="More copies"
+                              disabled={qty >= maxQty}
+                              onClick={() => onQtyChange(key, qty + 1)}
+                              className="h-5 w-5 rounded border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-xs leading-none text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              +
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] tabular-nums font-medium px-1.5 py-0.5 rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] shrink-0">
+                            ×{maxQty}
+                          </span>
+                        ))}
                         {starredHint && r.favourite && (
                           <span title="You favourited this" aria-label="Favourite" className="text-xs text-[var(--cromo-danger-text)]">♥</span>
                         )}
@@ -299,13 +369,15 @@ export default function ThirdPartyTradeEditor({
   saveLabel,
 }: Props) {
   const totalSelectedIGet = useMemo(
-    () => candidatesIGet.filter((r) => state.selectedIGet.has(refKey(r))),
-    [candidatesIGet, state.selectedIGet],
+    () => effectiveSelectedRefs(candidatesIGet, state.selectedIGet, state),
+    [candidatesIGet, state],
   );
   const totalSelectedTheyGet = useMemo(
-    () => candidatesTheyGet.filter((r) => state.selectedTheyGet.has(refKey(r))),
-    [candidatesTheyGet, state.selectedTheyGet],
+    () => effectiveSelectedRefs(candidatesTheyGet, state.selectedTheyGet, state),
+    [candidatesTheyGet, state],
   );
+  const iGetCopies = copyCount(totalSelectedIGet);
+  const theyGetCopies = copyCount(totalSelectedTheyGet);
 
   // Balance from the user's perspective: give = theyGet (I give), get = iGet
   // (I receive). Cash mirrors: theyGetCashCents is what I give, iGetCashCents
@@ -344,6 +416,12 @@ export default function ThirdPartyTradeEditor({
     if (next) set.add(key); else set.delete(key);
     onStateChange({ ...state, selectedTheyGet: set });
   }
+  function changeQty(key: string, next: number): void {
+    onStateChange({
+      ...state,
+      quantities: { ...state.quantities, [key]: next },
+    });
+  }
 
   const canRecord =
     !!onRecord &&
@@ -377,7 +455,7 @@ export default function ThirdPartyTradeEditor({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">{title}</h2>
           <p className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">
-            {totalSelectedIGet.length} for {inlineLabel(leftLabel)}, {totalSelectedTheyGet.length} for{' '}
+            {iGetCopies} for {inlineLabel(leftLabel)}, {theyGetCopies} for{' '}
             {inlineLabel(rightLabel)}. Untick anything you don&apos;t want; tick more from the pool.
           </p>
         </div>
@@ -456,11 +534,13 @@ export default function ThirdPartyTradeEditor({
           label={leftLabel}
           candidates={candidatesIGet}
           selected={state.selectedIGet}
+          qtyOf={(r) => effectiveQty(state, r)}
           cashCents={state.iGetCashCents}
-          totalCount={totalSelectedIGet.length}
+          totalCount={iGetCopies}
           cashLabel="+ cash from them"
           emptyText="Nothing they have that you need."
           onToggle={toggleIGet}
+          onQtyChange={changeQty}
           onCashChange={(c) => onStateChange({ ...state, iGetCashCents: c })}
           starredHint
           weights={weights}
@@ -470,11 +550,13 @@ export default function ThirdPartyTradeEditor({
           label={rightLabel}
           candidates={candidatesTheyGet}
           selected={state.selectedTheyGet}
+          qtyOf={(r) => effectiveQty(state, r)}
           cashCents={state.theyGetCashCents}
-          totalCount={totalSelectedTheyGet.length}
+          totalCount={theyGetCopies}
           cashLabel="+ cash from you"
           emptyText="Nothing you have that they want."
           onToggle={toggleTheyGet}
+          onQtyChange={changeQty}
           onCashChange={(c) => onStateChange({ ...state, theyGetCashCents: c })}
           starredHint={false}
           weights={weights}

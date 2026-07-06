@@ -351,6 +351,75 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
       expect(result.candidatesTheyGet[0]?.variantToken).toBe('blue');
     });
 
+    it("caps a give at the user's tradeable copies, not the partner's ask", async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(806, 'base_border');
+      // 3 copies owned → 2 tradeable (one is auto-kept). A want of ×3 must
+      // come back as ×2, or recording would strip the kept copy.
+      await insertOwned(albumId, base.variantId, 3);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: 'base_border', quantity: 3 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.quantity).toBe(2);
+    });
+
+    it('a forced single gives exactly one copy no matter how many are asked', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(806, 'base_border');
+      await insertOwned(albumId, base.variantId, 1, { tradeForced: true });
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: 'base_border', quantity: 5 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.quantity).toBe(1);
+    });
+
+    it('a cross-variant single gives one copy even when the partner asks for two', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(806, 'base_border');
+      const blue = await lookupVariant(806, 'blue');
+      await insertOwned(albumId, base.variantId, 1);
+      await insertOwned(albumId, blue.variantId, 1);
+
+      // Blue is auto-kept; the base single is the only tradeable copy.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: 'base_border', quantity: 2 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.quantity).toBe(1);
+    });
+
+    it('suggests receiving one copy of a missing sticker regardless of how many the partner offers', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+      // User owns nothing of #807 — the partner's ×4 is their availability,
+      // not a bundle the user must take.
+      const base807 = await lookupVariant(807, 'base_border');
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: base807.albumCode, variantToken: 'base_border', quantity: 4 }],
+        theirWanted:  [],
+      });
+
+      expect(result.candidatesIGet).toHaveLength(1);
+      expect(result.candidatesIGet[0]?.quantity).toBe(1);
+    });
+
     it('never offers the only copy of a sticker, even with all-variants counting on', async () => {
       const userId = await insertUser();
       const albumId = await insertAlbum(userId, 'base_border', { duplicatesCountAllVariants: true });

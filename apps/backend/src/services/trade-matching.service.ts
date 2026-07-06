@@ -878,28 +878,29 @@ export async function matchAgainstUserAlbum(
   ];
 
   const { rows: stateRows } = variantIds.length === 0
-    ? { rows: [] as { sticker_variant_id: string; sticker_id: string; qty: string; visible_qty: string; spare: boolean }[] }
-    : await db.query<{ sticker_variant_id: string; sticker_id: string; qty: string; visible_qty: string; spare: boolean }>(
+    ? { rows: [] as { sticker_variant_id: string; sticker_id: string; qty: number; trade_hidden: boolean; trade_forced: boolean }[] }
+    : await db.query<{ sticker_variant_id: string; sticker_id: string; qty: number; trade_hidden: boolean; trade_forced: boolean }>(
         `SELECT us.sticker_variant_id,
                 sv.sticker_id,
-                COALESCE(SUM(us.quantity), 0) AS qty,
-                COALESCE(SUM(us.quantity) FILTER (WHERE NOT us.trade_hidden), 0) AS visible_qty,
-                BOOL_OR((us.quantity > 1) OR us.trade_forced) FILTER (WHERE NOT us.trade_hidden) AS spare
+                us.quantity AS qty,
+                us.trade_hidden,
+                us.trade_forced
            FROM user_stickers us
            JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
           WHERE us.album_id = $1
-            AND us.sticker_variant_id = ANY($2::uuid[])
-          GROUP BY us.sticker_variant_id, sv.sticker_id`,
+            AND us.sticker_variant_id = ANY($2::uuid[])`,
         [albumId, variantIds],
       );
 
-  const ownedByVariant = new Map<string, { stickerId: string; qty: number; visibleQty: number; spare: boolean }>();
+  const ownedByVariant = new Map<string, {
+    stickerId: string; qty: number; tradeHidden: boolean; tradeForced: boolean;
+  }>();
   for (const r of stateRows) {
     ownedByVariant.set(r.sticker_variant_id, {
       stickerId: r.sticker_id,
       qty: Number(r.qty),
-      visibleQty: Number(r.visible_qty),
-      spare: !!r.spare,
+      tradeHidden: r.trade_hidden,
+      tradeForced: r.trade_forced,
     });
   }
 
@@ -960,6 +961,21 @@ export async function matchAgainstUserAlbum(
   const favouriteStickerIds = new Set(favRows.rows.map((r) => r.sticker_id));
   const wantedVariantIds = new Set(wantedRows.rows.map((r) => r.sticker_variant_id));
 
+  // Copies of a variant the user can actually part with — the keep-the-rarest
+  // rule (spare-rules.ts) as a count. Hidden rows trade nothing; forced rows
+  // trade everything; under count-all only the auto-kept variant withholds one
+  // copy; per-variant mode withholds one copy of each variant. An explicit
+  // partner want does not override the keep; Force offer is the escape hatch.
+  const availableToTrade = (variantId: string): number => {
+    const st = ownedByVariant.get(variantId);
+    if (!st || st.qty <= 0 || st.tradeHidden) return 0;
+    if (st.tradeForced) return st.qty;
+    if (countAllVariants) {
+      return st.qty - (keptVariantBySticker.get(st.stickerId) === variantId ? 1 : 0);
+    }
+    return st.qty - 1;
+  };
+
   const candidatesIGet = offeredRes
     .filter((r) => {
       // Already own this EXACT variant → never receive it.
@@ -979,28 +995,25 @@ export async function matchAgainstUserAlbum(
     })
     .map((r) => {
       const ref = refOf(r);
+      // The partner's quantity is how many they HAVE, not how many the user
+      // should take — the user is missing this sticker, so the suggestion is
+      // always one copy for the album slot.
+      ref.quantity = 1;
       ref.favourite = favouriteStickerIds.has(r.entry.stickerId);
       ref.wanted = wantedVariantIds.has(r.stickerVariantId);
       return ref;
     });
   const candidatesTheyGet = wantedRes
-    .filter((r) => {
-      const st = ownedByVariant.get(r.stickerVariantId);
-      if (!st) return false;
-      // Per-variant spare: a second copy of this exact variant (or trade_forced).
-      if (st.spare) return true;
-      // All-variants duplicates: when the album counts variants as duplicates,
-      // any single tradeable copy is a spare EXCEPT the auto-kept (rarest
-      // non-forced) variant — owning NED3(base)+NED3(blue) offers the base
-      // and keeps the blue. An explicit partner want does not override the
-      // keep; Force offer is the only escape hatch.
-      return (
-        countAllVariants &&
-        st.visibleQty > 0 &&
-        keptVariantBySticker.get(st.stickerId) !== r.stickerVariantId
-      );
-    })
-    .map(refOf);
+    .filter((r) => availableToTrade(r.stickerVariantId) > 0)
+    .map((r) => {
+      const ref = refOf(r);
+      // Give no more than the user can spare: the partner's requested count,
+      // capped to the tradeable copies of this exact variant. Uncapped, a
+      // want of ×3 against 3 owned copies would strip the kept copy (the
+      // completion stock-check only guards raw quantity).
+      ref.quantity = Math.min(ref.quantity, availableToTrade(r.stickerVariantId));
+      return ref;
+    });
 
   const { iGet, theyGet } = selectOptimalSubset(
     candidatesIGet,
@@ -1082,13 +1095,31 @@ function selectOptimalSubset(
 
   // Same-variant parity: when both sides are a single (matching) variant lane,
   // any imbalance is unfair regardless of scarcity. Trim both sides to the
-  // smaller length so the suggestion is honest about what the math allows.
+  // smaller COPY count (quantities included) so e.g. one ×2 row on one side
+  // pairs with two ×1 rows on the other. The last row kept may have its
+  // quantity reduced to land exactly on the target.
+  const copies = (refs: ExternalRef[]): number => refs.reduce((s, r) => s + r.quantity, 0);
+  const trimToCopies = (refs: ExternalRef[], target: number): ExternalRef[] => {
+    const out: ExternalRef[] = [];
+    let remaining = target;
+    for (const r of refs) {
+      if (remaining <= 0) break;
+      if (r.quantity <= remaining) {
+        out.push(r);
+        remaining -= r.quantity;
+      } else {
+        out.push({ ...r, quantity: remaining });
+        remaining = 0;
+      }
+    }
+    return out;
+  };
   const sameVariant = isSingleVariantTrade(sortedIGet, sortedTheyGet);
-  if (sameVariant && sortedIGet.length !== sortedTheyGet.length) {
-    const target = Math.min(sortedIGet.length, sortedTheyGet.length);
+  if (sameVariant && copies(sortedIGet) !== copies(sortedTheyGet)) {
+    const target = Math.min(copies(sortedIGet), copies(sortedTheyGet));
     return {
-      iGet: sortedIGet.slice(0, target),
-      theyGet: sortedTheyGet.slice(0, target),
+      iGet: trimToCopies(sortedIGet, target),
+      theyGet: trimToCopies(sortedTheyGet, target),
     };
   }
 
@@ -1191,11 +1222,25 @@ export async function matchPair(
   const { resolved: bOfferedR, unknown: uBO } = resolveItems(bOffered, catalog, DEFAULT_BASE);
   const { resolved: bWantedR,  unknown: uBW } = resolveItems(bWanted,  catalog, DEFAULT_BASE);
 
-  const bOfferedSet = new Set(bOfferedR.map((r) => r.stickerVariantId));
-  const aOfferedSet = new Set(aOfferedR.map((r) => r.stickerVariantId));
+  // Offered quantities cap the receiving side's ask: wanting ×3 of a variant
+  // the other person only has ×2 of yields a ×2 match.
+  const bOfferedQty = new Map(bOfferedR.map((r) => [r.stickerVariantId, r.quantity]));
+  const aOfferedQty = new Map(aOfferedR.map((r) => [r.stickerVariantId, r.quantity]));
 
-  const aGets = aWantedR.filter((r) => bOfferedSet.has(r.stickerVariantId)).map(refOf);
-  const bGets = bWantedR.filter((r) => aOfferedSet.has(r.stickerVariantId)).map(refOf);
+  const aGets = aWantedR
+    .filter((r) => bOfferedQty.has(r.stickerVariantId))
+    .map((r) => {
+      const ref = refOf(r);
+      ref.quantity = Math.min(ref.quantity, bOfferedQty.get(r.stickerVariantId)!);
+      return ref;
+    });
+  const bGets = bWantedR
+    .filter((r) => aOfferedQty.has(r.stickerVariantId))
+    .map((r) => {
+      const ref = refOf(r);
+      ref.quantity = Math.min(ref.quantity, aOfferedQty.get(r.stickerVariantId)!);
+      return ref;
+    });
 
   const balance = computeBalance(bGets, aGets, input.variantWeights);
   const unknownCodes = [...new Set([...uAO, ...uAW, ...uBO, ...uBW])].slice(0, UNKNOWN_ECHO_CAP);

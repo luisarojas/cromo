@@ -44,6 +44,7 @@ import CombinedListInput from './components/CombinedListInput';
 import ThirdPartyAppImport from './components/ThirdPartyAppImport';
 import ThirdPartyTradeEditor, {
   refKey as thirdPartyRefKey,
+  effectiveSelectedRefs,
   type EditorState,
 } from './components/ThirdPartyTradeEditor';
 import { buildTradeExportText } from './components/buildTradeExportText';
@@ -678,11 +679,13 @@ function TradePageContent() {
     if (!tpResult) return;
     const meLabel = user?.displayName ?? user?.username ?? 'You';
     const partnerLabel = tpPartnerName.trim() || 'Partner';
-    const iReceive = tpResult.candidatesIGet.filter((r) =>
-      tpEditorState.selectedIGet.has(thirdPartyRefKey(r)),
+    // Effective quantities (the editor's per-row steppers) so the copied text
+    // shows the same ×N the balance and the record call will use.
+    const iReceive = effectiveSelectedRefs(
+      tpResult.candidatesIGet, tpEditorState.selectedIGet, tpEditorState,
     );
-    const iGive = tpResult.candidatesTheyGet.filter((r) =>
-      tpEditorState.selectedTheyGet.has(thirdPartyRefKey(r)),
+    const iGive = effectiveSelectedRefs(
+      tpResult.candidatesTheyGet, tpEditorState.selectedTheyGet, tpEditorState,
     );
     const text = buildTradeExportText({
       meLabel,
@@ -822,14 +825,17 @@ function TradePageContent() {
 
   async function handleTpRecord() {
     if (!token || !tpAlbumId || !tpResult) return;
-    // Read deltas from the editor's current selection, not the optimizer's
-    // initial suggestion — the user may have toggled items on or off.
-    const received = tpResult.candidatesIGet
-      .filter((r) => tpEditorState.selectedIGet.has(thirdPartyRefKey(r)))
+    // Read deltas from the editor's current selection AND its per-row copy
+    // counts, not the optimizer's initial suggestion — the user may have
+    // toggled items or dialled a ×3 down to ×1.
+    const received = effectiveSelectedRefs(
+      tpResult.candidatesIGet, tpEditorState.selectedIGet, tpEditorState,
+    )
       .filter((r): r is typeof r & { stickerVariantId: string } => r.stickerVariantId !== null)
       .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
-    const gave = tpResult.candidatesTheyGet
-      .filter((r) => tpEditorState.selectedTheyGet.has(thirdPartyRefKey(r)))
+    const gave = effectiveSelectedRefs(
+      tpResult.candidatesTheyGet, tpEditorState.selectedTheyGet, tpEditorState,
+    )
       .filter((r): r is typeof r & { stickerVariantId: string } => r.stickerVariantId !== null)
       .map((r) => ({ stickerVariantId: r.stickerVariantId, quantity: r.quantity }));
     if (received.length === 0 && gave.length === 0) {
@@ -1302,7 +1308,16 @@ function TradePageContent() {
             </>
           )}
 
-          {tpConfirmOpen && tpResult && (
+          {tpConfirmOpen && tpResult && (() => {
+            // Copy counts (steppers included), so "3 removed" means 3 physical
+            // stickers even when they're multiple copies of one variant.
+            const removeCopies = effectiveSelectedRefs(
+              tpResult.candidatesTheyGet, tpEditorState.selectedTheyGet, tpEditorState,
+            ).reduce((s, r) => s + r.quantity, 0);
+            const addCopies = effectiveSelectedRefs(
+              tpResult.candidatesIGet, tpEditorState.selectedIGet, tpEditorState,
+            ).reduce((s, r) => s + r.quantity, 0);
+            return (
             <div
               role="dialog"
               aria-modal="true"
@@ -1315,8 +1330,8 @@ function TradePageContent() {
               >
                 <h3 className="text-sm font-semibold text-[var(--cromo-fg)]">Record this trade?</h3>
                 <p className="text-xs text-[var(--cromo-fg-muted)]">
-                  Your collection will be updated immediately: <strong>{tpEditorState.selectedTheyGet.size}</strong> sticker{tpEditorState.selectedTheyGet.size === 1 ? '' : 's'} removed,{' '}
-                  <strong>{tpEditorState.selectedIGet.size}</strong> added. This is logged in your trade history but can&apos;t be undone from this screen.
+                  Your collection will be updated immediately: <strong>{removeCopies}</strong> sticker{removeCopies === 1 ? '' : 's'} removed,{' '}
+                  <strong>{addCopies}</strong> added. This is logged in your trade history but can&apos;t be undone from this screen.
                 </p>
                 {tpPartnerName.trim() && (
                   <p className="text-xs text-[var(--cromo-fg-muted)]">
@@ -1344,7 +1359,8 @@ function TradePageContent() {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
