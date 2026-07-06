@@ -202,13 +202,73 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
       expect(offeredNumbers).not.toContain(14);
     });
 
-    it('every offered item has quantity > 1 — Alice has no trade_forced stickers', async () => {
+    it('offered quantity is tradeable copies (total minus the kept copy), always ≥ 1', async () => {
       const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
       const body = response.json<PublicProfile>();
 
+      // Alice has no trade_forced stickers, so every offered row is a real
+      // duplicate (total ≥ 2) reported as total − 1 spare copies.
       for (const item of body.tradingInventory[0]!.offered) {
-        expect(item.quantity).toBeGreaterThan(1);
+        expect(item.quantity).toBeGreaterThanOrEqual(1);
       }
+    });
+
+    it('a duplicate with 2 total copies reports quantity 1 — only the spare is tradeable', async () => {
+      // Re-pin Alice's #21 (base_border) to exactly 2 copies, then read the
+      // public offered list back and assert the spare count (not the total).
+      const { rows } = await app.db.query<{ id: string }>(
+        `SELECT sv.id
+         FROM sticker_variants sv
+         JOIN stickers s ON s.id = sv.sticker_id
+         WHERE s.number = 21
+           AND sv.variant_type = 'base_border'
+           AND s.album_type_id = (SELECT album_type_id FROM user_albums WHERE id = $1)`,
+        [ALICE_NA_ALBUM_ID],
+      );
+      const variantId = rows[0]!.id;
+      await app.db.query(
+        `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity, trade_hidden, trade_forced)
+         VALUES ($1, $2, 2, false, false)
+         ON CONFLICT (album_id, sticker_variant_id)
+         DO UPDATE SET quantity = 2, trade_hidden = false, trade_forced = false`,
+        [ALICE_NA_ALBUM_ID, variantId],
+      );
+      await app.redis.flushdb();
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
+      const body = response.json<PublicProfile>();
+      const item = body.tradingInventory[0]!.offered.find(
+        (i) => i.stickerVariantId === variantId,
+      );
+
+      expect(item).toBeDefined();
+      expect(item!.quantity).toBe(1);
+    });
+
+    it("Bob's trade_forced single (#151) offers its full quantity, not quantity − 1", async () => {
+      // Re-pin the seed state (quantity 1, forced) so the assertion is exact:
+      // a forced last copy must surface as 1 available, never 0.
+      await app.db.query(
+        `UPDATE user_stickers
+         SET quantity = 1, trade_hidden = false, trade_forced = true
+         WHERE album_id = $1
+           AND sticker_variant_id IN (
+             SELECT sv.id FROM sticker_variants sv
+             JOIN stickers s ON sv.sticker_id = s.id
+             WHERE s.number = 151
+               AND sv.variant_type = 'base_border'
+               AND s.album_type_id = (SELECT album_type_id FROM user_albums WHERE id = $1)
+           )`,
+        [BOB_NA_ALBUM_ID],
+      );
+      await app.redis.flushdb();
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/bob' });
+      const body = response.json<PublicProfile>();
+      const item = body.tradingInventory[0]!.offered.find((i) => i.number === 151);
+
+      expect(item).toBeDefined();
+      expect(item!.quantity).toBe(1);
     });
 
     it("Bob's offered list includes trade_forced singles (#151 and #156)", async () => {
@@ -220,6 +280,106 @@ describe.skipIf(!shouldRun)('Sharing / public profile routes (integration)', () 
 
       expect(offeredNumbers).toContain(151);
       expect(offeredNumbers).toContain(156);
+    });
+  });
+
+  // ── Variant-aware spares — duplicatesCountAllVariants ────────────────────────
+
+  describe('Variant-aware spares — duplicatesCountAllVariants', () => {
+    let baseVariantId: string;
+    let blueVariantId: string;
+    let initialSettings: unknown;
+    let initialBaseRow: { quantity: number; trade_hidden: boolean; trade_forced: boolean } | undefined;
+
+    beforeAll(async () => {
+      const { rows: variantRows } = await app.db.query<{ id: string; variant_type: string }>(
+        `SELECT sv.id, sv.variant_type
+         FROM sticker_variants sv
+         JOIN stickers s ON s.id = sv.sticker_id
+         WHERE s.number = 22
+           AND sv.variant_type IN ('base_border', 'blue')
+           AND s.album_type_id = (SELECT album_type_id FROM user_albums WHERE id = $1)`,
+        [ALICE_NA_ALBUM_ID],
+      );
+      baseVariantId = variantRows.find((r) => r.variant_type === 'base_border')!.id;
+      blueVariantId = variantRows.find((r) => r.variant_type === 'blue')!.id;
+
+      // Snapshot shared state this suite mutates: the album's JSONB settings
+      // and Alice's seeded base_border row for #22 (the blue row is ephemeral
+      // — ours to create and delete).
+      const { rows: settingsRows } = await app.db.query<{ settings: unknown }>(
+        `SELECT settings FROM user_albums WHERE id = $1`,
+        [ALICE_NA_ALBUM_ID],
+      );
+      initialSettings = settingsRows[0]!.settings;
+      const { rows: baseRows } = await app.db.query<{ quantity: number; trade_hidden: boolean; trade_forced: boolean }>(
+        `SELECT quantity, trade_hidden, trade_forced FROM user_stickers
+         WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [ALICE_NA_ALBUM_ID, baseVariantId],
+      );
+      initialBaseRow = baseRows[0];
+
+      // Pin the fixture: exactly one copy of each variant, nothing hidden or
+      // forced, so neither row is a per-variant duplicate on its own.
+      await app.db.query(
+        `INSERT INTO user_stickers (album_id, sticker_variant_id, quantity, trade_hidden, trade_forced)
+         VALUES ($1, $2, 1, false, false), ($1, $3, 1, false, false)
+         ON CONFLICT (album_id, sticker_variant_id)
+         DO UPDATE SET quantity = 1, trade_hidden = false, trade_forced = false`,
+        [ALICE_NA_ALBUM_ID, baseVariantId, blueVariantId],
+      );
+      await app.redis.flushdb();
+    });
+
+    afterAll(async () => {
+      await app.db.query(
+        `UPDATE user_albums SET settings = $2 WHERE id = $1`,
+        [ALICE_NA_ALBUM_ID, initialSettings],
+      );
+      await app.db.query(
+        `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+        [ALICE_NA_ALBUM_ID, blueVariantId],
+      );
+      if (initialBaseRow) {
+        await app.db.query(
+          `UPDATE user_stickers SET quantity = $3, trade_hidden = $4, trade_forced = $5
+           WHERE album_id = $1 AND sticker_variant_id = $2`,
+          [ALICE_NA_ALBUM_ID, baseVariantId, initialBaseRow.quantity, initialBaseRow.trade_hidden, initialBaseRow.trade_forced],
+        );
+      } else {
+        await app.db.query(
+          `DELETE FROM user_stickers WHERE album_id = $1 AND sticker_variant_id = $2`,
+          [ALICE_NA_ALBUM_ID, baseVariantId],
+        );
+      }
+      await app.redis.flushdb();
+    });
+
+    it('one copy in each of two variants → both offered with 1 available (count-all default)', async () => {
+      const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
+      const offered = response.json<PublicProfile>().tradingInventory[0]!.offered;
+
+      const base = offered.find((i) => i.stickerVariantId === baseVariantId);
+      const blue = offered.find((i) => i.stickerVariantId === blueVariantId);
+
+      expect(base?.quantity).toBe(1);
+      expect(blue?.quantity).toBe(1);
+    });
+
+    it('turning duplicatesCountAllVariants off removes both single copies from the offered list', async () => {
+      await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/users/${ALICE_ID}/albums/${ALICE_NA_ALBUM_ID}`,
+        headers: { Authorization: `Bearer ${aliceToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { duplicatesCountAllVariants: false } }),
+      });
+      await app.redis.flushdb();
+
+      const response = await app.inject({ method: 'GET', url: '/api/v1/profiles/alice' });
+      const offered = response.json<PublicProfile>().tradingInventory[0]!.offered;
+
+      expect(offered.find((i) => i.stickerVariantId === baseVariantId)).toBeUndefined();
+      expect(offered.find((i) => i.stickerVariantId === blueVariantId)).toBeUndefined();
     });
   });
 

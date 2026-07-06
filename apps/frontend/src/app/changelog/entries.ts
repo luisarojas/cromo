@@ -53,6 +53,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'The World Cup 2026 bracket connectors once again link each match to the right next-round game — they no longer scramble after the first knockout results come in.',
         'A third-party trade with no partner name now reads "For Them" instead of "For They", and a partner\'s name keeps the capitalisation you typed in the trade summary.',
         'Favourite and wanted stickers in the third-party trade editor now use distinct icons — a heart for favourites, a star for wanted.',
+        'Shared trade lists (the public profile and "Copy list as text") now show how many copies of a duplicate are up for trade, not how many you own — owning two of a sticker offers one.',
+        'Shared trade lists follow the album\'s "count all variants as duplicates" setting, matching trade suggestions — owning NED3 in base and blue lists both as available to trade.',
       ],
     },
   },

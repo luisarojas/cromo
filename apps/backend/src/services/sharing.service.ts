@@ -105,6 +105,48 @@ function buildShareUrl(token: string): string {
   return `${env.FRONTEND_URL}/share/${token}`;
 }
 
+// ─── Offered-list spare semantics ─────────────────────────────────────────────
+// Every public "offered/duplicates" surface shares the matchmaker's spare rule
+// (my_duplicates in trade-matching.service.ts): a variant row is tradeable when
+// it has per-variant excess (quantity > 1), is trade_forced ("offer even as
+// last copy"), or — when the album counts all variants as duplicates — when
+// another copy of the same sticker (any variant) stays behind.
+//
+// The fragments assume fixed aliases: us (user_stickers), sv (sticker_variants),
+// ua (user_albums, joined on us.album_id), tot (STICKER_TOTAL_LATERAL_SQL).
+
+const COUNT_ALL_VARIANTS_SQL = `COALESCE((ua.settings->>'duplicatesCountAllVariants')::boolean, true)`;
+
+// Total copies of the sticker across all its variants in this album. Hidden
+// rows still count toward the total — a hidden copy can be the one the owner
+// keeps (same as the matchmaker's sum).
+const STICKER_TOTAL_LATERAL_SQL = `
+  CROSS JOIN LATERAL (
+    SELECT COALESCE(SUM(us_tot.quantity), 0)::int AS total_qty
+    FROM user_stickers us_tot
+    JOIN sticker_variants sv_tot ON sv_tot.id = us_tot.sticker_variant_id
+    WHERE us_tot.album_id = us.album_id
+      AND sv_tot.sticker_id = sv.sticker_id
+  ) tot`;
+
+const OFFERED_SPARE_PREDICATE_SQL = `
+  NOT us.trade_hidden
+  AND (
+    us.quantity > 1 OR us.trade_forced
+    OR (${COUNT_ALL_VARIANTS_SQL} AND us.quantity > 0 AND tot.total_qty > 1)
+  )`;
+
+// quantity = copies available to trade, NOT copies owned: the owner keeps one
+// copy of the sticker (any variant when the album counts all variants as
+// duplicates, one of this variant otherwise) unless the row is trade_forced,
+// where every copy is up for grabs.
+const OFFERED_QUANTITY_SQL = `
+  CASE
+    WHEN us.trade_forced THEN us.quantity
+    WHEN ${COUNT_ALL_VARIANTS_SQL} THEN LEAST(us.quantity, tot.total_qty - 1)
+    ELSE us.quantity - 1
+  END`;
+
 /**
  * publicFilterOptions — full universe of filter chips for a public album's
  * inventory list. Returns distinct (sticker_type, team, variant_type) across
@@ -158,11 +200,12 @@ async function publicFilterOptions(
          array_agg(DISTINCT sv.variant_type ORDER BY sv.variant_type)                            AS variant_types
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN user_albums ua      ON ua.id = us.album_id
        JOIN stickers s          ON s.id = sv.sticker_id
        LEFT JOIN teams t        ON t.id = s.team_id
+       ${STICKER_TOTAL_LATERAL_SQL}
        WHERE us.album_id = $1
-         AND (us.quantity > 1 OR us.trade_forced)
-         AND NOT us.trade_hidden`;
+         AND ${OFFERED_SPARE_PREDICATE_SQL}`;
 
   const { rows } = await db.query<{
     sticker_types: string[] | null;
@@ -349,13 +392,15 @@ export async function getPublicList(
          s.sticker_type,
          t.name AS team_name,
          sv.variant_type,
-         us.quantity
+         ${OFFERED_QUANTITY_SQL} AS quantity
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN user_albums ua ON ua.id = us.album_id
        JOIN stickers s ON s.id = sv.sticker_id
        LEFT JOIN teams t ON t.id = s.team_id
+       ${STICKER_TOTAL_LATERAL_SQL}
        WHERE us.album_id = $1
-         AND us.quantity > 1
+         AND ${OFFERED_SPARE_PREDICATE_SQL}
        ORDER BY s.number`,
       [albumId]
     );
@@ -563,14 +608,15 @@ export async function getPublicProfile(
               t.fifa_code  AS fifa_code,
               t.group_name AS group_name,
               sv.variant_type,
-              us.quantity
+              ${OFFERED_QUANTITY_SQL} AS quantity
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+       JOIN user_albums ua      ON ua.id = us.album_id
        JOIN stickers s          ON s.id = sv.sticker_id
        LEFT JOIN teams t        ON t.id = s.team_id
+       ${STICKER_TOTAL_LATERAL_SQL}
        WHERE us.album_id = ANY($1::uuid[])
-         AND (us.quantity > 1 OR us.trade_forced)
-         AND NOT us.trade_hidden
+         AND ${OFFERED_SPARE_PREDICATE_SQL}
        ORDER BY us.album_id, s.number, sv.variant_type`,
       [albumIds],
     );
@@ -986,14 +1032,15 @@ export async function getPublicAlbumOffered(
             t.fifa_code      AS fifa_code,
             t.group_name     AS group_name,
             sv.variant_type,
-            us.quantity
+            ${OFFERED_QUANTITY_SQL} AS quantity
      FROM user_stickers us
      JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+     JOIN user_albums ua      ON ua.id = us.album_id
      JOIN stickers s          ON s.id = sv.sticker_id
      LEFT JOIN teams t        ON t.id = s.team_id
+     ${STICKER_TOTAL_LATERAL_SQL}
      WHERE us.album_id = $1
-       AND (us.quantity > 1 OR us.trade_forced)
-       AND NOT us.trade_hidden
+       AND ${OFFERED_SPARE_PREDICATE_SQL}
        AND ($2::int IS NULL OR s.number > $2)
        ${stickerTypeClause}
        ${searchClause}
@@ -1012,11 +1059,12 @@ export async function getPublicAlbumOffered(
     `SELECT COUNT(*)::text AS total
      FROM user_stickers us
      JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
+     JOIN user_albums ua      ON ua.id = us.album_id
      JOIN stickers s          ON s.id = sv.sticker_id
      LEFT JOIN teams t        ON t.id = s.team_id
+     ${STICKER_TOTAL_LATERAL_SQL}
      WHERE us.album_id = $1
-       AND (us.quantity > 1 OR us.trade_forced)
-       AND NOT us.trade_hidden
+       AND ${OFFERED_SPARE_PREDICATE_SQL}
        ${cStickerType}
        ${cSearch}
        ${cVariant}
