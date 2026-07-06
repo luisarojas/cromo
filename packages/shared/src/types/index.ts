@@ -19,6 +19,11 @@ export interface AlbumSettings {
   // variantToken. The AI's own picks (including explicit base_border or
   // base_borderless) are preserved — this only fills the null case.
   defaultBaseVariant: BaseVariantPreference
+  // Whether owning the same sticker in different variants counts as having a
+  // duplicate (true) or only extra copies of the same variant do (false).
+  // Per-album since it's a property of how the collector runs this album, not
+  // of their account. Readers must COALESCE to true for legacy rows.
+  duplicatesCountAllVariants: boolean
 }
 
 export interface User {
@@ -278,7 +283,6 @@ export const MIN_SEARCH_RADIUS_KM = 5
 export const MAX_SEARCH_RADIUS_KM = 1000
 
 export interface UserPreferences {
-  duplicatesCountAllVariants: boolean
   cities: City[]
   profileVisibility: ProfileVisibility
   tradeMatchingEnabled: boolean

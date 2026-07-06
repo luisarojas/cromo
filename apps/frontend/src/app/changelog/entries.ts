@@ -40,12 +40,15 @@ export const CHANGELOG: ChangelogEntry[] = [
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
       ],
       Changed: [
+        'The World Cup 2026 standings page opens on the knockout bracket, and on bigger screens the bracket reads like a wallchart — the two halves of the draw advance from the edges toward the final in the middle.',
+        'Whether different variants of a sticker count as duplicates is now set per album (in the album\'s edit form) instead of in general settings — trade suggestions, duplicate counts, and stats all follow the album\'s own setting.',
         'World Cup 2026 odds to reach the final and lift the trophy are now driven by actual results — the past year of internationals plus each team\'s games at this tournament, weighted heavily — instead of historical ranking. Strength of schedule is built in, so the odds line up with how teams are really doing: win your group and your odds rise, stumble and they fall.',
         'Filter the World Cup 2026 knockout bracket to a single nation — it highlights where that team plays plus the rounds it could still reach, and the filtered view has its own shareable link.',
         'The World Cup 2026 bracket is easier to read — rounds collapse on phones (finished rounds start closed), the bracket scrolls to your filtered team, the "could face" list opens on tap, and finished and live matches are clearly tagged.',
         'The "Add photo" button on a third-party trade now lets you take a photo with your camera, pick one from your gallery, or drag and drop an image straight onto the list.',
       ],
       Fixed: [
+        'Trade suggestions now offer a sticker you own in two different variants — with "count all variants as duplicates" on, owning NED3 in base and blue means either copy can go to a partner who needs NED3, in third-party trades and the trade matchmaker alike.',
         'A World Cup 2026 team profile no longer overflows its pop-up on phones — the standings table and other panels stay within the card.',
         'The World Cup 2026 bracket connectors once again link each match to the right next-round game — they no longer scramble after the first knockout results come in.',
         'A third-party trade with no partner name now reads "For Them" instead of "For They", and a partner\'s name keeps the capitalisation you typed in the trade summary.',

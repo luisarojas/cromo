@@ -41,7 +41,6 @@ describe.skipIf(!shouldRun)('Users routes (integration)', () => {
       `INSERT INTO user_settings (user_id)
          VALUES ($1)
          ON CONFLICT (user_id) DO UPDATE SET
-           duplicates_count_all_variants = TRUE,
            profile_visibility = 'public',
            trade_matching_enabled = TRUE,
            search_radius_km = 50,
@@ -60,7 +59,6 @@ describe.skipIf(!shouldRun)('Users routes (integration)', () => {
     await app.db.query(
       `INSERT INTO user_settings (user_id) VALUES ($1)
          ON CONFLICT (user_id) DO UPDATE SET
-           duplicates_count_all_variants = TRUE,
            profile_visibility = 'public',
            trade_matching_enabled = TRUE,
            search_radius_km = 50,
@@ -88,13 +86,11 @@ describe.skipIf(!shouldRun)('Users routes (integration)', () => {
       });
       expect(res.statusCode).toBe(200);
       const body = res.json<{
-        duplicatesCountAllVariants: boolean;
         profileVisibility: string;
         searchRadiusKm: number;
         emailMarketing: boolean;
       }>();
       expect(body).toMatchObject({
-        duplicatesCountAllVariants: true,
         profileVisibility: 'public',
         searchRadiusKm: 50,
         emailMarketing: false,
@@ -129,13 +125,13 @@ describe.skipIf(!shouldRun)('Users routes (integration)', () => {
         profileVisibility: string;
         searchRadiusKm: number;
         emailMarketing: boolean;
-        duplicatesCountAllVariants: boolean;
+        emailTradeRequests: boolean;
       }>();
       expect(body.profileVisibility).toBe('private');
       expect(body.searchRadiusKm).toBe(200);
       expect(body.emailMarketing).toBe(true);
       // Untouched fields keep their previous value.
-      expect(body.duplicatesCountAllVariants).toBe(true);
+      expect(body.emailTradeRequests).toBe(true);
 
       // Confirm via direct DB read — proves the patch persisted, not just the
       // response shape.

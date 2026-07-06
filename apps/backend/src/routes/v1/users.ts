@@ -15,7 +15,6 @@ const CitySchema = z.object({
 });
 
 const PatchPreferencesBody = z.object({
-  duplicatesCountAllVariants: z.boolean().optional(),
   cities: z.array(CitySchema).max(10).optional(),
   profileVisibility: z.enum(['public', 'private']).optional(),
   tradeMatchingEnabled: z.boolean().optional(),
@@ -64,7 +63,6 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           200: {
             type: 'object',
             properties: {
-              duplicatesCountAllVariants: { type: 'boolean' },
               cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' }, lat: { type: ['number', 'null'] }, lng: { type: ['number', 'null'] } } } },
             searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             },
@@ -92,7 +90,6 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
         body: {
           type: 'object',
           properties: {
-            duplicatesCountAllVariants: { type: 'boolean' },
             cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' }, lat: { type: ['number', 'null'] }, lng: { type: ['number', 'null'] } } } },
             searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             profileVisibility: { type: 'string', enum: ['public', 'private'] },
@@ -106,7 +103,6 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
           200: {
             type: 'object',
             properties: {
-              duplicatesCountAllVariants: { type: 'boolean' },
               cities: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, placeId: { type: 'integer' }, lat: { type: ['number', 'null'] }, lng: { type: ['number', 'null'] } } } },
             searchRadiusKm: { type: 'integer', minimum: 5, maximum: 1000 },
             },

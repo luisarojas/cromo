@@ -17,8 +17,8 @@ export default function StandingsView() {
   const t = useTranslations('wc2026Standings');
   const router = useRouter();
   const params = useSearchParams();
-  const initial = (params.get('view') as Tab) ?? 'groups';
-  const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : 'groups');
+  const initial = (params.get('view') as Tab) ?? 'bracket';
+  const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : 'bracket');
 
   const [overview, setOverview] = useState<WcOverview | null>(null);
   const [error, setError] = useState(false);

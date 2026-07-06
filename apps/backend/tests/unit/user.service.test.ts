@@ -190,7 +190,6 @@ describe('getPreferences', () => {
     query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
     const prefs = await getPreferences(asPool, 'u-1');
     expect(prefs).toEqual({
-      duplicatesCountAllVariants: true,
       cities: [],
       profileVisibility: 'public',
       tradeMatchingEnabled: true,
@@ -206,7 +205,6 @@ describe('getPreferences', () => {
     query.mockResolvedValueOnce({
       rowCount: 1,
       rows: [{
-        duplicates_count_all_variants: false,
         cities: [
           { label: 'Montréal', placeId: 1, lat: 45.5, lng: -73.5 },
           { label: 'Toronto', placeId: 2 }, // missing lat/lng — must coerce
@@ -220,7 +218,6 @@ describe('getPreferences', () => {
       }],
     });
     const prefs = await getPreferences(asPool, 'u-1');
-    expect(prefs.duplicatesCountAllVariants).toBe(false);
     expect(prefs.profileVisibility).toBe('private');
     expect(prefs.tradeMatchingEnabled).toBe(false);
     expect(prefs.searchRadiusKm).toBe(120); // string → number
@@ -235,7 +232,6 @@ describe('getPreferences', () => {
     query.mockResolvedValueOnce({
       rowCount: 1,
       rows: [{
-        duplicates_count_all_variants: true,
         cities: null,
         profile_visibility: 'public',
         trade_matching_enabled: true,
@@ -256,7 +252,7 @@ describe('updatePreferences', () => {
     const { query, asPool } = makeDb();
     query.mockResolvedValueOnce({ rowCount: 0, rows: [] }); // getPreferences → default
     const prefs = await updatePreferences(asPool, makeRedis(), 'u-1', {});
-    expect(prefs.duplicatesCountAllVariants).toBe(true);
+    expect(prefs.tradeMatchingEnabled).toBe(true);
     expect(query).toHaveBeenCalledTimes(1); // no UPDATE issued
   });
 
@@ -265,7 +261,6 @@ describe('updatePreferences', () => {
     query
       .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // UPDATE
       .mockResolvedValueOnce({ rowCount: 1, rows: [{
-        duplicates_count_all_variants: true,
         cities: [],
         profile_visibility: 'private',
         trade_matching_enabled: true,
@@ -290,33 +285,12 @@ describe('updatePreferences', () => {
     expect(params).toEqual(['private', 25, false, 'u-1']);
   });
 
-  it('resyncs album counts and busts the user cache when duplicatesCountAllVariants flips', async () => {
-    const { query, asPool } = makeDb();
-    query
-      .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // UPDATE
-      .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // _sync_user_album_counts
-      .mockResolvedValueOnce({ rowCount: 1, rows: [{
-        duplicates_count_all_variants: false,
-        cities: [],
-        profile_visibility: 'public',
-        trade_matching_enabled: true,
-        search_radius_km: 50,
-        email_trade_requests: true,
-        email_trade_messages: true,
-        email_marketing: false,
-      }] });
-    const redis = makeRedis();
-    await updatePreferences(asPool, redis, 'u-1', { duplicatesCountAllVariants: false });
-    expect(vi.mocked(invalidateUserCaches)).toHaveBeenCalledWith(redis, 'u-1');
-    expect(query.mock.calls[1]![0]).toMatch(/_sync_user_album_counts/);
-  });
-
   it('busts the trade-matches cache index when cities or searchRadiusKm change', async () => {
     const { query, asPool } = makeDb();
     query
       .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // UPDATE
       .mockResolvedValueOnce({ rowCount: 1, rows: [{
-        duplicates_count_all_variants: true, cities: [],
+        cities: [],
         profile_visibility: 'public', trade_matching_enabled: true, search_radius_km: 100,
         email_trade_requests: true, email_trade_messages: true, email_marketing: false,
       }] });

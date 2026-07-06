@@ -57,7 +57,11 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
     return id;
   }
 
-  async function insertAlbum(userId: string, defaultBaseVariant: 'base_border' | 'base_borderless' = 'base_border'): Promise<string> {
+  async function insertAlbum(
+    userId: string,
+    defaultBaseVariant: 'base_border' | 'base_borderless' = 'base_border',
+    extraSettings: Record<string, unknown> = {},
+  ): Promise<string> {
     const id = randomUUID();
     const slug = `external-match-test-${id.split('-')[0]}`;
     await app.db.query(
@@ -69,6 +73,7 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
           includeExtras: true,
           includeCocaCola: true,
           defaultBaseVariant,
+          ...extraSettings,
         }),
         slug,
       ],
@@ -240,6 +245,65 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
       expect(result.unknownCodes).toContain('BRA802(hologram)');
       // Real items still resolve: user owns no variant of #803, so they receive it.
       expect(result.iGet.map((r) => r.variantToken)).toContain('red');
+    });
+  });
+
+  describe('matchAgainstUserAlbum — all-variants duplicates (give side)', () => {
+    // Regression: owning one copy each of two variants of the same sticker
+    // (e.g. NED3 base + blue) IS a duplicate when the album counts variants
+    // as duplicates — the optimal list must offer the wanted variant even
+    // though no single variant has qty > 1.
+    it('offers a single-copy variant as a spare when another variant of the sticker is owned', async () => {
+      const userId = await insertUser();
+      // No explicit duplicatesCountAllVariants → defaults to true.
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      const base = await lookupVariant(806, 'base_border');
+      const blue = await lookupVariant(806, 'blue');
+      await insertOwned(albumId, base.variantId, 1);
+      await insertOwned(albumId, blue.variantId, 1);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: null, quantity: 1 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.variantToken).toBe('base_border');
+      expect(result.theyGet).toHaveLength(1);
+    });
+
+    it('does NOT offer it when the album counts duplicates per-variant only', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border', { duplicatesCountAllVariants: false });
+
+      const base = await lookupVariant(806, 'base_border');
+      const blue = await lookupVariant(806, 'blue');
+      await insertOwned(albumId, base.variantId, 1);
+      await insertOwned(albumId, blue.variantId, 1);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: null, quantity: 1 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(0);
+      expect(result.theyGet).toHaveLength(0);
+    });
+
+    it('never offers the only copy of a sticker, even with all-variants counting on', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border', { duplicatesCountAllVariants: true });
+
+      const base = await lookupVariant(806, 'base_border');
+      await insertOwned(albumId, base.variantId, 1);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: null, quantity: 1 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(0);
     });
   });
 

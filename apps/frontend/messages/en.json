@@ -473,6 +473,9 @@
     "baseBorderlessOption": "Base (Borderless) — International packs",
     "baseBorderOption": "Base (White Border) — North American packs",
     "baseVariantHelp": "Pre-selected when the scanner can't tell which Base layout a sticker has. You can still pick the other variant per scan.",
+    "duplicatesLabel": "Duplicates",
+    "duplicatesAllVariants": "Count all copies as duplicates, regardless of variant",
+    "duplicatesAllVariantsHint": "When enabled, owning the same sticker in different variants (e.g. base + blue) counts as a duplicate you can trade. When disabled, only extra copies of the same variant count.",
     "publicTradeInventory": "Trade-inventory visibility",
     "visibilityPrivateLabel": "Private",
     "visibilityPrivateHint": "Only you can see this album. Never on your profile or in trade matches.",
@@ -633,7 +636,6 @@
     "tabs": {
       "account": "Account",
       "privacy": "Privacy & Trading",
-      "album": "Album Defaults",
       "appearance": "Appearance"
     }
   },

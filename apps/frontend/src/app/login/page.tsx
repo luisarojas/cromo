@@ -55,7 +55,7 @@ export default function LoginPage() {
         const prefs = await fetchUserPreferences(accessToken);
         setFromServer(prefs);
       } catch {
-        setFromServer({ duplicatesCountAllVariants: true, cities: [], profileVisibility: 'public', tradeMatchingEnabled: true, searchRadiusKm: 50, emailTradeRequests: true, emailTradeMessages: true, emailMarketing: false });
+        setFromServer({ cities: [], profileVisibility: 'public', tradeMatchingEnabled: true, searchRadiusKm: 50, emailTradeRequests: true, emailTradeMessages: true, emailMarketing: false });
       }
       router.push(next);
     } catch (err) {

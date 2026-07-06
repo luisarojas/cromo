@@ -122,6 +122,7 @@ const DEFAULT_ALBUM_SETTINGS: AlbumSettings = {
   // can flip to base_border in the album edit modal. Album-create paths that
   // know the edition should choose deliberately instead of relying on this.
   defaultBaseVariant: 'base_borderless',
+  duplicatesCountAllVariants: true,
 };
 
 export type { AlbumSettings };
@@ -208,7 +209,6 @@ export const userSettings = pgTable('user_settings', {
   marketingConsentAt: timestamp('marketing_consent_at', { withTimezone: true }),
   marketingConsentVersion: text('marketing_consent_version'),
   showTrustScorePublic: boolean('show_trust_score_public').notNull().default(true),
-  duplicatesCountAllVariants: boolean('duplicates_count_all_variants').notNull().default(true),
   cities: jsonb('cities').$type<{ label: string; placeId: number; lat: number | null; lng: number | null }[]>().notNull().default(sql`'[]'::jsonb`),
   // Radius (km) for the "find trades" filter. Bounded to keep the
   // distance-priority weight meaningful; the UI clamps the slider.

@@ -169,6 +169,13 @@
       "when": 1813300000000,
       "tag": "0023_third_party_trade_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1813400000000,
+      "tag": "0024_per_album_duplicates_setting",
+      "breakpoints": true
     }
   ]
 }

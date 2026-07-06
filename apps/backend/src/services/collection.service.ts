@@ -413,10 +413,10 @@ export async function getStats(
  * calls in getCollectionPage (2 connection acquires → 1).
  *
  * The album's `duplicate_count` is denormalized by the _sync_user_album_counts
- * trigger and already reflects the owner's duplicates_count_all_variants
- * preference. `extra` (total extra copies) is computed inline here and follows
- * the same preference: per-variant excess (default) or per-sticker excess
- * summed across variants (when the user opts in).
+ * trigger and already reflects the album's duplicatesCountAllVariants
+ * setting. `extra` (total extra copies) is computed inline here and follows
+ * the same setting: per-variant excess (default) or per-sticker excess
+ * summed across variants (when the album opts in).
  */
 export async function getStatsAndExtras(
   db: Pool,
@@ -430,9 +430,8 @@ export async function getStatsAndExtras(
   }>(
     `WITH owner AS (
        SELECT ua.user_id,
-              COALESCE(us.duplicates_count_all_variants, true) AS count_all
+              COALESCE((ua.settings->>'duplicatesCountAllVariants')::boolean, true) AS count_all
        FROM user_albums ua
-       LEFT JOIN user_settings us ON us.user_id = ua.user_id
        WHERE ua.id = $1
      ),
      extras AS (
@@ -529,7 +528,7 @@ export async function getFilterOptions(
 
 /**
  * getTotalExtraCopies — sum of extra copies in an album, computed under the
- * album owner's duplicates_count_all_variants preference (matches the
+ * album's duplicatesCountAllVariants setting (matches the
  * `extra` branch in getStatsAndExtras so the standalone endpoint and the
  * bundled /view response report the same number). Used by the UI's
  * "Duplicates (12 / +37)" tab label.
@@ -549,9 +548,8 @@ export async function getTotalExtraCopies(
 
   const { rows } = await db.query<{ extra: number | null }>(
     `WITH owner AS (
-       SELECT COALESCE(us.duplicates_count_all_variants, true) AS count_all
+       SELECT COALESCE((ua.settings->>'duplicatesCountAllVariants')::boolean, true) AS count_all
        FROM user_albums ua
-       LEFT JOIN user_settings us ON us.user_id = ua.user_id
        WHERE ua.id = $1
      )
      SELECT CASE WHEN (SELECT count_all FROM owner)

@@ -642,56 +642,6 @@ function EmailSettingsTab() {
   );
 }
 
-// ─── Album tab ────────────────────────────────────────────────────────────────
-
-function AlbumSettingsTab() {
-  const token = useAuthStore((s) => s.token);
-  const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
-  const setDuplicatesCountAllVariants = usePreferencesStore((s) => s.setDuplicatesCountAllVariants);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  async function handleDuplicatesChange(value: boolean) {
-    if (!token) return;
-    setSaveError(null);
-    setDuplicatesCountAllVariants(value);
-    try {
-      await patchUserPreferences({ duplicatesCountAllVariants: value }, token);
-    } catch {
-      setSaveError('Failed to save preference. Please try again.');
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      {saveError && <StatusMessage type="error" message={saveError} />}
-
-      <SectionCard
-        title="Duplicates"
-        description="Control how duplicate stickers are counted in your collection."
-      >
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={duplicatesCountAllVariants}
-            onChange={(e) => handleDuplicatesChange(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
-          />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-medium text-[var(--cromo-fg)]">
-              Count all copies as duplicates, regardless of variant
-            </span>
-            <span className="text-xs text-[var(--cromo-fg-muted)]">
-              When enabled, owning the same sticker in different variants (e.g. base + foil)
-              counts as a duplicate. When disabled, only multiple copies of the same variant
-              are considered duplicates.
-            </span>
-          </div>
-        </label>
-      </SectionCard>
-    </div>
-  );
-}
-
 // ─── Appearance tab ───────────────────────────────────────────────────────────
 
 function AppearanceSettingsTab() {
@@ -724,7 +674,7 @@ function AccountSettingsTab() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'privacy' | 'email' | 'album' | 'appearance';
+type SettingsTab = 'account' | 'privacy' | 'email' | 'appearance';
 
 export default function SettingsPage() {
   const t = useTranslations('settings');
@@ -742,7 +692,6 @@ export default function SettingsPage() {
     { id: 'account', label: t('tabs.account') },
     { id: 'privacy', label: t('tabs.privacy') },
     { id: 'email', label: 'Email' },
-    { id: 'album', label: t('tabs.album') },
     { id: 'appearance', label: t('tabs.appearance') },
   ];
 
@@ -781,7 +730,6 @@ export default function SettingsPage() {
         {activeTab === 'account' && <AccountSettingsTab />}
         {activeTab === 'privacy' && <PrivacySettingsTab />}
         {activeTab === 'email' && <EmailSettingsTab />}
-        {activeTab === 'album' && <AlbumSettingsTab />}
         {activeTab === 'appearance' && <AppearanceSettingsTab />}
       </div>
     </div>

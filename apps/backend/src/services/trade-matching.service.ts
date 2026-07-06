@@ -171,7 +171,9 @@ export async function getTradeMatches(
     total_count: string;
   }>(
     `WITH requester_album AS (
-       SELECT album_type_id FROM user_albums WHERE id = $2
+       SELECT album_type_id,
+              COALESCE((settings->>'duplicatesCountAllVariants')::boolean, true) AS count_all
+       FROM user_albums WHERE id = $2
      ),
      my_missing AS (
        -- Explicitly wanted variants: respect the user's specific variant
@@ -214,18 +216,35 @@ export async function getTradeMatches(
          )
      ),
      my_duplicates AS (
+       -- Spares I could give away. Per-variant excess (qty > 1 / trade_forced)
+       -- always counts; when the album counts all variants as duplicates, a
+       -- single copy also counts as long as another copy of the same sticker
+       -- (any variant) stays behind.
        SELECT us.sticker_variant_id AS variant_id
        FROM user_stickers us
+       JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
        WHERE us.album_id = $2
-         AND (us.quantity > 1 OR us.trade_forced)
          AND NOT us.trade_hidden
+         AND (
+           us.quantity > 1 OR us.trade_forced
+           OR (
+             (SELECT count_all FROM requester_album)
+             AND us.quantity > 0
+             AND (SELECT SUM(us3.quantity)
+                    FROM user_stickers us3
+                    JOIN sticker_variants sv3 ON sv3.id = us3.sticker_variant_id
+                   WHERE us3.album_id = $2
+                     AND sv3.sticker_id = sv.sticker_id) > 1
+           )
+         )
      ),
      candidate_albums AS (
        -- Matchmaker scope: public albums only. Private (owner-only) and
        -- unlisted (capability-by-URL only) albums are intentionally excluded
        -- from discovery so trade matches never surface inventory the owner
        -- didn't opt into making public.
-       SELECT DISTINCT ON (ua.user_id) ua.id AS album_id, ua.user_id
+       SELECT DISTINCT ON (ua.user_id) ua.id AS album_id, ua.user_id,
+              COALESCE((ua.settings->>'duplicatesCountAllVariants')::boolean, true) AS count_all
        FROM user_albums ua
        LEFT JOIN user_settings us2 ON us2.user_id = ua.user_id
        JOIN users u ON u.id = ua.user_id
@@ -243,14 +262,27 @@ export async function getTradeMatches(
        ORDER BY ua.user_id, ua.is_default DESC, ua.updated_at DESC
      ),
      they_have_my_missing AS (
-       SELECT ca.user_id, ca.album_id, uss.sticker_variant_id AS variant_id, s.album_code
+       -- Same spare rule as my_duplicates, evaluated under EACH candidate
+       -- album's own duplicatesCountAllVariants setting.
+       SELECT ca.user_id, ca.album_id, ca.count_all, uss.sticker_variant_id AS variant_id, s.album_code
        FROM candidate_albums ca
        JOIN user_stickers uss ON uss.album_id = ca.album_id
        JOIN sticker_variants sv ON sv.id = uss.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id
        WHERE uss.sticker_variant_id IN (SELECT variant_id FROM my_missing)
-         AND (uss.quantity > 1 OR uss.trade_forced)
          AND NOT uss.trade_hidden
+         AND (
+           uss.quantity > 1 OR uss.trade_forced
+           OR (
+             ca.count_all
+             AND uss.quantity > 0
+             AND (SELECT SUM(q.quantity)
+                    FROM user_stickers q
+                    JOIN sticker_variants qv ON qv.id = q.sticker_variant_id
+                   WHERE q.album_id = ca.album_id
+                     AND qv.sticker_id = sv.sticker_id) > 1
+           )
+         )
      ),
      i_have_their_missing AS (
        SELECT ca.user_id, md.variant_id, s.album_code
@@ -307,8 +339,19 @@ export async function getTradeMatches(
        JOIN sticker_variants sv_all ON sv_all.sticker_id = sv_base.sticker_id
        JOIN user_stickers uss ON uss.sticker_variant_id = sv_all.id
          AND uss.album_id = thm.album_id
-         AND (uss.quantity > 1 OR uss.trade_forced)
          AND NOT uss.trade_hidden
+         AND (
+           uss.quantity > 1 OR uss.trade_forced
+           OR (
+             thm.count_all
+             AND uss.quantity > 0
+             AND (SELECT SUM(q.quantity)
+                    FROM user_stickers q
+                    JOIN sticker_variants qv ON qv.id = q.sticker_variant_id
+                   WHERE q.album_id = thm.album_id
+                     AND qv.sticker_id = sv_all.sticker_id) > 1
+           )
+         )
        WHERE sv_all.id IN (SELECT variant_id FROM my_missing)
      ),
      overlap_counts AS (
@@ -784,8 +827,11 @@ function computeBalance(
  * user has explicitly added BRA5(red) to their wanted list, it IS offered even
  * while they own BRA5(base) — an explicit per-variant want is a deliberate
  * signal. The exact variant they already own is never offered either way. The
- * give side stays per-variant: a spare of BRA5(base) only satisfies a want for
- * BRA5(base).
+ * give side stays per-variant for MATCHING (a spare of BRA5(base) only
+ * satisfies a want for BRA5(base)), but what counts as a "spare" follows the
+ * album's duplicatesCountAllVariants setting: when on, a single copy of a
+ * variant is a spare as long as the user owns another copy of the sticker in
+ * any variant.
  */
 export async function matchAgainstUserAlbum(
   db: Pool,
@@ -811,7 +857,7 @@ export async function matchAgainstUserAlbum(
   // untagged items map to the right "base" for this album region.
   const { rows: albumRows } = await db.query<{
     album_type_key: string;
-    settings: { defaultBaseVariant?: string } | null;
+    settings: { defaultBaseVariant?: string; duplicatesCountAllVariants?: boolean } | null;
   }>(
     `SELECT at.key AS album_type_key, ua.settings
        FROM user_albums ua
@@ -824,6 +870,7 @@ export async function matchAgainstUserAlbum(
   }
   const albumTypeKey = albumRows[0]!.album_type_key;
   const defaultBaseVariant = albumRows[0]!.settings?.defaultBaseVariant ?? 'base_borderless';
+  const countAllVariants = albumRows[0]!.settings?.duplicatesCountAllVariants ?? true;
 
   const allCodes = [...new Set([...offered, ...wanted].map((i) => i.albumCode))];
   const catalog = await lookupCatalogVariants(db, allCodes, albumTypeKey);
@@ -841,22 +888,27 @@ export async function matchAgainstUserAlbum(
   ];
 
   const { rows: stateRows } = variantIds.length === 0
-    ? { rows: [] as { sticker_variant_id: string; qty: string; spare: boolean }[] }
-    : await db.query<{ sticker_variant_id: string; qty: string; spare: boolean }>(
+    ? { rows: [] as { sticker_variant_id: string; sticker_id: string; qty: string; visible_qty: string; spare: boolean }[] }
+    : await db.query<{ sticker_variant_id: string; sticker_id: string; qty: string; visible_qty: string; spare: boolean }>(
         `SELECT us.sticker_variant_id,
+                sv.sticker_id,
                 COALESCE(SUM(us.quantity), 0) AS qty,
+                COALESCE(SUM(us.quantity) FILTER (WHERE NOT us.trade_hidden), 0) AS visible_qty,
                 BOOL_OR((us.quantity > 1) OR us.trade_forced) FILTER (WHERE NOT us.trade_hidden) AS spare
            FROM user_stickers us
+           JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
           WHERE us.album_id = $1
             AND us.sticker_variant_id = ANY($2::uuid[])
-          GROUP BY us.sticker_variant_id`,
+          GROUP BY us.sticker_variant_id, sv.sticker_id`,
         [albumId, variantIds],
       );
 
-  const ownedByVariant = new Map<string, { qty: number; spare: boolean }>();
+  const ownedByVariant = new Map<string, { stickerId: string; qty: number; visibleQty: number; spare: boolean }>();
   for (const r of stateRows) {
     ownedByVariant.set(r.sticker_variant_id, {
+      stickerId: r.sticker_id,
       qty: Number(r.qty),
+      visibleQty: Number(r.visible_qty),
       spare: !!r.spare,
     });
   }
@@ -871,12 +923,15 @@ export async function matchAgainstUserAlbum(
     sticker_id: string;
     album_code: string;
     sticker_type: string;
+    total_qty: string;
   }>(
-    `SELECT DISTINCT s.id AS sticker_id, s.album_code, s.sticker_type
+    `SELECT s.id AS sticker_id, s.album_code, s.sticker_type,
+            SUM(us.quantity) AS total_qty
        FROM user_stickers us
        JOIN sticker_variants sv ON sv.id = us.sticker_variant_id
        JOIN stickers s ON s.id = sv.sticker_id
-      WHERE us.album_id = $1 AND us.quantity > 0`,
+      WHERE us.album_id = $1 AND us.quantity > 0
+      GROUP BY s.id, s.album_code, s.sticker_type`,
     [albumId],
   );
   const ownedStickerIds = new Set(ownedRows.map((r) => r.sticker_id));
@@ -884,6 +939,12 @@ export async function matchAgainstUserAlbum(
     ownedRows
       .filter((r) => r.sticker_type === 'coca_cola_special')
       .map((r) => r.album_code),
+  );
+  // Copies owned per sticker across ALL its variants — the all-variants
+  // duplicates rule needs the sticker-level total to decide whether a
+  // single-copy variant still leaves the slot filled after being traded away.
+  const totalOwnedBySticker = new Map(
+    ownedRows.map((r) => [r.sticker_id, Number(r.total_qty)]),
   );
 
   // Pull the user's favourites + wanted lists for this album so the optimizer
@@ -928,7 +989,21 @@ export async function matchAgainstUserAlbum(
       return ref;
     });
   const candidatesTheyGet = wantedRes
-    .filter((r) => ownedByVariant.get(r.stickerVariantId)?.spare === true)
+    .filter((r) => {
+      const st = ownedByVariant.get(r.stickerVariantId);
+      if (!st) return false;
+      // Per-variant spare: a second copy of this exact variant (or trade_forced).
+      if (st.spare) return true;
+      // All-variants duplicates: when the album counts variants as duplicates,
+      // a single tradeable copy is a spare as long as another copy of the same
+      // sticker (any variant) stays behind — owning NED3(base)+NED3(blue) means
+      // either one can be given away.
+      return (
+        countAllVariants &&
+        st.visibleQty > 0 &&
+        (totalOwnedBySticker.get(st.stickerId) ?? 0) > 1
+      );
+    })
     .map(refOf);
 
   const { iGet, theyGet } = selectOptimalSubset(

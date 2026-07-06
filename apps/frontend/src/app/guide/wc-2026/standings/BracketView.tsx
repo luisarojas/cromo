@@ -19,10 +19,11 @@ import {
 } from '@/lib/api';
 import { Flag, TeamName, useTeamName } from './parts';
 
-// Bracket view: knockout rounds as columns left→right, joined into a tree by
-// connector gutters. Hovering/focusing a tile highlights the whole path to the
-// final; clicking a team name opens its profile modal. Tiles have generous
-// vertical spacing and scroll horizontally on small screens.
+// Bracket view: a two-sided wallchart on desktop — each half of the draw
+// advances from the outer edge toward the FINAL column in the middle, joined
+// into a tree by connector gutters. (A non-canonical bracket shape falls back
+// to a linear left→right tree.) Hovering/focusing a tile highlights the whole
+// path to the final; clicking a team name opens its profile modal.
 //
 // A team filter (works on both layouts) highlights where one nation plays —
 // and, because the knockout draw is mostly placeholders until the groups end,
@@ -228,6 +229,62 @@ export default function BracketView({
   // Desktop dims the tree whenever a path is highlighted OR a team is filtered.
   const active = hover !== null || filtering;
 
+  // ─── Two-sided (wallchart) layout ───
+  // The classic World Cup chart: the two halves of the draw advance from the
+  // outer edges toward a single FINAL column in the middle. Only possible when
+  // the bracket is a full binary tree (each round exactly halves into the
+  // next, one final) — any other shape falls back to the linear left→right
+  // tree so a degraded feed still renders.
+  const canMirror = useMemo(() => {
+    if (rounds.length < 2) return false;
+    const last = rounds[rounds.length - 1]!;
+    if (last.stage !== 'FINAL' || last.matches.length !== 1) return false;
+    for (let i = 0; i < rounds.length - 1; i += 1) {
+      if (rounds[i]!.matches.length !== 2 * rounds[i + 1]!.matches.length) return false;
+    }
+    return true;
+  }, [rounds]);
+  const preRounds = canMirror ? rounds.slice(0, -1) : [];
+  const finalRoundIdx = rounds.length - 1;
+  const finalMatch = canMirror ? rounds[finalRoundIdx]!.matches[0]! : null;
+
+  // Tile cell shared by both desktop layouts. `slot` is the GLOBAL tree index
+  // within the round (right-half columns pass an offset), so the hover-path
+  // keys line up with `path` regardless of which side the tile renders on.
+  const renderTile = (m: WcMatch, ri: number, slot: number) => {
+    const inv = involveOf(m);
+    const onPath = path.tiles.has(`${ri}:${slot}`);
+    const dim = filtering ? inv === 'none' : active && !onPath;
+    const highlight = filtering ? inv === 'definite' : onPath;
+    return (
+      <div
+        key={m.id}
+        ref={m.id === scrollTargetId ? scrollTileRef : undefined}
+        className={`flex flex-1 items-center px-1.5 ${SLOT_MIN_H}`}
+      >
+        <MatchCard
+          match={m}
+          groups={overview.groups}
+          bracket={overview.bracket}
+          dim={dim}
+          highlight={highlight}
+          possible={filtering && inv === 'possible'}
+          onSelectTeam={onSelectTeam}
+          onHover={() => !filtering && setHover({ round: ri, slot })}
+          onHoverEnd={() => !filtering && setHover(null)}
+          t={t}
+        />
+      </div>
+    );
+  };
+
+  const renderHeader = (stage: WcStage, matches: WcMatch[]) => (
+    <div className={`mb-2 ${HEADER_H} px-1`}>
+      <h3 className="text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS[stage]}</h3>
+      <p className="text-[11px] text-[var(--cromo-fg-subtle)]">{dateSpanET(matches)} ET</p>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* ─── Toolbar: team filter + (mobile) expand/collapse all ─── */}
@@ -346,43 +403,121 @@ export default function BracketView({
         <p className="hidden rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 text-sm text-[var(--cromo-fg-muted)] lg:block">
           {t('noBracketForTeam')}
         </p>
+      ) : canMirror && finalMatch ? (
+      /* Two-sided wallchart: the first half of each (tree-ordered) round runs
+         left→centre, the second half right→centre, meeting at the FINAL. Tile
+         slot keys stay GLOBAL tree indices so the hover path works unchanged
+         across both halves. */
+      <div className="hidden overflow-x-auto overflow-y-hidden pb-3 lg:block">
+        <div className="flex min-w-max items-stretch">
+          {preRounds.map((round, ri) => {
+            const half = round.matches.length / 2;
+            const leftMatches = round.matches.slice(0, half);
+            const isInnermost = ri === preRounds.length - 1;
+            return (
+              <div key={`L-${round.stage}`} className="flex flex-col">
+                {renderHeader(round.stage, round.matches)}
+                <div className="flex flex-1">
+                  <div className={`${COLUMN_W} flex flex-col`}>
+                    {leftMatches.map((m, si) => renderTile(m, ri, si))}
+                  </div>
+                  {isInnermost ? (
+                    <FinalStub active={active} on={!filtering && path.tiles.has(`${ri}:0`)} />
+                  ) : (
+                    <ConnectorGutter
+                      count={half}
+                      roundIdx={ri}
+                      active={active}
+                      pathConnectors={filtering ? EMPTY_CONNECTORS : path.connectors}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {(() => {
+            const inv = involveOf(finalMatch);
+            const onPath = path.tiles.has(`${finalRoundIdx}:0`);
+            const thirdMatch = third[0];
+            const thirdInv = thirdMatch ? involveOf(thirdMatch) : 'none';
+            return (
+              <div className="flex flex-col">
+                {renderHeader('FINAL', rounds[finalRoundIdx]!.matches)}
+                <div className={`${COLUMN_W} flex flex-1 flex-col justify-center gap-8 px-1.5`}>
+                  <MatchCard
+                    match={finalMatch}
+                    groups={overview.groups}
+                    bracket={overview.bracket}
+                    dim={filtering ? inv === 'none' : active && !onPath}
+                    highlight={filtering ? inv === 'definite' : onPath}
+                    possible={filtering && inv === 'possible'}
+                    onSelectTeam={onSelectTeam}
+                    onHover={() => !filtering && setHover({ round: finalRoundIdx, slot: 0 })}
+                    onHoverEnd={() => !filtering && setHover(null)}
+                    t={t}
+                  />
+                  {thirdMatch && (!filtering || thirdInv !== 'none') && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS.THIRD}</h3>
+                      <MatchCard
+                        match={thirdMatch}
+                        groups={overview.groups}
+                        bracket={overview.bracket}
+                        dim={filtering ? thirdInv === 'none' : active}
+                        highlight={filtering && thirdInv === 'definite'}
+                        possible={filtering && thirdInv === 'possible'}
+                        onSelectTeam={onSelectTeam}
+                        t={t}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {preRounds.map((round, ri) => ({ round, ri })).reverse().map(({ round, ri }) => {
+            const half = round.matches.length / 2;
+            const rightMatches = round.matches.slice(half);
+            const isInnermost = ri === preRounds.length - 1;
+            return (
+              <div key={`R-${round.stage}`} className="flex flex-col">
+                <div className="flex">
+                  <div className={GUTTER_W} aria-hidden />
+                  <div className="flex-1">{renderHeader(round.stage, round.matches)}</div>
+                </div>
+                <div className="flex flex-1">
+                  {isInnermost ? (
+                    <FinalStub active={active} on={!filtering && path.tiles.has(`${ri}:1`)} />
+                  ) : (
+                    <ConnectorGutter
+                      count={half}
+                      roundIdx={ri}
+                      pairOffset={rounds[ri + 1]!.matches.length / 2}
+                      mirror
+                      active={active}
+                      pathConnectors={filtering ? EMPTY_CONNECTORS : path.connectors}
+                    />
+                  )}
+                  <div className={`${COLUMN_W} flex flex-col`}>
+                    {rightMatches.map((m, si) => renderTile(m, ri, half + si))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       ) : (
       <div className="hidden overflow-x-auto overflow-y-hidden pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => (
             <div key={round.stage} className="flex flex-col">
-              <div className={`mb-2 ${HEADER_H} px-1`}>
-                <h3 className="text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS[round.stage]}</h3>
-                <p className="text-[11px] text-[var(--cromo-fg-subtle)]">{dateSpanET(round.matches)} ET</p>
-              </div>
+              {renderHeader(round.stage, round.matches)}
               <div className="flex flex-1">
                 <div className={`${COLUMN_W} flex flex-col`}>
-                  {round.matches.map((m, si) => {
-                    const inv = involveOf(m);
-                    const onPath = path.tiles.has(`${ri}:${si}`);
-                    const dim = filtering ? inv === 'none' : active && !onPath;
-                    const highlight = filtering ? inv === 'definite' : onPath;
-                    return (
-                      <div
-                        key={m.id}
-                        ref={m.id === scrollTargetId ? scrollTileRef : undefined}
-                        className={`flex flex-1 items-center px-1.5 ${SLOT_MIN_H}`}
-                      >
-                        <MatchCard
-                          match={m}
-                          groups={overview.groups}
-                          bracket={overview.bracket}
-                          dim={dim}
-                          highlight={highlight}
-                          possible={filtering && inv === 'possible'}
-                          onSelectTeam={onSelectTeam}
-                          onHover={() => !filtering && setHover({ round: ri, slot: si })}
-                          onHoverEnd={() => !filtering && setHover(null)}
-                          t={t}
-                        />
-                      </div>
-                    );
-                  })}
+                  {round.matches.map((m, si) => renderTile(m, ri, si))}
                 </div>
                 {ri < rounds.length - 1 && (
                   <ConnectorGutter
@@ -399,7 +534,7 @@ export default function BracketView({
       </div>
       )}
 
-      {third.length > 0 && !filteredEmpty && (!filtering || involveOf(third[0]) !== 'none') && (
+      {third.length > 0 && !canMirror && !filteredEmpty && (!filtering || involveOf(third[0]) !== 'none') && (
         <div className="hidden max-w-sm lg:block">
           <h3 className="mb-2 text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS.THIRD}</h3>
           <MatchCard
@@ -572,11 +707,20 @@ function ConnectorGutter({
   roundIdx,
   active,
   pathConnectors,
+  pairOffset = 0,
+  mirror = false,
 }: {
   count: number;
   roundIdx: number;
   active: boolean;
   pathConnectors: Set<string>;
+  /** Added to the pair index when building the path key — right-half columns
+   *  in the two-sided layout feed parents in the second half of the next
+   *  round, so their GLOBAL parent slots start past the midpoint. */
+  pairOffset?: number;
+  /** Flip the vertical bar to the right edge for right-half gutters, where
+   *  the child column sits on the right and the parent toward the centre. */
+  mirror?: boolean;
 }) {
   const pairs = Math.floor(count / 2);
   return (
@@ -585,16 +729,29 @@ function ConnectorGutter({
         const topV = ((2 * i + 0.5) / count) * 100;
         const heightV = (1 / count) * 100;
         const topH = ((2 * i + 1) / count) * 100;
-        const on = pathConnectors.has(`${roundIdx}:${i}`);
+        const on = pathConnectors.has(`${roundIdx}:${i + pairOffset}`);
         const color = on ? 'var(--cromo-accent)' : 'var(--cromo-border)';
         const opacity = active && !on ? 0.3 : 1;
+        const side = mirror ? { right: 0 } : { left: 0 };
         return (
           <Fragment key={i}>
-            <span className="absolute" style={{ left: 0, top: `${topV}%`, height: `${heightV}%`, width: on ? 3 : 2, background: color, opacity }} />
+            <span className="absolute" style={{ ...side, top: `${topV}%`, height: `${heightV}%`, width: on ? 3 : 2, background: color, opacity }} />
             <span className="absolute" style={{ left: 0, top: `${topH}%`, width: '100%', height: on ? 3 : 2, background: color, opacity }} />
           </Fragment>
         );
       })}
+    </div>
+  );
+}
+
+// The single horizontal link between a semifinal column and the FINAL in the
+// two-sided layout — half a connector pair, one per side of the centre column.
+function FinalStub({ active, on }: { active: boolean; on: boolean }) {
+  const color = on ? 'var(--cromo-accent)' : 'var(--cromo-border)';
+  const opacity = active && !on ? 0.3 : 1;
+  return (
+    <div className={`${GUTTER_W} relative`} aria-hidden>
+      <span className="absolute" style={{ left: 0, top: '50%', width: '100%', height: on ? 3 : 2, background: color, opacity }} />
     </div>
   );
 }

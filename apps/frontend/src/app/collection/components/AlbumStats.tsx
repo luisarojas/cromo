@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Sticker } from '@/lib/api';
 import { flagUrl } from '@/lib/flags';
-import { usePreferencesStore } from '@/store/preferences';
 import { VARIANT_META, variantLabel } from './variantMeta';
 import type { OwnedVariantEntry } from './VariantPopover';
 import type { FilterState } from './FilterBar';
@@ -18,6 +17,8 @@ interface Props {
   stickers: Sticker[];
   ownedMap: OwnedMap;
   favouriteSet: Set<string>;
+  /** The album's duplicatesCountAllVariants setting (per-album, not global). */
+  duplicatesCountAllVariants: boolean;
   onJumpTo: JumpTo;
 }
 
@@ -146,11 +147,10 @@ function ProgressRing({
 
 type CountrySort = 'most' | 'least';
 
-export default function AlbumStats({ stickers, ownedMap, favouriteSet, onJumpTo }: Props) {
+export default function AlbumStats({ stickers, ownedMap, favouriteSet, duplicatesCountAllVariants, onJumpTo }: Props) {
   const t = useTranslations('albumStats');
   const [showAllCountries, setShowAllCountries] = useState(false);
   const [countrySort, setCountrySort] = useState<CountrySort>('most');
-  const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
 
   // Coca-Cola stickers come from peeling Coke bottle labels, not packs, so
   // they're excluded from the pack-count estimate.

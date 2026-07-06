@@ -35,7 +35,6 @@ import {
 } from '@/lib/api';
 import { useToast } from '@/components/ToastProvider';
 import { useAuthStore } from '@/store/auth';
-import { usePreferencesStore } from '@/store/preferences';
 import { useAlbumsStore } from '@/store/albums';
 import FilterBar from '@/app/collection/components/FilterBar';
 import { ALL_VARIANT_TYPES } from '@/app/collection/components/variantMeta';
@@ -144,7 +143,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const hydrated = useAuthStore((s) => s.hydrated);
-  const duplicatesCountAllVariants = usePreferencesStore((s) => s.duplicatesCountAllVariants);
   const { addToast } = useToast();
 
   const albums = useAlbumsStore((s) => s.albums);
@@ -342,6 +340,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // Derived totals
   // ---------------------------------------------------------------------------
   const activeAlbum = useMemo(() => albums.find((a) => a.id === albumId), [albums, albumId]);
+
+  // Per-album setting (moved off user_settings): whether owning different
+  // variants of one sticker counts as having a duplicate.
+  const duplicatesCountAllVariants = activeAlbum?.settings?.duplicatesCountAllVariants ?? true;
 
   // Redirect away from ?tab=stats when the active album type doesn't expose
   // stats, so a stale share-link doesn't render the WC-2026-specific panel
@@ -1068,7 +1070,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
             {t('loadingStickers')}
           </div>
         ) : tab === 'stats' ? (
-          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} favouriteSet={favouriteSet} onJumpTo={setView} />
+          <AlbumStats stickers={settingsFilteredStickers} ownedMap={ownedMap} favouriteSet={favouriteSet} duplicatesCountAllVariants={duplicatesCountAllVariants} onJumpTo={setView} />
         ) : albumId ? (
           <div className={selectionMode ? 'pb-20' : ''}>
             <StickerGrid

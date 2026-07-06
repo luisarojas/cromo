@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: AlbumSettings = {
   includeExtras: true,
   includeCocaCola: true,
   defaultBaseVariant: 'base_borderless',
+  duplicatesCountAllVariants: true,
 };
 
 // Preferred initial format on the create path when the caller doesn't supply
@@ -110,6 +111,7 @@ export default function AlbumFormModal({
       return {
         ...album.settings,
         defaultBaseVariant: album.settings.defaultBaseVariant ?? defaultBaseForEdition(album.edition),
+        duplicatesCountAllVariants: album.settings.duplicatesCountAllVariants ?? true,
       };
     }
     return { ...DEFAULT_SETTINGS, defaultBaseVariant: defaultBaseForEdition(edition) };
@@ -318,6 +320,24 @@ export default function AlbumFormModal({
             <p className="text-[11px] text-[var(--cromo-fg-subtle)]">
               {t('baseVariantHelp')}
             </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-[var(--cromo-fg-muted)]">{t('duplicatesLabel')}</span>
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={settings.duplicatesCountAllVariants}
+                onChange={(e) => setSettings((s) => ({ ...s, duplicatesCountAllVariants: e.target.checked }))}
+                className="mt-0.5 w-4 h-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+              />
+              <span className="text-sm text-[var(--cromo-fg)]">
+                {t('duplicatesAllVariants')}
+                <span className="block text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
+                  {t('duplicatesAllVariantsHint')}
+                </span>
+              </span>
+            </label>
           </div>
 
           <fieldset className="flex flex-col gap-2 border-t border-[var(--cromo-border)] pt-4">

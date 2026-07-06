@@ -473,6 +473,9 @@
     "baseBorderlessOption": "Base (sin borde) — Paquetes internacionales",
     "baseBorderOption": "Base (con borde blanco) — Paquetes de Norteamérica",
     "baseVariantHelp": "Se preselecciona cuando el escáner no puede determinar el formato base. Aún puedes elegir la otra variante en cada escaneo.",
+    "duplicatesLabel": "Repetidas",
+    "duplicatesAllVariants": "Contar todas las copias como repetidas, sin importar la variante",
+    "duplicatesAllVariantsHint": "Si está activado, tener la misma figurita en distintas variantes (p. ej. base + azul) cuenta como repetida para intercambiar. Si está desactivado, solo cuentan las copias extra de la misma variante.",
     "publicTradeInventory": "Visibilidad del inventario de intercambio",
     "visibilityPrivateLabel": "Privado",
     "visibilityPrivateHint": "Solo tú ves este álbum. Nunca aparece en tu perfil ni en coincidencias de intercambio.",
@@ -633,7 +636,6 @@
     "tabs": {
       "account": "Cuenta",
       "privacy": "Privacidad e intercambios",
-      "album": "Álbum por defecto",
       "appearance": "Apariencia"
     }
   },

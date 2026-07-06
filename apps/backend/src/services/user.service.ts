@@ -5,7 +5,6 @@ import { withTx } from '../db/transaction.js';
 import { enqueue } from './jobs.service.js';
 import { recordAudit } from '../utils/audit.js';
 import { statusError } from '../utils/errors.js';
-import { invalidateUserCaches } from './cache.js';
 
 function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
@@ -142,7 +141,6 @@ export interface City {
 export type ProfileVisibility = 'public' | 'private';
 
 export interface UserPreferences {
-  duplicatesCountAllVariants: boolean;
   cities: City[];
   profileVisibility: ProfileVisibility;
   tradeMatchingEnabled: boolean;
@@ -157,7 +155,6 @@ export interface UserPreferences {
 
 export async function getPreferences(db: Pool, userId: string): Promise<UserPreferences> {
   const result = await db.query<{
-    duplicates_count_all_variants: boolean;
     cities: City[];
     profile_visibility: ProfileVisibility;
     trade_matching_enabled: boolean;
@@ -166,7 +163,7 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
     email_trade_messages: boolean;
     email_marketing: boolean;
   }>(
-    `SELECT duplicates_count_all_variants, cities,
+    `SELECT cities,
             profile_visibility, trade_matching_enabled, search_radius_km,
             email_trade_requests, email_trade_messages, email_marketing
      FROM user_settings WHERE user_id = $1`,
@@ -175,7 +172,6 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
 
   if ((result.rowCount ?? 0) === 0) {
     return {
-      duplicatesCountAllVariants: true,
       cities: [],
       profileVisibility: 'public',
       tradeMatchingEnabled: true,
@@ -188,7 +184,6 @@ export async function getPreferences(db: Pool, userId: string): Promise<UserPref
 
   const row = result.rows[0]!;
   return {
-    duplicatesCountAllVariants: row.duplicates_count_all_variants,
     // Defensive: legacy rows may lack lat/lng on individual cities. Coerce
     // missing fields to null so the wire type is stable downstream.
     cities: (row.cities ?? []).map((c) => ({
@@ -216,10 +211,6 @@ export async function updatePreferences(
   const values: unknown[] = [];
   let idx = 1;
 
-  if (patch.duplicatesCountAllVariants !== undefined) {
-    setClauses.push(`duplicates_count_all_variants = $${idx++}`);
-    values.push(patch.duplicatesCountAllVariants);
-  }
   if (patch.cities !== undefined) {
     setClauses.push(`cities = $${idx++}::jsonb`);
     values.push(JSON.stringify(patch.cities));
@@ -256,18 +247,6 @@ export async function updatePreferences(
     `UPDATE user_settings SET ${setClauses.join(', ')} WHERE user_id = $${idx}`,
     values
   );
-
-  // Flipping the duplicate-counting rule changes user_albums.duplicate_count
-  // (denormalized by _sync_user_album_counts, which now reads this setting).
-  // Recompute every album the user owns and bust their cached responses so
-  // the dashboard and album page pick up the new number on next read.
-  if (patch.duplicatesCountAllVariants !== undefined) {
-    await db.query(
-      `SELECT _sync_user_album_counts(id) FROM user_albums WHERE user_id = $1`,
-      [userId]
-    );
-    await invalidateUserCaches(redis, userId);
-  }
 
   // Cities and radius are inputs to the trade-matches CTE (distance scoring,
   // radius filter). Bust any cached pages so the next /trade/matches read
