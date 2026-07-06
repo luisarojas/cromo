@@ -110,3 +110,26 @@ module "terraform_runner" {
   source              = "../../modules/terraform-runner"
   github_sub_patterns = var.tf_runner_sub_patterns
 }
+
+# ─── GitHub Actions OIDC roles for scripts/dev-env.sh (the ops workflow) ─────
+# Let the ops workflow start/stop an environment from CI without the
+# MFA-gated `cromo` profile. Narrow (5 actions) and account-scoped, so they
+# live in shared alongside the terraform-runner role. One role per env — dev
+# and prod get distinct roles + distinct OIDC subjects (ops-dev / ops-prod)
+# so a dev run can never touch prod resources (and vice versa).
+
+module "ops_dev_runner" {
+  source              = "../../modules/ops-runner"
+  env                 = "dev"
+  github_sub_patterns = var.ops_dev_sub_patterns
+}
+
+# Prod's app/RDS resources don't exist until env/prod is applied, but the
+# role can be created ahead of time — it only references ARNs by name, not
+# live resources. The prod workflow gates `down` behind a typed confirmation
+# and the stricter `ops-prod` GitHub Environment (see the OIDC subject).
+module "ops_prod_runner" {
+  source              = "../../modules/ops-runner"
+  env                 = "prod"
+  github_sub_patterns = var.ops_prod_sub_patterns
+}

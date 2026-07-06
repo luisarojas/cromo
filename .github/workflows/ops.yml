@@ -1,0 +1,100 @@
+# Manually start/stop an environment (dev or prod) from GitHub Actions.
+#
+# The CI equivalent of running `CROMO_ENV=<env> ./scripts/dev-env.sh
+# {up,down,status}` on a laptop, but without the MFA-gated `cromo` profile:
+# credentials come from OIDC (the cromo-ops-<env>-runner role, narrow to RDS
+# start/stop + ASG scale).
+#
+# dev vs prod:
+#   - dev is a manual override; the EventBridge/ASG schedules in
+#     modules/scheduling still fire, so an `up` gets taken back down at the
+#     next scheduled scale-down.
+#   - prod has scheduling DISABLED (env/prod → enable = false). Nothing
+#     auto-reverses a manual up/down, so a prod `down` is a real OUTAGE. It
+#     is gated here by (a) a typed `confirm` input that must equal `prod`,
+#     and (b) the stricter `ops-prod` GitHub Environment (distinct OIDC
+#     subject → a dev token can't assume the prod role).
+#
+# GitHub Environment names use the same <function>-<stage> prefix as the
+# terraform workflow's tf-dev/tf-prod: here `ops-dev` / `ops-prod`.
+#
+# One-time GitHub config (not in Terraform):
+#   - Repo secrets: AWS_OPS_DEV_ROLE_ARN, AWS_OPS_PROD_ROLE_ARN
+#     (= env/shared outputs ops_dev_role_arn / ops_prod_role_arn).
+#   - Repo variable AWS_REGION (already set for the terraform workflow).
+#   - Repo variables DEV_APP_HOST / PROD_APP_HOST = each env's hostname
+#     (e.g. dev.cromotrade.ca / cromotrade.ca), so the readiness probe runs
+#     without a terraform-output round-trip.
+#   - GitHub Environments `ops-dev` and `ops-prod` (their names are the OIDC
+#     subjects the roles' trust policies allow). Add Required Reviewers on
+#     `ops-prod` if the plan tier supports it.
+
+name: Ops — start/stop environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment'
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prod]
+      action:
+        description: 'What to do'
+        required: true
+        default: status
+        type: choice
+        options: [up, down, status]
+      confirm:
+        description: 'Type "prod" to confirm a prod DOWN (ignored otherwise)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  # Serialise per env so two up/down runs can't race on the same ASG + RDS,
+  # but a dev run and a prod run don't block each other.
+  group: ops-${{ inputs.env }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # mint the OIDC token AWS verifies
+  contents: read
+
+jobs:
+  run:
+    name: ${{ inputs.env }} ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    # Distinct GitHub Environment per target → distinct OIDC subject. This is
+    # what stops a dev-scoped token from assuming the prod role.
+    environment: ${{ inputs.env == 'prod' && 'ops-prod' || 'ops-dev' }}
+    steps:
+      # Guardrail: a prod DOWN is an outage. Fail before touching AWS unless
+      # the operator typed the env name. Runs first so a mistaken dispatch
+      # never even assumes credentials.
+      - name: Confirm destructive prod action
+        if: inputs.env == 'prod' && inputs.action == 'down'
+        run: |
+          if [ "${{ inputs.confirm }}" != "prod" ]; then
+            echo "::error::Refusing prod DOWN: type 'prod' in the confirm input to proceed. This scales prod to 0 and stops RDS (an outage)."
+            exit 1
+          fi
+          echo "Confirmed prod DOWN by operator input."
+
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.env == 'prod' && secrets.AWS_OPS_PROD_ROLE_ARN || secrets.AWS_OPS_DEV_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-ops-${{ inputs.env }}-${{ inputs.action }}-${{ github.run_id }}
+
+      - name: ${{ inputs.env }} ${{ inputs.action }}
+        env:
+          CROMO_ENV: ${{ inputs.env }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          # Short-circuits scripts/dev-env.sh's app_host() so it never needs
+          # terraform state to resolve the hostname for the readiness probe.
+          APP_HOST: ${{ inputs.env == 'prod' && vars.PROD_APP_HOST || vars.DEV_APP_HOST }}
+        run: ./scripts/dev-env.sh "${{ inputs.action }}"

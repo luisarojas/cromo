@@ -1,33 +1,56 @@
 #!/bin/bash
 # scripts/dev-env.sh
 #
-# Manually spin the dev environment up or down, outside the business-hours
-# schedule. Mirrors what the EventBridge / ASG schedules do automatically:
+# Manually spin an environment (dev or prod) up or down, outside any
+# business-hours schedule. Mirrors what the EventBridge / ASG schedules do
+# automatically in dev:
 #   up   → start RDS, scale the app ASG to 1, then block until the app's
 #          /api/v1/health/ready endpoint responds (or UP_TIMEOUT_SECS elapses)
 #   down → scale the app ASG to 0, stop RDS
 # ALB and NAT stay up either way.
 #
-# NOTE: this is a manual override. The next scheduled action still fires —
-# e.g. the daily 23:00 ET scale-down will take a manually-started env back
-# down. See infrastructure/terraform/modules/scheduling/.
+# The target environment is CROMO_ENV (default `dev`); it selects the ASG,
+# RDS instance, and terraform dir by name (cromo-<env>-app / cromo-<env>-db).
 #
-# Requires: aws CLI configured for the cromo profile.
+# NOTE (dev): this is a manual override. The next scheduled action still
+# fires — e.g. the daily 23:00 ET scale-down takes a manually-started dev
+# env back down. See infrastructure/terraform/modules/scheduling/.
+# NOTE (prod): scheduling is disabled in prod (env/prod → enable = false),
+# so nothing auto-reverses a manual up/down. `down` is an OUTAGE — the
+# ops GitHub workflow gates it behind a typed confirmation.
+#
+# Requires: aws CLI configured for the cromo profile (or ambient OIDC creds
+# in CI).
 # Usage (from anywhere):
-#   ./scripts/dev-env.sh up
-#   ./scripts/dev-env.sh down
-#   ./scripts/dev-env.sh status
+#   ./scripts/dev-env.sh up|down|status              # dev (default)
+#   CROMO_ENV=prod ./scripts/dev-env.sh up|down|status
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 AWS_REGION="${AWS_REGION:-ca-central-1}"
-export AWS_PROFILE="${AWS_PROFILE:-cromo}"
 
-ASG_NAME="cromo-dev-app"
-DB_ID="cromo-dev-db"
-DEV_DIR="$REPO_ROOT/infrastructure/terraform/env/dev"
+# Locally we default to the MFA-gated `cromo` profile. In CI (e.g. the
+# ops GitHub Actions workflow) credentials arrive via OIDC as
+# AWS_ACCESS_KEY_ID/SECRET/SESSION_TOKEN in the environment — setting
+# AWS_PROFILE there would point the CLI at a profile that doesn't exist on
+# the runner and shadow those creds. So only default the profile when no
+# ambient access key is present.
+if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+  export AWS_PROFILE="${AWS_PROFILE:-cromo}"
+fi
+
+# Target environment. Drives the resource names and the terraform dir.
+CROMO_ENV="${CROMO_ENV:-dev}"
+case "$CROMO_ENV" in
+  dev|prod) ;;
+  *) echo "✗ unknown CROMO_ENV '$CROMO_ENV' (expected 'dev' or 'prod')" >&2; exit 1 ;;
+esac
+
+ASG_NAME="cromo-${CROMO_ENV}-app"
+DB_ID="cromo-${CROMO_ENV}-db"
+ENV_DIR="$REPO_ROOT/infrastructure/terraform/env/${CROMO_ENV}"
 
 # Max seconds to wait for the env to come fully up (RDS + instance + app).
 UP_TIMEOUT_SECS="${UP_TIMEOUT_SECS:-900}"
@@ -41,6 +64,19 @@ fi
 run() {
   echo "+ $*"
   "$@"
+}
+
+# True when this env's app ASG exists — a cheap proxy for "the env's
+# terraform stack has been applied". `describe-auto-scaling-groups` returns
+# an empty list (exit 0) for an unknown name rather than erroring, so it's a
+# clean existence probe; `db_status` below, by contrast, throws
+# DBInstanceNotFound and would abort the script under `set -e`.
+env_provisioned() {
+  local count
+  count=$(aws autoscaling describe-auto-scaling-groups \
+    --auto-scaling-group-names "$ASG_NAME" --region "$AWS_REGION" \
+    --query "length(AutoScalingGroups)" --output text)
+  [ "$count" != "0" ]
 }
 
 db_status() {
@@ -78,7 +114,7 @@ app_host() {
     return
   fi
   if command -v terraform >/dev/null 2>&1; then
-    terraform -chdir="$DEV_DIR" output -raw hostname 2>/dev/null | sed 's|^https://||'
+    terraform -chdir="$ENV_DIR" output -raw hostname 2>/dev/null | sed 's|^https://||'
   fi
 }
 
@@ -152,7 +188,7 @@ wait_for_up() {
 }
 
 cmd_up() {
-  echo "▶ Bringing dev UP (region $AWS_REGION, profile $AWS_PROFILE)"
+  echo "▶ Bringing $CROMO_ENV UP (region $AWS_REGION, profile ${AWS_PROFILE:-<ambient creds>})"
 
   local status
   status="$(db_status)"
@@ -179,7 +215,7 @@ cmd_up() {
 }
 
 cmd_down() {
-  echo "▶ Bringing dev DOWN (region $AWS_REGION, profile $AWS_PROFILE)"
+  echo "▶ Bringing $CROMO_ENV DOWN (region $AWS_REGION, profile ${AWS_PROFILE:-<ambient creds>})"
 
   echo "  scaling ASG $ASG_NAME to 0"
   scale_asg 0
@@ -208,12 +244,27 @@ cmd_status() {
   echo "RDS $DB_ID status:             $(db_status)"
 }
 
-case "${1:-}" in
+action="${1:-}"
+case "$action" in
+  up|down|status) ;;
+  *)
+    echo "Usage: $0 {up|down|status}   (env via CROMO_ENV, default 'dev')" >&2
+    exit 1
+    ;;
+esac
+
+# If the env's stack hasn't been applied yet (e.g. prod before env/prod
+# exists), there's nothing to act on. Report it clearly and exit cleanly
+# instead of letting an AWS "not found" abort the run — this is an expected
+# state, not a failure, so the workflow stays green.
+if ! env_provisioned; then
+  echo "⚠ $CROMO_ENV is not provisioned yet — no ASG '$ASG_NAME' in $AWS_REGION."
+  echo "  Apply infrastructure/terraform/env/$CROMO_ENV first; nothing to $action."
+  exit 0
+fi
+
+case "$action" in
   up)     cmd_up ;;
   down)   cmd_down ;;
   status) cmd_status ;;
-  *)
-    echo "Usage: $0 {up|down|status}" >&2
-    exit 1
-    ;;
 esac

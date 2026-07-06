@@ -27,3 +27,13 @@ output "tf_runner_role_arn" {
   description = "Set this as the GitHub repo secret AWS_TF_RUNNER_ROLE_ARN."
   value       = module.terraform_runner.role_arn
 }
+
+output "ops_dev_role_arn" {
+  description = "Set this as the GitHub repo secret AWS_OPS_DEV_ROLE_ARN."
+  value       = module.ops_dev_runner.role_arn
+}
+
+output "ops_prod_role_arn" {
+  description = "Set this as the GitHub repo secret AWS_OPS_PROD_ROLE_ARN."
+  value       = module.ops_prod_runner.role_arn
+}

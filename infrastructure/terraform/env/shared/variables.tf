@@ -72,3 +72,33 @@ variable "tf_runner_sub_patterns" {
     "repo:luisarojas/cromo:ref:refs/tags/v*",
   ]
 }
+
+variable "ops_dev_sub_patterns" {
+  description = <<-EOT
+    GitHub OIDC sub-claim patterns the cromo-ops-dev-runner role accepts.
+
+    The ops workflow is manual (workflow_dispatch) and declares the
+    `ops-dev` GitHub Environment, so GitHub issues an environment-scoped
+    subject. Keep this narrow — this role can start/stop the dev env.
+  EOT
+  type        = list(string)
+  default = [
+    "repo:luisarojas/cromo:environment:ops-dev",
+  ]
+}
+
+variable "ops_prod_sub_patterns" {
+  description = <<-EOT
+    GitHub OIDC sub-claim patterns the cromo-ops-prod-runner role accepts.
+
+    Same workflow, but a prod run declares the stricter `ops-prod` GitHub
+    Environment — a distinct subject so a dev-scoped token can never assume
+    the prod role. `down` is additionally gated by a typed confirmation in
+    the workflow. Add Required Reviewers on the `ops-prod` environment in
+    GitHub if/when the plan tier supports it.
+  EOT
+  type        = list(string)
+  default = [
+    "repo:luisarojas/cromo:environment:ops-prod",
+  ]
+}
