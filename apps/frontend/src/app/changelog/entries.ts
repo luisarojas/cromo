@@ -54,6 +54,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'The third-party trade editor now looks like the regular trade picker — country flags, tap-to-add sticker cards with an inline copy stepper, a search box, and a cash field on each side.',
       ],
       Fixed: [
+        'Saving or recording a third-party trade without filling in the partner name now works — leaving "Their name" blank no longer shows an error.',
         'Team badge and intro stickers (FWC1–FWC8, MEX1, RSA1, and every team\'s first sticker) no longer show as "unknown" in a third-party trade — these foil-only cards now resolve to their white-border printing.',
         'A third-party trade now offers your white-border spares for an untagged request — owning four of a code you\'re asked for shows up in the plan even when the album\'s default is the borderless base.',
         'Trade suggestions now offer a sticker you own in two different variants — with "count all variants as duplicates" on, owning NED3 in base and blue offers the spare copy to a partner who needs NED3, in third-party trades and the trade matchmaker alike.',

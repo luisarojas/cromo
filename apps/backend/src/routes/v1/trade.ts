@@ -134,7 +134,9 @@ const ThirdPartyDeltaSchema = z.object({
 const ThirdPartyCompleteBody = z.object({
   albumId:     z.string().uuid(),
   // Display-only — null/empty = the trade is logged with no partner name.
-  partnerName: z.string().trim().max(80).optional()
+  // `.nullish()` (not `.optional()`) so the client's explicit `null` for an
+  // empty name passes validation, not just an omitted key.
+  partnerName: z.string().trim().max(80).nullish()
     .transform((v) => (v && v.length > 0 ? v : null)),
   gave:        z.array(ThirdPartyDeltaSchema).default([]),
   received:    z.array(ThirdPartyDeltaSchema).default([]),
@@ -1006,7 +1008,9 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
   const SaveDraftBody = z.object({
     id: z.string().uuid().nullish(),
     albumId: z.string().uuid(),
-    partnerName: z.string().trim().max(80).optional()
+    // `.nullish()` so the client's explicit `null` (empty name) validates —
+    // `.optional()` alone rejects `null` and 400s a nameless draft.
+    partnerName: z.string().trim().max(80).nullish()
       .transform((v) => (v && v.length > 0 ? v : null)),
     theirOffered: ItemListSchema.default([]),
     theirWanted: ItemListSchema.default([]),
