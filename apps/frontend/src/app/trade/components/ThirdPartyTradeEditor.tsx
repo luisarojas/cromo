@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ExternalStickerRef } from '@/lib/api';
-import { variantSwatch } from '@/app/collection/components/variantMeta';
+import { foldAccents } from '@/lib/normalize';
+import { PickerRow } from './TradePickerParts';
 import {
   computeScarcityBalance,
   suggestBalancingCashCents,
@@ -74,21 +75,17 @@ interface Props {
   saveLabel?: string;
 }
 
-const BUCKET_BY_TYPE: Record<string, string> = {
-  intro: 'FWC',
-  coca_cola_special: 'Coca-Cola',
-  extra: 'Extras',
-};
-
-function bucketFor(ref: ExternalStickerRef): string {
-  if (ref.stickerType && BUCKET_BY_TYPE[ref.stickerType]) {
-    return BUCKET_BY_TYPE[ref.stickerType]!;
-  }
-  return ref.teamName ?? 'Other';
-}
-
 function isBaseToken(token: string | null): boolean {
   return token === 'base_border' || token === 'base_borderless';
+}
+
+/** Team stickers encode their country in the album-code prefix (MEX1 → MEX);
+ *  FWC / Coca-Cola / Extras carry no team, so no flag. flagUrl() returns null
+ *  for any prefix that isn't a real country, so this never renders a bad flag. */
+function fifaCodeOf(ref: ExternalStickerRef): string | null {
+  if (!ref.teamName) return null;
+  const m = ref.albumCode.match(/^([A-Za-z]{3})\d+$/);
+  return m ? m[1].toUpperCase() : null;
 }
 
 // "You"/"Them"/"They" are pronoun fallbacks that read naturally lowercased
@@ -106,23 +103,6 @@ function refKey(ref: ExternalStickerRef): string {
   return ref.stickerVariantId ?? `${ref.albumCode}|${ref.variantToken ?? ''}`;
 }
 
-function groupRefs(
-  refs: ExternalStickerRef[],
-): Array<{ bucket: string; items: ExternalStickerRef[] }> {
-  const sorted = [...refs].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
-  const out: Array<{ bucket: string; items: ExternalStickerRef[] }> = [];
-  for (const r of sorted) {
-    const key = bucketFor(r);
-    const last = out[out.length - 1];
-    if (last && last.bucket === key) {
-      last.items.push(r);
-    } else {
-      out.push({ bucket: key, items: [r] });
-    }
-  }
-  return out;
-}
-
 function fmtScarcity(n: number): string {
   return n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(1);
 }
@@ -131,10 +111,29 @@ function fmtDollars(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+function centsToInput(cents: number): string {
+  return cents > 0 ? fmtDollars(cents) : '';
+}
+
 function parseCashCents(value: string): number {
   const num = parseFloat(value);
   if (!isFinite(num) || num < 0) return 0;
   return Math.round(num * 100);
+}
+
+/** Filter a candidate pool by a free-text query over album code + player name. */
+function filterBySearch(refs: ExternalStickerRef[], query: string): ExternalStickerRef[] {
+  const q = foldAccents(query.trim().toLowerCase());
+  if (!q) return refs;
+  return refs.filter((r) => {
+    const code = r.albumCode.toLowerCase();
+    const name = foldAccents((r.playerName ?? '').toLowerCase());
+    return code.includes(q) || name.includes(q);
+  });
+}
+
+function bySortableNumber(a: ExternalStickerRef, b: ExternalStickerRef): number {
+  return (a.number ?? 0) - (b.number ?? 0);
 }
 
 function balanceMessage(
@@ -175,167 +174,122 @@ function balanceMessage(
   };
 }
 
-function SideColumn({
-  label,
+/**
+ * One selectable side of the trade — a searchable list of PickerRow cards
+ * (tap to toggle) with an inline copy-count stepper on the selected cards and
+ * a slim cash footer, mirroring the registered-user TradeStickerPicker's look.
+ * Selection and copy counts stay ON the sticker, so there's no separate tray to
+ * flood when the whole optimised plan is selected.
+ */
+function PickPanel({
+  accent,
   candidates,
   selected,
-  qtyOf,
-  cashCents,
-  totalCount,
-  cashLabel,
-  emptyText,
   onToggle,
+  qtyOf,
   onQtyChange,
+  cashCents,
   onCashChange,
+  cashLabel,
   starredHint,
   weights,
   baseStickerCents,
+  emptyText,
 }: {
-  label: string;
+  accent: 'accent' | 'success';
   candidates: ExternalStickerRef[];
   selected: Set<string>;
-  /** Effective copy count for a row (override or pool max). */
-  qtyOf: (ref: ExternalStickerRef) => number;
-  cashCents: number;
-  totalCount: number;
-  cashLabel: string;
-  emptyText: string;
   onToggle: (key: string, next: boolean) => void;
+  qtyOf: (ref: ExternalStickerRef) => number;
   onQtyChange: (key: string, next: number) => void;
+  cashCents: number;
   onCashChange: (cents: number) => void;
+  cashLabel: string;
   starredHint: boolean;
   weights?: VariantWeights | null;
   baseStickerCents?: number;
+  emptyText: string;
 }) {
-  const groups = groupRefs(candidates);
-  const [cashText, setCashText] = useState(cashCents > 0 ? fmtDollars(cashCents) : '');
+  const [search, setSearch] = useState('');
+  const [cashText, setCashText] = useState(() => centsToInput(cashCents));
+  const filtered = useMemo(
+    () => filterBySearch(candidates, search).sort(bySortableNumber),
+    [candidates, search],
+  );
+  const showSearch = candidates.length > 5;
 
-  // Mirror external cash changes (parent reset, draft load) back into the
-  // input. Skip when our typed value would parse to the same cents, otherwise
-  // the user gets their keystrokes overwritten mid-edit.
+  // Sync the local cash text when the parent resets it (draft load, new match,
+  // "add cash" suggestion) without stomping a mid-typing "1.".
   useEffect(() => {
-    const typedCents = parseCashCents(cashText || '0');
-    if (typedCents !== cashCents) {
-      setCashText(cashCents > 0 ? fmtDollars(cashCents) : '');
+    if (parseCashCents(cashText || '0') !== cashCents) {
+      setCashText(centsToInput(cashCents));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cashCents]);
 
   return (
-    // min-w-0 lets this grid column shrink below its content's intrinsic width
-    // so the sticker-name `truncate` engages instead of overflowing on mobile.
-    <div className="min-w-0">
-      <p className="text-xs font-medium text-[var(--cromo-fg-muted)] mb-2">
-        For {label} ({totalCount} sticker{totalCount === 1 ? '' : 's'}
-        {cashCents > 0 && ` + $${fmtDollars(cashCents)}`})
-      </p>
+    <div className="min-w-0 flex flex-col gap-2">
+      {showSearch && (
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search code or player…"
+          className="w-full rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+        />
+      )}
       {candidates.length === 0 ? (
-        <p className="text-xs text-[var(--cromo-fg-subtle)] mb-3">{emptyText}</p>
+        <p className="text-xs text-[var(--cromo-fg-subtle)] py-2">{emptyText}</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-xs text-[var(--cromo-fg-subtle)] py-2">No matches for “{search}”.</p>
       ) : (
-        <div className="space-y-3 mb-3">
-          {groups.map((g, i) => (
-            <div key={`${g.bucket}|${i}`}>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--cromo-fg-subtle)] mb-1">
-                {g.bucket}
-              </p>
-              <ul className="space-y-1">
-                {g.items.map((r) => {
-                  const key = refKey(r);
-                  const isSelected = selected.has(key);
-                  const disabled = !r.stickerVariantId;
-                  const maxQty = Math.max(1, r.quantity);
-                  const qty = qtyOf(r);
-                  return (
-                    <li key={key}>
-                      <label
-                        className={`flex items-center gap-2 text-sm rounded px-1.5 py-1 ${
-                          disabled
-                            ? 'opacity-50 cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-[var(--cromo-accent-soft)] cursor-pointer'
-                              : 'hover:bg-[var(--cromo-surface-2)] cursor-pointer'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={disabled}
-                          onChange={(e) => onToggle(key, e.target.checked)}
-                          className="h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
-                        />
-                        <span
-                          className={`shrink-0 w-3 h-3 rounded-full border ${variantSwatch(r.variantToken ?? '')}`}
-                          title={r.variantLabel ?? undefined}
-                        />
-                        <span className="font-mono text-xs text-[var(--cromo-fg-muted)] w-14 shrink-0">
-                          {r.albumCode}
-                        </span>
-                        <span className="text-[var(--cromo-fg)] truncate min-w-0 flex-1">
-                          {r.playerName ?? <span className="italic text-[var(--cromo-fg-muted)]">Unknown</span>}
-                        </span>
-                        {maxQty > 1 && (isSelected ? (
-                          <span
-                            className="flex items-center gap-0.5 shrink-0"
-                            // Keep stepper taps from toggling the row checkbox.
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <button
-                              type="button"
-                              aria-label="Fewer copies"
-                              disabled={qty <= 1}
-                              onClick={() => onQtyChange(key, qty - 1)}
-                              className="h-5 w-5 rounded border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-xs leading-none text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              −
-                            </button>
-                            <span className="w-7 text-center text-xs tabular-nums font-medium text-[var(--cromo-fg)]">
-                              ×{qty}
-                            </span>
-                            <button
-                              type="button"
-                              aria-label="More copies"
-                              disabled={qty >= maxQty}
-                              onClick={() => onQtyChange(key, qty + 1)}
-                              className="h-5 w-5 rounded border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-xs leading-none text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              +
-                            </button>
-                          </span>
-                        ) : (
-                          <span className="text-[10px] tabular-nums font-medium px-1.5 py-0.5 rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)] shrink-0">
-                            ×{maxQty}
-                          </span>
-                        ))}
-                        {starredHint && r.favourite && (
-                          <span title="You favourited this" aria-label="Favourite" className="text-xs text-[var(--cromo-danger-text)]">♥</span>
-                        )}
-                        {starredHint && r.wanted && !r.favourite && (
-                          <span title="You added this to your wanted list" aria-label="Wanted" className="text-xs text-[var(--cromo-warning-text)]">★</span>
-                        )}
-                        {r.variantLabel && !isBaseToken(r.variantToken) && (
-                          <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]">
-                            {r.variantLabel}
-                          </span>
-                        )}
-                        {!isBaseToken(r.variantToken) && (
-                          <span
-                            title="Approximate cash value: cost per base sticker scaled by variant scarcity"
-                            className="text-[10px] tabular-nums text-[var(--cromo-fg-subtle)] shrink-0"
-                          >
-                            ≈ ${fmtDollars(variantCashValueCents(r.variantToken, weights, baseStickerCents))}
-                          </span>
-                        )}
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+        <div className="flex flex-col gap-1.5 max-h-[26rem] overflow-y-auto pr-0.5 -mr-0.5">
+          {filtered.map((r) => {
+            const key = refKey(r);
+            const isSel = selected.has(key);
+            const maxQty = Math.max(1, r.quantity);
+            const qty = qtyOf(r);
+            const fav = starredHint && r.favourite;
+            const want = starredHint && r.wanted && !r.favourite;
+            const nonBase = !isBaseToken(r.variantToken);
+            const cashBadge = nonBase
+              ? `≈ $${fmtDollars(variantCashValueCents(r.variantToken, weights, baseStickerCents))}`
+              : null;
+            return (
+              <PickerRow
+                key={key}
+                accent={accent}
+                albumCode={r.albumCode}
+                playerName={r.playerName}
+                teamName={r.teamName}
+                fifaCode={fifaCodeOf(r)}
+                groupName={null}
+                variantType={r.variantToken ?? ''}
+                quantity={r.quantity}
+                rightBadge={cashBadge ? { tone: accent, text: cashBadge } : null}
+                isSuggested={!!(fav || want)}
+                suggestedTone={fav ? 'very-rare' : 'accent'}
+                suggestedLabel={fav ? '♥ favourite' : '★ wanted'}
+                selected={isSel}
+                onClick={() => onToggle(key, !isSel)}
+                stepper={
+                  isSel && maxQty > 1
+                    ? {
+                        quantity: qty,
+                        min: 1,
+                        max: maxQty,
+                        onIncrement: () => onQtyChange(key, qty + 1),
+                        onDecrement: () => onQtyChange(key, qty - 1),
+                      }
+                    : null
+                }
+              />
+            );
+          })}
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-2 border-t border-[var(--cromo-border)]">
+      <div className="flex items-center gap-2 pt-2 mt-1 border-t border-[var(--cromo-border)]">
         <span className="text-xs text-[var(--cromo-fg-subtle)]">{cashLabel}</span>
         <span className="text-xs text-[var(--cromo-fg-subtle)]">$</span>
         <input
@@ -343,10 +297,7 @@ function SideColumn({
           min="0"
           step="0.01"
           value={cashText}
-          onChange={(e) => {
-            setCashText(e.target.value);
-            onCashChange(parseCashCents(e.target.value));
-          }}
+          onChange={(e) => { setCashText(e.target.value); onCashChange(parseCashCents(e.target.value)); }}
           placeholder="0.00"
           className="w-20 rounded border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
         />
@@ -461,7 +412,7 @@ export default function ThirdPartyTradeEditor({
           <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">{title}</h2>
           <p className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">
             {iGetCopies} for {inlineLabel(leftLabel)}, {theyGetCopies} for{' '}
-            {inlineLabel(rightLabel)}. Untick anything you don&apos;t want; tick more from the pool.
+            {inlineLabel(rightLabel)}. Tap to add or remove; adjust copies below.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -534,39 +485,50 @@ export default function ThirdPartyTradeEditor({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <SideColumn
-          label={leftLabel}
-          candidates={candidatesIGet}
-          selected={state.selectedIGet}
-          qtyOf={(r) => effectiveQty(state, r)}
-          cashCents={state.iGetCashCents}
-          totalCount={iGetCopies}
-          cashLabel="+ cash from them"
-          emptyText="Nothing they have that you need."
-          onToggle={toggleIGet}
-          onQtyChange={changeQty}
-          onCashChange={(c) => onStateChange({ ...state, iGetCashCents: c })}
-          starredHint
-          weights={weights}
-          baseStickerCents={baseStickerCents}
-        />
-        <SideColumn
-          label={rightLabel}
-          candidates={candidatesTheyGet}
-          selected={state.selectedTheyGet}
-          qtyOf={(r) => effectiveQty(state, r)}
-          cashCents={state.theyGetCashCents}
-          totalCount={theyGetCopies}
-          cashLabel="+ cash from you"
-          emptyText="Nothing you have that they want."
-          onToggle={toggleTheyGet}
-          onQtyChange={changeQty}
-          onCashChange={(c) => onStateChange({ ...state, theyGetCashCents: c })}
-          starredHint={false}
-          weights={weights}
-          baseStickerCents={baseStickerCents}
-        />
+      {/* Selectable pools — two columns on md+, stacked on mobile. Selection,
+          copy steppers, and cash all live on the column, so there's no separate
+          tray to flood when the whole plan is selected. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[var(--cromo-accent)] mb-1.5">
+            For {inlineLabel(leftLabel)} ({iGetCopies} sticker{iGetCopies === 1 ? '' : 's'})
+          </p>
+          <PickPanel
+            accent="accent"
+            candidates={candidatesIGet}
+            selected={state.selectedIGet}
+            onToggle={toggleIGet}
+            qtyOf={(r) => effectiveQty(state, r)}
+            onQtyChange={changeQty}
+            cashCents={state.iGetCashCents}
+            onCashChange={(c) => onStateChange({ ...state, iGetCashCents: c })}
+            cashLabel="+ cash from them"
+            starredHint
+            weights={weights}
+            baseStickerCents={baseStickerCents}
+            emptyText="Nothing they have that you need."
+          />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-[var(--cromo-success-text)] mb-1.5">
+            For {inlineLabel(rightLabel)} ({theyGetCopies} sticker{theyGetCopies === 1 ? '' : 's'})
+          </p>
+          <PickPanel
+            accent="success"
+            candidates={candidatesTheyGet}
+            selected={state.selectedTheyGet}
+            onToggle={toggleTheyGet}
+            qtyOf={(r) => effectiveQty(state, r)}
+            onQtyChange={changeQty}
+            cashCents={state.theyGetCashCents}
+            onCashChange={(c) => onStateChange({ ...state, theyGetCashCents: c })}
+            cashLabel="+ cash from you"
+            starredHint={false}
+            weights={weights}
+            baseStickerCents={baseStickerCents}
+            emptyText="Nothing you have that they want."
+          />
+        </div>
       </div>
 
       {unknownCodes.length > 0 && (

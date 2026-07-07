@@ -51,6 +51,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'When variants count as duplicates, the rarest copy of each sticker is kept for your album automatically — hiding a copy keeps it too, and "Force offer" trades away even a rarest single, shifting the keep to the next variant down.',
         'Third-party trade suggestions now lead with the stickers you have the most spare copies of, so the optimised trade helps you clear out your biggest duplicate piles first.',
         'Every sticker in a third-party trade now shows a colour dot for its variant, matching the regular trade editor — so base, parallels, and Extras are distinguishable at a glance.',
+        'The third-party trade editor now looks like the regular trade picker — country flags, tap-to-add sticker cards with an inline copy stepper, a search box, and a cash field on each side.',
       ],
       Fixed: [
         'Team badge and intro stickers (FWC1–FWC8, MEX1, RSA1, and every team\'s first sticker) no longer show as "unknown" in a third-party trade — these foil-only cards now resolve to their white-border printing.',
