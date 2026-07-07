@@ -23,7 +23,8 @@ import { Flag, TeamName, useTeamName } from './parts';
 // advances from the outer edge toward the FINAL column in the middle, joined
 // into a tree by connector gutters. (A non-canonical bracket shape falls back
 // to a linear left→right tree.) Hovering/focusing a tile highlights the whole
-// path to the final; clicking a team name opens its profile modal.
+// path to the final; hovering a round heading highlights that round's tiles;
+// clicking a team name opens its profile modal.
 //
 // A team filter (works on both layouts) highlights where one nation plays —
 // and, because the knockout draw is mostly placeholders until the groups end,
@@ -207,6 +208,10 @@ export default function BracketView({
   }, [rounds, third, filtering, involveMap]);
 
   const [hover, setHover] = useState<Hover>(null);
+  // Hovering a round HEADING highlights every tile of that round (both halves
+  // in the two-sided layout) and dims the rest — with the canvas scrolled, this
+  // is how a reader ties a strip of tiles back to its round.
+  const [roundHover, setRoundHover] = useState<WcStage | null>(null);
 
   // Path from a hovered tile up to the final: tile (r, slot) feeds (r+1, slot/2).
   // Correct because `rounds` is in tree-layout order (above), so display index
@@ -226,8 +231,9 @@ export default function BracketView({
     return { tiles, connectors };
   }, [hover, rounds.length]);
 
-  // Desktop dims the tree whenever a path is highlighted OR a team is filtered.
-  const active = hover !== null || filtering;
+  // Desktop dims the tree whenever a path is highlighted, a round heading is
+  // hovered, OR a team is filtered.
+  const active = hover !== null || roundHover !== null || filtering;
 
   // ─── Two-sided (wallchart) layout ───
   // The classic World Cup chart: the two halves of the draw advance from the
@@ -254,8 +260,9 @@ export default function BracketView({
   const renderTile = (m: WcMatch, ri: number, slot: number) => {
     const inv = involveOf(m);
     const onPath = path.tiles.has(`${ri}:${slot}`);
-    const dim = filtering ? inv === 'none' : active && !onPath;
-    const highlight = filtering ? inv === 'definite' : onPath;
+    const roundOn = roundHover === m.stage;
+    const dim = filtering ? inv === 'none' : active && !onPath && !roundOn;
+    const highlight = filtering ? inv === 'definite' : onPath || roundOn;
     return (
       <div
         key={m.id}
@@ -278,9 +285,19 @@ export default function BracketView({
     );
   };
 
-  const renderHeader = (stage: WcStage, matches: WcMatch[]) => (
-    <div className={`mb-2 ${HEADER_H} px-1`}>
-      <h3 className="text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS[stage]}</h3>
+  // Sticky within the desktop scroller, so the round labels stay attached to
+  // their columns while the reader scrolls the tall canvas. Hovering a heading
+  // lights up that round's tiles. `padGutter` shifts the text past the
+  // connector gutter that sits LEFT of right-half columns.
+  const renderHeader = (stage: WcStage, matches: WcMatch[], padGutter = false) => (
+    <div
+      onMouseEnter={() => !filtering && setRoundHover(stage)}
+      onMouseLeave={() => setRoundHover(null)}
+      className={`sticky top-0 z-10 ${HEADER_H} bg-[var(--cromo-bg)] pb-2 pr-1 ${padGutter ? 'pl-11' : 'pl-1'}`}
+    >
+      <h3 className={`text-sm font-bold ${roundHover === stage ? 'text-[var(--cromo-accent)]' : 'text-[var(--cromo-fg)]'}`}>
+        {STAGE_LABELS[stage]}
+      </h3>
       <p className="text-[11px] text-[var(--cromo-fg-subtle)]">{dateSpanET(matches)} ET</p>
     </div>
   );
@@ -393,12 +410,11 @@ export default function BracketView({
       </div>
 
       {/* ─── Desktop: the connector-joined bracket tree ───
-          overflow-y-hidden stops the panel from sprouting its OWN vertical
-          scrollbar: `overflow-x-auto` alone makes the browser compute overflow-y
-          to `auto`, so a horizontal scrollbar (in always-show-scrollbars mode)
-          steals a few px of height and triggers a nested vertical scrollbar.
-          The box is exactly as tall as its content, so nothing meaningful clips;
-          the page handles vertical scrolling. */}
+          The canvas is ~2,600px wide and over 1,000px tall, so the panel owns
+          BOTH scroll axes (height capped at 80vh) and the round headings are
+          sticky inside it. Without that, the headings scroll out of view long
+          before the reader reaches the mid-canvas band where the SF and FINAL
+          tiles sit, and nothing ties a tile back to its round. */}
       {filteredEmpty ? (
         <p className="hidden rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 text-sm text-[var(--cromo-fg-muted)] lg:block">
           {t('noBracketForTeam')}
@@ -408,7 +424,7 @@ export default function BracketView({
          left→centre, the second half right→centre, meeting at the FINAL. Tile
          slot keys stay GLOBAL tree indices so the hover path works unchanged
          across both halves. */
-      <div className="hidden overflow-x-auto overflow-y-hidden pb-3 lg:block">
+      <div className="hidden max-h-[80vh] overflow-auto pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {preRounds.map((round, ri) => {
             const half = round.matches.length / 2;
@@ -439,6 +455,7 @@ export default function BracketView({
           {(() => {
             const inv = involveOf(finalMatch);
             const onPath = path.tiles.has(`${finalRoundIdx}:0`);
+            const finalOn = roundHover === 'FINAL';
             const thirdMatch = third[0];
             const thirdInv = thirdMatch ? involveOf(thirdMatch) : 'none';
             return (
@@ -449,8 +466,8 @@ export default function BracketView({
                     match={finalMatch}
                     groups={overview.groups}
                     bracket={overview.bracket}
-                    dim={filtering ? inv === 'none' : active && !onPath}
-                    highlight={filtering ? inv === 'definite' : onPath}
+                    dim={filtering ? inv === 'none' : active && !onPath && !finalOn}
+                    highlight={filtering ? inv === 'definite' : onPath || finalOn}
                     possible={filtering && inv === 'possible'}
                     onSelectTeam={onSelectTeam}
                     onHover={() => !filtering && setHover({ round: finalRoundIdx, slot: 0 })}
@@ -458,14 +475,23 @@ export default function BracketView({
                     t={t}
                   />
                   {thirdMatch && (!filtering || thirdInv !== 'none') && (
-                    <div>
-                      <h3 className="mb-2 text-sm font-bold text-[var(--cromo-fg)]">{STAGE_LABELS.THIRD}</h3>
+                    <div
+                      onMouseEnter={() => !filtering && setRoundHover('THIRD')}
+                      onMouseLeave={() => setRoundHover(null)}
+                    >
+                      <h3
+                        className={`mb-2 text-sm font-bold ${
+                          roundHover === 'THIRD' ? 'text-[var(--cromo-accent)]' : 'text-[var(--cromo-fg)]'
+                        }`}
+                      >
+                        {STAGE_LABELS.THIRD}
+                      </h3>
                       <MatchCard
                         match={thirdMatch}
                         groups={overview.groups}
                         bracket={overview.bracket}
-                        dim={filtering ? thirdInv === 'none' : active}
-                        highlight={filtering && thirdInv === 'definite'}
+                        dim={filtering ? thirdInv === 'none' : active && roundHover !== 'THIRD'}
+                        highlight={filtering ? thirdInv === 'definite' : roundHover === 'THIRD'}
                         possible={filtering && thirdInv === 'possible'}
                         onSelectTeam={onSelectTeam}
                         t={t}
@@ -483,10 +509,7 @@ export default function BracketView({
             const isInnermost = ri === preRounds.length - 1;
             return (
               <div key={`R-${round.stage}`} className="flex flex-col">
-                <div className="flex">
-                  <div className={GUTTER_W} aria-hidden />
-                  <div className="flex-1">{renderHeader(round.stage, round.matches)}</div>
-                </div>
+                {renderHeader(round.stage, round.matches, true)}
                 <div className="flex flex-1">
                   {isInnermost ? (
                     <FinalStub active={active} on={!filtering && path.tiles.has(`${ri}:1`)} />
@@ -510,7 +533,7 @@ export default function BracketView({
         </div>
       </div>
       ) : (
-      <div className="hidden overflow-x-auto overflow-y-hidden pb-3 lg:block">
+      <div className="hidden max-h-[80vh] overflow-auto pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => (
             <div key={round.stage} className="flex flex-col">

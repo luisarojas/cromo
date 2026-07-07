@@ -45,6 +45,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'World Cup 2026 odds to reach the final and lift the trophy are now driven by actual results — the past year of internationals plus each team\'s games at this tournament, weighted heavily — instead of historical ranking. Strength of schedule is built in, so the odds line up with how teams are really doing: win your group and your odds rise, stumble and they fall.',
         'Filter the World Cup 2026 knockout bracket to a single nation — it highlights where that team plays plus the rounds it could still reach, and the filtered view has its own shareable link.',
         'The World Cup 2026 bracket is easier to read — rounds collapse on phones (finished rounds start closed), the bracket scrolls to your filtered team, the "could face" list opens on tap, and finished and live matches are clearly tagged.',
+        'World Cup 2026 bracket round headings stay pinned while you scroll the wallchart, so the final and semi-final panels at the centre are easy to find.',
+        'Hovering a round heading on the World Cup 2026 bracket highlights every match of that round.',
         'The "Add photo" button on a third-party trade now lets you take a photo with your camera, pick one from your gallery, or drag and drop an image straight onto the list.',
         'When variants count as duplicates, the rarest copy of each sticker is kept for your album automatically — hiding a copy keeps it too, and "Force offer" trades away even a rarest single, shifting the keep to the next variant down.',
       ],
