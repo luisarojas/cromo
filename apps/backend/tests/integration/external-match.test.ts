@@ -225,6 +225,42 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
       expect(result.theyGet[0]?.variantToken).toBe('base_border');
     });
 
+    it('resolves an untagged foil code via the sibling base lane instead of flagging it unknown', async () => {
+      const userId = await insertUser();
+      // Intl album → defaultBaseVariant base_borderless, which foil stickers
+      // (team badges, FWC intro) do NOT have — they print only base_border.
+      const albumId = await insertAlbum(userId, 'base_borderless');
+
+      // FWC1 is a seeded foil intro sticker: it exists ONLY as base_border.
+      // Before the fix this landed in unknownCodes because the borderless
+      // default had no catalog variant for it.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: 'FWC1', variantToken: null, quantity: 1 }],
+        theirWanted:  [],
+      });
+
+      expect(result.unknownCodes).toEqual([]);
+      expect(result.candidatesIGet).toHaveLength(1);
+      expect(result.candidatesIGet[0]?.variantToken).toBe('base_border');
+    });
+
+    it('coerces an explicit borderless tag on a foil code to its white-border printing', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      // A foil sticker can ONLY ever be base_border — a borderless base tag
+      // (however it got attached) resolves to the white-border printing rather
+      // than flagging a legitimate code as unknown.
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [{ albumCode: 'FWC1', variantToken: 'base_borderless', quantity: 1 }],
+        theirWanted:  [],
+      });
+
+      expect(result.unknownCodes).toEqual([]);
+      expect(result.candidatesIGet).toHaveLength(1);
+      expect(result.candidatesIGet[0]?.variantToken).toBe('base_border');
+    });
+
     it('flags an unknown variant token without dropping the rest of the list', async () => {
       const userId = await insertUser();
       const albumId = await insertAlbum(userId);
@@ -271,6 +307,27 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
 
       expect(result.candidatesTheyGet).toHaveLength(1);
       expect(result.candidatesTheyGet[0]?.variantToken).toBe('base_border');
+      expect(result.theyGet).toHaveLength(1);
+    });
+
+    it('offers a base_border spare for an untagged want even when the album default is base_borderless', async () => {
+      const userId = await insertUser();
+      // Intl-default album, but the collector physically holds white-border
+      // copies. An untagged partner want must still match those spares — the
+      // partner typed a bare code and doesn't care about border vs borderless.
+      const albumId = await insertAlbum(userId, 'base_borderless');
+
+      const base = await lookupVariant(801, 'base_border');
+      await insertOwned(albumId, base.variantId, 4);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted:  [{ albumCode: base.albumCode, variantToken: null, quantity: 1 }],
+      });
+
+      expect(result.candidatesTheyGet).toHaveLength(1);
+      expect(result.candidatesTheyGet[0]?.variantToken).toBe('base_border');
+      expect(result.candidatesTheyGet[0]?.spareCount).toBe(3);
       expect(result.theyGet).toHaveLength(1);
     });
 

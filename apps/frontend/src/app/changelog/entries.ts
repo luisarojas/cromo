@@ -53,6 +53,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Every sticker in a third-party trade now shows a colour dot for its variant, matching the regular trade editor — so base, parallels, and Extras are distinguishable at a glance.',
       ],
       Fixed: [
+        'Team badge and intro stickers (FWC1–FWC8, MEX1, RSA1, and every team\'s first sticker) no longer show as "unknown" in a third-party trade — these foil-only cards now resolve to their white-border printing.',
+        'A third-party trade now offers your white-border spares for an untagged request — owning four of a code you\'re asked for shows up in the plan even when the album\'s default is the borderless base.',
         'Trade suggestions now offer a sticker you own in two different variants — with "count all variants as duplicates" on, owning NED3 in base and blue offers the spare copy to a partner who needs NED3, in third-party trades and the trade matchmaker alike.',
         'A World Cup 2026 team profile no longer overflows its pop-up on phones — the standings table and other panels stay within the card.',
         'The World Cup 2026 bracket connectors once again link each match to the right next-round game — they no longer scramble after the first knockout results come in.',

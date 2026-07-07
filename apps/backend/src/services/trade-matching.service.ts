@@ -730,6 +730,13 @@ export async function lookupCatalogVariants(
  * concrete variant_type, or null when either the code or the requested
  * variant is unknown.
  */
+/** The two mutually-exclusive base lanes: NA white border vs Intl borderless. */
+export function siblingBaseLane(variantType: string): string | null {
+  if (variantType === 'base_border') return 'base_borderless';
+  if (variantType === 'base_borderless') return 'base_border';
+  return null;
+}
+
 function resolveItem(
   item: NormalisedItem,
   catalog: Map<string, CatalogEntry>,
@@ -737,8 +744,27 @@ function resolveItem(
 ): { entry: CatalogEntry; variantType: string; stickerVariantId: string } | null {
   const entry = catalog.get(item.albumCode);
   if (!entry) return null;
-  const variantType = item.variantToken ?? defaultVariantFor(entry.stickerType, defaultBaseVariant);
-  const v = entry.variants.get(variantType);
+  // Requested variant: the explicit tag, else the album's base lane for an
+  // untagged code.
+  const requested = item.variantToken ?? defaultVariantFor(entry.stickerType, defaultBaseVariant);
+  let variantType = requested;
+  let v = entry.variants.get(variantType);
+  // Sibling base-lane fallback. The two base lanes (NA white border vs Intl
+  // borderless) are the same "base" to a partner typing a bare code. Foil
+  // stickers — team badges (XXX1) and FWC intro (FWC1–FWC8) — print ONLY in the
+  // white-bordered foil layout, so they carry just `base_border` (see
+  // seeds/05_variants.sql); a borderless base request against a foil, or an
+  // untagged code on an Intl-default album, resolves to `base_border` instead
+  // of being echoed back as "unknown". Only base lanes swap — a missing parallel
+  // (`red`, `blue`, …) or bogus token still resolves to null.
+  if (!v) {
+    const sib = siblingBaseLane(requested);
+    const sv = sib ? entry.variants.get(sib) : undefined;
+    if (sib && sv) {
+      variantType = sib;
+      v = sv;
+    }
+  }
   if (!v) return null;
   return { entry, variantType, stickerVariantId: v.stickerVariantId };
 }
@@ -879,8 +905,22 @@ export async function matchAgainstUserAlbum(
   // theyGet. Both filters require the variant to NOT be trade_hidden when we
   // evaluate the spare flag (matches the FILTER clause in the user-album
   // matching CTE).
+  // An untagged base want doesn't distinguish white-border from borderless —
+  // the partner just typed a bare code. Load the sibling base lane too so the
+  // give side can satisfy the want from whichever lane the user actually holds
+  // a spare of (a base_border collector shouldn't miss a match because the
+  // album's default happens to be base_borderless).
+  const siblingGiveVariantIds = wantedRes.flatMap((r) => {
+    if (r.rawToken !== null) return [];
+    const sib = siblingBaseLane(r.variantType);
+    const sv = sib ? r.entry.variants.get(sib) : undefined;
+    return sv ? [sv.stickerVariantId] : [];
+  });
   const variantIds = [
-    ...new Set([...offeredRes, ...wantedRes].map((r) => r.stickerVariantId)),
+    ...new Set([
+      ...[...offeredRes, ...wantedRes].map((r) => r.stickerVariantId),
+      ...siblingGiveVariantIds,
+    ]),
   ];
 
   const { rows: stateRows } = variantIds.length === 0
@@ -1009,7 +1049,22 @@ export async function matchAgainstUserAlbum(
       ref.wanted = wantedVariantIds.has(r.stickerVariantId);
       return ref;
     });
+  // For an untagged base want, retarget the give to whichever base lane the
+  // user has more spares of — the partner didn't specify border vs borderless,
+  // so a spare in either lane satisfies the request.
+  const giveTarget = (r: ResolvedItem): ResolvedItem => {
+    if (r.rawToken !== null) return r;
+    const sib = siblingBaseLane(r.variantType);
+    const sv = sib ? r.entry.variants.get(sib) : undefined;
+    if (!sib || !sv) return r;
+    if (availableToTrade(sv.stickerVariantId) > availableToTrade(r.stickerVariantId)) {
+      return { ...r, variantType: sib, stickerVariantId: sv.stickerVariantId };
+    }
+    return r;
+  };
+
   const candidatesTheyGet = wantedRes
+    .map(giveTarget)
     .filter((r) => availableToTrade(r.stickerVariantId) > 0)
     .map((r) => {
       const ref = refOf(r);
