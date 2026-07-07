@@ -34,7 +34,7 @@ import { Flag, TeamName, useTeamName } from './parts';
 
 const COLUMN_W = 'w-64';
 const GUTTER_W = 'w-10';
-const SLOT_MIN_H = 'min-h-[140px]';
+const SLOT_MIN_H = 'min-h-[112px]';
 const HEADER_H = 'h-12';
 
 type Hover = { round: number; slot: number } | null;
@@ -164,9 +164,20 @@ export default function BracketView({
     }
     return firstPossible;
   }, [filtering, rounds, involveMap]);
+  const scrollBoxRef = useRef<HTMLDivElement | null>(null);
   const scrollTileRef = useRef<HTMLDivElement | null>(null);
+  // Centre the target tile HORIZONTALLY within the panel only — never touch the
+  // vertical axis. `scrollIntoView` would walk every scrollable ancestor,
+  // including the page, and yank the whole (now full-height) bracket up or down
+  // on every filter change. We scroll the panel's own `scrollLeft` instead.
   useEffect(() => {
-    if (scrollTargetId) scrollTileRef.current?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    const box = scrollBoxRef.current;
+    const tile = scrollTileRef.current;
+    if (!scrollTargetId || !box || !tile) return;
+    const boxRect = box.getBoundingClientRect();
+    const tileRect = tile.getBoundingClientRect();
+    const delta = tileRect.left - boxRect.left - (box.clientWidth - tile.clientWidth) / 2;
+    box.scrollBy({ left: delta, behavior: 'smooth' });
   }, [scrollTargetId]);
 
   // Whether the active filter matched any knockout match at all (false when an
@@ -410,11 +421,13 @@ export default function BracketView({
       </div>
 
       {/* ─── Desktop: the connector-joined bracket tree ───
-          The canvas is ~2,600px wide and over 1,000px tall, so the panel owns
-          BOTH scroll axes (height capped at 80vh) and the round headings are
-          sticky inside it. Without that, the headings scroll out of view long
-          before the reader reaches the mid-canvas band where the SF and FINAL
-          tiles sit, and nothing ties a tile back to its round. */}
+          The canvas is ~2,600px wide, so the panel keeps the HORIZONTAL scroll
+          (`overflow-x-auto`) but drops the vertical one: with no height cap it
+          grows to its full height and the page's own scroll handles the tall
+          canvas — no nested vertical scrollbar. The round headings keep
+          `sticky top-0`; it's inert vertically now (the horizontal scroller has
+          no vertical overflow to pin against), so they scroll away with the
+          page, but the class is harmless and degrades gracefully. */}
       {filteredEmpty ? (
         <p className="hidden rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5 text-sm text-[var(--cromo-fg-muted)] lg:block">
           {t('noBracketForTeam')}
@@ -424,7 +437,7 @@ export default function BracketView({
          left→centre, the second half right→centre, meeting at the FINAL. Tile
          slot keys stay GLOBAL tree indices so the hover path works unchanged
          across both halves. */
-      <div className="hidden max-h-[80vh] overflow-auto pb-3 lg:block">
+      <div ref={scrollBoxRef} className="hidden overflow-x-auto pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {preRounds.map((round, ri) => {
             const half = round.matches.length / 2;
@@ -533,7 +546,7 @@ export default function BracketView({
         </div>
       </div>
       ) : (
-      <div className="hidden max-h-[80vh] overflow-auto pb-3 lg:block">
+      <div ref={scrollBoxRef} className="hidden overflow-x-auto pb-3 lg:block">
         <div className="flex min-w-max items-stretch">
           {rounds.map((round, ri) => (
             <div key={round.stage} className="flex flex-col">
