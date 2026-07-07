@@ -462,6 +462,12 @@ export interface ExternalStickerRef {
   /** True when the requesting user has the *exact* variant in their wanted
    *  list. Independent of `favourite` (per-sticker vs per-variant). */
   wanted?: boolean
+  /** Give side only: how many spare copies of this variant the user holds after
+   *  the keep-the-rarest rule. Drives the "offload the biggest duplicate piles
+   *  first" ordering of the give-side suggestion. Not the trade quantity
+   *  (`quantity`) — it's the user's duplicate burden, uncapped by the partner's
+   *  ask. Absent on the receive side and in anonymous pair matches. */
+  spareCount?: number
 }
 
 export interface ExternalList {

@@ -49,6 +49,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Hovering a round heading on the World Cup 2026 bracket highlights every match of that round.',
         'The "Add photo" button on a third-party trade now lets you take a photo with your camera, pick one from your gallery, or drag and drop an image straight onto the list.',
         'When variants count as duplicates, the rarest copy of each sticker is kept for your album automatically — hiding a copy keeps it too, and "Force offer" trades away even a rarest single, shifting the keep to the next variant down.',
+        'Third-party trade suggestions now lead with the stickers you have the most spare copies of, so the optimised trade helps you clear out your biggest duplicate piles first.',
+        'Every sticker in a third-party trade now shows a colour dot for its variant, matching the regular trade editor — so base, parallels, and Extras are distinguishable at a glance.',
       ],
       Fixed: [
         'Trade suggestions now offer a sticker you own in two different variants — with "count all variants as duplicates" on, owning NED3 in base and blue offers the spare copy to a partner who needs NED3, in third-party trades and the trade matchmaker alike.',

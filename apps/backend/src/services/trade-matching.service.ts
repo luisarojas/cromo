@@ -532,6 +532,12 @@ export interface ExternalRef {
    *  list. Independent of `favourite` — wanted is per-variant, favourite is
    *  per-sticker. */
   wanted?: boolean;
+  /** Give side only: how many spare copies of this variant the user holds after
+   *  the keep-the-rarest rule (i.e. `availableToTrade`). Drives the "offload the
+   *  biggest duplicate piles first" priority in the give-side suggestion. Not
+   *  capped to the partner's want — it measures the user's duplicate burden, not
+   *  the trade quantity (that's `quantity`). */
+  spareCount?: number;
 }
 
 export interface MatchAgainstMeOutcome {
@@ -1007,11 +1013,15 @@ export async function matchAgainstUserAlbum(
     .filter((r) => availableToTrade(r.stickerVariantId) > 0)
     .map((r) => {
       const ref = refOf(r);
+      // The user's full tradeable duplicate pile for this variant — how many
+      // copies they'd happily clear out — recorded before the partner-want cap
+      // so the suggestion can prioritise offloading the heaviest duplicates.
+      ref.spareCount = availableToTrade(r.stickerVariantId);
       // Give no more than the user can spare: the partner's requested count,
       // capped to the tradeable copies of this exact variant. Uncapped, a
       // want of ×3 against 3 owned copies would strip the kept copy (the
       // completion stock-check only guards raw quantity).
-      ref.quantity = Math.min(ref.quantity, availableToTrade(r.stickerVariantId));
+      ref.quantity = Math.min(ref.quantity, ref.spareCount);
       return ref;
     });
 
@@ -1052,6 +1062,8 @@ function priorityScore(ref: ExternalRef): number {
 /**
  * selectOptimalSubset — pick a default suggestion from the full candidate
  * pools that:
+ *   0. Surfaces the user's biggest duplicate piles first on the give side, so
+ *      the suggestion helps them offload the copies they hold most of.
  *   1. Surfaces favourites and wanted-marked items first on the receive side.
  *   2. When both sides collapse to a single variant lane, trims to equal
  *      counts (same-variant trades are only fair at exact parity).
@@ -1085,9 +1097,14 @@ function selectOptimalSubset(
     if (sw !== 0) return sw;
     return (a.number ?? 0) - (b.number ?? 0);
   });
-  // Sort theyGet by weighted scarcity asc — when forced to trim, drop the most
-  // valuable stickers I'd be giving up first. Number asc for stable order.
+  // Sort theyGet by spare-count desc first — surface the biggest duplicate
+  // piles so the suggestion helps the user clear out what they're drowning in.
+  // Then weighted scarcity asc so, within an equal duplicate burden, the
+  // cheaper sticker is given up first (rarer ones I'd give are dropped when
+  // trimmed). Number asc for a stable, album-ordered display.
   const sortedTheyGet = [...candidatesTheyGet].sort((a, b) => {
+    const dc = (b.spareCount ?? 0) - (a.spareCount ?? 0);
+    if (dc !== 0) return dc;
     const sw = w(a) - w(b);
     if (sw !== 0) return sw;
     return (a.number ?? 0) - (b.number ?? 0);

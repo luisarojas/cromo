@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ExternalStickerRef } from '@/lib/api';
+import { variantSwatch } from '@/app/collection/components/variantMeta';
 import {
   computeScarcityBalance,
   suggestBalancingCashCents,
@@ -261,6 +262,10 @@ function SideColumn({
                           disabled={disabled}
                           onChange={(e) => onToggle(key, e.target.checked)}
                           className="h-4 w-4 rounded border-[var(--cromo-border-strong)] text-[var(--cromo-accent)] focus:ring-[var(--cromo-accent)]"
+                        />
+                        <span
+                          className={`shrink-0 w-3 h-3 rounded-full border ${variantSwatch(r.variantToken ?? '')}`}
+                          title={r.variantLabel ?? undefined}
                         />
                         <span className="font-mono text-xs text-[var(--cromo-fg-muted)] w-14 shrink-0">
                           {r.albumCode}

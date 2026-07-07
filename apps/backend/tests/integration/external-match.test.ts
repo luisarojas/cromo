@@ -436,6 +436,36 @@ describe.skipIf(!shouldRun)('External-list matching (integration)', () => {
     });
   });
 
+  describe('matchAgainstUserAlbum — duplicate-heavy give side', () => {
+    it('surfaces the biggest duplicate pile first on the give side', async () => {
+      const userId = await insertUser();
+      const albumId = await insertAlbum(userId, 'base_border');
+
+      // Two same-lane bases the partner wants. The user is drowning in #809
+      // (6 copies → 5 spare) but has just one spare of #808 (2 copies → 1
+      // spare). #809 sorts AFTER #808 by album number, so only the new
+      // spare-count-desc priority puts the heavy pile first.
+      const lowDup = await lookupVariant(808, 'base_border');
+      const highDup = await lookupVariant(809, 'base_border');
+      await insertOwned(albumId, lowDup.variantId, 2);
+      await insertOwned(albumId, highDup.variantId, 6);
+
+      const result = await matchAgainstUserAlbum(app.db, userId, albumId, {
+        theirOffered: [],
+        theirWanted: [lowDup, highDup].map((v) => ({
+          albumCode: v.albumCode, variantToken: 'base_border', quantity: 1,
+        })),
+      });
+
+      expect(result.theyGet).toHaveLength(2);
+      // Heavy duplicate pile leads, ahead of the low-number single spare.
+      expect(result.theyGet[0]?.albumCode).toBe(highDup.albumCode);
+      expect(result.theyGet[0]?.spareCount).toBe(5);
+      expect(result.theyGet[1]?.albumCode).toBe(lowDup.albumCode);
+      expect(result.theyGet[1]?.spareCount).toBe(1);
+    });
+  });
+
   describe('matchAgainstUserAlbum — same-variant parity', () => {
     it('trims both sides to equal counts when only the base lane is in play', async () => {
       const userId = await insertUser();
