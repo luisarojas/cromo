@@ -66,8 +66,10 @@ export default function BracketView({
   // chronologically (slot), not by tree position — e.g. R16 #0 is fed by R32 #0
   // and #2, not #0 and #1 — so rendering by slot drew connectors between matches
   // that don't feed each other. We walk FINAL → R32, ordering each stage by its
-  // parents' `W:STAGE:n` feeds; if the feeds don't reconstruct a full tree
-  // (football-data fallback has none) we fall back to slot order.
+  // parents' `W:STAGE:n` feeds, and back-fill any child a feed left unclaimed
+  // (or double-claimed) by elimination — so a live game ESPN hasn't wired into
+  // the next round yet still lands in its true slot. Only if that can't form a
+  // full tree (football-data has no feeds) do we fall back to slot order.
   const rounds = useMemo(() => {
     const present = KNOCKOUT_ORDER.filter((stage) => overview.bracket.some((m) => m.stage === stage));
     const slotSorted = (stage: WcStage) =>
@@ -99,22 +101,43 @@ export default function BracketView({
       ordered.FINAL = [root];
       for (let i = 0; i < chain.length - 1 && treeOk; i += 1) {
         const pool = slotSorted(chain[i + 1]);
-        const kids: WcMatch[] = [];
-        for (const parent of ordered[chain[i]] ?? []) {
-          for (const side of [parent.home, parent.away]) {
+        const poolIds = new Set(pool.map((m) => m.id));
+        const parents = ordered[chain[i]] ?? [];
+        // Resolve each parent's two sides to a DISTINCT child, claiming greedily
+        // so no child is taken twice. ESPN's live feed sometimes points both
+        // sides of a parent at the same child — a QF reads "ARG vs W:R16:7"
+        // while ARG *is* the winner of R16:7, so the home (by team) and the away
+        // (by feed) both hit that one R16 match. The second side is left as a
+        // hole rather than duplicating the child.
+        const claimed = new Set<string>();
+        const pairs: (WcMatch | null)[][] = parents.map((parent) => {
+          const pair: (WcMatch | null)[] = [null, null];
+          [parent.home, parent.away].forEach((side, si) => {
             const m = feederOf(side, pool);
-            if (m) kids.push(m);
+            if (m && poolIds.has(m.id) && !claimed.has(m.id)) {
+              pair[si] = m;
+              claimed.add(m.id);
+            }
+          });
+          return pair;
+        });
+        // Back-fill the holes from the children no side claimed. In the ESPN
+        // case exactly one child is orphaned (the sibling ESPN hasn't wired up
+        // yet — the live game) and exactly one hole waits for it, so elimination
+        // recovers the TRUE feeder and its connector. With no feeds at all
+        // (football-data) every side is a hole and this degrades to slot-order
+        // pairing. Deterministic: orphans are consumed in slot order.
+        const orphans = pool.filter((m) => !claimed.has(m.id));
+        let oi = 0;
+        for (const pair of pairs) {
+          for (let si = 0; si < 2; si += 1) {
+            if (pair[si] === null && oi < orphans.length) pair[si] = orphans[oi++]!;
           }
         }
-        // Trust the tree only if it recovered every child match EXACTLY once —
-        // a true bijection, not just a matching count. A count-only check passes
-        // when two parent sides resolve to the SAME child: e.g. ESPN's live-feed
-        // gives a QF as "ARG vs W:R16:7" where ARG *is* the winner of R16:7, so
-        // both the home (by team participation) and the away (by feed) point at
-        // that one R16 match. That silently renders the match twice and drops
-        // its sibling — the live game vanishes — while the count still sums to
-        // pool.length. Requiring unique coverage catches it and falls the whole
-        // tree back to slot order, which lists every match once.
+        const kids = pairs.flat().filter((m): m is WcMatch => m !== null);
+        // Trust the reconstruction only if it's a true bijection onto the child
+        // stage — every match covered exactly once. Otherwise fall the whole
+        // tree back to slot order, which still lists every match once.
         const ids = new Set(kids.map((m) => m.id));
         if (kids.length !== pool.length || ids.size !== pool.length) treeOk = false;
         else ordered[chain[i + 1]] = kids;
