@@ -40,6 +40,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
       ],
       Changed: [
+        'A third-party trade now shows an "Editing saved draft" badge while you refine a parked trade, with a "New trade" button to clear the panel and start a fresh one.',
         'The World Cup 2026 standings page opens on the knockout bracket, and on bigger screens the bracket reads like a wallchart — the two halves of the draw advance from the edges toward the final in the middle.',
         'Whether different variants of a sticker count as duplicates is now set per album (in the album\'s edit form) instead of in general settings — trade suggestions, duplicate counts, and stats all follow the album\'s own setting.',
         'World Cup 2026 odds to reach the final and lift the trophy are now driven by actual results — the past year of internationals plus each team\'s games at this tournament, weighted heavily — instead of historical ranking. Strength of schedule is built in, so the odds line up with how teams are really doing: win your group and your odds rise, stumble and they fall.',
@@ -54,6 +55,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'The third-party trade editor now looks like the regular trade picker — country flags, tap-to-add sticker cards with an inline copy stepper, a search box, and a cash field on each side.',
       ],
       Fixed: [
+        'Editing an in-progress third-party trade and saving it again now updates the same draft instead of saving a duplicate — re-optimising, renaming the partner, or adjusting the picks all write back to the one draft.',
         'Saving or recording a third-party trade without filling in the partner name now works — leaving "Their name" blank no longer shows an error.',
         'Team badge and intro stickers (FWC1–FWC8, MEX1, RSA1, and every team\'s first sticker) no longer show as "unknown" in a third-party trade — these foil-only cards now resolve to their white-border printing.',
         'A third-party trade now offers your white-border spares for an untagged request — owning four of a code you\'re asked for shows up in the plan even when the album\'s default is the borderless base.',

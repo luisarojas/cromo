@@ -214,8 +214,9 @@ function TradePageContent() {
     theyGetCashCents: 0,
   });
   // Tracks an open saved-draft so Save updates in place instead of inserting a
-  // new row. Cleared whenever the user starts over (Optimize Trade with new
-  // inputs, or successfully records the trade).
+  // new row. Sticks across re-optimizes/edits of the same trade; cleared only
+  // when the user explicitly starts a new trade or successfully records this
+  // one. This is what stops "Save" from silently forking a duplicate draft.
   const [tpDraftId, setTpDraftId] = useState<string | null>(null);
   const [tpSaving, setTpSaving] = useState(false);
   const [tpCopied, setTpCopied] = useState(false);
@@ -618,9 +619,10 @@ function TradePageContent() {
         iGetCashCents: prev.iGetCashCents,
         theyGetCashCents: prev.theyGetCashCents,
       }));
-      // Re-optimizing clears any in-progress draft so the next "Save" creates
-      // a fresh one instead of mutating one the user thought they'd parked.
-      setTpDraftId(null);
+      // Re-optimizing is an edit to the SAME in-progress trade, so keep any
+      // open draft identity (tpDraftId) intact — "Update draft" then keeps
+      // writing back to the parked row instead of forking a duplicate. A
+      // genuinely new trade starts via the explicit "New trade" reset.
     } catch (err) {
       setTpError(err instanceof Error ? err.message : 'Failed to compute match.');
     } finally {
@@ -785,6 +787,30 @@ function TradePageContent() {
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Failed to delete draft.');
     }
+  }
+
+  // Reset the third-party panel to a blank trade — the ONE intended way to fork
+  // a new draft. Keeps the selected album (people usually trade in the same one)
+  // but drops the draft identity, partner, lists, result, weights and editor
+  // state so the next "Save" inserts a fresh row instead of overwriting the
+  // trade that was just parked.
+  function handleTpNewTrade() {
+    setTpDraftId(null);
+    setTpPartnerName('');
+    setTpOffered([]);
+    setTpWanted([]);
+    setTpResult(null);
+    setTpWeights({});
+    setTpBaseStickerCents(BASE_STICKER_CASH_CENTS);
+    setTpEditorState({
+      selectedIGet: new Set(),
+      selectedTheyGet: new Set(),
+      iGetCashCents: 0,
+      theyGetCashCents: 0,
+    });
+    setTpError(null);
+    setTpRecordError(null);
+    setTpInputKey((k) => k + 1);
   }
 
   async function handleTpSave() {
@@ -1207,9 +1233,30 @@ function TradePageContent() {
       {tab === 'third-party' && (
         <div className="space-y-5">
           <div className="rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-5">
-            <h2 className="text-sm font-semibold text-[var(--cromo-fg)] mb-1">
-              Match someone&apos;s list against your collection
-            </h2>
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">
+                Match someone&apos;s list against your collection
+              </h2>
+              {/* Only meaningful once a trade is in progress. Editing a saved
+                  draft says so, so the user knows "Update draft" targets that
+                  row; "New trade" is the explicit, non-destructive way to fork. */}
+              {(tpResult || tpDraftId || tpOffered.length > 0 || tpWanted.length > 0 || tpPartnerName) && (
+                <div className="flex shrink-0 items-center gap-2">
+                  {tpDraftId && (
+                    <span className="rounded-full bg-[var(--cromo-accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--cromo-accent)]">
+                      Editing saved draft
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleTpNewTrade}
+                    className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-2.5 py-1 text-xs font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+                  >
+                    New trade
+                  </button>
+                </div>
+              )}
+            </div>
             <p className="text-xs text-[var(--cromo-fg-muted)] mb-4">
               Import their list from another sticker app, paste their offered and wanted
               album codes, or snap a photo of their list. We&apos;ll show what you could
