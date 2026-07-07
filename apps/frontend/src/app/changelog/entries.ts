@@ -55,6 +55,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'The third-party trade editor now looks like the regular trade picker — country flags, tap-to-add sticker cards with an inline copy stepper, a search box, and a cash field on each side.',
       ],
       Fixed: [
+        'The World Cup 2026 knockout bracket no longer shows one match twice while hiding another — every game, including live ones, now appears exactly once even when the official feed lists a round as already decided.',
         'Editing an in-progress third-party trade and saving it again now updates the same draft instead of saving a duplicate — re-optimising, renaming the partner, or adjusting the picks all write back to the one draft.',
         'Saving or recording a third-party trade without filling in the partner name now works — leaving "Their name" blank no longer shows an error.',
         'Team badge and intro stickers (FWC1–FWC8, MEX1, RSA1, and every team\'s first sticker) no longer show as "unknown" in a third-party trade — these foil-only cards now resolve to their white-border printing.',

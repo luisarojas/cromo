@@ -106,8 +106,17 @@ export default function BracketView({
             if (m) kids.push(m);
           }
         }
-        // Trust the tree only if it recovered every match in the child stage.
-        if (kids.length !== pool.length) treeOk = false;
+        // Trust the tree only if it recovered every child match EXACTLY once —
+        // a true bijection, not just a matching count. A count-only check passes
+        // when two parent sides resolve to the SAME child: e.g. ESPN's live-feed
+        // gives a QF as "ARG vs W:R16:7" where ARG *is* the winner of R16:7, so
+        // both the home (by team participation) and the away (by feed) point at
+        // that one R16 match. That silently renders the match twice and drops
+        // its sibling — the live game vanishes — while the count still sums to
+        // pool.length. Requiring unique coverage catches it and falls the whole
+        // tree back to slot order, which lists every match once.
+        const ids = new Set(kids.map((m) => m.id));
+        if (kids.length !== pool.length || ids.size !== pool.length) treeOk = false;
         else ordered[chain[i + 1]] = kids;
       }
     }
