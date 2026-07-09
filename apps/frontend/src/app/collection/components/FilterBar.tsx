@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import MultiSelect from './MultiSelect';
 import { HeartIcon } from '@/components/HeartIcon';
@@ -354,7 +355,13 @@ export default function FilterBar({
           {advancedPanel}
         </div>
       )}
-      {expanded && (
+      {/* Portalled to <body> so the fixed sheet fills the viewport. The album
+          page wraps this bar in a `sticky ... backdrop-blur` header, and an
+          ancestor with `backdrop-filter` becomes the containing block for its
+          fixed descendants — without the portal the sheet is clipped to that
+          ~150px header strip instead of covering the screen. `md:hidden` keeps
+          it mobile-only; desktop uses the inline panel above. */}
+      {expanded && typeof document !== 'undefined' && createPortal(
         <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-label={t('filterDialogAria')}>
           {/* Scrim — taps close. */}
           <button
@@ -405,7 +412,8 @@ export default function FilterBar({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Active filter chips */}
