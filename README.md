@@ -6,6 +6,34 @@ A multi-user web application for tracking, managing, and trading stickers from t
 
 The repository name and internal workspace package names (`@cromo/*`) still reflect the project's original codename and are intentionally untouched — renaming them requires a coordinated lockfile + import sweep best done as a separate change.
 
+## Features
+
+- **Collection tracking** — mark stickers owned/duplicate across the full 2026 FIFA World Cup Panini catalog (base parallels, Crumple foils, Extras, and the Coca-Cola subset).
+- **AI sticker scanning** — photograph a sticker to identify its player and variant, backed by Gemini or Groq vision models (mock provider by default).
+- **Trade matchmaking** — a matchmaker surfaces mutually beneficial trades from users' public trade inventories, with per-album visibility controls (`private` / `unlisted` / `public`).
+- **Live trading** — propose, negotiate, and complete trades with real-time updates over SSE.
+- **Shareable inventories** — human-friendly per-album URLs (`/profile/<user>/<slug>`) and copy-as-text export of offers and needs.
+- **World Cup 2026 standings** — a live bracket / groups / team explorer at `/guide/wc-2026/standings` with a results-based forecast (mock-by-default until a live API key is set).
+- **Trust & safety** — user ratings, trust scores, bans, and reporting.
+- **Notifications** — Web Push for trade activity, plus transactional email.
+
+## Project Structure
+
+```
+apps/
+  backend/          Fastify API — routes, services, Drizzle schema + migrations
+  frontend/         Next.js 15 app (App Router) + PWA service worker
+packages/
+  shared/           @cromo/shared — types + constants shared across apps
+infrastructure/
+  docker/           Local docker-compose stack
+  terraform/        Multi-stack IaC (env/{shared,dev,prod})
+  loadtest/         k6 smoke test
+scripts/            Release, seeding, AWS access, WC2026 data builders
+docs/               Architecture spec, runbooks, security notes
+scripts/seeds/      Catalog + test-user seed SQL
+```
+
 ## Getting Started
 
 ### Prerequisites
@@ -83,8 +111,17 @@ pnpm test
 # Run tests in watch mode
 pnpm test:watch
 
+# Run tests with coverage (gated thresholds)
+pnpm test:coverage
+
 # TypeScript type check
 pnpm typecheck
+
+# Lint
+pnpm lint
+
+# Reseed the database (reset + reseed catalog and test users)
+pnpm db:reset
 
 # Stop all services
 docker compose -f infrastructure/docker/docker-compose.yml down
