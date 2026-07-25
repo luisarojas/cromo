@@ -1,0 +1,35 @@
+# Trivy ignore list — mirrors pnpm.auditConfig.ignoreGhsas in package.json.
+#
+# Each entry carries an `expired_at` date so the suppression CANNOT become
+# permanent: once the date passes, Trivy stops ignoring the vuln and the CI
+# scan fails again, forcing a revisit. `pnpm audit`'s ignoreGhsas has no expiry,
+# so THIS file is the alarm clock — keep the dates here in sync with reality.
+#
+# Revisit trigger (what to check when this expires):
+#   - Have eslint-plugin-import / eslint-plugin-jsx-a11y dropped minimatch@3.1.5?
+#   - Has @sentry/webpack-plugin dropped glob@9's minimatch@8?
+#   - Has brace-expansion backported the OOM guard to the 1.x / 2.x lines?
+#   Re-check with:  pnpm why brace-expansion
+#   If the old CJS minimatch chain is gone, remove these entries AND the
+#   pnpm.auditConfig.ignoreGhsas block in package.json. Otherwise bump the dates.
+#
+# brace-expansion DoS advisories. Only reachable via dev/build-time tooling
+# (eslint plugins' minimatch@3.1.5; @sentry/webpack-plugin's glob>minimatch@8) —
+# never a production request path. The OOM fix (CVE-2026-14257) exists only in
+# brace-expansion 5.0.8, whose ESM-interop CJS build (`exports.expand`) breaks the
+# older minimatch that calls `require('brace-expansion')` as a bare function; the
+# 1.x/2.x lines have no OOM-guarded release. Overrides in package.json already pin
+# every consumer to the max-safe version.
+vulnerabilities:
+  - id: CVE-2026-14257
+    statement: "brace-expansion OOM (GHSA-mh99-v99m-4gvg); dev/build-time only, no compatible fix — see header."
+    expired_at: 2026-10-25
+  - id: GHSA-mh99-v99m-4gvg
+    statement: "brace-expansion OOM; dev/build-time only, no compatible fix — see header."
+    expired_at: 2026-10-25
+  - id: CVE-2026-13149
+    statement: "brace-expansion DoS (GHSA-3jxr-9vmj-r5cp) on the 2.x line, patched 2.1.2 does not exist; dev/build-time only — see header."
+    expired_at: 2026-10-25
+  - id: GHSA-3jxr-9vmj-r5cp
+    statement: "brace-expansion DoS on the 2.x line; dev/build-time only — see header."
+    expired_at: 2026-10-25

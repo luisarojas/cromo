@@ -355,6 +355,9 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           skip-dirs: node_modules
+          # Dated suppressions — entries expire on their `expired_at`, at which
+          # point this scan fails again and forces a revisit (see the file header).
+          trivyignores: .trivyignore.yaml
 
       - name: Gitleaks secret scan
         uses: gitleaks/gitleaks-action@v3
