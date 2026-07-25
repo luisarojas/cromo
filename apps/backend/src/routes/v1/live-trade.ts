@@ -1,9 +1,7 @@
 import crypto from 'node:crypto';
-import jwt from 'jsonwebtoken';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { env } from '../../env.js';
-import { verifyToken } from '../../middleware/auth.js';
+import { verifyToken, verifyBearerSub } from '../../middleware/auth.js';
 import { checkSoftBan } from '../../middleware/ban-check.js';
 import { writeSSEEvent, writeSSEHead, writeSSEHeartbeat } from '../../utils/sse.js';
 import * as live from '../../services/live-trade.service.js';
@@ -81,15 +79,16 @@ async function resolvePrincipal(
   const session = await live.getPublicSession(fastify.redis, sessionId);
   if (!session) throw Object.assign(new Error('Live-trade session not found.'), { statusCode: 404 });
 
-  // Host: any valid Bearer that owns the session.
+  // Host: any valid Bearer that owns the session. Verification must honour
+  // AUTH_MODE — in cognito mode the token is an RS256 Cognito JWT that isn't
+  // signed with JWT_SECRET, so a hardcoded local verify would reject every
+  // legitimate host and 401 the whole session.
   const auth = request.headers.authorization;
   if (auth?.startsWith('Bearer ')) {
-    try {
-      const payload = jwt.verify(auth.slice(7), env.JWT_SECRET) as { sub: string; type: string };
-      if (payload.type === 'access' && payload.sub === session.host.userId) {
-        return { role: 'host', userId: payload.sub };
-      }
-    } catch { /* fall through */ }
+    const sub = await verifyBearerSub(auth.slice(7));
+    if (sub && sub === session.host.userId) {
+      return { role: 'host', userId: sub };
+    }
   }
   // Guest: header token must equal the session's secret. We re-check inside
   // the service (race-free), but failing fast here saves a lock round-trip.

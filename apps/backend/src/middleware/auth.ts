@@ -90,6 +90,31 @@ export async function verifyToken(
 }
 
 /**
+ * verifyBearerSub — resolve a Bearer access token to its subject (user id),
+ * honouring AUTH_MODE exactly like `verifyToken`. Returns null on any failure
+ * instead of throwing, for call sites that verify a token inline (e.g. SSE
+ * handlers that also accept a single-use ticket) and want to fall through to
+ * an alternate auth path. Never use this where `verifyToken` fits — this
+ * deliberately swallows the reason for rejection.
+ */
+export async function verifyBearerSub(token: string): Promise<string | null> {
+  if (env.AUTH_MODE === 'cognito') {
+    try {
+      const claims = await verifyCognitoJwt(token);
+      return claims.sub;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+    return payload.type === 'access' ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * requireRole — use after verifyToken to enforce a minimum role.
  */
 export function requireRole(role: 'admin') {

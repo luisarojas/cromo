@@ -1,10 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'node:crypto';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { verifyToken } from '../../middleware/auth.js';
+import { verifyToken, verifyBearerSub } from '../../middleware/auth.js';
 import { checkSoftBan } from '../../middleware/ban-check.js';
-import { env } from '../../env.js';
 import {
   getTradeMatches,
   matchAgainstUserAlbum,
@@ -875,10 +873,10 @@ export async function tradeRoutes(fastify: FastifyInstance): Promise<void> {
       let userId: string | null = null;
       const authHeader = request.headers.authorization;
       if (authHeader?.startsWith('Bearer ')) {
-        try {
-          const payload = jwt.verify(authHeader.slice(7), env.JWT_SECRET) as { sub: string; type: string };
-          if (payload.type === 'access') userId = payload.sub;
-        } catch { /* fall through to ticket */ }
+        // Honour AUTH_MODE — in cognito mode the Bearer is an RS256 Cognito
+        // token, not a JWT_SECRET-signed one. Falls through to the ticket path
+        // on any failure.
+        userId = await verifyBearerSub(authHeader.slice(7));
       }
 
       if (!userId) {
