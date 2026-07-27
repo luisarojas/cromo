@@ -1,13 +1,15 @@
-// Orchestration + caching for the WC 2026 standings feature. Provider selection
-// mirrors scan.service.ts: WC_API_KEY === 'mock' (the default) short-circuits to
-// the deterministic mock dataset — zero external calls in dev/test/CI. A live
-// key routes through the WC_DATA_PROVIDER normalizer (api-football by default,
-// football-data as the fallback option), with a mock fallback on any provider
-// error so the page never hard-fails.
+// Orchestration + caching for the standings feature, per tournament (see
+// ../wc2026/registry.ts). A COMPLETE tournament is served from its committed
+// static archive — no provider call ever. A LIVE tournament mirrors
+// scan.service.ts: WC_API_KEY === 'mock' (the default) short-circuits to the
+// deterministic mock dataset — zero external calls in dev/test/CI — while a
+// real key routes through the WC_DATA_PROVIDER normalizer (football-data by
+// default, api-football as the alternative), with a mock fallback on any
+// provider error so the page never hard-fails.
 //
 // Everything expensive (the Monte Carlo forecast) is computed once per refresh
-// and cached under one bundle key via `singleflight`, so concurrent requests
-// don't stampede the simulation.
+// and cached under a per-tournament bundle key via `singleflight`, so
+// concurrent requests don't stampede the simulation.
 
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
@@ -25,6 +27,7 @@ import { computeStandings } from '../wc2026/standings.js';
 import { buildStrength } from '../wc2026/strength.js';
 import { deriveStructure } from '../wc2026/structure.js';
 import { teamByCode } from '../wc2026/teams.js';
+import type { TournamentConfig } from '../wc2026/registry.js';
 import { KNOCKOUT_STAGES } from '../wc2026/types.js';
 import type {
   RawMatch,
@@ -38,8 +41,11 @@ import type {
   WcTeamDetail,
 } from '../wc2026/types.js';
 
-const BUNDLE_KEY = 'wc2026:bundle:v1';
 const BUNDLE_TTL = 600; // 10 min — matches the warm job cadence
+// Cache keys are namespaced per tournament so a static archive (wc-2026) and a
+// live tournament (a future WC) never collide in Redis.
+const bundleKey = (t: TournamentConfig) => `wc:bundle:v1:${t.slug}`;
+const rawKey = (t: TournamentConfig) => `wc:raw:v1:${t.slug}`;
 // 20k sims keeps the long tail (sub-1% teams) stable to ~0.1% run-to-run; it
 // costs ~1s and the result is cached for 10 min (warmed out-of-band), so the
 // request path never pays it. Tests use far fewer for speed — they assert the
@@ -68,14 +74,21 @@ interface ProviderData {
   source: WcDataSource;
 }
 
-async function loadRawMatches(redis: Redis): Promise<ProviderData> {
+async function loadRawMatches(redis: Redis, t: TournamentConfig): Promise<ProviderData> {
+  // Finished tournaments are served from a committed static archive — no
+  // network, no cache dependence, immune to the upstream competition code
+  // rolling over to the next edition. The archived data is real provider data,
+  // so it keeps the honest 'live' source label.
+  if (t.status === 'complete' && t.loadArchive) {
+    return { ...t.loadArchive(), source: 'live' };
+  }
   // Tests must never touch the live provider (rate limits, flakiness,
   // non-determinism) — force the deterministic mock regardless of ambient key.
   if (env.NODE_ENV === 'test' || env.WC_API_KEY === 'mock') {
     return { ...buildMockData(), source: 'sample' };
   }
   try {
-    const data = await singleflight(redis, 'wc2026:raw:v1', BUNDLE_TTL, async () => {
+    const data = await singleflight(redis, rawKey(t), BUNDLE_TTL, async () => {
       if (env.WC_DATA_PROVIDER === 'api-football') {
         return fetchApiFootballData(env.WC_API_KEY);
       }
@@ -83,9 +96,9 @@ async function loadRawMatches(redis: Redis): Promise<ProviderData> {
       // the knockout draw (null teams), so the knockout fixtures come from ESPN
       // (the official bracket); ESPN failure degrades to football-data's TBD
       // knockout. Squad failure degrades to empty squads independently.
-      const matchData = await fetchLiveMatches(env.WC_API_KEY);
+      const matchData = await fetchLiveMatches(env.WC_API_KEY, t.competitionCode);
       const [squads, espnKnockout] = await Promise.all([
-        fetchLiveSquads(env.WC_API_KEY).catch(() => ({}) as Squads),
+        fetchLiveSquads(env.WC_API_KEY, t.competitionCode).catch(() => ({}) as Squads),
         fetchEspnKnockout().catch(() => [] as RawMatch[]),
       ]);
       const groupMatches = matchData.matches.filter((m) => m.stage === 'GROUP');
@@ -138,34 +151,60 @@ export function buildBundle(
   };
 }
 
-async function getBundle(redis: Redis): Promise<Bundle> {
-  return singleflight(redis, BUNDLE_KEY, BUNDLE_TTL, async () => {
-    const { matches, teams, squads, source } = await loadRawMatches(redis);
-    return buildBundle(matches, teams, squads, source);
-  });
+async function computeBundle(redis: Redis, t: TournamentConfig): Promise<Bundle> {
+  const { matches, teams, squads, source } = await loadRawMatches(redis, t);
+  return buildBundle(matches, teams, squads, source);
 }
 
-/** Refresh the cached bundle out-of-band (used by the warm-wc2026 job). */
-export async function warmBundle(redis: Redis): Promise<number> {
-  const { matches, teams, squads, source } = await loadRawMatches(redis);
-  const bundle = buildBundle(matches, teams, squads, source);
-  await redis.set(BUNDLE_KEY, JSON.stringify(bundle), 'EX', BUNDLE_TTL);
+async function getBundle(redis: Redis, t: TournamentConfig): Promise<Bundle> {
+  const bundle = await singleflight(redis, bundleKey(t), BUNDLE_TTL, () => computeBundle(redis, t));
+  // A completed tournament is frozen: drop the TTL so the snapshot never expires
+  // and nothing is ever recomputed (a manual DEL/FLUSH triggers exactly one
+  // rebuild from the archive, not a loop).
+  if (t.status === 'complete') await redis.persist(bundleKey(t));
+  return bundle;
+}
+
+/** Refresh a tournament's cached bundle out-of-band (used by the warm job). */
+export async function warmBundle(redis: Redis, t: TournamentConfig): Promise<number> {
+  // A completed tournament is static — just ensure the snapshot exists (rebuild
+  // once from the archive if a cache flush wiped it), never poll a provider.
+  if (t.status === 'complete') {
+    const bundle = await getBundle(redis, t);
+    return bundle.bracket.length + bundle.standings.length;
+  }
+  const bundle = await computeBundle(redis, t);
+  await redis.set(bundleKey(t), JSON.stringify(bundle), 'EX', BUNDLE_TTL);
   return bundle.bracket.length + bundle.standings.length;
 }
 
-export async function getOverview(redis: Redis): Promise<WcOverview> {
-  const { updatedAt, dataSource, standings, bracket, allMatches, forecast } = await getBundle(redis);
-  const groupMatches = allMatches.filter((m) => m.stage === 'GROUP');
-  return { updatedAt, dataSource, groups: standings, groupMatches, bracket, championOdds: forecast.championOdds };
+/** The tournament winner's FIFA code, or null until the final is decided. */
+export function championOf(bracket: WcMatch[]): string | null {
+  return bracket.find((m) => m.stage === 'FINAL')?.winnerCode ?? null;
 }
 
-export async function getTeamDetail(redis: Redis, codeInput: string): Promise<WcTeamDetail | null> {
+export async function getOverview(redis: Redis, t: TournamentConfig): Promise<WcOverview> {
+  const { updatedAt, dataSource, standings, bracket, allMatches, forecast } = await getBundle(redis, t);
+  const groupMatches = allMatches.filter((m) => m.stage === 'GROUP');
+  return {
+    updatedAt,
+    dataSource,
+    complete: t.status === 'complete',
+    champion: championOf(bracket),
+    groups: standings,
+    groupMatches,
+    bracket,
+    championOdds: forecast.championOdds,
+  };
+}
+
+export async function getTeamDetail(redis: Redis, t: TournamentConfig, codeInput: string): Promise<WcTeamDetail | null> {
   const code = codeInput.toUpperCase();
 
   // Group, name and standing all come from the (feed-driven) standings — the
   // authoritative structure — not the static roster. A team unknown to the feed
   // simply 404s.
-  const { standings, bracket, allMatches, squads, forecast } = await getBundle(redis);
+  const { standings, bracket, allMatches, squads, forecast } = await getBundle(redis, t);
   const group = standings.find((g) => g.rows.some((r) => r.code === code));
   const standing = group?.rows.find((r) => r.code === code);
   if (!group || !standing) return null;

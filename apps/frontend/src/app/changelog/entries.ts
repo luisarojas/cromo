@@ -36,6 +36,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
+        'The finished World Cup 2026 standings now crown the champion with a trophy banner and stay frozen on the final results.',
         'Set your own price per base sticker on a third-party trade — every other variant\'s cash value is rescaled from it by scarcity, so the fairness math and the per-sticker estimates match what you actually trade for.',
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
       ],

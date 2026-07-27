@@ -6,6 +6,7 @@ import type { JobDeps, JobResult } from './types.js';
 import { sendSystemMessage, publishTradeEvent } from '../services/messaging.service.js';
 import { notifyRestoredAvailability } from '../services/trade-availability.service.js';
 import { warmBundle } from '../services/wc2026.service.js';
+import { TOURNAMENTS } from '../wc2026/registry.js';
 
 // ─── Trade lifecycle ─────────────────────────────────────────────────────────
 
@@ -274,11 +275,16 @@ export async function cacheWarmStickers({ db, redis, log }: JobDeps): Promise<Jo
 }
 
 export async function warmWc2026({ redis, log }: JobDeps): Promise<JobResult> {
-  // Recompute the WC 2026 bundle (standings + bracket + Monte Carlo forecast)
-  // and refresh its cache before the 10-min TTL lapses, so the standings page
-  // and live data stay warm without a request paying the simulation cost.
-  const affected = await warmBundle(redis);
-  log.info('warm-wc2026 complete', { affected });
+  // Recompute each LIVE tournament's bundle (standings + bracket + Monte Carlo
+  // forecast) and refresh its cache before the 10-min TTL lapses, so the
+  // standings page stays warm without a request paying the simulation cost.
+  // Completed tournaments are static archives — warmBundle just ensures their
+  // snapshot exists and never polls a provider.
+  let affected = 0;
+  for (const tournament of TOURNAMENTS) {
+    affected += await warmBundle(redis, tournament);
+  }
+  log.info('warm-wc2026 complete', { tournaments: TOURNAMENTS.length, affected });
   return { affected };
 }
 

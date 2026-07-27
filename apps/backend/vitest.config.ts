@@ -13,6 +13,9 @@ export default defineConfig({
         // Bootstrap / CLI entry points — never imported by tests.
         'src/server.ts',
         'src/jobs/run-once.ts',
+        // One-shot CLI: captures a finished tournament's archive from the live
+        // provider (run manually, needs a real key) — not unit-testable.
+        'src/wc2026/capture-archive.ts',
         // Module-level skip in app.ts when NODE_ENV === 'test', which is
         // how CI runs the suite. Including these inflates the denominator
         // with code we deliberately don't load in test mode.

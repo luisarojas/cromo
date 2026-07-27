@@ -121,6 +121,11 @@ export interface WcOverview {
   updatedAt: string;
   /** 'live' = real provider data; 'sample' = illustrative mock (no live key). */
   dataSource: 'live' | 'sample';
+  /** True once the tournament is over and the standings are frozen (served from
+   * a static archive, no live polling). Driven by the registry's `status`. */
+  complete: boolean;
+  /** FIFA code of the tournament winner (final decided), else null. */
+  champion: string | null;
   groups: WcGroupStanding[];
   /** All group-stage fixtures (finished + upcoming), for the bracket view. */
   groupMatches: WcMatch[];

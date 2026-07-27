@@ -18,7 +18,7 @@ export default async function Footer() {
   const resourceLinks = [
     { href: '/guide', label: t('links.guides') },
     { href: '/guide/wc-2026', label: t('links.wc2026') },
-    { href: '/guide/wc-2026/standings', label: t('links.wc2026Standings') },
+    { href: '/guide/standings/wc-2026', label: t('links.wc2026Standings') },
   ];
   const accountLinks = [
     { href: '/settings', label: t('links.settings') },

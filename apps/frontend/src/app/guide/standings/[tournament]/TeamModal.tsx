@@ -14,7 +14,15 @@ import TeamDetailPanel from './TeamDetailPanel';
 // FULL viewport — including the global NavBar — instead of being clipped to a
 // positioned/transformed ancestor in the page tree (which would leave a strip
 // at the top undarkened). Sits in the app's top layer (z-[60]), above all chrome.
-export default function TeamModal({ code, onClose }: { code: string; onClose: () => void }) {
+export default function TeamModal({
+  tournament,
+  code,
+  onClose,
+}: {
+  tournament: string;
+  code: string;
+  onClose: () => void;
+}) {
   const t = useTranslations('wc2026Standings');
   const [detail, setDetail] = useState<WcTeamDetail | null>(null);
   const [error, setError] = useState(false);
@@ -24,13 +32,13 @@ export default function TeamModal({ code, onClose }: { code: string; onClose: ()
 
   useEffect(() => {
     let live = true;
-    fetchWcTeam(code)
+    fetchWcTeam(tournament, code)
       .then((d) => live && setDetail(d))
       .catch(() => live && setError(true));
     return () => {
       live = false;
     };
-  }, [code]);
+  }, [tournament, code]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();

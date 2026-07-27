@@ -889,6 +889,11 @@ function MatchCard({
         {match.status !== 'FINISHED' && fav && (
           <p className="text-[var(--cromo-fg-muted)]">{t('favourite', { code: fav.code, pct: pct(fav.prob) })}</p>
         )}
+        {match.stage === 'FINAL' && match.winnerCode && (
+          <p className="flex items-center gap-1 font-semibold text-[var(--cromo-accent)]">
+            <span aria-hidden>🏆</span> {t('championTag')}
+          </p>
+        )}
       </div>
     </article>
   );

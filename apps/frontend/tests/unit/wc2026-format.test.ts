@@ -8,7 +8,7 @@ import {
   pct,
   shortPlaceholder,
   placeholderCandidates,
-} from '@/app/guide/wc-2026/standings/format';
+} from '@/app/guide/standings/[tournament]/format';
 import type { WcGroupStanding, WcMatch } from '@/lib/api/wc2026';
 
 function matchAt(kickoff: string): WcMatch {

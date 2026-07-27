@@ -765,6 +765,8 @@
     "badge": "Live tournament",
     "title": "World Cup 2026 — Standings",
     "subtitle": "Group tables, the knockout bracket, and forecasts that update as results come in.",
+  "badgeComplete": "Final results",
+  "subtitleComplete": "Final group tables, the knockout bracket, and how the tournament played out.",
     "tabs": {
       "bracket": "Bracket",
       "groups": "Groups",
@@ -807,6 +809,8 @@
     "players": "Notable players",
     "squadWithLive": "Full squad appears with live data.",
     "sampleBanner": "Sample data — illustrative scores and fixtures, not live results. Connect a live data source for real, up-to-date standings.",
+  "championKicker": "World Cup 2026 champions",
+  "championTag": "Champions",
     "results": "Results",
     "noResults": "No matches played yet.",
     "upcoming": "Upcoming",

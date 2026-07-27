@@ -25,7 +25,7 @@ export default defineConfig({
         'src/app/trade/draftStorage.ts',
         'src/app/trade/components/buildTradeExportText.ts',
         'src/app/trade/figuritas/parseFiguritas.ts',
-        'src/app/guide/wc-2026/standings/format.ts',
+        'src/app/guide/standings/*/format.ts',
       ],
       exclude: [
         'src/**/*.d.ts',

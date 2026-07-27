@@ -12,7 +12,7 @@ type QualFilter = 'all' | 'qualified' | 'undecided' | 'disqualified';
 // Team tab: search + filter the field, pick a nation → full profile. Selecting a
 // team fills the search box (collapsing the list to that one tile) and mirrors
 // the choice in the URL (?team=CODE) so a profile is shareable.
-export default function TeamView({ overview }: { overview: WcOverview }) {
+export default function TeamView({ overview, tournament }: { overview: WcOverview; tournament: string }) {
   const t = useTranslations('wc2026Standings');
   const teamName = useTeamName();
   const router = useRouter();
@@ -65,13 +65,13 @@ export default function TeamView({ overview }: { overview: WcOverview }) {
     let live = true;
     setDetail(null);
     setError(false);
-    fetchWcTeam(code)
+    fetchWcTeam(tournament, code)
       .then((d) => live && setDetail(d))
       .catch(() => live && setError(true));
     return () => {
       live = false;
     };
-  }, [code]);
+  }, [tournament, code]);
 
   const groups = useMemo(() => [...new Set(teams.map((tm) => tm.group))].sort(), [teams]);
   const lastWcYears = useMemo(

@@ -102,8 +102,8 @@ async function fdGet<T>(path: string, apiKey: string): Promise<T> {
 }
 
 /** Current 26-man squads per team code, straight from the live feed. */
-export async function fetchLiveSquads(apiKey: string): Promise<Squads> {
-  const body = await fdGet<{ teams?: FdTeam[] }>('/competitions/WC/teams', apiKey);
+export async function fetchLiveSquads(apiKey: string, competition = 'WC'): Promise<Squads> {
+  const body = await fdGet<{ teams?: FdTeam[] }>(`/competitions/${competition}/teams`, apiKey);
   const squads: Squads = {};
   for (const t of body.teams ?? []) {
     const code = codeOf(t);
@@ -118,8 +118,8 @@ export async function fetchLiveSquads(apiKey: string): Promise<Squads> {
   return squads;
 }
 
-export async function fetchLiveMatches(apiKey: string): Promise<{ matches: RawMatch[]; teams: TeamMeta[] }> {
-  const body = await fdGet<{ matches?: FdMatch[] }>('/competitions/WC/matches', apiKey);
+export async function fetchLiveMatches(apiKey: string, competition = 'WC'): Promise<{ matches: RawMatch[]; teams: TeamMeta[] }> {
+  const body = await fdGet<{ matches?: FdMatch[] }>(`/competitions/${competition}/matches`, apiKey);
   const raw = body.matches ?? [];
 
   // Build a code → display name map from the feed itself so team names come

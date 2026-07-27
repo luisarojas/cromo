@@ -765,6 +765,8 @@
     "badge": "Torneo en vivo",
     "title": "Mundial 2026 — Posiciones",
     "subtitle": "Tablas de grupos, el cuadro eliminatorio y pronósticos que se actualizan con los resultados.",
+  "badgeComplete": "Resultados finales",
+  "subtitleComplete": "Tablas finales de grupos, el cuadro eliminatorio y cómo se desarrolló el torneo.",
     "tabs": {
       "bracket": "Llaves",
       "groups": "Grupos",
@@ -807,6 +809,8 @@
     "players": "Jugadores destacados",
     "squadWithLive": "El plantel completo aparece con datos en vivo.",
     "sampleBanner": "Datos de muestra — marcadores y partidos ilustrativos, no resultados en vivo. Conecta una fuente de datos en vivo para posiciones reales y actualizadas.",
+  "championKicker": "Campeones del Mundial 2026",
+  "championTag": "Campeones",
     "results": "Resultados",
     "noResults": "Aún no ha jugado partidos.",
     "upcoming": "Próximos",

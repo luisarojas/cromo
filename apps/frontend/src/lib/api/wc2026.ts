@@ -62,6 +62,10 @@ export interface WcGroupStanding {
 export interface WcOverview {
   updatedAt: string;
   dataSource: 'live' | 'sample';
+  /** True once the tournament is over and the standings are frozen. */
+  complete: boolean;
+  /** FIFA code of the tournament winner (final decided), else null. */
+  champion: string | null;
   groups: WcGroupStanding[];
   groupMatches: WcMatch[];
   bracket: WcMatch[];
@@ -95,12 +99,14 @@ export interface WcTeamDetail {
   history: { appearances: number; lastAppearance: number | null; titles: number };
 }
 
-export function fetchWcOverview(): Promise<WcOverview> {
-  return apiFetch<WcOverview>('/api/v1/wc2026/overview');
+export function fetchWcOverview(tournament: string): Promise<WcOverview> {
+  return apiFetch<WcOverview>(`/api/v1/tournaments/${encodeURIComponent(tournament)}/overview`);
 }
 
-export function fetchWcTeam(code: string): Promise<WcTeamDetail> {
-  return apiFetch<WcTeamDetail>(`/api/v1/wc2026/teams/${encodeURIComponent(code)}`);
+export function fetchWcTeam(tournament: string, code: string): Promise<WcTeamDetail> {
+  return apiFetch<WcTeamDetail>(
+    `/api/v1/tournaments/${encodeURIComponent(tournament)}/teams/${encodeURIComponent(code)}`,
+  );
 }
 
 // Pure display helpers live in the standings feature folder so they fall under
@@ -115,4 +121,4 @@ export {
   pct,
   shortPlaceholder,
   placeholderCandidates,
-} from '@/app/guide/wc-2026/standings/format';
+} from '@/app/guide/standings/[tournament]/format';

@@ -9,11 +9,12 @@ import GroupsView from './GroupsView';
 import BracketView from './BracketView';
 import TeamView from './TeamView';
 import TeamModal from './TeamModal';
+import { Flag, TeamName } from './parts';
 
 type Tab = 'bracket' | 'groups' | 'teams';
 const TABS: Tab[] = ['bracket', 'groups', 'teams'];
 
-export default function StandingsView() {
+export default function StandingsView({ tournament }: { tournament: string }) {
   const t = useTranslations('wc2026Standings');
   const router = useRouter();
   const params = useSearchParams();
@@ -26,13 +27,13 @@ export default function StandingsView() {
 
   useEffect(() => {
     let live = true;
-    fetchWcOverview()
+    fetchWcOverview(tournament)
       .then((o) => live && setOverview(o))
       .catch(() => live && setError(true));
     return () => {
       live = false;
     };
-  }, []);
+  }, [tournament]);
 
   const selectTab = (next: Tab) => {
     setTab(next);
@@ -52,11 +53,32 @@ export default function StandingsView() {
 
       <header className="space-y-1.5">
         <span className="inline-flex items-center rounded-full cromo-chrome-fill px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#0E1117]">
-          {t('badge')}
+          {overview?.complete ? t('badgeComplete') : t('badge')}
         </span>
         <h1 className="font-display text-3xl font-bold tracking-tight cromo-chrome-text">{t('title')}</h1>
-        <p className="text-sm text-[var(--cromo-fg-muted)]">{t('subtitle')}</p>
+        <p className="text-sm text-[var(--cromo-fg-muted)]">
+          {overview?.complete ? t('subtitleComplete') : t('subtitle')}
+        </p>
       </header>
+
+      {/* Champion banner — shown once the final is decided. */}
+      {overview?.champion && (
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-xl border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] px-4 py-3.5"
+        >
+          <span aria-hidden className="shrink-0 text-2xl leading-none">🏆</span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cromo-fg-muted)]">
+              {t('championKicker')}
+            </p>
+            <p className="flex items-center gap-2 text-lg font-bold text-[var(--cromo-fg)]">
+              <Flag code={overview.champion} className="h-4 w-6" />
+              <TeamName code={overview.champion} />
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div
@@ -101,13 +123,13 @@ export default function StandingsView() {
         <>
           {tab === 'bracket' && <BracketView overview={overview} onSelectTeam={setModalTeam} />}
           {tab === 'groups' && <GroupsView overview={overview} onSelectTeam={setModalTeam} />}
-          {tab === 'teams' && <TeamView overview={overview} />}
+          {tab === 'teams' && <TeamView overview={overview} tournament={tournament} />}
         </>
       )}
 
       <p className="text-xs text-[var(--cromo-fg-subtle)] leading-relaxed">{t('disclaimer')}</p>
 
-      {modalTeam && <TeamModal code={modalTeam} onClose={() => setModalTeam(null)} />}
+      {modalTeam && <TeamModal tournament={tournament} code={modalTeam} onClose={() => setModalTeam(null)} />}
     </div>
   );
 }

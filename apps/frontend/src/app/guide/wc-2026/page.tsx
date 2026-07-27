@@ -55,7 +55,7 @@ export default async function WC2026GuidePage() {
 
       {/* Live standings CTA */}
       <Link
-        href="/guide/wc-2026/standings"
+        href="/guide/standings/wc-2026"
         className="group flex items-center justify-between gap-4 rounded-xl border border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)] px-5 py-4 transition-colors hover:border-[var(--cromo-accent)]"
       >
         <span>
