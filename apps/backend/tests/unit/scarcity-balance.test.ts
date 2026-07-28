@@ -160,6 +160,28 @@ describe('computeScarcityBalance — sticker only', () => {
     expect(b.ratio).toBe(1);
     expect(b.lopsided).toBe(false);
   });
+
+  it('honours a 0 weight as "worthless" instead of falling back to default', () => {
+    // base weighted to 0 contributes nothing; get side is 1 red (25).
+    const b = computeScarcityBalance(
+      [ref('base_borderless')],
+      [ref('red')],
+      { weights: { base_borderless: 0, red: 25 } },
+    );
+    expect(b.give).toBe(0);
+    expect(b.get).toBe(25);
+  });
+
+  it('does not divide by zero when the whole give side is weighted to 0', () => {
+    const b = computeScarcityBalance(
+      [ref('base_borderless'), ref('base_border')],
+      [ref('red')],
+      { weights: { base_borderless: 0, base_border: 0 } },
+    );
+    expect(b.give).toBe(0);
+    expect(b.ratio).toBeNull();
+    expect(b.lopsided).toBe(false);
+  });
 });
 
 describe('computeScarcityBalance — cash', () => {

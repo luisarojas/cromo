@@ -104,8 +104,9 @@ export default function WeightsEditor({
       if (raw.trim() === '') continue;
       const n = Number(raw);
       // Same bounds the backend re-validates against — keep the UI honest so
-      // the user sees the same rejection here as on the wire.
-      if (!Number.isFinite(n) || n <= 0 || n > 100_000) continue;
+      // the user sees the same rejection here as on the wire. 0 is allowed and
+      // means "this variant is worthless in this trade".
+      if (!Number.isFinite(n) || n < 0 || n > 100_000) continue;
       out[t] = Math.round(n * 100) / 100;
     }
     return out;

@@ -19,11 +19,13 @@ import { statusError } from '../utils/errors.js';
 import { recordAudit } from '../utils/audit.js';
 import { invalidateUserCaches } from './cache.js';
 import {
+  type ExternalRef,
   type ResolvedItem,
   dedupeItems,
   invalidateMatchesFor,
   labelFor,
   lookupCatalogVariants,
+  matchAgainstUserAlbum,
   resolveItems,
 } from './trade-matching.service.js';
 import { notifyAffectedTrades, notifyRestoredAvailability } from './trade-availability.service.js';
@@ -72,23 +74,24 @@ interface StoredSession {
   guestToken: string;
   guestJoined: boolean;
   guestLabel: string | null;
+  /** The host's tradeable side. NOT typed by the host — derived on every guest
+   *  list change from the host's live inventory ∩ the guest's list, the same
+   *  way the async third-party flow (`matchAgainstUserAlbum`) works. `offered`
+   *  is the host's spares the guest wants (host gives); `wanted` is the guest's
+   *  offers the host is missing (host receives). */
   hostList: { offered: LiveTradeStickerRef[]; wanted: LiveTradeStickerRef[]; unknownCodes: string[] };
   guestList: { offered: LiveTradeStickerRef[]; wanted: LiveTradeStickerRef[]; unknownCodes: string[] };
   hostStaged: LiveTradeStickerRef[];
   guestStaged: LiveTradeStickerRef[];
   hostLocked: boolean;
   guestLocked: boolean;
-  /** Per-trade weight overrides, applied by computeBalance. Empty object
-   *  means "use the global VARIANT_SCARCITY defaults". Mutated only when the
-   *  opposite party accepts a pending proposal. */
+  /** Cash each side adds on top of stickers (cents). Guidance only — feeds the
+   *  balance/suggestion; NOT persisted on the completion record. */
+  hostCashCents: number;
+  guestCashCents: number;
+  /** Per-trade weight overrides, applied by computeBalance. Empty object means
+   *  "use the global VARIANT_SCARCITY defaults". The host sets these directly. */
   activeWeights: VariantWeights;
-  /** Outstanding proposal one party has sent. The other party accepts or
-   *  rejects; whoever proposed can also withdraw. */
-  pendingWeightProposal: {
-    by: 'host' | 'guest';
-    weights: VariantWeights;
-    proposedAt: string;
-  } | null;
   status: 'open' | 'completed';
   completionId: string | null;
   completedAt: string | null;
@@ -202,6 +205,62 @@ function refOfResolved(r: ResolvedItem): LiveTradeStickerRef {
   };
 }
 
+/**
+ * Adapt an `ExternalRef` (from `matchAgainstUserAlbum`) to the live-trade ref
+ * shape. Candidate refs always carry a resolved `stickerVariantId`; the null
+ * guard is defensive so a stray unresolved ref never poisons the staging pile.
+ */
+function externalRefToLiveRef(r: ExternalRef): LiveTradeStickerRef | null {
+  if (!r.stickerVariantId) return null;
+  const stickerType =
+    r.stickerType === 'extra' ? 'extra'
+    : r.stickerType === 'coca_cola_special' ? 'coca_cola_special'
+    : null;
+  return {
+    stickerVariantId: r.stickerVariantId,
+    albumCode: r.albumCode,
+    playerName: r.playerName,
+    stickerType,
+    number: r.number,
+    variantToken: r.variantToken,
+    variantLabel: r.variantLabel,
+    scarcity: r.scarcity,
+    quantity: r.quantity,
+  };
+}
+
+function listItemsOfRefs(refs: LiveTradeStickerRef[]): ExternalListItem[] {
+  return refs.map((r) => ({
+    albumCode: r.albumCode,
+    variantToken: r.variantToken,
+    quantity: r.quantity,
+  }));
+}
+
+/**
+ * Recompute the host's tradeable side from their live inventory cross-referenced
+ * with the guest's current list — the host never types a list. Mirrors the async
+ * third-party flow: `candidatesTheyGet` are the host's spares the guest wants
+ * (host gives), `candidatesIGet` are the guest's offers the host lacks (host
+ * receives). Mutates `session.hostList` in place.
+ */
+async function recomputeHostCandidates(db: Pool, session: StoredSession): Promise<void> {
+  const outcome = await matchAgainstUserAlbum(db, session.hostUserId, session.hostAlbumId, {
+    theirOffered: listItemsOfRefs(session.guestList.offered),
+    theirWanted: listItemsOfRefs(session.guestList.wanted),
+    variantWeights: session.activeWeights ?? {},
+  });
+  session.hostList = {
+    offered: outcome.candidatesTheyGet
+      .map(externalRefToLiveRef)
+      .filter((r): r is LiveTradeStickerRef => r !== null),
+    wanted: outcome.candidatesIGet
+      .map(externalRefToLiveRef)
+      .filter((r): r is LiveTradeStickerRef => r !== null),
+    unknownCodes: [],
+  };
+}
+
 // ─── Auto-suggestion ────────────────────────────────────────────────────────
 // Same intersection match as `matchPair` but computed over the already-resolved
 // lists in the session, so it doesn't pay a second catalog lookup.
@@ -231,7 +290,10 @@ function computeSuggestion(session: StoredSession): LiveTradeSession['suggestion
   return {
     hostGives,
     hostReceives,
-    balance: computeBalance(hostGives, hostReceives, session.activeWeights ?? {}),
+    balance: computeBalance(hostGives, hostReceives, session.activeWeights ?? {}, {
+      giveCashCents: session.hostCashCents,
+      getCashCents: session.guestCashCents,
+    }),
   };
 }
 
@@ -305,8 +367,9 @@ export function toPublicSession(stored: StoredSession): LiveTradeSession {
     guestStaged: stored.guestStaged,
     hostLocked: stored.hostLocked,
     guestLocked: stored.guestLocked,
+    hostCashCents: stored.hostCashCents ?? 0,
+    guestCashCents: stored.guestCashCents ?? 0,
     activeWeights: stored.activeWeights ?? {},
-    pendingWeightProposal: stored.pendingWeightProposal ?? null,
     suggestion: computeSuggestion(stored),
     completion,
     createdAt: stored.createdAt,
@@ -371,8 +434,9 @@ export async function createSession(
     guestStaged: [],
     hostLocked: false,
     guestLocked: false,
+    hostCashCents: 0,
+    guestCashCents: 0,
     activeWeights: {},
-    pendingWeightProposal: null,
     status: 'open',
     completionId: null,
     completedAt: null,
@@ -456,15 +520,18 @@ export async function authoriseGuest(
 export type Role = 'host' | 'guest';
 
 /**
- * Replace one side's offered/wanted list. Re-resolves against the catalog so
- * sticker_variant_ids stay authoritative. Unlocks both sides — locks are only
- * meaningful against the most recent list.
+ * Replace the GUEST's offered/wanted list — the only typed list in the session.
+ * Re-resolves against the catalog, then re-derives the host's tradeable side
+ * from their live inventory (the host never types a list). Unlocks both sides —
+ * locks are only meaningful against the most recent lists. The `role` param is
+ * accepted for API symmetry but the target is always the guest list: the host's
+ * side is inventory-derived, so there's nothing for them to type.
  */
 export async function setSideList(
   db: Pool,
   redis: Redis,
   sessionId: string,
-  role: Role,
+  _role: Role,
   input: { offered: ExternalListItem[]; wanted: ExternalListItem[] },
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
@@ -477,9 +544,12 @@ export async function setSideList(
     const { resolved: wanted, unknown: uw } = await resolveList(
       db, input.wanted, session.hostAlbumTypeKey, session.defaultBaseVariant,
     );
-    const list = { offered, wanted, unknownCodes: [...new Set([...uo, ...uw])] };
-    if (role === 'host') session.hostList = list;
-    else session.guestList = list;
+    session.guestList = { offered, wanted, unknownCodes: [...new Set([...uo, ...uw])] };
+    await recomputeHostCandidates(db, session);
+    // A list edit can drop stickers a side had already staged — prune each
+    // staged pile to what's still offerable so a stale ref can't reach commit.
+    session.guestStaged = pruneStaged(session.guestStaged, session.guestList.offered);
+    session.hostStaged = pruneStaged(session.hostStaged, session.hostList.offered);
     // Any list edit invalidates a prior lock — explicit re-lock keeps both
     // sides from sleepwalking into a stale agreement.
     session.hostLocked = false;
@@ -488,6 +558,23 @@ export async function setSideList(
     await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
     return toPublicSession(session);
   });
+}
+
+/** Keep only staged refs still present in the side's offered list, capping the
+ *  quantity to what's currently offerable. */
+function pruneStaged(
+  staged: LiveTradeStickerRef[],
+  offered: LiveTradeStickerRef[],
+): LiveTradeStickerRef[] {
+  const allowed = new Map(offered.map((r) => [r.stickerVariantId, r] as const));
+  const out: LiveTradeStickerRef[] = [];
+  for (const s of staged) {
+    const ref = allowed.get(s.stickerVariantId);
+    if (!ref) continue;
+    const qty = Math.min(s.quantity, ref.quantity);
+    if (qty > 0) out.push({ ...ref, quantity: qty });
+  }
+  return out;
 }
 
 /** Replace one side's staged pile (the subset that side will give on commit). */
@@ -526,14 +613,14 @@ export async function setSideStaged(
   });
 }
 
-// ─── Weight negotiation ────────────────────────────────────────────────────
-// Per-trade variant weights live on session.activeWeights; a proposal/accept
-// handshake is required to change them so neither party can rewrite the
-// "value" mid-stage without the other agreeing. Any list/staging edit drops
-// both locks but does NOT clear pending proposals — the proposal can stand
-// across a list edit so the receiver can review it on their own clock.
+// ─── Weights & cash ──────────────────────────────────────────────────────────
+// Per-trade variant weights live on session.activeWeights. The HOST sets them
+// directly (they own the album the trade commits to), mirroring the async
+// third-party flow where the single registered user sets the value table.
+// Cash is per-side guidance that feeds the balance but isn't persisted.
 
 const MAX_WEIGHT_OVERRIDES = 64;
+const MAX_CASH_CENTS = 10_000_000; // $100k — well past any real in-person trade.
 
 function sanitiseWeights(input: unknown): VariantWeights {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
@@ -544,83 +631,33 @@ function sanitiseWeights(input: unknown): VariantWeights {
     const key = rawKey.trim().toLowerCase();
     if (!/^[a-z0-9_]{1,32}$/.test(key)) continue;
     const val = typeof rawVal === 'number' ? rawVal : Number(rawVal);
-    if (!Number.isFinite(val) || val <= 0 || val > 100_000) continue;
+    // 0 is a legal "worthless" weight; only negative / out-of-range is dropped.
+    if (!Number.isFinite(val) || val < 0 || val > 100_000) continue;
     out[key] = Math.round(val * 100) / 100;
     count++;
   }
   return out;
 }
 
-function weightsEqual(a: VariantWeights, b: VariantWeights): boolean {
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) if (a[k] !== b[k]) return false;
-  return true;
-}
-
 /**
- * One side proposes a new weight table. The other side must accept before it
- * takes effect. Replacing an open proposal is allowed only by the original
- * proposer — withdrawing-and-re-proposing without notice is a worse UX than
- * just rejecting and counter-proposing.
+ * Set the per-trade variant weight table. Host-only — the guest has no album to
+ * commit to and shouldn't rewrite the value model. Setting weights drops both
+ * locks so neither side completes against a balance they hadn't seen.
  */
-export async function proposeWeights(
+export async function setWeights(
   redis: Redis,
   sessionId: string,
   role: Role,
   rawWeights: unknown,
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
+    if (role !== 'host') {
+      throw statusError('Only the host can set variant weights.', 403);
+    }
     if (session.status === 'completed') {
-      throw statusError('Cannot negotiate weights on a completed live trade.', 409);
+      throw statusError('Cannot change weights on a completed live trade.', 409);
     }
-    const weights = sanitiseWeights(rawWeights);
-    const existing = session.pendingWeightProposal;
-    if (existing && existing.by !== role) {
-      throw statusError(
-        'The other party already has a proposal open — accept or reject it first.',
-        409,
-      );
-    }
-    // No-op proposals (identical to the active table) are rejected so the UI
-    // doesn't have to special-case "nothing changed" notifications.
-    if (weightsEqual(weights, session.activeWeights ?? {})) {
-      throw statusError('Proposed weights match the active ones — nothing to change.', 409);
-    }
-    session.pendingWeightProposal = {
-      by: role,
-      weights,
-      proposedAt: new Date().toISOString(),
-    };
-    await writeSession(redis, session);
-    await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
-    return toPublicSession(session);
-  });
-}
-
-/**
- * The non-proposing side accepts: weights become active, both locks drop so
- * neither side completes against a balance they hadn't seen.
- */
-export async function acceptWeights(
-  redis: Redis,
-  sessionId: string,
-  role: Role,
-): Promise<LiveTradeSession> {
-  return await withSession(redis, sessionId, async (session) => {
-    if (session.status === 'completed') {
-      throw statusError('Cannot accept weights on a completed live trade.', 409);
-    }
-    const pending = session.pendingWeightProposal;
-    if (!pending) {
-      throw statusError('No weight proposal to accept.', 409);
-    }
-    if (pending.by === role) {
-      throw statusError('Only the other party can accept your proposal.', 409);
-    }
-    session.activeWeights = pending.weights;
-    session.pendingWeightProposal = null;
+    session.activeWeights = sanitiseWeights(rawWeights);
     session.hostLocked = false;
     session.guestLocked = false;
     await writeSession(redis, session);
@@ -630,22 +667,26 @@ export async function acceptWeights(
 }
 
 /**
- * Drop the pending proposal. Either party can reject (the receiver declines,
- * the proposer withdraws) — same effect, same event.
+ * Set the caller's cash contribution (cents). Each role sets their own side —
+ * the host's cash tops up what they give, the guest's tops up what they give.
+ * Guidance only: it changes the displayed balance, drops both locks, and is not
+ * written to the completion record.
  */
-export async function rejectWeights(
+export async function setCash(
   redis: Redis,
   sessionId: string,
-  _role: Role,
+  role: Role,
+  cents: number,
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
     if (session.status === 'completed') {
-      throw statusError('Cannot reject weights on a completed live trade.', 409);
+      throw statusError('Cannot change cash on a completed live trade.', 409);
     }
-    if (!session.pendingWeightProposal) {
-      throw statusError('No weight proposal to reject.', 409);
-    }
-    session.pendingWeightProposal = null;
+    const clamped = Math.max(0, Math.min(MAX_CASH_CENTS, Math.floor(cents || 0)));
+    if (role === 'host') session.hostCashCents = clamped;
+    else session.guestCashCents = clamped;
+    session.hostLocked = false;
+    session.guestLocked = false;
     await writeSession(redis, session);
     await publish(redis, sessionId, 'state', { session: toPublicSession(session) });
     return toPublicSession(session);

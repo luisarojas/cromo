@@ -93,12 +93,13 @@ const AlbumTypeKeySchema = z
 
 // Per-trade variant weight overrides. The caller's view of what's fair;
 // merged on top of the global VARIANT_SCARCITY defaults inside the service.
-// Bounded the same way variantToken keys are bounded; positive finite values
-// only (the service enforces all three constraints again on receive).
+// Bounded the same way variantToken keys are bounded; non-negative finite
+// values only (the service enforces all three constraints again on receive).
+// 0 is allowed and means "this variant is worthless in this trade".
 const VariantWeightsSchema = z
   .record(
     VariantTokenSchema.regex(/^[a-z0-9_]+$/),
-    z.number().positive().finite().max(100_000),
+    z.number().min(0).finite().max(100_000),
   )
   .refine((m) => Object.keys(m).length <= 64, {
     message: 'At most 64 variant weight overrides per trade.',

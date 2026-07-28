@@ -6,22 +6,31 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAuthStore } from '@/store/auth';
 import { useToast } from '@/components/ToastProvider';
 import {
-  acceptLiveTradeWeights,
   completeLiveTradeSession,
-  proposeLiveTradeWeights,
-  rejectLiveTradeWeights,
+  setLiveTradeCash,
   setLiveTradeList,
   setLiveTradeLock,
   setLiveTradeStaged,
+  setLiveTradeWeights,
   undoLiveTradeSession,
   type LiveTradeSession,
   type LiveTradeStickerRef,
   type ExternalListItem,
 } from '@/lib/api';
-import type { VariantWeights } from '@cromo/shared';
+import {
+  computeScarcityBalance,
+  suggestBalancingCashCents,
+  type ScarcityTotals,
+  type VariantWeights,
+} from '@cromo/shared';
 import { getGuestToken } from '@/lib/liveTradeStorage';
 import CombinedListInput from '../../components/CombinedListInput';
 import WeightsEditor from '../../components/WeightsEditor';
+import {
+  ALL_VARIANT_TYPES,
+  compareVariantTypes,
+  variantLabel,
+} from '../../../collection/components/variantMeta';
 import { useLiveTradeSession } from '../useLiveTradeSession';
 
 type Role = 'host' | 'guest';
@@ -228,19 +237,15 @@ function SessionRoom({
     }
   }
 
-  async function handleProposeWeights(weights: VariantWeights) {
-    const next = await withBusy('send proposal', () => proposeLiveTradeWeights(session.id, weights, auth));
-    if (next) onSession(next);
-  }
-  async function handleAcceptWeights() {
-    const next = await withBusy('accept proposal', () => acceptLiveTradeWeights(session.id, auth));
+  async function handleSetWeights(weights: VariantWeights) {
+    const next = await withBusy('update weights', () => setLiveTradeWeights(session.id, weights, auth));
     if (next) {
       onSession(next);
       onToast('Variant weights updated for this trade.', 'success');
     }
   }
-  async function handleRejectWeights() {
-    const next = await withBusy('reject proposal', () => rejectLiveTradeWeights(session.id, auth));
+  async function handleSetCash(cents: number) {
+    const next = await withBusy('update cash', () => setLiveTradeCash(session.id, cents, auth));
     if (next) onSession(next);
   }
 
@@ -261,25 +266,28 @@ function SessionRoom({
 
       {role === 'host' && <ShareCard session={session} />}
 
-      {editingList ? (
-        <EditListSection
-          session={session}
-          role={role}
-          onSubmit={handleListChange}
-          onClose={() => setEditingList(false)}
-          busy={busy}
-        />
+      {role === 'guest' ? (
+        editingList ? (
+          <GuestListSection
+            session={session}
+            onSubmit={handleListChange}
+            onClose={() => setEditingList(false)}
+            busy={busy}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingList(true)}
+            disabled={isCompleted}
+            className="w-full mb-4 text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
+          >
+            {myList.offered.length === 0 && myList.wanted.length === 0
+              ? 'Tap to add your stickers'
+              : 'Edit your list'}
+          </button>
+        )
       ) : (
-        <button
-          type="button"
-          onClick={() => setEditingList(true)}
-          disabled={isCompleted}
-          className="w-full mb-4 text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
-        >
-          {myList.offered.length === 0 && myList.wanted.length === 0
-            ? 'Tap to add your list of stickers'
-            : 'Edit your list'}
-        </button>
+        <HostSideNote hasGuestList={theirList.offered.length > 0 || theirList.wanted.length > 0} />
       )}
 
       {session.suggestion && !isCompleted && !myLocked && (
@@ -292,12 +300,22 @@ function SessionRoom({
       )}
 
       {!isCompleted && (
-        <WeightsNegotiation
+        <BalanceBar
+          myStaged={myStaged}
+          theirStaged={theirStaged}
+          weights={session.activeWeights}
+          myCashCents={role === 'host' ? session.hostCashCents : session.guestCashCents}
+          theirCashCents={role === 'host' ? session.guestCashCents : session.hostCashCents}
+          onSetMyCash={handleSetCash}
+          busy={busy}
+        />
+      )}
+
+      {!isCompleted && (
+        <WeightsSection
           session={session}
           role={role}
-          onPropose={handleProposeWeights}
-          onAccept={handleAcceptWeights}
-          onReject={handleRejectWeights}
+          onSetWeights={handleSetWeights}
           busy={busy}
         />
       )}
@@ -560,38 +578,80 @@ function ShareCard({ session }: { session: LiveTradeSession }) {
   );
 }
 
-// ─── Edit-list section ─────────────────────────────────────────────────────
+// ─── Host side note ─────────────────────────────────────────────────────────
+// The host never types a list — their tradeable side is derived from their
+// collection ∩ the guest's list, exactly like the async third-party flow.
 
-function EditListSection({
-  session, role, onSubmit, onClose, busy,
+function HostSideNote({ hasGuestList }: { hasGuestList: boolean }) {
+  return (
+    <div className="mb-4 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-3">
+      <p className="text-xs text-[var(--cromo-fg-muted)]">
+        {hasGuestList
+          ? 'Your side is built automatically from your collection — the stickers you can spare that they want. Tap the ones you’ll hand over below.'
+          : 'Once your trade partner adds their stickers, we’ll match them against your collection and show what you can give and receive.'}
+      </p>
+    </div>
+  );
+}
+
+// ─── Guest list editor ──────────────────────────────────────────────────────
+// The guest seeds their list from text/photo, then refines it with structured
+// rows (editable code, variant, and quantity). Only the guest has a typed list;
+// the host's side is inventory-derived.
+
+function GuestListSection({
+  session, onSubmit, onClose, busy,
 }: {
   session: LiveTradeSession;
-  role: Role;
   onSubmit: (offered: ExternalListItem[], wanted: ExternalListItem[]) => Promise<void>;
   onClose: () => void;
   busy: boolean;
 }) {
-  // CombinedListInput is uncontrolled by props — it captures initial state
-  // once and emits onChange. We mirror that with a local draft and a "Save"
-  // button so the parent isn't pelted on every keystroke.
-  const myList = role === 'host' ? session.hostList : session.guestList;
-  const seed: { offered: ExternalListItem[]; wanted: ExternalListItem[] } = {
-    offered: myList.offered.map(extToListItem),
-    wanted: myList.wanted.map(extToListItem),
-  };
-  const [draft, setDraft] = useState(seed);
+  const [offered, setOffered] = useState<ExternalListItem[]>(
+    () => session.guestList.offered.map(extToListItem),
+  );
+  const [wanted, setWanted] = useState<ExternalListItem[]>(
+    () => session.guestList.wanted.map(extToListItem),
+  );
+  // The import textarea is a staging buffer, not a live merge: CombinedListInput
+  // fires onChange on every keystroke, so we hold its parse here and only fold it
+  // into the rows on an explicit "Add to list". `importKey` remounts the
+  // (uncontrolled) textarea empty after a merge.
+  const [importKey, setImportKey] = useState(0);
+  const [importBuf, setImportBuf] = useState<{ offered: ExternalListItem[]; wanted: ExternalListItem[] }>(
+    { offered: [], wanted: [] },
+  );
+  const [showImport, setShowImport] = useState(
+    session.guestList.offered.length === 0 && session.guestList.wanted.length === 0,
+  );
+
+  const isEmpty = offered.length === 0 && wanted.length === 0;
+  const importCount = importBuf.offered.length + importBuf.wanted.length;
+
+  function addImport() {
+    setOffered((cur) => mergeItems(cur, importBuf.offered));
+    setWanted((cur) => mergeItems(cur, importBuf.wanted));
+    setImportBuf({ offered: [], wanted: [] });
+    setImportKey((k) => k + 1);
+    setShowImport(false);
+  }
 
   async function save() {
-    await onSubmit(draft.offered, draft.wanted);
+    // Fold any typed-but-not-yet-added import text in too, so a first-timer who
+    // types a list and hits Save (without "Add to list") doesn't lose it. Drop
+    // half-typed rows with no code so an empty tuple never reaches the API.
+    const clean = (list: ExternalListItem[]) => list.filter((i) => i.albumCode.trim() !== '');
+    await onSubmit(
+      clean(mergeItems(offered, importBuf.offered)),
+      clean(mergeItems(wanted, importBuf.wanted)),
+    );
     onClose();
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">
-          {role === 'host' ? 'Your list' : 'Your list (codes only)'}
-        </h2>
+    <div className="mb-4 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">Your list</h2>
         <button
           onClick={onClose}
           className="text-xs text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
@@ -599,29 +659,195 @@ function EditListSection({
           Cancel
         </button>
       </div>
-      <CombinedListInput
-        label=""
-        helper="Type one or both lists, or snap a photo. Variants like (red) or (gold) are picked up."
-        offered={draft.offered}
-        wanted={draft.wanted}
-        onChange={(next) => setDraft(next)}
-        albumTypeKey={session.host.albumTypeKey}
+
+      <ListBucket
+        title="You have (offer)"
+        accent="success"
+        items={offered}
+        onChange={setOffered}
+        emptyText="Add the duplicates you’ll trade away."
       />
+      <ListBucket
+        title="You want"
+        accent="accent"
+        items={wanted}
+        onChange={setWanted}
+        emptyText="Add the stickers you’re looking for."
+      />
+
+      <div className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-3">
+        {showImport ? (
+          <div className="space-y-2">
+            <CombinedListInput
+              key={importKey}
+              label=""
+              helper={isEmpty
+                ? 'Type both lists, or snap a photo. Use HAVE / WANT headers; tag variants like BRA5(red).'
+                : 'Add more — these merge into your lists above.'}
+              offered={[]}
+              wanted={[]}
+              onChange={setImportBuf}
+              albumTypeKey={session.host.albumTypeKey}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setImportBuf({ offered: [], wanted: [] }); setImportKey((k) => k + 1); setShowImport(false); }}
+                className="text-xs text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={addImport}
+                disabled={importCount === 0}
+                className="rounded-md bg-[var(--cromo-accent)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add {importCount > 0 ? `${importCount} ` : ''}to list
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowImport(true)}
+            className="text-xs font-medium text-[var(--cromo-accent)] hover:underline"
+          >
+            + Paste a list or add a photo
+          </button>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={save}
         disabled={busy}
-        className="mt-3 w-full bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
+        className="w-full bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
       >
         {busy ? 'Saving…' : 'Save list'}
       </button>
-      {session.host.albumTypeKey && (
-        <p className="mt-2 text-[11px] text-[var(--cromo-fg-subtle)]">
-          List is validated against the host’s album.
-        </p>
-      )}
+      <p className="text-[11px] text-[var(--cromo-fg-subtle)]">
+        Codes are validated against the host’s album when you save.
+      </p>
     </div>
   );
+}
+
+/** One editable bucket (offer or want) of structured rows. */
+function ListBucket({
+  title, accent, items, onChange, emptyText,
+}: {
+  title: string;
+  accent: 'accent' | 'success';
+  items: ExternalListItem[];
+  onChange: (next: ExternalListItem[]) => void;
+  emptyText: string;
+}) {
+  const tone = accent === 'success' ? 'text-[var(--cromo-success-text)]' : 'text-[var(--cromo-accent)]';
+  function update(idx: number, patch: Partial<ExternalListItem>) {
+    onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+  function remove(idx: number) {
+    onChange(items.filter((_, i) => i !== idx));
+  }
+  function add() {
+    onChange([...items, { albumCode: '', variantToken: null, quantity: 1 }]);
+  }
+  return (
+    <div>
+      <p className={`text-xs font-semibold mb-1.5 ${tone}`}>{title}</p>
+      {items.length === 0 ? (
+        <p className="text-xs text-[var(--cromo-fg-subtle)] py-1">{emptyText}</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5">
+          {items.map((it, idx) => (
+            <li key={idx} className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={it.albumCode}
+                onChange={(e) => update(idx, { albumCode: e.target.value.toUpperCase().trim() })}
+                placeholder="BRA5"
+                aria-label="Album code"
+                className="w-20 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-sm font-mono uppercase focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+              />
+              <select
+                // Base is the empty-string option; a resolved base item carries
+                // 'base_border'/'base_borderless', so map those back to "" or the
+                // dropdown would render blank.
+                value={isBaseToken(it.variantToken) ? '' : (it.variantToken ?? '')}
+                onChange={(e) => update(idx, { variantToken: e.target.value || null })}
+                aria-label="Variant"
+                className="min-w-0 flex-1 rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+              >
+                <option value="">Base</option>
+                {VARIANT_OPTIONS.map((t) => (
+                  <option key={t} value={t}>{variantLabel(t)}</option>
+                ))}
+              </select>
+              <div className="flex items-center rounded-md border border-[var(--cromo-border)]">
+                <button
+                  type="button"
+                  onClick={() => update(idx, { quantity: Math.max(1, it.quantity - 1) })}
+                  aria-label="Decrease quantity"
+                  className="px-2 py-1 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
+                >
+                  −
+                </button>
+                <span className="w-6 text-center text-xs tabular-nums">{it.quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => update(idx, { quantity: Math.min(99, it.quantity + 1) })}
+                  aria-label="Increase quantity"
+                  className="px-2 py-1 text-sm text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(idx)}
+                aria-label="Remove"
+                className="px-1.5 py-1 text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-danger-text)]"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button
+        type="button"
+        onClick={add}
+        className="mt-1.5 text-xs font-medium text-[var(--cromo-accent)] hover:underline"
+      >
+        + Add sticker
+      </button>
+    </div>
+  );
+}
+
+function isBaseToken(token: string | null): boolean {
+  return token === 'base_border' || token === 'base_borderless';
+}
+
+// Non-base variant tokens offered in the row selector, rarity-ordered. "Base"
+// is the empty-string default; the backend maps it to the album's base variant.
+const VARIANT_OPTIONS = ALL_VARIANT_TYPES
+  .filter((t) => !isBaseToken(t))
+  .sort(compareVariantTypes);
+
+/** Merge new items into an existing bucket, summing quantity on the same
+ *  code|variant key so an import doesn't create duplicate rows. */
+function mergeItems(cur: ExternalListItem[], incoming: ExternalListItem[]): ExternalListItem[] {
+  const keyOf = (i: ExternalListItem) => `${i.albumCode}|${i.variantToken ?? ''}`;
+  const map = new Map<string, ExternalListItem>(cur.map((i) => [keyOf(i), i]));
+  for (const i of incoming) {
+    const existing = map.get(keyOf(i));
+    map.set(keyOf(i), existing
+      ? { ...existing, quantity: Math.min(99, existing.quantity + i.quantity) }
+      : { ...i });
+  }
+  return [...map.values()];
 }
 
 function extToListItem(ref: LiveTradeStickerRef): ExternalListItem {
@@ -629,6 +855,139 @@ function extToListItem(ref: LiveTradeStickerRef): ExternalListItem {
     albumCode: ref.albumCode,
     variantToken: ref.variantToken,
     quantity: ref.quantity,
+  };
+}
+
+// ─── Balance bar ────────────────────────────────────────────────────────────
+// Live scarcity balance over the STAGED piles + cash, from the caller's
+// perspective (give = my pile, get = their pile). Mirrors the async
+// third-party editor's fairness banner and cash "top-up" nudge.
+
+function BalanceBar({
+  myStaged, theirStaged, weights, myCashCents, theirCashCents, onSetMyCash, busy,
+}: {
+  myStaged: LiveTradeStickerRef[];
+  theirStaged: LiveTradeStickerRef[];
+  weights: VariantWeights;
+  myCashCents: number;
+  theirCashCents: number;
+  onSetMyCash: (cents: number) => void;
+  busy: boolean;
+}) {
+  // Cash is shared session state: setting it writes Redis, drops both locks, and
+  // broadcasts over SSE. So we keep the field local while typing and only commit
+  // on blur / Enter — never per keystroke, which would spam the socket and drop
+  // locks on every digit.
+  const [cashText, setCashText] = useState(() => centsToInput(myCashCents));
+  useEffect(() => {
+    if (parseCashCents(cashText || '0') !== myCashCents) setCashText(centsToInput(myCashCents));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myCashCents]);
+
+  function commitCash() {
+    const cents = parseCashCents(cashText);
+    if (cents !== myCashCents) onSetMyCash(cents);
+  }
+
+  const balance = useMemo<ScarcityTotals>(
+    () => computeScarcityBalance(myStaged, theirStaged, {
+      weights,
+      giveCashCents: myCashCents,
+      getCashCents: theirCashCents,
+    }),
+    [myStaged, theirStaged, weights, myCashCents, theirCashCents],
+  );
+
+  const suggestion = useMemo(() => {
+    const s = suggestBalancingCashCents(balance);
+    // Only offer to top up MY side; the other party controls their own cash.
+    return s && s.side === 'give' ? s : null;
+  }, [balance]);
+
+  const line = balanceLine(balance);
+
+  return (
+    <div className="mb-4 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-3 space-y-2">
+      {line && (
+        <div
+          className={`rounded-md p-2.5 text-xs ${
+            line.tone === 'warn'
+              ? 'bg-[var(--cromo-warning-soft)] border border-[var(--cromo-warning)]/30 text-amber-800'
+              : 'bg-[var(--cromo-success-soft)] border border-[var(--cromo-success)]/30 text-[var(--cromo-success-text)]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <span className="font-medium">{line.tone === 'warn' ? 'Lopsided — ' : 'Looks fair — '}</span>
+              {line.text}
+            </div>
+            {suggestion && (
+              <button
+                type="button"
+                onClick={() => onSetMyCash(myCashCents + suggestion.cents)}
+                disabled={busy}
+                className="shrink-0 rounded-md border border-[var(--cromo-warning)]/40 bg-[var(--cromo-surface)] px-2.5 py-1 text-xs font-medium text-[var(--cromo-fg)] hover:bg-[var(--cromo-surface-2)] disabled:opacity-50"
+              >
+                Add ${fmtDollars(suggestion.cents)} from you
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-[var(--cromo-fg-subtle)]">Cash you add</span>
+        <span className="text-xs text-[var(--cromo-fg-subtle)]">$</span>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={cashText}
+          disabled={busy}
+          onChange={(e) => setCashText(e.target.value)}
+          onBlur={commitCash}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitCash(); } }}
+          placeholder="0.00"
+          aria-label="Cash you add"
+          className="w-20 rounded border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+        />
+        {theirCashCents > 0 && (
+          <span className="text-xs text-[var(--cromo-fg-muted)]">· they add ${fmtDollars(theirCashCents)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function fmtScarcity(n: number): string {
+  return n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(1);
+}
+function fmtDollars(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+function centsToInput(cents: number): string {
+  return cents > 0 ? fmtDollars(cents) : '';
+}
+function parseCashCents(value: string): number {
+  const num = parseFloat(value);
+  if (!isFinite(num) || num < 0) return 0;
+  return Math.round(num * 100);
+}
+
+function balanceLine(balance: ScarcityTotals): { tone: 'ok' | 'warn'; text: string } | null {
+  if (balance.ratio === null) return null;
+  if (balance.give === 0 && balance.get === 0) return null;
+  if (balance.sameVariant) {
+    return balance.lopsided
+      ? { tone: 'warn', text: `Same-variant trade should be equal — you give ${fmtScarcity(balance.give)} and receive ${fmtScarcity(balance.get)}.` }
+      : { tone: 'ok', text: `Same-variant swap — both sides exchange ${fmtScarcity(balance.give)}.` };
+  }
+  if (!balance.lopsided) {
+    return { tone: 'ok', text: `You give ${fmtScarcity(balance.give)} value and receive ${fmtScarcity(balance.get)}.` };
+  }
+  const multiple = balance.ratio < 1 ? (1 / balance.ratio).toFixed(1) : balance.ratio.toFixed(1);
+  return {
+    tone: 'warn',
+    text: `You give ${fmtScarcity(balance.give)} and receive ${fmtScarcity(balance.get)} — about ${multiple}× off.`,
   };
 }
 
@@ -667,23 +1026,18 @@ function SuggestionBanner({
   );
 }
 
-// ─── Weights negotiation ───────────────────────────────────────────────────
+// ─── Weights ────────────────────────────────────────────────────────────────
+// The host sets the per-trade variant weight table directly (they own the album
+// the trade commits to). The guest sees the active table read-only. Rows shown
+// come from every variant present in either side's lists — no point weighting a
+// token nobody's putting on the table.
 
-/**
- * Per-trade variant weight handshake. The session carries an `activeWeights`
- * table (in effect now) and an optional `pendingWeightProposal` (sent by one
- * side, awaiting the other's accept/reject). Variant rows shown come from
- * every variant present in either side's lists — there's no point negotiating
- * a value for a token nobody's putting on the table.
- */
-function WeightsNegotiation({
-  session, role, onPropose, onAccept, onReject, busy,
+function WeightsSection({
+  session, role, onSetWeights, busy,
 }: {
   session: LiveTradeSession;
   role: Role;
-  onPropose: (weights: VariantWeights) => Promise<void>;
-  onAccept: () => Promise<void>;
-  onReject: () => Promise<void>;
+  onSetWeights: (weights: VariantWeights) => Promise<void>;
   busy: boolean;
 }) {
   const presentVariants = useMemo(() => {
@@ -698,86 +1052,33 @@ function WeightsNegotiation({
 
   if (presentVariants.length === 0) return null;
 
-  const pending = session.pendingWeightProposal;
-  const proposalIsMine = pending?.by === role;
+  if (role === 'guest') {
+    const overrides = Object.entries(session.activeWeights ?? {});
+    if (overrides.length === 0) return null;
+    return (
+      <div className="mb-4 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-3">
+        <p className="text-sm font-semibold text-[var(--cromo-fg)]">Variant weights (set by the host)</p>
+        <ul className="mt-2 grid gap-1 text-xs text-[var(--cromo-fg)]">
+          {overrides.map(([token, value]) => (
+            <li key={token} className="flex justify-between gap-2">
+              <span className="truncate">{variantLabel(token)}</span>
+              <span className="font-mono">{value}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
-    <div className="mb-4 space-y-3">
-      {pending && (
-        <div
-          className={`rounded-xl border p-3 ${
-            proposalIsMine
-              ? 'border-[var(--cromo-border)] bg-[var(--cromo-surface-2)]'
-              : 'border-[var(--cromo-accent)]/40 bg-[var(--cromo-accent-soft)]'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[var(--cromo-fg)]">
-                {proposalIsMine
-                  ? 'You proposed new variant weights'
-                  : 'They proposed new variant weights'}
-              </p>
-              <p className="text-xs text-[var(--cromo-fg-muted)] mt-0.5">
-                {proposalIsMine
-                  ? 'Waiting for the other side to accept or reject.'
-                  : 'Review the override and accept to apply them — locks reset on accept.'}
-              </p>
-            </div>
-            <div className="shrink-0 flex items-center gap-2">
-              {proposalIsMine ? (
-                <button
-                  type="button"
-                  onClick={onReject}
-                  disabled={busy}
-                  className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg)] disabled:opacity-50"
-                >
-                  Withdraw
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={onReject}
-                    disabled={busy}
-                    className="rounded-md border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-fg)] disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onAccept}
-                    disabled={busy}
-                    className="rounded-md bg-[var(--cromo-accent)] px-3 py-1.5 text-xs font-medium text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)] disabled:opacity-50"
-                  >
-                    Accept
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-          <ul className="mt-2 grid gap-1 text-xs text-[var(--cromo-fg)]">
-            {Object.entries(pending.weights).map(([token, value]) => (
-              <li key={token} className="flex justify-between gap-2">
-                <span className="truncate">{token}</span>
-                <span className="font-mono">{value}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
+    <div className="mb-4">
       <WeightsEditor
         presentVariants={presentVariants}
         weights={session.activeWeights}
-        onCommit={(weights) => onPropose(weights)}
-        busy={busy || !!pending}
-        commitLabel="Propose"
-        hint={
-          pending
-            ? 'A proposal is already on the table — resolve it before sending another.'
-            : 'Propose a per-trade weight table. The other side must accept before it applies.'
-        }
+        onCommit={(weights) => onSetWeights(weights)}
+        busy={busy}
+        commitLabel="Apply"
+        hint="Set the value of each variant for this trade. Both sides see the balance update; 0 means worthless."
       />
     </div>
   );

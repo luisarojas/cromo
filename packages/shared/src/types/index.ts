@@ -703,7 +703,10 @@ export interface LiveTradeSession {
     joined: boolean
     label: string | null
   }
-  /** Items the host has typed/scanned but not yet committed to staging. */
+  /** The host's tradeable side — NOT typed by the host. Derived on every guest
+   *  list change from the host's live inventory ∩ the guest's list (same as the
+   *  async third-party flow): `offered` is the host's spares the guest wants
+   *  (host gives), `wanted` is the guest's offers the host lacks (host receives). */
   hostList: {
     offered: LiveTradeStickerRef[]
     wanted: LiveTradeStickerRef[]
@@ -719,24 +722,20 @@ export interface LiveTradeSession {
   guestStaged: LiveTradeStickerRef[]
   hostLocked: boolean
   guestLocked: boolean
+  /** Cash each side adds on top of stickers (cents). Guidance only — feeds the
+   *  balance/suggestion; not persisted on the completion record. */
+  hostCashCents: number
+  guestCashCents: number
   /** Optimal swap derived from both lists — used to populate one-tap suggestions. */
   suggestion: {
     hostGives: LiveTradeStickerRef[]
     hostReceives: LiveTradeStickerRef[]
     balance: ScarcityTotals
   } | null
-  /** Per-trade variant weights. Anything not listed falls back to the global
-   *  VARIANT_SCARCITY table. Empty object means "use defaults everywhere".
-   *  Mutated only via the propose/accept handshake below. */
+  /** Per-trade variant weights, set directly by the host. Anything not listed
+   *  falls back to the global VARIANT_SCARCITY table. Empty object means "use
+   *  defaults everywhere". A `0` entry means the variant is worthless here. */
   activeWeights: VariantWeights
-  /** A weight table one side has proposed; the other side must accept before
-   *  it becomes `activeWeights`. Cleared on accept or reject. */
-  pendingWeightProposal: {
-    /** Which side sent the proposal. The other side accepts/rejects. */
-    by: 'host' | 'guest'
-    weights: VariantWeights
-    proposedAt: string
-  } | null
   /** Set when completion is applied. The 60-second undo window starts here. */
   completion: {
     id: string

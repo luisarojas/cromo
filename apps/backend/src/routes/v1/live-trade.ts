@@ -38,17 +38,23 @@ const StageBody = z.object({
 
 const LockBody = z.object({ locked: z.boolean() });
 
-// Per-trade variant weight overrides. Same shape and bounds as the
-// third-party match endpoints; the service re-validates inside sanitiseWeights.
-const ProposeWeightsBody = z.object({
+// Per-trade variant weight overrides. Same shape and bounds as the third-party
+// match endpoints; the service re-validates inside sanitiseWeights. 0 is a
+// legal "worthless" weight, so the value floor is min(0), not positive().
+const SetWeightsBody = z.object({
   weights: z
     .record(
       z.string().min(1).max(32).regex(/^[a-z0-9_]+$/),
-      z.number().positive().finite().max(100_000),
+      z.number().min(0).finite().max(100_000),
     )
     .refine((m) => Object.keys(m).length <= 64, {
       message: 'At most 64 variant weight overrides per trade.',
     }),
+});
+
+// Cash a side adds on top of stickers (cents). Guidance only.
+const SetCashBody = z.object({
+  cents: z.number().int().min(0).max(10_000_000),
 });
 
 function asListItems(items: { albumCode: string; variantToken?: string | null; quantity: number }[]) {
@@ -292,15 +298,15 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /**
-   * POST /api/v1/live-trade/:id/weights/propose
-   * Either party proposes a per-trade variant weight table. The other party
-   * must accept before it becomes the session's active table.
+   * POST /api/v1/live-trade/:id/weights
+   * Host-only. Sets the per-trade variant weight table directly (no handshake —
+   * the host owns the album the trade commits to). Both locks drop.
    */
   fastify.post(
-    `${prefix}/:id/weights/propose`,
+    `${prefix}/:id/weights`,
     {
       schema: {
-        tags: ['Trade'], summary: 'Propose per-trade variant weights',
+        tags: ['Trade'], summary: 'Set per-trade variant weights (host-only)',
         params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
       },
     },
@@ -309,12 +315,12 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
       let principal: ResolvedPrincipal;
       try { principal = await resolvePrincipal(fastify, request, id); }
       catch (err) { return forwardError(reply, err); }
-      const parsed = ProposeWeightsBody.safeParse(request.body);
+      const parsed = SetWeightsBody.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.message });
       }
       try {
-        const session = await live.proposeWeights(
+        const session = await live.setWeights(
           fastify.redis, id, principal.role, parsed.data.weights,
         );
         return reply.status(200).send({ session });
@@ -325,14 +331,15 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   /**
-   * POST /api/v1/live-trade/:id/weights/accept
-   * The non-proposing party accepts the open proposal; both locks drop.
+   * POST /api/v1/live-trade/:id/cash
+   * Set the caller's cash contribution (cents). Each role sets their own side.
+   * Guidance only — feeds the balance, not the completion record. Both locks drop.
    */
   fastify.post(
-    `${prefix}/:id/weights/accept`,
+    `${prefix}/:id/cash`,
     {
       schema: {
-        tags: ['Trade'], summary: 'Accept a pending weight proposal',
+        tags: ['Trade'], summary: 'Set one side\'s cash contribution',
         params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
       },
     },
@@ -341,34 +348,12 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
       let principal: ResolvedPrincipal;
       try { principal = await resolvePrincipal(fastify, request, id); }
       catch (err) { return forwardError(reply, err); }
-      try {
-        const session = await live.acceptWeights(fastify.redis, id, principal.role);
-        return reply.status(200).send({ session });
-      } catch (err) {
-        return forwardError(reply, err);
+      const parsed = SetCashBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.message });
       }
-    },
-  );
-
-  /**
-   * POST /api/v1/live-trade/:id/weights/reject
-   * Either party drops the open proposal (receiver declines, proposer withdraws).
-   */
-  fastify.post(
-    `${prefix}/:id/weights/reject`,
-    {
-      schema: {
-        tags: ['Trade'], summary: 'Reject or withdraw a pending weight proposal',
-        params: { type: 'object', required: ['id'], properties: { id: { type: 'string' } } },
-      },
-    },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      let principal: ResolvedPrincipal;
-      try { principal = await resolvePrincipal(fastify, request, id); }
-      catch (err) { return forwardError(reply, err); }
       try {
-        const session = await live.rejectWeights(fastify.redis, id, principal.role);
+        const session = await live.setCash(fastify.redis, id, principal.role, parsed.data.cents);
         return reply.status(200).send({ session });
       } catch (err) {
         return forwardError(reply, err);

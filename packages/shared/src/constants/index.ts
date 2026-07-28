@@ -83,8 +83,10 @@ export type VariantWeights = Record<string, number>
 
 /**
  * Resolve the active weight for a variant token, preferring per-trade overrides
- * over the global VARIANT_SCARCITY table. Treats non-finite or non-positive
- * overrides as "not set" — the same fallback path catches bad input.
+ * over the global VARIANT_SCARCITY table. A `0` override is honoured — it means
+ * "this variant is worthless in this trade" (e.g. commons weighted to nothing).
+ * Only negative / non-finite overrides are treated as "not set", falling back to
+ * the default so bad input can't drag the balance below zero.
  */
 export function effectiveScarcity(
   token: string | null | undefined,
@@ -93,7 +95,7 @@ export function effectiveScarcity(
   if (!token) return 1
   if (weights) {
     const override = weights[token]
-    if (typeof override === 'number' && Number.isFinite(override) && override > 0) {
+    if (typeof override === 'number' && Number.isFinite(override) && override >= 0) {
       return override
     }
   }

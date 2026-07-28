@@ -414,38 +414,29 @@ export async function setLiveTradeLock(
   return session;
 }
 
-export async function proposeLiveTradeWeights(
+/** Host-only: set the per-trade variant weight table directly (no handshake). */
+export async function setLiveTradeWeights(
   sessionId: string,
   weights: VariantWeights,
   auth: LiveTradeAuth,
 ): Promise<LiveTradeSession> {
   const { session } = await apiFetch<{ session: LiveTradeSession }>(
-    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights/propose`,
+    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights`,
     { method: 'POST', body: JSON.stringify({ weights }), headers: liveTradeAuthHeaders(auth) },
     auth.token,
   );
   return session;
 }
 
-export async function acceptLiveTradeWeights(
+/** Set the caller's cash contribution (cents). Each role sets their own side. */
+export async function setLiveTradeCash(
   sessionId: string,
+  cents: number,
   auth: LiveTradeAuth,
 ): Promise<LiveTradeSession> {
   const { session } = await apiFetch<{ session: LiveTradeSession }>(
-    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights/accept`,
-    { method: 'POST', headers: liveTradeAuthHeaders(auth) },
-    auth.token,
-  );
-  return session;
-}
-
-export async function rejectLiveTradeWeights(
-  sessionId: string,
-  auth: LiveTradeAuth,
-): Promise<LiveTradeSession> {
-  const { session } = await apiFetch<{ session: LiveTradeSession }>(
-    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/weights/reject`,
-    { method: 'POST', headers: liveTradeAuthHeaders(auth) },
+    `/api/v1/live-trade/${encodeURIComponent(sessionId)}/cash`,
+    { method: 'POST', body: JSON.stringify({ cents }), headers: liveTradeAuthHeaders(auth) },
     auth.token,
   );
   return session;

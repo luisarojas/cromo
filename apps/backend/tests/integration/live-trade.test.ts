@@ -8,7 +8,9 @@ import { randomUUID } from 'node:crypto';
  * deltas land in Postgres. These tests pin down:
  *   - guest token issuance + idempotent rejoin,
  *   - mutation invalidates locks,
- *   - auto-suggestion intersects the two lists,
+ *   - the host's side is DERIVED from their inventory ∩ the guest's list (the
+ *     host never types a list); the suggestion falls out of that,
+ *   - host-only weights (0 allowed) + per-side cash guidance,
  *   - complete applies host-only deltas, undo reverses them,
  *   - lock + role enforcement.
  *
@@ -174,18 +176,19 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
 
     const v1 = await lookupVariant(820, 'base_border');
     const v2 = await lookupVariant(821, 'base_border');
-    await insertOwned(albumId, v1.variantId, 2);
+    await insertOwned(albumId, v1.variantId, 2); // spare of v1 the host can give.
 
-    await live.setSideList(app.db, app.redis, session.id, 'host', {
-      offered: [{ albumCode: v1.albumCode, variantToken: 'base_border', quantity: 2 }],
-      wanted:  [{ albumCode: v2.albumCode, variantToken: 'base_border', quantity: 1 }],
-    });
+    // Only the guest types a list; the host's side is derived from inventory.
     await live.setSideList(app.db, app.redis, session.id, 'guest', {
       offered: [{ albumCode: v2.albumCode, variantToken: 'base_border', quantity: 1 }],
       wanted:  [{ albumCode: v1.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
 
     let snapshot = (await live.getPublicSession(app.redis, session.id))!;
+    // Host list derived: gives v1 (spare the guest wants), receives v2 (guest
+    // offers it and the host owns none).
+    expect(snapshot.hostList.offered.map((r) => r.stickerVariantId)).toContain(v1.variantId);
+    expect(snapshot.hostList.wanted.map((r) => r.stickerVariantId)).toContain(v2.variantId);
     expect(snapshot.suggestion?.hostGives).toHaveLength(1);
     expect(snapshot.suggestion?.hostReceives).toHaveLength(1);
     expect(snapshot.suggestion?.hostGives[0]?.stickerVariantId).toBe(v1.variantId);
@@ -212,6 +215,57 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
     expect(snapshot.guestLocked).toBe(false);
   });
 
+  it('lets the host set variant weights directly (0 allowed), rejects the guest', async () => {
+    const hostId = await insertUser();
+    const albumId = await insertAlbum(hostId);
+    const session = await live.createSession(app.db, app.redis, hostId, albumId);
+    sessionIdsToClean.push(session.id);
+    await live.joinSession(app.redis, session.id, null);
+
+    // Guest cannot set weights.
+    await expect(live.setWeights(app.redis, session.id, 'guest', { red: 30 }))
+      .rejects.toMatchObject({ statusCode: 403 });
+
+    // Host can — and a 0 weight is honoured (worthless), not dropped.
+    let snapshot = await live.setWeights(app.redis, session.id, 'host', {
+      base_borderless: 0,
+      red: 30,
+    });
+    expect(snapshot.activeWeights.base_borderless).toBe(0);
+    expect(snapshot.activeWeights.red).toBe(30);
+
+    // Re-applying the same table (a would-be no-op under the old handshake) is
+    // fine now — no 409, weights just stay put.
+    snapshot = await live.setWeights(app.redis, session.id, 'host', { base_borderless: 0, red: 30 });
+    expect(snapshot.activeWeights.base_borderless).toBe(0);
+  });
+
+  it('tracks per-side cash and folds it into the suggestion balance, dropping locks', async () => {
+    const hostId = await insertUser();
+    const albumId = await insertAlbum(hostId);
+    const session = await live.createSession(app.db, app.redis, hostId, albumId);
+    sessionIdsToClean.push(session.id);
+
+    const give = await lookupVariant(825, 'base_border');
+    const recv = await lookupVariant(826, 'base_border');
+    await insertOwned(albumId, give.variantId, 2);
+    await live.joinSession(app.redis, session.id, 'Sofia');
+    await live.setSideList(app.db, app.redis, session.id, 'guest', {
+      offered: [{ albumCode: recv.albumCode, variantToken: 'base_border', quantity: 1 }],
+      wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
+    });
+    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'guest', [{ stickerVariantId: recv.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', true);
+
+    const afterCash = await live.setCash(app.redis, session.id, 'guest', 500);
+    expect(afterCash.guestCashCents).toBe(500);
+    // Setting cash re-opens the locks so neither side commits a stale balance.
+    expect(afterCash.hostLocked).toBe(false);
+    // The guest's cash lands on the host's receive side of the suggestion.
+    expect(afterCash.suggestion?.balance.get).toBeGreaterThan(afterCash.suggestion?.balance.give ?? 0);
+  });
+
   it('refuses to complete unless both sides are locked and the caller is the host', async () => {
     const hostId = await insertUser();
     const otherId = await insertUser();
@@ -220,10 +274,10 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
     sessionIdsToClean.push(session.id);
 
     const v = await lookupVariant(822, 'base_border');
-    await insertOwned(albumId, v.variantId, 1);
-    await live.setSideList(app.db, app.redis, session.id, 'host', {
-      offered: [{ albumCode: v.albumCode, variantToken: 'base_border', quantity: 1 }],
-      wanted: [],
+    await insertOwned(albumId, v.variantId, 2); // spare so the host can give one.
+    await live.setSideList(app.db, app.redis, session.id, 'guest', {
+      offered: [],
+      wanted: [{ albumCode: v.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
     await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: v.variantId, quantity: 1 }]);
     await live.joinSession(app.redis, session.id, null);
@@ -247,12 +301,9 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
 
     const give = await lookupVariant(830, 'base_border');
     const receive = await lookupVariant(831, 'base_border');
-    await insertOwned(albumId, give.variantId, 3); // 3 spares; commit one.
+    await insertOwned(albumId, give.variantId, 3); // 3 copies → spares; commit one.
 
-    await live.setSideList(app.db, app.redis, session.id, 'host', {
-      offered: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 3 }],
-      wanted:  [{ albumCode: receive.albumCode, variantToken: 'base_border', quantity: 1 }],
-    });
+    // Host side derives from inventory; the guest types theirs.
     await live.setSideList(app.db, app.redis, session.id, 'guest', {
       offered: [{ albumCode: receive.albumCode, variantToken: 'base_border', quantity: 1 }],
       wanted:  [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
@@ -286,10 +337,6 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
     const receive = await lookupVariant(851, 'base_border');
     await insertOwned(albumId, give.variantId, 2);
 
-    await live.setSideList(app.db, app.redis, session.id, 'host', {
-      offered: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 2 }],
-      wanted: [{ albumCode: receive.albumCode, variantToken: 'base_border', quantity: 1 }],
-    });
     await live.setSideList(app.db, app.redis, session.id, 'guest', {
       offered: [{ albumCode: receive.albumCode, variantToken: 'base_border', quantity: 1 }],
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
@@ -328,10 +375,6 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
 
     const give = await lookupVariant(860, 'base_border');
     await insertOwned(albumId, give.variantId, 2);
-    await live.setSideList(app.db, app.redis, session.id, 'host', {
-      offered: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 2 }],
-      wanted: [],
-    });
     await live.setSideList(app.db, app.redis, session.id, 'guest', {
       offered: [],
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
@@ -364,10 +407,6 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
 
     const give = await lookupVariant(840, 'base_border');
     await insertOwned(albumId, give.variantId, 2);
-    await live.setSideList(app.db, app.redis, session.id, 'host', {
-      offered: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 2 }],
-      wanted: [],
-    });
     await live.setSideList(app.db, app.redis, session.id, 'guest', {
       offered: [],
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
