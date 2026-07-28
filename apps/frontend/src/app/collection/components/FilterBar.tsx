@@ -287,7 +287,7 @@ export default function FilterBar({
   );
 
   return (
-    <div className="flex flex-col gap-2 bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-xl p-4">
+    <div className="flex flex-col gap-1.5 sm:gap-2 bg-[var(--cromo-surface)] border border-[var(--cromo-border)] rounded-xl p-2.5 sm:p-4">
 
       {/* Primary row: search + filters toggle + clear */}
       <div className="flex flex-wrap gap-2 items-center">

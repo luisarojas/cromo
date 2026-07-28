@@ -21,10 +21,11 @@ interface Props {
   // Horizontal swipe shortcut. Right = +1 default Base, Left = -1 first owned.
   // Undefined when the parent doesn't want gestures (e.g. selection mode).
   onSwipeAdjust?: (direction: 'left' | 'right') => void;
-  // Fires after a sustained press (~500ms) with no significant movement.
-  // Caller decides what it means in context — entering selection mode for an
-  // owned sticker, adding to wishlist for an unowned one.
-  onLongPress?: () => void;
+  // Fires after a sustained press with no significant movement, with the touch
+  // coordinates so the caller can anchor a context menu at the finger. The
+  // caller decides what it means in context — opening the quick-actions menu
+  // when browsing, or extending a range while in selection mode.
+  onLongPress?: (clientX: number, clientY: number) => void;
   // Right-click → context menu. Coords are viewport-relative.
   onContextMenu?: (clientX: number, clientY: number) => void;
   selectionMode?: boolean;
@@ -42,7 +43,11 @@ interface Props {
   dragPayload?: string;
 }
 
-const LONG_PRESS_MS = 480;
+// A longer, deliberate hold so resting a thumb mid-scroll doesn't trip
+// selection mode. We intentionally do NOT cancel on page scroll — a range
+// long-press often needs the user to scroll to a target that's off-screen —
+// only meaningful finger travel (below) disarms it.
+const LONG_PRESS_MS = 600;
 const LONG_PRESS_TOLERANCE_PX = 8;
 
 // Pixels of horizontal travel before a swipe commits. Below threshold the
@@ -150,9 +155,13 @@ export default function StickerCard({
     cancelPendingTap();
     if (longPressEnabled) {
       cancelLongPress();
+      // Capture the coordinates now — `t` is reused by the browser after the
+      // handler returns, so read the values into the timer's closure.
+      const lx = t.clientX;
+      const ly = t.clientY;
       longPressTimerRef.current = setTimeout(() => {
         committedRef.current = true;
-        onLongPress?.();
+        onLongPress?.(lx, ly);
       }, LONG_PRESS_MS);
     }
   }
@@ -285,7 +294,7 @@ export default function StickerCard({
       } : undefined}
       style={dragX !== 0 ? { transform: `translateX(${dragX}px)`, transition: 'none' } : undefined}
       className={`
-        group relative flex flex-col rounded-lg border p-2.5 text-sm text-left
+        group relative flex flex-col rounded-lg border p-2 sm:p-2.5 text-sm text-left
         transition-all duration-150 select-none w-full touch-pan-y
         ${isKeyboardFocused ? 'ring-2 ring-[var(--cromo-accent)] ring-offset-2 ring-offset-[var(--cromo-bg)]' : ''}
         ${isRangeAnchor ? 'ring-2 ring-dashed ring-[var(--cromo-accent-strong)] ring-offset-1 ring-offset-[var(--cromo-bg)]' : ''}
@@ -352,7 +361,7 @@ export default function StickerCard({
           sticker.playerName && sticker.teamName ? '' : 'mb-1'
         }`}
       >
-        <span className="text-lg font-extrabold text-[var(--cromo-fg)] leading-none">
+        <span className="text-base sm:text-lg font-extrabold text-[var(--cromo-fg)] leading-none">
           {sticker.albumCode}
         </span>
         {sticker.fifaCode && (
@@ -377,8 +386,11 @@ export default function StickerCard({
         {sticker.playerName ?? sticker.teamName ?? '—'}
       </div>
 
+      {/* Type pill is desktop-only — on the denser mobile grid the section
+          headers already convey the bucket, and dropping it shortens each
+          tile. */}
       <span
-        className={`mt-2 inline-block self-start rounded-full px-1.5 py-px text-[9px] font-medium uppercase ${typeColor}`}
+        className={`mt-2 hidden sm:inline-block self-start rounded-full px-1.5 py-px text-[9px] font-medium uppercase ${typeColor}`}
       >
         {(sticker.stickerType ?? '').replace('_', ' ')}
       </span>

@@ -32,16 +32,22 @@ export default function StickerContextMenu({ x, y, items, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function onDown(e: MouseEvent) {
+    // Pointer-agnostic outside dismissal: mousedown covers desktop, touchstart
+    // covers mobile (where this menu is opened by a long-press). Without the
+    // touchstart listener a tap outside the menu on a phone may not close it
+    // until a synthetic mouse event fires — or not at all.
+    function onDown(e: MouseEvent | TouchEvent) {
       if (!ref.current?.contains(e.target as Node)) onClose();
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
     }
     document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
       document.removeEventListener('keydown', onKey);
     };
   }, [onClose]);

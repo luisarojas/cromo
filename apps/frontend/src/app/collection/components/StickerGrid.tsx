@@ -261,7 +261,10 @@ export default function StickerGrid({
     };
   }, []);
   function effectiveCols(preferred: number, tier: 'base' | 'sm' | 'lg'): number {
-    if (tier === 'base') return 2;
+    // Phones now honour the density preference too (2–4 columns) instead of
+    // being hard-locked to 2 — collectors wanted smaller, denser tiles. 5/6
+    // still require sm+ so cards don't become illegible on a narrow screen.
+    if (tier === 'base') return Math.max(2, Math.min(preferred, 4));
     if (tier === 'sm') return Math.min(preferred, 4);
     return preferred; // lg+
   }
@@ -665,7 +668,7 @@ export default function StickerGrid({
                 transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
-              <div className={`grid ${gridColsClass} gap-2 py-1`}>
+              <div className={`grid ${gridColsClass} gap-1.5 sm:gap-2 py-1`}>
                 {rowStickers.map((sticker: Sticker) => {
                   const ownedVariants = ownedMap.get(sticker.id);
                   const totalQuantity = ownedVariants
@@ -689,17 +692,20 @@ export default function StickerGrid({
                         albumCode: sticker.albumCode,
                         playerName: sticker.playerName,
                       }) : undefined}
-                      onLongPress={() => {
-                        // Three meanings for long-press, branched on context:
+                      onLongPress={(cx, cy) => {
+                        // Two meanings for long-press, branched on mode:
                         //  1. In selection mode + an anchor exists → range
                         //     select from anchor to here. Touch equivalent
                         //     of shift+click on desktop. Clears the anchor
                         //     after committing so the next long-press starts
                         //     a fresh range instead of re-extending.
-                        //  2. Not in selection mode, owned card → enter
-                        //     selection mode with this card pre-selected.
-                        //  3. Not in selection mode, unowned card with a
-                        //     known base variant → toggle wishlist.
+                        //  2. Otherwise → open the quick-actions menu anchored
+                        //     at the finger (the same menu desktop opens on
+                        //     right-click). Favourite, wishlist, +/- and
+                        //     "Select" all live there, so nothing that used to
+                        //     be a direct long-press is lost — just made
+                        //     visible and dismissible instead of a silent
+                        //     mode switch.
                         haptic('success');
                         if (selectionMode) {
                           const currentIndex = startIdx + rowStickers.indexOf(sticker);
@@ -717,11 +723,7 @@ export default function StickerGrid({
                           }
                           return;
                         }
-                        if (totalQuantity > 0) {
-                          onRequestSelectionMode?.(sticker.id);
-                        } else if (sticker.baseVariantId) {
-                          void onToggleWanted(sticker.baseVariantId, sticker.id);
-                        }
+                        setContextMenu({ x: cx, y: cy, sticker });
                       }}
                       onOpenPopover={(anchor) =>
                         handleOpenPopover(sticker, anchor)
@@ -852,6 +854,14 @@ export default function StickerGrid({
               if (!s.baseVariantId) return;
               void onToggleWanted(s.baseVariantId, s.id);
             },
+          },
+          {
+            // Enters multi-select with this card pre-selected — the same thing
+            // the toolbar Select toggle does, reachable straight from the menu.
+            label: 'Select',
+            shortcut: 'S',
+            disabled: !onRequestSelectionMode,
+            run: () => onRequestSelectionMode?.(s.id),
           },
         ];
         return (

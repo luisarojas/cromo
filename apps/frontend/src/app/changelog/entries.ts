@@ -36,12 +36,18 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: null,
     changes: {
       Added: [
+        'Long-press a sticker on your phone to open a quick-actions menu — favourite, wishlist, adjust copies, or start a multi-selection — right at your finger.',
         'The finished World Cup 2026 standings now crown the champion with a trophy banner and stay frozen on the final results.',
         'Set your own price per base sticker on a third-party trade — every other variant\'s cash value is rescaled from it by scarcity, so the fairness math and the per-sticker estimates match what you actually trade for.',
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
         'Live in-person trades now let either side add cash on top of stickers, with the same fairness balance and "add cash to even it out" nudge as other trades.',
       ],
       Changed: [
+        'On phones the album\'s progress bar, filters, and tabs are slimmer and pinned to the very top of the screen, leaving more room for stickers.',
+        'Sticker tiles are smaller and denser on phones — three across by default — with a control to switch between two, three, and four columns.',
+        'Searching within an album now scrolls back to the top of the results.',
+        'Multi-select is easier on phones — the Select button stays visible in the toolbar and the bulk-action bar fits in a single compact row.',
+        'Finishing a bulk action now clears your selection and leaves select mode automatically.',
         'A third-party trade now shows an "Editing saved draft" badge while you refine a parked trade, with a "New trade" button to clear the panel and start a fresh one.',
         'The World Cup 2026 standings page opens on the knockout bracket, and on bigger screens the bracket reads like a wallchart — the two halves of the draw advance from the edges toward the final in the middle.',
         'Whether different variants of a sticker count as duplicates is now set per album (in the album\'s edit form) instead of in general settings — trade suggestions, duplicate counts, and stats all follow the album\'s own setting.',
@@ -60,6 +66,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'In a live trade, the host now sets the per-trade variant values directly and both sides see the balance update, instead of a propose-and-accept back-and-forth.',
       ],
       Fixed: [
+        'Adding a variant to several selected stickers at once now works even for ones you already own, adding another copy instead of skipping them.',
         'Setting a variant\'s weight to 0 in a trade now works — you can mark commons as worthless instead of the change being silently rejected with an error.',
         'The World Cup 2026 knockout bracket no longer shows one match twice while hiding another — every game, including live ones, now appears exactly once even when the official feed lists a round as already decided.',
         'Editing an in-progress third-party trade and saving it again now updates the same draft instead of saving a duplicate — re-optimising, renaming the partner, or adjusting the picks all write back to the one draft.',

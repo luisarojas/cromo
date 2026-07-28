@@ -165,18 +165,45 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   // wide-screen densities that clamp to 4 below lg so phones aren't affected.
   type Density = 2 | 3 | 4 | 5 | 6;
   const [density, setDensityState] = useState<Density>(() => {
+    // Kept SSR-deterministic (stored value or a fixed 4) so server and first
+    // client render agree. The phone-friendly 3-up default is applied
+    // post-mount below to avoid a hydration mismatch.
     if (typeof window === 'undefined') return 4;
     try {
       const raw = window.localStorage.getItem('cromo:gridDensity');
-      const n = raw ? parseInt(raw, 10) : 0;
-      return (n >= 2 && n <= 6 ? n : 4) as Density;
-    } catch {
-      return 4;
-    }
+      if (raw) {
+        const n = parseInt(raw, 10);
+        if (n >= 2 && n <= 6) return n as Density;
+      }
+    } catch { /* ignore */ }
+    return 4;
   });
   const setDensity = useCallback((next: Density) => {
     setDensityState(next);
     try { window.localStorage.setItem('cromo:gridDensity', String(next)); } catch { /* ignore */ }
+  }, []);
+  // Narrow (phone) viewport flag — caps the density cycler at 4 columns, since
+  // the grid clamps to 4 below the `sm` breakpoint anyway; cycling to 5/6 on a
+  // phone would just render an identical 4-up grid.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // First-visit default: a denser 3-up grid on phones. Done post-mount (not in
+  // the useState initialiser) so it can't desync SSR/hydration, and only when
+  // the user has no saved density preference. Not persisted — it stays a
+  // per-device contextual default until the user picks explicitly.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('cromo:gridDensity')) return;
+    } catch { return; }
+    if (window.matchMedia('(max-width: 639px)').matches) setDensityState(3);
   }, []);
 
   // Album-page hotkey: `/` jumps cursor to the FilterBar search input. The
@@ -217,6 +244,13 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Jump back to the top of the results whenever the search query changes.
+  // Filtering while scrolled deep into the grid otherwise leaves the user
+  // stranded in the middle of a now-shorter (or empty) result set.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [filters.search]);
 
   // Favourites are persisted server-side (replaces localStorage) and keyed by
   // sticker UUID end-to-end, so the hook gets sticker IDs directly.
@@ -510,6 +544,10 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       await bulkStickers(usr.id, albumId, ops, tok);
       await loadView(tok, usr.id, albumId);
       addToast(successMessage(ops.length), { type: 'success' });
+      // A completed mass action clears the selection and drops out of select
+      // mode — the user's intent for that batch is done. Only on success:
+      // a failure keeps the selection so they can retry.
+      handleExitSelection();
     } catch (err) {
       console.error('Mass action failed', err);
       addToast(buildOps().failMessage, { type: 'error' });
@@ -518,7 +556,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     }
   // buildOps closes over selectedStickerIds/ownedMap/etc. via the caller's closure.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStickerIds, albumId, loadView, addToast]);
+  }, [selectedStickerIds, albumId, loadView, addToast, handleExitSelection]);
 
   const handleMassDelete = useCallback(async () => {
     await runMassAction(() => {
@@ -537,8 +575,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         failMessage: t('removeFailedToast'),
       };
     });
-    setSelectedStickerIds(new Set());
-  }, [selectedStickerIds, ownedMap, runMassAction, setSelectedStickerIds]);
+    // Selection reset + exit is handled by runMassAction on success.
+  }, [selectedStickerIds, ownedMap, runMassAction]);
 
   const handleMassAddVariant = useCallback(async (variantType: string) => {
     const tok = tokenRef.current;
@@ -546,9 +584,11 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
     if (!tok || !usr || selectedStickerIds.size === 0) return;
     setMassWorking(true);
     try {
-      const selectedStickerList = stickers.filter(
-        (s) => selectedStickerIds.has(s.id) && !ownedMap.get(s.id)?.has(variantType),
-      );
+      // Include every selected sticker, even ones that already own this
+      // variant — the bulk `add` op increments quantity, so re-adding a
+      // variant the user already has bumps it to a duplicate (the whole point
+      // of "Add variant" while multi-selecting a stack of the same pull).
+      const selectedStickerList = stickers.filter((s) => selectedStickerIds.has(s.id));
       if (selectedStickerList.length === 0) {
         addToast(t('allOwnThatVariantToast'), { type: 'info' });
         return;
@@ -574,13 +614,14 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       await bulkStickers(usr.id, albumId, ops, tok);
       await loadView(tok, usr.id, albumId);
       addToast(t('addedVariantToast', { variant: variantType, count: ops.length }), { type: 'success' });
+      handleExitSelection();
     } catch (err) {
       console.error('Mass add variant failed', err);
       addToast(t('addVariantFailedToast'), { type: 'error' });
     } finally {
       setMassWorking(false);
     }
-  }, [selectedStickerIds, stickers, ownedMap, albumId, loadView, addToast]);
+  }, [selectedStickerIds, stickers, ownedMap, albumId, loadView, addToast, handleExitSelection]);
 
   const handleMassRemoveVariant = useCallback(async (variantType: string) => {
     await runMassAction(() => {
@@ -600,7 +641,8 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
   const handleMassToggleFavourite = useCallback(() => {
     const addFav = selectedFavouriteState !== 'all';
     setFavouritesBulk([...selectedStickerIds], addFav);
-  }, [selectedStickerIds, selectedFavouriteState, setFavouritesBulk]);
+    handleExitSelection();
+  }, [selectedStickerIds, selectedFavouriteState, setFavouritesBulk, handleExitSelection]);
 
   const handleMassTradeFlags = useCallback(async (flags: { tradeHidden?: boolean; tradeForced?: boolean }) => {
     await runMassAction(() => {
@@ -785,7 +827,7 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
       disabled={showAddModal || editingAlbum !== null || showScanner}
     >
     <div className="min-h-screen bg-[var(--cromo-surface-2)]">
-      <div className="max-w-5xl xl:max-w-7xl mx-auto px-4 py-8 flex flex-col gap-4">
+      <div className="max-w-5xl xl:max-w-7xl mx-auto px-4 py-4 sm:py-8 flex flex-col gap-3">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -937,12 +979,14 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
         {/* Pin progress + filter bar + tabs to the top while scrolling the
             (often very long) sticker grid. Collectors flip filters and tab
             into Have/Missing constantly mid-scan; having to scroll-to-top
-            to do either is friction. NavBar is h-14 (56px) so top-14 keeps
-            this group flush beneath it. Negative side margins + matching
+            to do either is friction. The global NavBar is non-sticky (it
+            scrolls away with the page), so pinning this block at top-0 lets it
+            reach the very top of the viewport as the nav scrolls off — no dead
+            56px gap where the nav used to be. Negative side margins + matching
             padding cancel the parent gutter so the background spans full
             width. Progress bar is compact (single row, thin bar) to keep
             the sticky region small on mobile. */}
-        <div className="sticky top-14 z-20 -mx-4 px-4 pt-2 pb-2 bg-[var(--cromo-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--cromo-bg)]/70 flex flex-col gap-2">
+        <div className="sticky top-0 z-20 -mx-4 px-4 pt-1.5 pb-1.5 bg-[var(--cromo-bg)]/85 backdrop-blur supports-[backdrop-filter]:bg-[var(--cromo-bg)]/70 flex flex-col gap-1.5">
           <StatsBar
             stats={computedStats}
             loading={loading}
@@ -966,95 +1010,104 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
           )}
 
           {tab !== 'stats' && (
-        <div className="flex items-center gap-1 border-b border-[var(--cromo-border)] overflow-x-auto -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TABS.map(({ id, label }) => (
+        <div className="flex items-stretch gap-1 border-b border-[var(--cromo-border)] -mx-4 px-4">
+          {/* Tabs scroll horizontally in their own track; the Select + density
+              controls are pinned to the right so Select is ALWAYS reachable —
+              it previously scrolled off the end of the strip on narrow phones,
+              which is the "the button is hidden away" complaint. The -mx-4/px-4
+              full-bleeds the bottom divider to the screen edges to match the
+              sticky region's background. */}
+          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  tab === id
+                    ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
+                    : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)]'
+                }`}
+              >
+                {label}
+                {id === 'all' && !loading && settingsFilteredStickers.length > 0 && (
+                  <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">({settingsFilteredStickers.length})</span>
+                )}
+                {id === 'have' && computedStats && (
+                  <span className="ml-1.5 text-xs text-[var(--cromo-success-text)]">
+                    {totalOwnedQuantity > computedStats.owned
+                      ? `(${computedStats.owned} / ${totalOwnedQuantity})`
+                      : `(${computedStats.owned})`}
+                  </span>
+                )}
+                {id === 'missing' && computedStats && (
+                  <span className="ml-1.5 text-xs text-[var(--cromo-danger-text)]">({computedStats.missing})</span>
+                )}
+                {id === 'duplicates' && computedStats && (
+                  <span className="ml-1.5 text-xs text-[var(--cromo-warning-text)]">
+                    {totalExtraCopies > 0
+                      ? `(${computedStats.duplicates} / +${totalExtraCopies})`
+                      : `(${computedStats.duplicates})`}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Pinned right cluster — density + a prominent, always-labelled
+              Select toggle. Density is now available on mobile too (the cycler
+              caps at 4 on narrow viewports since the grid clamps there). */}
+          <div className="shrink-0 flex items-center gap-1 pl-1">
             <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                tab === id
-                  ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
-                  : 'border-transparent text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-border-strong)]'
+              onClick={() => {
+                const max: Density = isNarrow ? 4 : 6;
+                const next = (density >= max ? 2 : ((density + 1) as Density));
+                setDensity(next);
+              }}
+              aria-label={t('densityAria', { count: density })}
+              title={t('densityTitle', { count: density })}
+              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 my-1 text-xs font-medium text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:bg-[var(--cromo-surface-2)] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+                {Array.from({ length: density }).map((_, i) => (
+                  <rect
+                    key={i}
+                    x={1 + i * (14 / density)}
+                    y={2}
+                    width={14 / density - 1}
+                    height={12}
+                    rx={1}
+                    fill="currentColor"
+                    fillOpacity={0.25}
+                  />
+                ))}
+              </svg>
+              <span>{density}×</span>
+            </button>
+            <button
+              onClick={() => {
+                if (selectionMode) {
+                  handleExitSelection();
+                } else {
+                  setSelectionMode(true);
+                }
+              }}
+              aria-label={selectionMode ? t('selecting') : t('select')}
+              aria-pressed={selectionMode}
+              className={`shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 rounded-full border px-3 py-1 my-1 text-xs font-semibold transition-colors ${
+                selectionMode
+                  ? 'border-[var(--cromo-accent)] bg-[var(--cromo-accent-soft)] text-[var(--cromo-accent)]'
+                  : 'border-[var(--cromo-border-strong)] text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)] hover:border-[var(--cromo-accent)]'
               }`}
             >
-              {label}
-              {id === 'all' && !loading && settingsFilteredStickers.length > 0 && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-fg-subtle)]">({settingsFilteredStickers.length})</span>
-              )}
-              {id === 'have' && computedStats && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-success-text)]">
-                  {totalOwnedQuantity > computedStats.owned
-                    ? `(${computedStats.owned} / ${totalOwnedQuantity})`
-                    : `(${computedStats.owned})`}
-                </span>
-              )}
-              {id === 'missing' && computedStats && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-danger-text)]">({computedStats.missing})</span>
-              )}
-              {id === 'duplicates' && computedStats && (
-                <span className="ml-1.5 text-xs text-[var(--cromo-warning-text)]">
-                  {totalExtraCopies > 0
-                    ? `(${computedStats.duplicates} / +${totalExtraCopies})`
-                    : `(${computedStats.duplicates})`}
-                </span>
-              )}
+              <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
+                <rect x="3" y="3" width="6" height="6" rx="1" />
+                <path d="M13 12l2 2 4-3" strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="11" y="3" width="6" height="6" rx="1" />
+                <rect x="3" y="11" width="6" height="6" rx="1" />
+              </svg>
+              <span>{selectionMode ? t('selecting') : t('select')}</span>
             </button>
-          ))}
-          {/* Density cycler is a desktop power-user feature — the mobile grid
-              already adapts to viewport width and the cycler steals tab space
-              on narrow screens. Long-press on any card enters selection mode,
-              so the Select button is icon-only on mobile (the MassActionBar
-              that appears confirms the mode change). */}
-          <button
-            onClick={() => {
-              const next = (density === 6 ? 2 : ((density + 1) as Density));
-              setDensity(next);
-            }}
-            aria-label={t('densityAria', { count: density })}
-            title={t('densityTitle', { count: density })}
-            className="ml-auto hidden md:flex shrink-0 px-3 py-2 text-xs font-medium border-b-2 border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)] transition-colors items-center gap-1"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
-              {Array.from({ length: density }).map((_, i) => (
-                <rect
-                  key={i}
-                  x={1 + i * (14 / density)}
-                  y={2}
-                  width={14 / density - 1}
-                  height={12}
-                  rx={1}
-                  fill="currentColor"
-                  fillOpacity={0.25}
-                />
-              ))}
-            </svg>
-            <span>{density}×</span>
-          </button>
-          <button
-            onClick={() => {
-              if (selectionMode) {
-                handleExitSelection();
-              } else {
-                setSelectionMode(true);
-              }
-            }}
-            aria-label={selectionMode ? t('selecting') : t('select')}
-            className={`md:ml-0 ml-auto shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
-              selectionMode
-                ? 'border-[var(--cromo-accent)] text-[var(--cromo-accent)]'
-                : 'border-transparent text-[var(--cromo-fg-subtle)] hover:text-[var(--cromo-fg-muted)] hover:border-[var(--cromo-border-strong)]'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={2}>
-              <rect x="3" y="3" width="6" height="6" rx="1" />
-              <path d="M13 12l2 2 4-3" strokeLinecap="round" strokeLinejoin="round" />
-              <rect x="11" y="3" width="6" height="6" rx="1" />
-              <rect x="3" y="11" width="6" height="6" rx="1" />
-            </svg>
-            <span className="hidden sm:inline">
-              {selectionMode ? t('selecting') : t('select')}
-            </span>
-          </button>
+          </div>
         </div>
           )}
         </div>

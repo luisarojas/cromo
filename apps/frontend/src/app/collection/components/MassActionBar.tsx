@@ -18,7 +18,7 @@ function ActionBtn({ onClick, disabled, title, colorClass, children, label }: Ac
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${colorClass}`}
+      className={`shrink-0 flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${colorClass}`}
     >
       {children}
       <span className="text-[9px] font-medium leading-none">{label}</span>
@@ -73,7 +73,7 @@ export default function MassActionBar({
       style={{ bottom: 'var(--cromo-tabbar-h)' }}
       className="fixed left-0 right-0 z-40 bg-[var(--cromo-surface)] border-t border-[var(--cromo-border)] shadow-cromo-lg"
     >
-      <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center gap-2">
         {/* Checkbox + count */}
         <button
           onClick={allDisplayedSelected ? onDeselectAll : onSelectAll}
@@ -105,7 +105,10 @@ export default function MassActionBar({
             {t('working')}
           </div>
         ) : (
-          <div className="flex items-center gap-0.5 flex-wrap">
+          // Single non-wrapping row that scrolls horizontally if the actions
+          // don't fit — keeps the bar one row tall instead of wrapping to two
+          // and stealing a big chunk of the bottom of the screen on mobile.
+          <div className="flex-1 min-w-0 flex items-center gap-0.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <ActionBtn
               onClick={onDelete}
               disabled={noneSelected || !hasAnyOwned}
@@ -118,7 +121,7 @@ export default function MassActionBar({
               </svg>
             </ActionBtn>
 
-            <div className="h-6 w-px bg-[var(--cromo-surface-2)] mx-0.5" />
+            <div className="h-6 w-px shrink-0 bg-[var(--cromo-surface-2)] mx-0.5" />
 
             <ActionBtn
               onClick={onToggleFavourite}
@@ -130,7 +133,7 @@ export default function MassActionBar({
               <HeartIcon filled={favouriteState === 'all'} className="w-4 h-4" />
             </ActionBtn>
 
-            <div className="h-6 w-px bg-[var(--cromo-surface-2)] mx-0.5" />
+            <div className="h-6 w-px shrink-0 bg-[var(--cromo-surface-2)] mx-0.5" />
 
             <ActionBtn
               onClick={onAddVariant}
@@ -156,7 +159,7 @@ export default function MassActionBar({
               </svg>
             </ActionBtn>
 
-            <div className="h-6 w-px bg-[var(--cromo-surface-2)] mx-0.5" />
+            <div className="h-6 w-px shrink-0 bg-[var(--cromo-surface-2)] mx-0.5" />
 
             <ActionBtn
               onClick={onTradeHide}
