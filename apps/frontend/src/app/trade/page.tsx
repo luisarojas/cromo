@@ -1294,11 +1294,13 @@ function TradePageContent() {
             <CombinedListInput
               key={tpInputKey}
               label="Their list"
+              helper="Untagged codes count as what they want/need — what you could give them. Add a HAVE: header for their spares (what you'd get). Tag variants like BRA5(red)."
               offered={tpOffered}
               wanted={tpWanted}
               onChange={({ offered, wanted }) => { setTpOffered(offered); setTpWanted(wanted); setTpResult(null); setTpWeights({}); setTpBaseStickerCents(BASE_STICKER_CASH_CENTS); }}
               albumTypeKey={albums.find((a) => a.id === tpAlbumId)?.albumTypeKey}
               token={token ?? undefined}
+              defaultBucket="wanted"
               actions={<ThirdPartyAppImport onResult={handleImportedList} disabled={!tpAlbumId || tpLoading} />}
             />
 

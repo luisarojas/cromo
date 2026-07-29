@@ -52,6 +52,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Tap an in-person or off-platform trade in My Trades to expand it and see every sticker that changed hands, not just a preview.',
         'Recording a third-party trade now clears the panel so it\'s ready for the next one, instead of leaving the trade you just recorded on screen.',
         'In a live in-person trade, a list you type or paste without a HAVE/WANT header now counts as what you want — add a HAVE: header for the dupes you\'ll trade away.',
+        'In a third-party trade, a list pasted without a HAVE/WANT header now counts as what the other person wants — so a bare list shows what you could give them; add a HAVE: header for their spares.',
         'The World Cup 2026 standings page opens on the knockout bracket, and on bigger screens the bracket reads like a wallchart — the two halves of the draw advance from the edges toward the final in the middle.',
         'Whether different variants of a sticker count as duplicates is now set per album (in the album\'s edit form) instead of in general settings — trade suggestions, duplicate counts, and stats all follow the album\'s own setting.',
         'World Cup 2026 odds to reach the final and lift the trophy are now driven by actual results — the past year of internationals plus each team\'s games at this tournament, weighted heavily — instead of historical ranking. Strength of schedule is built in, so the odds line up with how teams are really doing: win your group and your odds rise, stumble and they fall.',
