@@ -183,6 +183,13 @@
       "when": 1813500000000,
       "tag": "0025_draft_selection_quantities",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1813600000000,
+      "tag": "0026_completion_source",
+      "breakpoints": true
     }
   ]
 }

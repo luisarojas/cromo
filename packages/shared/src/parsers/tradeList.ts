@@ -444,12 +444,21 @@ function parseTail(rest: string): VariantTail {
   return { variantToken, quantity, consumed: whole?.length ?? 0 };
 }
 
-export function parseTradeListItems(value: string): TradeListItemBuckets {
+/**
+ * @param defaultBucket Where codes before any HAVE/WANT header land. Defaults to
+ *   'offered' (a pasted dupes list is the common case). The Live Room passes
+ *   'wanted': a guest typing a bare list there is stating what they're after, so
+ *   an untagged list should read as their wants, not their offers.
+ */
+export function parseTradeListItems(
+  value: string,
+  defaultBucket: Bucket = 'offered',
+): TradeListItemBuckets {
   // Last-write-wins on (albumCode, variantToken) — the user pasting "BRA5(red),
   // BRA5(red) x2" almost certainly means quantity 2, not two separate lines.
   const offered = new Map<string, TradeListItem>();
   const wanted = new Map<string, TradeListItem>();
-  let current: Bucket = 'offered';
+  let current: Bucket = defaultBucket;
 
   const keyOf = (code: string, token: string | null) => `${code}|${token ?? ''}`;
 

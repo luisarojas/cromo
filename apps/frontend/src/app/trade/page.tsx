@@ -895,11 +895,12 @@ function TradePageContent() {
         try { await deleteThirdPartyDraft(tpDraftId, token); } catch { /* best effort */ }
       }
       addToast('Trade recorded — your collection has been updated.', 'success');
-      // Wipe the staged match so a refresh-and-record can't double-commit
-      // the same trade. The pasted lists stay (user might edit + re-match).
-      setTpResult(null);
-      setTpDraftId(null);
       setTpConfirmOpen(false);
+      // A recorded trade is done — reset the whole panel to a blank slate so the
+      // page is ready for the NEXT third-party trade instead of re-showing the
+      // just-recorded one (which also guards against a refresh-and-record
+      // double-commit). Keeps the selected album, like "New trade".
+      handleTpNewTrade();
       // Tell other tabs (My Trades, Collection) to refresh.
       if (user) publishSync({ type: 'collection:changed', userId: user.id, albumId: tpAlbumId });
     } catch (err) {

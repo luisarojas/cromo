@@ -701,6 +701,11 @@ export const liveTradeCompletions = pgTable('live_trade_completions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   hostUserId: uuid('host_user_id').notNull().references(() => users.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
   hostAlbumId: uuid('host_album_id').notNull().references(() => userAlbums.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+  // Discriminates the two flows that share this table: 'live' = an in-person
+  // Live Room session (two-sided staging over Redis), 'third_party' = a trade
+  // the user logged after executing it off-platform. History rendering keys the
+  // "Live" badge off this so third-party trades aren't mislabelled as live.
+  source: text('source').notNull().default('live'),
   guestLabel: text('guest_label'),
   hostGave: jsonb('host_gave').$type<{ stickerVariantId: string; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),
   hostReceived: jsonb('host_received').$type<{ stickerVariantId: string; quantity: number }[]>().notNull().default(sql`'[]'::jsonb`),

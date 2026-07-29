@@ -384,7 +384,15 @@ export interface LiveTradeHistorySummary {
   id: string
   hostUserId: string
   hostAlbumId: string
-  /** Free-text label the host gave to the visitor (or null if never set). */
+  /**
+   * Which flow produced this completion. Both share `live_trade_completions`:
+   * 'live' = an in-person Live Room session; 'third_party' = a trade the user
+   * logged after executing it off-platform. Drives the badge in My Trades so a
+   * third-party trade isn't mislabelled "Live".
+   */
+  source: 'live' | 'third_party'
+  /** Free-text label for the other party — the guest's name (live) or the
+   *  partner's name (third-party). Null when never set. */
   guestLabel: string | null
   status: 'completed' | 'cancelled'
   hostGave: LiveTradeStickerRef[]

@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { isLiveTradeRow, type LiveTradeHistorySummary, type TradeHistoryItem, type TradeSummary, type TradeSummaryItem } from '@/lib/api';
+import { isLiveTradeRow, type LiveTradeHistorySummary, type LiveTradeStickerRef, type TradeHistoryItem, type TradeSummary, type TradeSummaryItem } from '@/lib/api';
 
 // Renders "My Trades" as cards on mobile and a sortable table on md+. The list
-// is heterogeneous: classic trade requests AND live in-person trades are
-// merged into one feed (sorted by updatedAt desc) and dispatched per-row on
-// the `kind` discriminator. Live rows are display-only — there is no detail
-// page; the gave/received piles are shown inline.
+// is heterogeneous: classic trade requests AND completion rows (in-person Live
+// Room trades + off-platform third-party trades) are merged into one feed
+// (sorted by updatedAt desc) and dispatched per-row on the `kind` discriminator.
+// Completion rows have no detail page — they expand in place to reveal the full
+// gave/received piles.
 
 const STATUS_BADGE: Record<TradeSummary['status'], { label: string; className: string }> = {
   pending:   { label: 'Pending',   className: 'bg-[var(--cromo-warning-soft)] text-[var(--cromo-warning-text)]' },
@@ -50,8 +51,12 @@ function openedAt(item: TradeHistoryItem): string {
   return isLiveTradeRow(item) ? item.completedAt : item.createdAt;
 }
 
+function completionCounterparty(item: LiveTradeHistorySummary): string {
+  return item.guestLabel ?? (item.source === 'third_party' ? 'Off-platform partner' : 'Guest');
+}
+
 function counterpartyLabel(item: TradeHistoryItem, myUserId: string): string {
-  if (isLiveTradeRow(item)) return item.guestLabel ?? 'Guest';
+  if (isLiveTradeRow(item)) return completionCounterparty(item);
   return item.requesterId === myUserId ? item.recipientUsername : item.requesterUsername;
 }
 
@@ -240,27 +245,48 @@ function RequestDesktopRow({
 
 function LiveDesktopRow({ trade }: { trade: LiveTradeHistorySummary }) {
   const badge = STATUS_BADGE[trade.status];
+  const [expanded, setExpanded] = useState(false);
+  const hasStickers = trade.hostGave.length > 0 || trade.hostReceived.length > 0;
   return (
-    <tr className="border-b border-[var(--cromo-border)]">
-      <td className="px-3 py-2 text-[var(--cromo-fg)] font-medium">
-        <div className="flex items-center gap-1.5">
-          <span>{trade.guestLabel ?? 'Guest'}</span>
-          <LiveBadge />
-        </div>
-        <LiveSummaryLine trade={trade} />
-      </td>
-      <td className="px-3 py-2">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
-          {badge.label}
-        </span>
-      </td>
-      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums">
-        {new Date(trade.completedAt).toLocaleDateString()}
-      </td>
-      <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums">
-        {trade.undoneAt ? new Date(trade.undoneAt).toLocaleDateString() : new Date(trade.completedAt).toLocaleDateString()}
-      </td>
-    </tr>
+    <>
+      <tr
+        onClick={() => hasStickers && setExpanded((v) => !v)}
+        aria-expanded={hasStickers ? expanded : undefined}
+        className={`border-b border-[var(--cromo-border)] transition-colors ${
+          hasStickers ? 'hover:bg-[var(--cromo-accent-soft)] cursor-pointer' : ''
+        }`}
+      >
+        <td className="px-3 py-2 text-[var(--cromo-fg)] font-medium">
+          <div className="flex items-center gap-1.5">
+            {hasStickers && (
+              <span className="text-[var(--cromo-fg-subtle)] text-xs w-3">{expanded ? '▾' : '▸'}</span>
+            )}
+            <span>{completionCounterparty(trade)}</span>
+            <SourceBadge source={trade.source} />
+          </div>
+          {/* Collapsed: 4-code preview. Expanded: the full piles below replace it. */}
+          {!expanded && <LiveSummaryLine trade={trade} />}
+        </td>
+        <td className="px-3 py-2 align-top">
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
+            {badge.label}
+          </span>
+        </td>
+        <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums align-top">
+          {new Date(trade.completedAt).toLocaleDateString()}
+        </td>
+        <td className="px-3 py-2 text-right text-[var(--cromo-fg-muted)] tabular-nums align-top">
+          {trade.undoneAt ? new Date(trade.undoneAt).toLocaleDateString() : new Date(trade.completedAt).toLocaleDateString()}
+        </td>
+      </tr>
+      {expanded && hasStickers && (
+        <tr className="border-b border-[var(--cromo-border)] bg-[var(--cromo-surface-2)]/40">
+          <td colSpan={4} className="px-3 py-3">
+            <CompletionDetail trade={trade} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -322,31 +348,63 @@ function RequestMobileCard({
 
 function LiveMobileCard({ trade }: { trade: LiveTradeHistorySummary }) {
   const badge = STATUS_BADGE[trade.status];
+  const [expanded, setExpanded] = useState(false);
+  const hasStickers = trade.hostGave.length > 0 || trade.hostReceived.length > 0;
   return (
     <div className="w-full rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-[var(--cromo-fg)] truncate flex items-center gap-1.5">
-            <span>{trade.guestLabel ?? 'Guest'}</span>
-            <LiveBadge />
+      <button
+        type="button"
+        onClick={() => hasStickers && setExpanded((v) => !v)}
+        aria-expanded={hasStickers ? expanded : undefined}
+        disabled={!hasStickers}
+        className={`w-full text-left ${hasStickers ? '' : 'cursor-default'}`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-[var(--cromo-fg)] truncate flex items-center gap-1.5">
+              {hasStickers && (
+                <span className="text-[var(--cromo-fg-subtle)] text-xs">{expanded ? '▾' : '▸'}</span>
+              )}
+              <span className="truncate">{completionCounterparty(trade)}</span>
+              <SourceBadge source={trade.source} />
+            </div>
+            <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
+              {new Date(trade.completedAt).toLocaleDateString()}
+              {trade.undoneAt && <> · Undone {new Date(trade.undoneAt).toLocaleDateString()}</>}
+            </div>
           </div>
-          <div className="text-xs text-[var(--cromo-fg-subtle)] mt-0.5">
-            {new Date(trade.completedAt).toLocaleDateString()}
-            {trade.undoneAt && <> · Undone {new Date(trade.undoneAt).toLocaleDateString()}</>}
-          </div>
+          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
+            {badge.label}
+          </span>
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>
-          {badge.label}
-        </span>
-      </div>
-      <div className="mt-2.5">
-        <LiveSummaryLine trade={trade} />
-      </div>
+        <div className="mt-2.5">
+          {/* Collapsed: 4-code preview. Expanded: the full piles below replace it. */}
+          {!expanded && <LiveSummaryLine trade={trade} />}
+        </div>
+      </button>
+      {expanded && hasStickers && (
+        <div className="mt-3 pt-3 border-t border-[var(--cromo-border)]">
+          <CompletionDetail trade={trade} />
+        </div>
+      )}
     </div>
   );
 }
 
-function LiveBadge() {
+// Badge distinguishing the two completion flows. A third-party trade is one the
+// user logged after trading off-platform — labelling it "Live" (as every
+// completion row used to) was the bug this fixes.
+function SourceBadge({ source }: { source: LiveTradeHistorySummary['source'] }) {
+  if (source === 'third_party') {
+    return (
+      <span
+        title="Off-platform trade you logged manually"
+        className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--cromo-surface-2)] text-[var(--cromo-fg-muted)]"
+      >
+        Third-party
+      </span>
+    );
+  }
   return (
     <span
       title="In-person trade with a non-registered visitor"
@@ -355,6 +413,62 @@ function LiveBadge() {
       Live
     </span>
   );
+}
+
+// Full gave/received piles for an expanded completion row — every sticker, not
+// the 4-code preview in the collapsed summary.
+function CompletionDetail({ trade }: { trade: LiveTradeHistorySummary }) {
+  const gave = trade.hostGave;
+  const got = trade.hostReceived;
+  if (gave.length === 0 && got.length === 0) {
+    return <p className="text-xs italic text-[var(--cromo-fg-subtle)]">Empty trade.</p>;
+  }
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <RefColumn label="Gave" refs={gave} />
+      <RefColumn label="Got" refs={got} />
+    </div>
+  );
+}
+
+function RefColumn({
+  label, refs,
+}: { label: string; refs: LiveTradeStickerRef[] }) {
+  const total = refs.reduce((s, r) => s + r.quantity, 0);
+  return (
+    <div>
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--cromo-fg-subtle)] mb-1.5">
+        {label} <span className="tabular-nums">×{total}</span>
+      </div>
+      {refs.length === 0 ? (
+        <p className="text-xs text-[var(--cromo-fg-subtle)] italic">Nothing.</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {refs.map((r) => (
+            <li key={r.stickerVariantId} className="text-xs text-[var(--cromo-fg-muted)] flex items-baseline gap-1.5">
+              <span className="font-mono text-[var(--cromo-fg)]">{r.albumCode}</span>
+              <span className="truncate">{fullRefLabel(r)}</span>
+              {r.quantity > 1 && <span className="tabular-nums shrink-0">×{r.quantity}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// "Vinicius Jr. (Red)" — player plus a variant suffix, dropping the two base
+// tokens (their label is redundant on a sticker line). Mirrors refLabel in the
+// live-room page.
+function fullRefLabel(ref: LiveTradeStickerRef): string {
+  const player = ref.playerName ?? 'Unknown';
+  const variant =
+    ref.variantLabel &&
+    ref.variantToken !== 'base_borderless' &&
+    ref.variantToken !== 'base_border'
+      ? ` (${ref.variantLabel})`
+      : '';
+  return `${player}${variant}`;
 }
 
 // Split a request trade's items into gave/got piles from the *viewer's*

@@ -682,12 +682,13 @@ function GuestListSection({
               key={importKey}
               label=""
               helper={isEmpty
-                ? 'Type both lists, or snap a photo. Use HAVE / WANT headers; tag variants like BRA5(red).'
+                ? 'Type your list, or snap a photo. Untagged codes count as what you WANT — add a HAVE: header for dupes you’ll trade away. Tag variants like BRA5(red).'
                 : 'Add more — these merge into your lists above.'}
               offered={[]}
               wanted={[]}
               onChange={setImportBuf}
               albumTypeKey={session.host.albumTypeKey}
+              defaultBucket="wanted"
             />
             <div className="flex items-center justify-end gap-2">
               <button

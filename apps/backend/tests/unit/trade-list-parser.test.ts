@@ -412,6 +412,28 @@ describe('parseTradeListItems (variant + quantity)', () => {
     // the backend resolves against the catalog and fails it loudly there.
     expect(offered[0]?.variantToken).toBe('neonpink');
   });
+
+  describe('defaultBucket', () => {
+    it('defaults header-less codes to offered when unspecified', () => {
+      const { offered, wanted } = parseTradeListItems('BRA5, ARG7');
+      expect(offered.map((i) => i.albumCode)).toEqual(['BRA5', 'ARG7']);
+      expect(wanted).toEqual([]);
+    });
+
+    it("routes header-less codes to wanted when the caller passes 'wanted' (Live Room)", () => {
+      const { offered, wanted } = parseTradeListItems('BRA5, ARG7', 'wanted');
+      expect(offered).toEqual([]);
+      expect(wanted.map((i) => i.albumCode)).toEqual(['BRA5', 'ARG7']);
+    });
+
+    it('still honours an explicit HAVE header even when the default is wanted', () => {
+      const { offered, wanted } = parseTradeListItems('HAVE: BRA5\nMEX10', 'wanted');
+      // BRA5 is under HAVE; MEX10 has no header but follows one, so it stays in
+      // the last-seen bucket (offered) — the default only governs pre-header codes.
+      expect(offered.map((i) => i.albumCode)).toEqual(['BRA5', 'MEX10']);
+      expect(wanted).toEqual([]);
+    });
+  });
 });
 
 describe('resolveVariantToken', () => {

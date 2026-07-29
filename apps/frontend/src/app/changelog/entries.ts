@@ -49,6 +49,9 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Multi-select is easier on phones — the Select button stays visible in the toolbar and the bulk-action bar fits in a single compact row.',
         'Finishing a bulk action now clears your selection and leaves select mode automatically.',
         'A third-party trade now shows an "Editing saved draft" badge while you refine a parked trade, with a "New trade" button to clear the panel and start a fresh one.',
+        'Tap an in-person or off-platform trade in My Trades to expand it and see every sticker that changed hands, not just a preview.',
+        'Recording a third-party trade now clears the panel so it\'s ready for the next one, instead of leaving the trade you just recorded on screen.',
+        'In a live in-person trade, a list you type or paste without a HAVE/WANT header now counts as what you want — add a HAVE: header for the dupes you\'ll trade away.',
         'The World Cup 2026 standings page opens on the knockout bracket, and on bigger screens the bracket reads like a wallchart — the two halves of the draw advance from the edges toward the final in the middle.',
         'Whether different variants of a sticker count as duplicates is now set per album (in the album\'s edit form) instead of in general settings — trade suggestions, duplicate counts, and stats all follow the album\'s own setting.',
         'World Cup 2026 odds to reach the final and lift the trophy are now driven by actual results — the past year of internationals plus each team\'s games at this tournament, weighted heavily — instead of historical ranking. Strength of schedule is built in, so the odds line up with how teams are really doing: win your group and your odds rise, stumble and they fall.',
@@ -66,6 +69,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'In a live trade, the host now sets the per-trade variant values directly and both sides see the balance update, instead of a propose-and-accept back-and-forth.',
       ],
       Fixed: [
+        'Off-platform third-party trades in My Trades are no longer mislabelled "Live" — they now carry a "Third-party" tag, and existing trades are relabelled correctly too.',
         'Adding a variant to several selected stickers at once now works even for ones you already own, adding another copy instead of skipping them.',
         'Setting a variant\'s weight to 0 in a trade now works — you can mark commons as worthless instead of the change being silently rejected with an error.',
         'The World Cup 2026 knockout bracket no longer shows one match twice while hiding another — every game, including live ones, now appears exactly once even when the official feed lists a round as already decided.',

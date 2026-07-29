@@ -18,6 +18,10 @@ interface Props {
   /** Optional bearer; /scan/list is public but logged-in callers attach it to
    *  use their authenticated rate-limit bucket. */
   token?: string;
+  /** Bucket for codes typed before any HAVE/WANT header. Defaults to 'offered'
+   *  (a dupes list); the Live Room passes 'wanted' so a guest's untagged list
+   *  reads as what they're looking for. */
+  defaultBucket?: 'offered' | 'wanted';
   /** Extra input-source buttons rendered alongside Take/Upload photo in the
    *  toolbar (e.g. "Import from another app"). Styled by the caller with
    *  TOOLBAR_BTN_CLASS so the whole row reads as one consistent group. */
@@ -32,8 +36,11 @@ interface Props {
 const MAX_BUCKET_ITEMS = 500;
 const MAX_TEXT_LENGTH = 16_000;
 
-function parseCombinedText(value: string): { offered: ListItem[]; wanted: ListItem[] } {
-  const { offered, wanted } = parseTradeListItems(value);
+function parseCombinedText(
+  value: string,
+  defaultBucket: 'offered' | 'wanted' = 'offered',
+): { offered: ListItem[]; wanted: ListItem[] } {
+  const { offered, wanted } = parseTradeListItems(value, defaultBucket);
   return {
     offered: offered.slice(0, MAX_BUCKET_ITEMS),
     wanted: wanted.slice(0, MAX_BUCKET_ITEMS),
@@ -66,6 +73,7 @@ function serialise(buckets: { offered: ListItem[]; wanted: ListItem[] }): string
  */
 export default function CombinedListInput({
   label, helper, offered, wanted, onChange, albumTypeKey, token, actions,
+  defaultBucket = 'offered',
 }: Props) {
   // The textarea is the source of truth for the keyboard path. When the user
   // uploads a photo or pastes a new block, we replace its content with a
@@ -96,7 +104,7 @@ export default function CombinedListInput({
     const capped = value.length > MAX_TEXT_LENGTH ? value.slice(0, MAX_TEXT_LENGTH) : value;
     setText(capped);
     setTruncated(value.length > MAX_TEXT_LENGTH);
-    onChange(parseCombinedText(capped));
+    onChange(parseCombinedText(capped, defaultBucket));
   }
 
   async function handleFiles(files: FileList | null) {
@@ -109,7 +117,7 @@ export default function CombinedListInput({
       // photographed lists aren't reliable enough to extract. The scanned codes
       // land as untagged items (variantToken=null, qty=1) which the backend
       // then resolves to the user's preferred base variant.
-      const current = parseCombinedText(text);
+      const current = parseCombinedText(text, defaultBucket);
       const offeredMap = new Map(current.offered.map((i) => [keyOf(i), i] as const));
       const wantedMap = new Map(current.wanted.map((i) => [keyOf(i), i] as const));
       for (const code of result.offered) {

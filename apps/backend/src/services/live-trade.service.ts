@@ -817,8 +817,8 @@ export async function completeSession(
 
       const { rows: insertedRows } = await client.query<{ id: string; completed_at: Date }>(
         `INSERT INTO live_trade_completions
-           (host_user_id, host_album_id, guest_label, host_gave, host_received)
-         VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+           (host_user_id, host_album_id, source, guest_label, host_gave, host_received)
+         VALUES ($1, $2, 'live', $3, $4::jsonb, $5::jsonb)
          RETURNING id, completed_at`,
         [
           hostUserId,
@@ -1014,6 +1014,7 @@ interface CompletionRow {
   id: string;
   host_user_id: string;
   host_album_id: string;
+  source: string;
   guest_label: string | null;
   host_gave: { stickerVariantId: string; quantity: number }[];
   host_received: { stickerVariantId: string; quantity: number }[];
@@ -1065,7 +1066,7 @@ export async function listLiveTradeHistory(
   const statusFilter = opts.status ?? null;
   const { rows } = await db.query<CompletionRow & { updated_at: Date }>(
     `SELECT
-       id, host_user_id, host_album_id, guest_label,
+       id, host_user_id, host_album_id, source, guest_label,
        host_gave, host_received, completed_at, undone_at,
        COALESCE(undone_at, completed_at) AS updated_at
      FROM live_trade_completions
@@ -1105,6 +1106,7 @@ export async function listLiveTradeHistory(
     id: r.id,
     hostUserId: r.host_user_id,
     hostAlbumId: r.host_album_id,
+    source: r.source === 'third_party' ? 'third_party' : 'live',
     guestLabel: r.guest_label,
     status: r.undone_at ? 'cancelled' : 'completed',
     hostGave: enrichDeltas(r.host_gave, refs),
@@ -1330,8 +1332,8 @@ export async function recordThirdPartyCompletion(
 
     const { rows: insertedRows } = await client.query<{ id: string; completed_at: Date }>(
       `INSERT INTO live_trade_completions
-         (host_user_id, host_album_id, guest_label, host_gave, host_received)
-       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+         (host_user_id, host_album_id, source, guest_label, host_gave, host_received)
+       VALUES ($1, $2, 'third_party', $3, $4::jsonb, $5::jsonb)
        RETURNING id, completed_at`,
       [
         userId,
