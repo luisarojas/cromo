@@ -30,9 +30,9 @@ export interface TradeListBuckets {
 }
 
 const OFFERED_MARKERS = [
-  'have', 'haves', 'offered', 'offering', 'offer', 'for trade', 'fortrade',
-  'up for trade', 'dupes', 'duplicates', 'duplicate', 'dupe',
-  'swap', 'swaps', 'swapping',
+  'have', 'haves', 'offered', 'offering', 'offers', 'offer', 'for trade',
+  'fortrade', 'up for trade', 'trading', 'trade', 'dupes', 'duplicates',
+  'duplicate', 'dupe', 'swap', 'swaps', 'swapping',
   'tiene', 'tengo', 'ofrezco', 'cambio',
 ];
 

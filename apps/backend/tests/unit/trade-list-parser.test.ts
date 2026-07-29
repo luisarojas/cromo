@@ -178,6 +178,21 @@ CC: 7`;
       expect(offered.sort()).toEqual(['ARG7', 'BRA5']);
       expect(wanted).toEqual(['MEX1']);
     });
+
+    it('treats "Trade" / "Trading" / "Offers" as offered-section markers', () => {
+      expect(parseTradeList('Trade: BRA5, ARG7\nWants: MEX1')).toEqual({
+        offered: ['BRA5', 'ARG7'],
+        wanted: ['MEX1'],
+      });
+      expect(parseTradeList('Trading: BRA5\nWant: MEX1')).toEqual({
+        offered: ['BRA5'],
+        wanted: ['MEX1'],
+      });
+      expect(parseTradeList('Offers: BRA5\nWanted: MEX1')).toEqual({
+        offered: ['BRA5'],
+        wanted: ['MEX1'],
+      });
+    });
   });
 
   describe('country-name aliases', () => {

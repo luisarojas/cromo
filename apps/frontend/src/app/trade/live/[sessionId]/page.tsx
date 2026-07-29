@@ -252,7 +252,7 @@ function SessionRoom({
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-4 sm:py-8 pb-24">
+    <div className="max-w-3xl mx-auto px-4 py-4 sm:py-8 pb-24 sm:pb-8">
       <Header session={session} role={role} onClose={() => router.push('/trade')} />
 
       <StatusBanner
@@ -1172,7 +1172,7 @@ function LockBar({
     : (session.host.displayName ?? session.host.username ?? 'the host');
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)]/95 backdrop-blur p-3 sm:p-4">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)]/95 backdrop-blur p-3 sm:static sm:z-auto sm:mt-4 sm:rounded-xl sm:border sm:bg-[var(--cromo-surface)] sm:p-4 sm:backdrop-blur-none">
       <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
         <div className="min-w-0 text-xs text-[var(--cromo-fg-muted)]">
           {!guestJoined
