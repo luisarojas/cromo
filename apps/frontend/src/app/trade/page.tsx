@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { QRCodeSVG } from 'qrcode.react';
@@ -29,7 +28,6 @@ import {
   albumDisplayName,
   type UserAlbum,
   type TradeMatch,
-  type TradeSummary,
   type TradeHistoryItem,
   type CollectionItem,
   type City,

@@ -803,6 +803,134 @@
       },
       "isRLSEnabled": false
     },
+    "public.live_trade_completions": {
+      "name": "live_trade_completions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "host_user_id": {
+          "name": "host_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "host_album_id": {
+          "name": "host_album_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'live'"
+        },
+        "guest_label": {
+          "name": "guest_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "host_gave": {
+          "name": "host_gave",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "host_received": {
+          "name": "host_received",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "undone_at": {
+          "name": "undone_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_live_trade_completions_host_completed": {
+          "name": "idx_live_trade_completions_host_completed",
+          "columns": [
+            {
+              "expression": "host_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "completed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "live_trade_completions_host_user_id_users_id_fk": {
+          "name": "live_trade_completions_host_user_id_users_id_fk",
+          "tableFrom": "live_trade_completions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "host_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "live_trade_completions_host_album_id_user_albums_id_fk": {
+          "name": "live_trade_completions_host_album_id_user_albums_id_fk",
+          "tableFrom": "live_trade_completions",
+          "tableTo": "user_albums",
+          "columnsFrom": [
+            "host_album_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.password_reset_tokens": {
       "name": "password_reset_tokens",
       "schema": "",
@@ -1741,6 +1869,154 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.third_party_trade_drafts": {
+      "name": "third_party_trade_drafts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "album_id": {
+          "name": "album_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "partner_name": {
+          "name": "partner_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "their_offered": {
+          "name": "their_offered",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "their_wanted": {
+          "name": "their_wanted",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "selection_i_receive": {
+          "name": "selection_i_receive",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "selection_i_give": {
+          "name": "selection_i_give",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "i_receive_cash_cents": {
+          "name": "i_receive_cash_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "i_give_cash_cents": {
+          "name": "i_give_cash_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_third_party_trade_drafts_user_updated": {
+          "name": "idx_third_party_trade_drafts_user_updated",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "third_party_trade_drafts_user_id_users_id_fk": {
+          "name": "third_party_trade_drafts_user_id_users_id_fk",
+          "tableFrom": "third_party_trade_drafts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "third_party_trade_drafts_album_id_user_albums_id_fk": {
+          "name": "third_party_trade_drafts_album_id_user_albums_id_fk",
+          "tableFrom": "third_party_trade_drafts",
+          "tableTo": "user_albums",
+          "columnsFrom": [
+            "album_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "third_party_trade_drafts_cash_nonneg": {
+          "name": "third_party_trade_drafts_cash_nonneg",
+          "value": "\"third_party_trade_drafts\".\"i_receive_cash_cents\" >= 0 AND \"third_party_trade_drafts\".\"i_give_cash_cents\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.trade_invites": {
       "name": "trade_invites",
       "schema": "",
@@ -2612,12 +2888,18 @@
           "notNull": true,
           "default": "'{\"includeExtras\":true,\"includeCocaCola\":true,\"defaultBaseVariant\":\"base_borderless\",\"duplicatesCountAllVariants\":true}'::jsonb"
         },
-        "is_trade_inventory_public": {
-          "name": "is_trade_inventory_public",
-          "type": "boolean",
+        "trade_inventory_visibility": {
+          "name": "trade_inventory_visibility",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": "'private'"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "owned_count": {
           "name": "owned_count",
@@ -2732,18 +3014,24 @@
           "method": "btree",
           "with": {}
         },
-        "idx_user_albums_public_trade_inventory": {
-          "name": "idx_user_albums_public_trade_inventory",
+        "idx_user_albums_trade_inventory_visibility": {
+          "name": "idx_user_albums_trade_inventory_visibility",
           "columns": [
             {
               "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "trade_inventory_visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
-          "where": "is_trade_inventory_public",
+          "where": "trade_inventory_visibility != 'private'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2823,9 +3111,26 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "user_albums_user_id_slug_unique": {
+          "name": "user_albums_user_id_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "slug"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
+        "user_albums_trade_inventory_visibility_check": {
+          "name": "user_albums_trade_inventory_visibility_check",
+          "value": "\"user_albums\".\"trade_inventory_visibility\" IN ('private', 'unlisted', 'public')"
+        },
+        "user_albums_slug_format_check": {
+          "name": "user_albums_slug_format_check",
+          "value": "\"user_albums\".\"slug\" ~ '^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$'"
+        },
         "user_albums_alias_length": {
           "name": "user_albums_alias_length",
           "value": "\"user_albums\".\"alias\" IS NULL OR (char_length(\"user_albums\".\"alias\") BETWEEN 1 AND 100)"

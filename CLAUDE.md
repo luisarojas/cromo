@@ -115,8 +115,12 @@ Schema in `apps/backend/src/db/schema.ts`; SQL files in `apps/backend/src/db/mig
 To change the schema:
 1. Edit `schema.ts`.
 2. `pnpm db:generate` (routes through `docker compose exec api`).
-3. Review the generated SQL. For things Drizzle can't infer (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` and add a matching `meta/_journal.json` entry + placeholder snapshot (copy previous, refresh `id`/`prevId`).
+3. Review the generated SQL. For things Drizzle can't infer (PL/pgSQL functions, triggers, views), hand-write a separate `NNNN_*.sql` and add a matching `meta/_journal.json` entry.
 4. `pnpm db:migrate` (or wait for the next API startup).
+
+**The head snapshot must stay canonical.** The runtime migrator only reads `_journal.json` + the `.sql` files — it ignores the per-migration `meta/*_snapshot.json`. But `db:generate` diffs `schema.ts` against the **latest** snapshot, so if that snapshot drifts from `schema.ts`, generate either prompts interactively (rename ambiguity) or emits a spurious churn migration. Two rules keep it healthy:
+- **Never hand-write a snapshot by copying the previous one.** The old "copy previous, refresh `id`/`prevId`" trick silently drifts the baseline — it's what left the chain unable to `generate`. For a hand-written `NNNN_*.sql`, regenerate the matching snapshot canonically instead of copying (see below).
+- **Regenerating the canonical head snapshot** (after a hand-written migration, or to recover from drift): produce it with `generate` itself so the serializer matches — `npx drizzle-kit generate --dialect=postgresql --schema=./src/db/schema.ts --out=/tmp/canon` on an empty dir writes `/tmp/canon/meta/0000_snapshot.json` = the canonical full-schema snapshot; copy it over the real `meta/NNNN_snapshot.json` (the latest idx), set its `id`/`prevId` to the real chain, and confirm `pnpm db:generate` reports **"No schema changes"**. Do **not** use `drizzle-kit introspect`/`pull` for this — its index/check/FK serialization differs from `generate`'s and produces a 100+ statement no-op churn. The historical snapshots (idx < head) can stay as-is; generate only reads the head.
 
 Catalog seed data (album types, editions, formats, scan prompts) lives in `scripts/seeds/00_album_catalog.sql` and loads via `pnpm db:seed`, not the migration system.
 
