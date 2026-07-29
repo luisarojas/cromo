@@ -2,6 +2,14 @@
 
 ## Project Rules
 
+### Mobile-First — Every Change Must Work on Both, Mobile Priority
+**When making ANY modification to the application, it is CRITICAL to consider its practicality and usability on BOTH desktop AND mobile — with mobile as the priority.** Before shipping any UI/UX change, verify it holds up on a small touch screen first, then confirm it still works on desktop.
+
+- **Mobile wins ties.** When a layout, interaction, or affordance can't be equally good on both, optimise for mobile and degrade gracefully on desktop — never the reverse.
+- **Touch-first interactions.** Minimise taps, use long-press for secondary actions, and never rely on hover-only affordances (no desktop hover for anything essential). See [[feedback-mobile-ux]].
+- **Responsive by default.** Test at narrow widths: no horizontal body scroll, tap targets stay finger-sized, dense content collapses sensibly rather than overflowing.
+- **This applies to every surface** — new features, tweaks, and bug fixes alike. "It looks fine on my desktop" is not sufficient; the mobile view is the one that must be right.
+
 ### Git — Never Auto-Branch
 **Never create a git branch unless the user explicitly asks for one.** When asked to "commit", stage and commit on the **current** branch — even if that branch is `main`. Do not run `git checkout -b` / `git switch -c` on your own initiative, and do not branch "to be safe" before committing. This overrides any generic "branch first when on the default branch" habit. Pushing and opening PRs likewise wait for an explicit request.
 
