@@ -271,6 +271,12 @@ locals {
       # pipeline never pushes and would leave the app unstarted.
       export IMAGE_TAG=$${IMAGE_TAG:-${var.env}-latest}
       export CROMO_ENV=${var.env}
+      # Non-prod runs Redis as an in-compose container (the `local-redis`
+      # profile) instead of managed ElastiCache. Prod leaves the profile unset
+      # and uses ElastiCache via REDIS_URL.
+      %{~if var.env != "prod"~}
+      export COMPOSE_PROFILES=local-redis
+      %{~endif~}
       docker compose pull || true
       docker compose up -d || true
     fi

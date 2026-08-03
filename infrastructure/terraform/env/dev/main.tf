@@ -64,6 +64,14 @@ module "networking" {
   source            = "../../modules/networking"
   env               = local.env
   alb_ingress_cidrs = var.alb_ingress_cidrs
+
+  # Dev has no NAT gateway (~$33/mo of pure idle cost). Instead the app
+  # instance runs in a PUBLIC subnet with a public IP and egresses straight
+  # through the internet gateway; its security group still only accepts
+  # inbound from the ALB, so nothing is actually exposed. Managed data stores
+  # (RDS) stay in the private subnets and need no egress. Prod leaves this
+  # default true and keeps the app private behind per-AZ NATs.
+  enable_nat_gateway = false
 }
 
 # ─── DNS (looks up the hosted zone owned by env/shared) ───────────────────────
@@ -90,13 +98,12 @@ module "database" {
 }
 
 # ─── Cache ────────────────────────────────────────────────────────────────────
-
-module "cache" {
-  source             = "../../modules/cache"
-  env                = local.env
-  private_subnet_ids = module.networking.private_subnet_ids
-  cache_sg_id        = module.networking.cache_sg_id
-}
+# Dev runs Redis as a Docker container in the compose stack on the app
+# instance (see infrastructure/docker/docker-compose.prod.yml, `redis` service,
+# gated behind the `local-redis` compose profile), NOT managed ElastiCache
+# (~$12/mo). REDIS_URL below points at the in-compose service. Prod keeps the
+# managed multi-AZ ElastiCache module. Redis holds only cache + ephemeral
+# queue/live-room state, so losing it on the nightly instance recycle is fine.
 
 # ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -148,7 +155,8 @@ module "secrets" {
     NODE_ENV     = "production"
     APP_VERSION  = "0.0.0-dev"
     DATABASE_URL = module.database.connection_url
-    REDIS_URL    = module.cache.redis_url
+    # In-compose Redis container (see the Cache note above), not ElastiCache.
+    REDIS_URL = "redis://redis:6379"
 
     AUTH_MODE            = "cognito"
     JWT_SECRET           = var.jwt_secret
@@ -190,13 +198,16 @@ module "secrets" {
 # ─── Compute (depends on every other module) ──────────────────────────────────
 
 module "compute" {
-  source             = "../../modules/compute"
-  env                = local.env
-  region             = var.region
-  hostname           = local.hostname
-  vpc_id             = module.networking.vpc_id
-  alb_subnet_ids     = module.networking.public_subnet_ids
-  app_subnet_ids     = module.networking.private_subnet_ids
+  source         = "../../modules/compute"
+  env            = local.env
+  region         = var.region
+  hostname       = local.hostname
+  vpc_id         = module.networking.vpc_id
+  alb_subnet_ids = module.networking.public_subnet_ids
+  # With no NAT gateway (enable_nat_gateway = false above), the app instance
+  # lives in the PUBLIC subnets so it can egress via the internet gateway.
+  # The app security group still only accepts inbound from the ALB SG.
+  app_subnet_ids     = module.networking.public_subnet_ids
   alb_sg_id          = module.networking.alb_sg_id
   app_sg_id          = module.networking.app_sg_id
   route53_zone_id    = module.dns.zone_id
@@ -227,7 +238,7 @@ module "monitoring" {
 module "scheduling" {
   source        = "../../modules/scheduling"
   env           = local.env
-  enable        = false
+  enable        = true
   asg_name      = module.compute.asg_name
   db_identifier = module.database.identifier
   db_arn        = module.database.arn

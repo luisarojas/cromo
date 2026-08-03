@@ -12,6 +12,27 @@
 
 services:
 
+  # Self-hosted Redis for environments without managed ElastiCache (e.g. dev,
+  # to save ~$12/mo). Only starts when the `local-redis` compose profile is
+  # active — the user-data script exports COMPOSE_PROFILES=local-redis for
+  # non-prod. Prod leaves the profile unset and points REDIS_URL at its
+  # managed multi-AZ ElastiCache, so this container never runs there. State is
+  # cache + ephemeral queue/live-room data only; persistence is disabled, so a
+  # container/instance recycle just cold-starts an empty cache.
+  redis:
+    image: redis:7.1-alpine
+    profiles: ["local-redis"]
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    # No host port publishing — the api container reaches Redis over the
+    # compose network as `redis:6379`. Not exposed to the host/internet.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   api:
     image: ${ECR_REGISTRY}/cromo-backend:${IMAGE_TAG}
     restart: unless-stopped

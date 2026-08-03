@@ -9,7 +9,7 @@ data "aws_availability_zones" "available" { state = "available" }
 
 locals {
   azs       = slice(data.aws_availability_zones.available.names, 0, 2)
-  nat_count = var.single_nat_gateway ? 1 : length(local.azs)
+  nat_count = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : length(local.azs)) : 0
 }
 
 # ─── VPC ──────────────────────────────────────────────────────────────────────
@@ -79,13 +79,20 @@ resource "aws_nat_gateway" "main" {
 
 # One private RT per NAT. Single-NAT mode → one RT shared by all private
 # subnets. Per-AZ mode → each private subnet routes through the NAT in its
-# own AZ so a NAT/AZ outage only takes out that AZ's egress.
+# own AZ so a NAT/AZ outage only takes out that AZ's egress. When NAT is
+# disabled entirely (enable_nat_gateway = false) a single private RT is still
+# created for the private subnets, but it carries no default route — those
+# subnets get only the implicit local route (fine for RDS, which needs no
+# internet egress).
 resource "aws_route_table" "private" {
-  count  = local.nat_count
+  count  = var.enable_nat_gateway ? local.nat_count : 1
   vpc_id = aws_vpc.main.id
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
+  dynamic "route" {
+    for_each = var.enable_nat_gateway ? [1] : []
+    content {
+      cidr_block     = "0.0.0.0/0"
+      nat_gateway_id = aws_nat_gateway.main[count.index].id
+    }
   }
   tags = { Name = "cromo-${var.env}-private-rt-${count.index}" }
 }
@@ -93,7 +100,7 @@ resource "aws_route_table" "private" {
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[var.single_nat_gateway ? 0 : count.index].id
+  route_table_id = aws_route_table.private[var.enable_nat_gateway && !var.single_nat_gateway ? count.index : 0].id
 }
 
 # ─── Security groups ──────────────────────────────────────────────────────────

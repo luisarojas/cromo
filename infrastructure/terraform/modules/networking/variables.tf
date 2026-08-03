@@ -9,6 +9,12 @@ variable "vpc_cidr" {
   default     = "10.20.0.0/16"
 }
 
+variable "enable_nat_gateway" {
+  description = "When true (default), provision NAT gateway(s) so private-subnet resources can egress. Set false for cheap environments (e.g. dev) that run their only egress-needing workload in a public subnet — no NAT gateway is created and the private route tables carry no default route. Saves ~$33/mo per NAT gateway."
+  type        = bool
+  default     = true
+}
+
 variable "single_nat_gateway" {
   description = "When true, provision one NAT gateway in AZ-a and route every private subnet through it (cheap, AZ-fragile). When false, provision one NAT per AZ — each private subnet routes through the NAT in its own AZ, so an AZ outage doesn't sever egress for the surviving AZ."
   type        = bool
