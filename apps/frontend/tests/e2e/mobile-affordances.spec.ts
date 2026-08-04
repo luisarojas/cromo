@@ -110,7 +110,7 @@ test.describe('mobile affordances', () => {
     expect(box!.width, '+ button is too narrow for a thumb').toBeGreaterThanOrEqual(44);
   });
 
-  test('grid density toggle is hidden on mobile', async ({ page }) => {
+  test('grid density toggle is exposed on mobile', async ({ page }) => {
     await loginAs(page, ALICE);
     await page.goto('/collection');
 
@@ -118,10 +118,10 @@ test.describe('mobile affordances', () => {
     await firstAlbumLink.click();
     await page.waitForURL(/\/album\/[^/]+/);
 
-    // The density button's aria-label starts with "Grid density:".
+    // Phones now honour the density preference (2–4 columns); the density
+    // cycler is exposed on mobile too (capped at 4 on narrow viewports). Its
+    // aria-label starts with "Grid density:".
     const density = page.getByRole('button', { name: /grid density:/i });
-    // Hidden via `hidden md:flex` — Playwright considers `display: none`
-    // elements not visible.
-    await expect(density).toBeHidden();
+    await expect(density).toBeVisible();
   });
 });

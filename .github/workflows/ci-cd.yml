@@ -127,12 +127,12 @@ jobs:
     name: E2E — Playwright smoke
     needs: [test, changes]
     runs-on: ubuntu-latest
-    # Non-gating until the suite has been observed green at least once.
-    # Removes the failure-on-first-run risk for selectors / DOM assumptions
-    # that were never exercised in CI (the specs predate the workflow).
-    # Promote to a gating check by removing continue-on-error after the
-    # first stable run — then downstream jobs will actually block on a red.
-    continue-on-error: true
+    # Gating: a red Playwright run fails the workflow and (via the deploy-dev
+    # `needs`) skips the deploy. This was previously `continue-on-error: true`
+    # while the suite stabilised — the specs predate the workflow, so early
+    # selector/DOM failures were non-blocking. It has since run green, so the
+    # flag is removed: an e2e failure now surfaces as a red run instead of a
+    # misleading success that still deployed.
     if: needs.changes.outputs.code == 'true'
 
     # No service: containers — we bring up postgres + redis via the
@@ -295,8 +295,8 @@ jobs:
           docker compose -f infrastructure/docker/docker-compose.e2e.yml logs db       > /tmp/db.log       2>&1 || true
 
       - name: Upload Playwright report
-        # Uploaded unconditionally so the report is available for inspection
-        # even when continue-on-error masks a red.
+        # Uploaded unconditionally (if: always()) so the report is available
+        # for inspection even when the suite fails and the job goes red.
         if: always()
         uses: actions/upload-artifact@v4
         with:
