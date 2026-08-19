@@ -17,9 +17,9 @@
     "@cromo/shared": "workspace:*",
     "@sentry/nextjs": "^8.55.0",
     "@tanstack/react-query": "^5.100.10",
-    "@tanstack/react-virtual": "^3.13.24",
-    "next": "15.5.21",
-    "next-intl": "^4.9.2",
+    "@tanstack/react-virtual": "^3.14.9",
+    "next": "15.5.23",
+    "next-intl": "^4.13.6",
     "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "qrcode.react": "^4.2.0",
@@ -27,7 +27,7 @@
     "react-dom": "^19.2.6",
     "react-leaflet": "^5.0.0",
     "recharts": "^2.15.4",
-    "zustand": "^5.0.13"
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
