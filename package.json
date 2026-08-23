@@ -32,14 +32,13 @@
       "sharp"
     ],
     "auditConfig": {
-      "//": "Two classes of advisory. (1) NO override needed — brace-expansion / fast-uri / js-yaml / nanoid / form-data / qs / vite: every parent (minimatch, fast-json-stringify, json-schema-resolver, @eslint/eslintrc, postcss-as-nanoid-parent, direct ranges) already declares a semver range that admits the patched release, so a lockfile refresh resolves them naturally; carrying an override for these only papers over a stale lockfile. (2) Overrides below ARE load-bearing — the parent pins/caps the transitive BELOW its patch, so a refresh can't reach it: @fastify/swagger-ui pins @fastify/static, drizzle-kit's @esbuild-kit pins esbuild, next pins postcss (~8.4.x) and sharp, @sentry/nextjs@8 pins rollup, node-cron pins uuid@8. The real fix for each is upgrading the owning dep — notably the @sentry/nextjs v8->v10 upgrade, which also clears the one deferred medium (@opentelemetry/core GHSA-8988, fixed in otel 2.8.0 but blocked by Sentry v8's otel ^1.30.1 pin). ignoreGhsas is empty — nothing suppressed; the remaining otel moderate doesn't gate CI (audit runs at --audit-level=high).",
+      "//": "Two classes of advisory. (1) NO override needed — brace-expansion / fast-uri / js-yaml / nanoid / form-data / qs / vite / rollup: every parent already declares a semver range that admits the patched release, so a lockfile refresh resolves them naturally; carrying an override only papers over a stale lockfile. (rollup's only vulnerable source was @sentry/nextjs@8; the v10 upgrade dropped rollup from the Sentry chain, so its override is gone.) (2) Overrides below ARE load-bearing — the parent pins/caps the transitive BELOW its patch, so a refresh can't reach it: @fastify/swagger-ui pins @fastify/static, drizzle-kit's @esbuild-kit pins esbuild, next pins postcss (~8.4.x) and sharp, node-cron pins uuid@8. The real fix for each is upgrading the owning dep. ignoreGhsas is empty — nothing suppressed. (@sentry/nextjs v10 also moved OpenTelemetry to 2.x, clearing the previously-deferred @opentelemetry/core GHSA-8988 medium.)",
       "ignoreGhsas": []
     },
     "overrides": {
       "@fastify/static@<10.1.1": "^10.1.2",
       "esbuild@<0.28.1": "^0.28.1",
       "postcss@<8.5.10": "^8.5.10",
-      "rollup@>=3.0.0 <3.30.0": "^3.30.0",
       "sharp@<0.35.0": "^0.35.3",
       "uuid@<11.1.1": "^11.1.1"
     }
