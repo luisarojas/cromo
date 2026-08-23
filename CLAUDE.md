@@ -47,6 +47,25 @@ Verify before committing: `docker compose exec -T api sh -c 'cp /app/pnpm-lock.y
 ### No Backward Compatibility Required
 Cromo is in active development — make breaking changes freely. No migration paths, no deprecation warnings. (Exception: published release tags are immutable by convention; see versioning.)
 
+### Dependency Vulnerabilities — Upgrade First, Override As Last Resort
+
+CI gates on `pnpm audit --audit-level=high`. When it fails, **fix by upgrading, not by pinning.** `pnpm.overrides` force a version and drift silently — they hide that the real dependency is stale and become permanent debt. Reach for an override only when no released upstream version pulls the patched transitive.
+
+Work the ladder in order; **stop at the first rung that clears the advisory:**
+
+1. **Refresh the lockfile.** `pnpm update <pkg> -r` (or delete the suspect override, then `pnpm update`). If the parent's semver range already admits the patched release, this resolves it naturally with no override. Most "needed" overrides are really just a stale lockfile — a refresh is the whole fix.
+2. **Upgrade the owning direct dep.** `pnpm why <pkg>` to find the top-level dependency, then bump it to a version whose ranges pull the patched transitive (e.g. the `@sentry/nextjs` v8→v10 bump that dropped the `rollup` pin and cleared the OTEL medium).
+3. **Override — last resort only.** When the parent pins/caps the transitive below its patch and no fixed upstream exists yet. Add it to `pnpm.overrides` with the `auditConfig."//"` comment updated to name the owning dep and the removal condition. Treat it as temporary.
+
+**Classify an existing override** (is it still needed?): remove it → `pnpm update <pkg> -r` → re-audit. Reappears = load-bearing, keep it (or upgrade its parent); doesn't = it was only masking a stale lockfile, drop it. Run this sweep periodically to prune overrides that upstreams have since fixed.
+
+**Rules:**
+- **Never run `pnpm audit --fix`** — it "fixes" by writing overrides, the opposite of this policy.
+- **Keep `ignoreGhsas` empty.** Suppressing an advisory is not fixing it; only defer (with a dated comment) a genuinely unreachable-in-prod medium/low that no upgrade path exists for yet.
+- **The `auditConfig."//"` comment in root `package.json` is the source of truth** for why each surviving override exists (which parent pins it, what upgrade would retire it). Keep it accurate when you add/remove an override.
+- **Lockfile regeneration goes through the container** per the Docker-First rule (EBUSY-on-rename trap). If the container can't reach the registry (e.g. an IPv6-only host), regenerating on the host with the pinned pnpm is an acceptable fallback for the lockfile only — but verify a real build/`--frozen-lockfile` before trusting a breaking upgrade.
+- **Prefer keeping the lockfile fresh** (scheduled `pnpm update -r`, or Renovate opening upgrade PRs) so staleness never masquerades as needing a pin.
+
 ### Sticker Catalog Cache
 The frontend's localStorage cache is keyed off `GET /api/v1/stickers/version`, derived from `MAX(updated_at)` across catalog tables — any mutation auto-invalidates all browsers.
 
