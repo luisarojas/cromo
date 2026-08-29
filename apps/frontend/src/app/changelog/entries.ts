@@ -89,6 +89,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Receiving a sticker you\'re missing in a third-party trade takes one copy, not every duplicate the partner listed.',
         'Third-party trade rows show how many copies change hands (×N) with a stepper to adjust, and the totals, fairness reading, and confirmation count copies rather than list lines.',
         'Saved third-party drafts remember the adjusted copy counts — resuming a draft restores each row\'s ×N, not just which rows were ticked.',
+        'Joining a live in-person trade no longer gets blocked with a "too many requests" error when several people at the same table (or on the same WiFi) join around the same time.',
       ],
     },
   },

@@ -144,14 +144,24 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
   /**
    * POST /api/v1/live-trade/join
    * Guest exchanges a join code (or session id) for an opaque guest token.
-   * No auth — that's the point. Rate-limited per IP so a brute-force on the
-   * 6-digit code space is impractical (10 tries/min × 10^6 codes ≈ 200 years).
+   * No auth — that's the point.
+   *
+   * Rate-limited per IP, but generously: live-trade is co-located by design, so
+   * the account-less guest is almost always on the SAME NAT'd WiFi as the host
+   * (and any other guests at the same trading table) — one shared public IP. A
+   * tight per-IP cap punishes exactly the intended use: a busy table, or a dev
+   * testing both roles on one machine (where every request reaches the API from
+   * the same Docker gateway IP), trips it and everyone gets a 429. 60/min covers
+   * a large table and repeated attempts while keeping brute force impractical:
+   * only currently-active codes (30-min TTL, typically a handful) out of 10^6
+   * are valid, and a guest who does guess one can't alter the host's album —
+   * the host commits to their own collection — so the payoff is near-zero.
    */
   fastify.post(
     `${prefix}/join`,
     {
       config: {
-        rateLimit: { max: 10, timeWindow: '1 minute',
+        rateLimit: { max: 60, timeWindow: '1 minute',
           keyGenerator: (req) => req.ip },
       },
       schema: { tags: ['Trade'], summary: 'Join a live-trade session as guest' },
