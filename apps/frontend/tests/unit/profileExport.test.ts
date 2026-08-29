@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe('buildAlbumExportText', () => {
-  it('renders Offers and Needs sections with the album name and profile URL', async () => {
+  it('renders Offers and Needs sections with the profile URL', async () => {
     vi.mocked(fetchPublicOffered).mockResolvedValueOnce({
       items: [item({ albumCode: 'BRA5', number: 5, teamName: 'Brazil' })],
       nextCursor: null,
@@ -46,12 +46,11 @@ describe('buildAlbumExportText', () => {
     const text = await buildAlbumExportText(
       'luisa',
       'album-1',
-      'FIFA 2026',
       'https://cromotrade.ca/u/luisa',
     );
 
-    expect(text).toContain('Offers | FIFA 2026');
-    expect(text).toContain('Needs | FIFA 2026');
+    expect(text).toContain('Offers\n');
+    expect(text).toContain('Needs\n');
     expect(text).toContain('Brazil: BRA5');
     expect(text).toContain('Argentina: ARG7');
     expect(text.endsWith('https://cromotrade.ca/u/luisa')).toBe(true);
@@ -79,9 +78,9 @@ describe('buildAlbumExportText', () => {
       nextCursor: null,
     } as any);
 
-    const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
+    const text = await buildAlbumExportText('u', 'a', 'url');
     const offers = text.split('\n\n')[0]!;
-    const lines = offers.split('\n').slice(1); // skip "Offers | Album" header
+    const lines = offers.split('\n').slice(1); // skip "Offers" header
 
     expect(lines).toEqual([
       'FWC: 00, FWC3',
@@ -107,7 +106,7 @@ describe('buildAlbumExportText', () => {
       nextCursor: null,
     } as any);
 
-    const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
+    const text = await buildAlbumExportText('u', 'a', 'url');
     expect(text).toContain('Brazil: BRA5, BRA9, BRA17');
   });
 
@@ -125,7 +124,7 @@ describe('buildAlbumExportText', () => {
       nextCursor: null,
     } as any);
 
-    const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
+    const text = await buildAlbumExportText('u', 'a', 'url');
     expect(text).toContain('BRA1,'); // base — no parens
     expect(text).toContain('BRA2 (Blue)');
     expect(text).toContain('BRA3 (EX Gold)');
@@ -141,7 +140,7 @@ describe('buildAlbumExportText', () => {
       nextCursor: null,
     } as any);
 
-    const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
+    const text = await buildAlbumExportText('u', 'a', 'url');
     expect(text).toContain('Brazil: BRA5 ×3');
     // Needs side ignores quantity.
     expect(text).toContain('Brazil: BRA9');
@@ -158,8 +157,8 @@ describe('buildAlbumExportText', () => {
       nextCursor: null,
     } as any);
 
-    const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
-    expect(text).toContain('Offers | Album\n(none)');
+    const text = await buildAlbumExportText('u', 'a', 'url');
+    expect(text).toContain('Offers\n(none)');
   });
 
   it('follows pagination via nextCursor until exhausted', async () => {
@@ -177,7 +176,7 @@ describe('buildAlbumExportText', () => {
       nextCursor: null,
     } as any);
 
-    const text = await buildAlbumExportText('u', 'a', 'Album', 'url');
+    const text = await buildAlbumExportText('u', 'a', 'url');
     expect(vi.mocked(fetchPublicOffered)).toHaveBeenCalledTimes(2);
     expect(text).toContain('Brazil: BRA1, BRA2');
   });
