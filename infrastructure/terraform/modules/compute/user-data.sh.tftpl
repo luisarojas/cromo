@@ -1,0 +1,48 @@
+#!/bin/bash
+set -euxo pipefail
+dnf update -y
+dnf install -y docker jq awscli amazon-ssm-agent
+systemctl enable --now docker amazon-ssm-agent
+usermod -aG docker ec2-user
+
+# Install docker compose v2 plugin
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Render runtime env file from Secrets Manager.
+mkdir -p /etc/cromo
+aws secretsmanager get-secret-value \
+  --secret-id ${secret_arn} \
+  --region ${region} \
+  --query SecretString \
+  --output text \
+  | jq -r 'to_entries | map("\(.key)=\(.value | @sh)") | .[]' \
+  > /etc/cromo/cromo.env
+chmod 600 /etc/cromo/cromo.env
+
+# ECR login
+aws ecr get-login-password --region ${region} \
+  | docker login --username AWS --password-stdin ${ecr_registry}
+
+# Fetch compose file from S3 (uploaded by the deploy pipeline) and start.
+aws s3 cp s3://${uploads_bucket}/_deploy/docker-compose.prod.yml /opt/cromo/docker-compose.yml || true
+if [ -f /opt/cromo/docker-compose.yml ]; then
+  cd /opt/cromo
+  export ECR_REGISTRY=${ecr_registry}
+  # The deploy pipeline publishes a moving "<env>-latest" tag (plus the git
+  # SHA). A cold-booted instance (e.g. business-hours scale-up) has no
+  # IMAGE_TAG, so fall back to that moving tag — NOT "latest", which the
+  # pipeline never pushes and would leave the app unstarted.
+  export IMAGE_TAG=$${IMAGE_TAG:-${env}-latest}
+  export CROMO_ENV=${env}
+  # Non-prod runs Redis as an in-compose container (the `local-redis`
+  # profile) instead of managed ElastiCache. Prod leaves the profile unset
+  # and uses ElastiCache via REDIS_URL.
+%{~ if env != "prod" ~}
+  export COMPOSE_PROFILES=local-redis
+%{~ endif ~}
+  docker compose pull || true
+  docker compose up -d || true
+fi

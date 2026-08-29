@@ -20,7 +20,7 @@ services:
   # cache + ephemeral queue/live-room data only; persistence is disabled, so a
   # container/instance recycle just cold-starts an empty cache.
   redis:
-    image: redis:7.1-alpine
+    image: redis:7-alpine
     profiles: ["local-redis"]
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]

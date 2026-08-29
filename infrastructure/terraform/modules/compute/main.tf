@@ -231,56 +231,20 @@ data "aws_ami" "al2023" {
 # User-data: install Docker, log in to ECR, fetch the runtime secret into
 # /etc/cromo/cromo.env, then `docker compose up`.
 locals {
-  user_data = <<-BASH
-    #!/bin/bash
-    set -euxo pipefail
-    dnf update -y
-    dnf install -y docker jq awscli amazon-ssm-agent
-    systemctl enable --now docker amazon-ssm-agent
-    usermod -aG docker ec2-user
-
-    # Install docker compose v2 plugin
-    mkdir -p /usr/local/lib/docker/cli-plugins
-    curl -fsSL "https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64" \
-      -o /usr/local/lib/docker/cli-plugins/docker-compose
-    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-
-    # Render runtime env file from Secrets Manager.
-    mkdir -p /etc/cromo
-    aws secretsmanager get-secret-value \
-      --secret-id ${var.secret_arn} \
-      --region ${var.region} \
-      --query SecretString \
-      --output text \
-      | jq -r 'to_entries | map("\(.key)=\(.value | @sh)") | .[]' \
-      > /etc/cromo/cromo.env
-    chmod 600 /etc/cromo/cromo.env
-
-    # ECR login
-    aws ecr get-login-password --region ${var.region} \
-      | docker login --username AWS --password-stdin ${var.ecr_registry}
-
-    # Fetch compose file from S3 (uploaded by the deploy pipeline) and start.
-    aws s3 cp s3://${var.uploads_bucket}/_deploy/docker-compose.prod.yml /opt/cromo/docker-compose.yml || true
-    if [ -f /opt/cromo/docker-compose.yml ]; then
-      cd /opt/cromo
-      export ECR_REGISTRY=${var.ecr_registry}
-      # The deploy pipeline publishes a moving "<env>-latest" tag (plus the git
-      # SHA). A cold-booted instance (e.g. business-hours scale-up) has no
-      # IMAGE_TAG, so fall back to that moving tag — NOT "latest", which the
-      # pipeline never pushes and would leave the app unstarted.
-      export IMAGE_TAG=$${IMAGE_TAG:-${var.env}-latest}
-      export CROMO_ENV=${var.env}
-      # Non-prod runs Redis as an in-compose container (the `local-redis`
-      # profile) instead of managed ElastiCache. Prod leaves the profile unset
-      # and uses ElastiCache via REDIS_URL.
-      %{~if var.env != "prod"~}
-      export COMPOSE_PROFILES=local-redis
-      %{~endif~}
-      docker compose pull || true
-      docker compose up -d || true
-    fi
-  BASH
+  # Rendered from a standalone template file (not an inline heredoc) so the
+  # script begins with `#!/bin/bash` at byte 0. A `<<-BASH` heredoc strips only
+  # the *minimum* line indentation, and the blank lines in this script are
+  # zero-indented — so it stripped nothing, leaving 4 spaces before the shebang.
+  # Cloud-init execs user-data directly; a non-leading `#!` yields ENOEXEC
+  # ("Exec format error. Missing #! in script?") and the whole boot silently
+  # fails, leaving the instance InService but serving nothing (ALB 502).
+  user_data = templatefile("${path.module}/user-data.sh.tftpl", {
+    secret_arn     = var.secret_arn
+    region         = var.region
+    ecr_registry   = var.ecr_registry
+    uploads_bucket = var.uploads_bucket
+    env            = var.env
+  })
 }
 
 resource "aws_launch_template" "app" {
