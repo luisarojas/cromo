@@ -41,6 +41,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         'Set your own price per base sticker on a third-party trade — every other variant\'s cash value is rescaled from it by scarcity, so the fairness math and the per-sticker estimates match what you actually trade for.',
         'My Trades now shows the stickers that changed hands on every trade, inline — not just in-person and off-platform trades but regular trade requests too.',
         'Live in-person trades now let either side add cash on top of stickers, with the same fairness balance and "add cash to even it out" nudge as other trades.',
+        'You can now run a whole live in-person trade from your own phone when your partner doesn\'t have the app — enter their list, stage their side, and lock it in yourself; if they join from their own device, they take over their side.',
       ],
       Changed: [
         'On phones the album\'s progress bar, filters, and tabs are slimmer and pinned to the very top of the screen, leaving more room for stickers.',

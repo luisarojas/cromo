@@ -195,21 +195,21 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
     expect(snapshot.suggestion?.hostReceives[0]?.stickerVariantId).toBe(v2.variantId);
 
     // Stage one each.
-    await live.setSideStaged(app.redis, session.id, 'host',  [{ stickerVariantId: v1.variantId, quantity: 1 }]);
-    await live.setSideStaged(app.redis, session.id, 'guest', [{ stickerVariantId: v2.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host',  [{ stickerVariantId: v1.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'guest', 'guest', [{ stickerVariantId: v2.variantId, quantity: 1 }]);
 
     // Lock the host, then the guest — both must be true to allow completion.
-    await live.setSideLock(app.redis, session.id, 'host', true);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
     snapshot = (await live.getPublicSession(app.redis, session.id))!;
     expect(snapshot.hostLocked).toBe(true);
     expect(snapshot.guestLocked).toBe(false);
 
-    await live.setSideLock(app.redis, session.id, 'guest', true);
+    await live.setSideLock(app.redis, session.id, 'guest', 'guest', true);
     snapshot = (await live.getPublicSession(app.redis, session.id))!;
     expect(snapshot.hostLocked && snapshot.guestLocked).toBe(true);
 
     // Editing the list re-opens the locks — a stale agreement shouldn't carry through.
-    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: v1.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host', [{ stickerVariantId: v1.variantId, quantity: 1 }]);
     snapshot = (await live.getPublicSession(app.redis, session.id))!;
     expect(snapshot.hostLocked).toBe(false);
     expect(snapshot.guestLocked).toBe(false);
@@ -254,11 +254,11 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
       offered: [{ albumCode: recv.albumCode, variantToken: 'base_border', quantity: 1 }],
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
-    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
-    await live.setSideStaged(app.redis, session.id, 'guest', [{ stickerVariantId: recv.variantId, quantity: 1 }]);
-    await live.setSideLock(app.redis, session.id, 'host', true);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'guest', 'guest', [{ stickerVariantId: recv.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
 
-    const afterCash = await live.setCash(app.redis, session.id, 'guest', 500);
+    const afterCash = await live.setCash(app.redis, session.id, 'guest', 'guest', 500);
     expect(afterCash.guestCashCents).toBe(500);
     // Setting cash re-opens the locks so neither side commits a stale balance.
     expect(afterCash.hostLocked).toBe(false);
@@ -279,16 +279,16 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
       offered: [],
       wanted: [{ albumCode: v.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
-    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: v.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host', [{ stickerVariantId: v.variantId, quantity: 1 }]);
     await live.joinSession(app.redis, session.id, null);
 
     // Only one side locked.
-    await live.setSideLock(app.redis, session.id, 'host', true);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
     await expect(live.completeSession(app.db, app.redis, hostId, session.id))
       .rejects.toMatchObject({ statusCode: 409 });
 
     // Both locked but caller is the wrong user.
-    await live.setSideLock(app.redis, session.id, 'guest', true);
+    await live.setSideLock(app.redis, session.id, 'guest', 'guest', true);
     await expect(live.completeSession(app.db, app.redis, otherId, session.id))
       .rejects.toMatchObject({ statusCode: 403 });
   });
@@ -309,10 +309,10 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
       wanted:  [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
     await live.joinSession(app.redis, session.id, 'Sofia');
-    await live.setSideStaged(app.redis, session.id, 'host',  [{ stickerVariantId: give.variantId, quantity: 1 }]);
-    await live.setSideStaged(app.redis, session.id, 'guest', [{ stickerVariantId: receive.variantId, quantity: 1 }]);
-    await live.setSideLock(app.redis, session.id, 'host', true);
-    await live.setSideLock(app.redis, session.id, 'guest', true);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host',  [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'guest', 'guest', [{ stickerVariantId: receive.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
+    await live.setSideLock(app.redis, session.id, 'guest', 'guest', true);
 
     const completed = await live.completeSession(app.db, app.redis, hostId, session.id);
     expect(completed.status).toBe('completed');
@@ -325,6 +325,67 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
     expect(undone.completion?.undoneAt).not.toBeNull();
     expect(await ownedQty(albumId, give.variantId)).toBe(3);
     expect(await ownedQty(albumId, receive.variantId)).toBe(0);
+  });
+
+  it('lets the host drive the guest side while the guest has not joined, then commit', async () => {
+    const hostId = await insertUser();
+    const albumId = await insertAlbum(hostId);
+    const session = await live.createSession(app.db, app.redis, hostId, albumId);
+    sessionIdsToClean.push(session.id);
+    expect(session.guest.joined).toBe(false);
+
+    const give = await lookupVariant(840, 'base_border');
+    const receive = await lookupVariant(841, 'base_border');
+    await insertOwned(albumId, give.variantId, 3);
+
+    // Host enters the guest's list on the guest's behalf (principal 'host',
+    // guest not joined) — the only typed list, so no side arg is needed.
+    await live.setSideList(app.db, app.redis, session.id, 'host', {
+      offered: [{ albumCode: receive.albumCode, variantToken: 'base_border', quantity: 1 }],
+      wanted:  [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
+    });
+
+    // Host stages AND locks BOTH sides from one device (principal 'host',
+    // targeting side 'guest' for the guest's pile/lock).
+    await live.setSideStaged(app.redis, session.id, 'host', 'host',  [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'host', 'guest', [{ stickerVariantId: receive.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
+    await live.setSideLock(app.redis, session.id, 'host', 'guest', true);
+
+    const snapshot = (await live.getPublicSession(app.redis, session.id))!;
+    expect(snapshot.hostLocked && snapshot.guestLocked).toBe(true);
+
+    const completed = await live.completeSession(app.db, app.redis, hostId, session.id);
+    expect(completed.status).toBe('completed');
+    expect(await ownedQty(albumId, give.variantId)).toBe(2);
+    expect(await ownedQty(albumId, receive.variantId)).toBe(1);
+  });
+
+  it('stops the host from acting on the guest side once the guest has joined', async () => {
+    const hostId = await insertUser();
+    const albumId = await insertAlbum(hostId);
+    const session = await live.createSession(app.db, app.redis, hostId, albumId);
+    sessionIdsToClean.push(session.id);
+
+    // Guest claims their side from their own device.
+    await live.joinSession(app.redis, session.id, 'Sofia');
+
+    // Every host proxy-write to the guest side is now refused.
+    await expect(live.setSideList(app.db, app.redis, session.id, 'host', {
+      offered: [], wanted: [],
+    })).rejects.toMatchObject({ statusCode: 403 });
+    await expect(live.setSideStaged(app.redis, session.id, 'host', 'guest', []))
+      .rejects.toMatchObject({ statusCode: 403 });
+    await expect(live.setSideLock(app.redis, session.id, 'host', 'guest', true))
+      .rejects.toMatchObject({ statusCode: 403 });
+    await expect(live.setCash(app.redis, session.id, 'host', 'guest', 500))
+      .rejects.toMatchObject({ statusCode: 403 });
+
+    // The host can still act on their own side.
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
+    const snap = (await live.getPublicSession(app.redis, session.id))!;
+    expect(snap.hostLocked).toBe(true);
+    expect(snap.guestLocked).toBe(false);
   });
 
   it('lists completed live trades for the host, enriched with sticker metadata', async () => {
@@ -342,10 +403,10 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
     await live.joinSession(app.redis, session.id, 'Sofia');
-    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
-    await live.setSideStaged(app.redis, session.id, 'guest', [{ stickerVariantId: receive.variantId, quantity: 1 }]);
-    await live.setSideLock(app.redis, session.id, 'host', true);
-    await live.setSideLock(app.redis, session.id, 'guest', true);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideStaged(app.redis, session.id, 'guest', 'guest', [{ stickerVariantId: receive.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
+    await live.setSideLock(app.redis, session.id, 'guest', 'guest', true);
     await live.completeSession(app.db, app.redis, hostId, session.id);
 
     const page = await live.listLiveTradeHistory(app.db, hostId, {});
@@ -380,9 +441,9 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
     await live.joinSession(app.redis, session.id, 'Bea');
-    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
-    await live.setSideLock(app.redis, session.id, 'host', true);
-    await live.setSideLock(app.redis, session.id, 'guest', true);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
+    await live.setSideLock(app.redis, session.id, 'guest', 'guest', true);
     await live.completeSession(app.db, app.redis, hostId, session.id);
 
     const merged = await tradeRequests.listTradeHistory(app.db, hostId, {});
@@ -412,9 +473,9 @@ describe.skipIf(!shouldRun)('Live trade (integration)', () => {
       wanted: [{ albumCode: give.albumCode, variantToken: 'base_border', quantity: 1 }],
     });
     await live.joinSession(app.redis, session.id, null);
-    await live.setSideStaged(app.redis, session.id, 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
-    await live.setSideLock(app.redis, session.id, 'host', true);
-    await live.setSideLock(app.redis, session.id, 'guest', true);
+    await live.setSideStaged(app.redis, session.id, 'host', 'host', [{ stickerVariantId: give.variantId, quantity: 1 }]);
+    await live.setSideLock(app.redis, session.id, 'host', 'host', true);
+    await live.setSideLock(app.redis, session.id, 'guest', 'guest', true);
     await live.completeSession(app.db, app.redis, hostId, session.id);
 
     // Roll the session's completedAt back 61s by writing the Redis blob directly.

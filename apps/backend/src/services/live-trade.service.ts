@@ -520,24 +520,52 @@ export async function authoriseGuest(
 export type Role = 'host' | 'guest';
 
 /**
+ * Resolve which side an action targets, given who's authenticated (`principal`)
+ * and which side they asked to act on (`requested`), enforcing the proxy rule:
+ *
+ *  - A guest only ever acts on the guest side.
+ *  - A host acts on the host side always, and on the guest side ONLY while the
+ *    guest hasn't joined — a co-located guest with no account, whose side the
+ *    host is entering on one phone. The moment the guest joins from their own
+ *    device they claim their side and the host can no longer touch it.
+ *
+ * The check runs inside `withSession` (under the per-session lock) so a guest
+ * joining can't race a host proxy-write.
+ */
+function resolveActorSide(session: StoredSession, principal: Role, requested: Role): Role {
+  if (principal === 'guest') {
+    if (requested !== 'guest') {
+      throw statusError('The guest can only act on their own side.', 403);
+    }
+    return 'guest';
+  }
+  if (requested === 'guest' && session.guestJoined) {
+    throw statusError('The guest has joined and now manages their own side.', 403);
+  }
+  return requested;
+}
+
+/**
  * Replace the GUEST's offered/wanted list — the only typed list in the session.
  * Re-resolves against the catalog, then re-derives the host's tradeable side
  * from their live inventory (the host never types a list). Unlocks both sides —
- * locks are only meaningful against the most recent lists. The `role` param is
- * accepted for API symmetry but the target is always the guest list: the host's
- * side is inventory-derived, so there's nothing for them to type.
+ * locks are only meaningful against the most recent lists. The target is always
+ * the guest list (the host's side is inventory-derived), so `principal` is used
+ * purely for authorisation: the guest may always edit it, the host only while
+ * the guest hasn't joined (see `resolveActorSide`).
  */
 export async function setSideList(
   db: Pool,
   redis: Redis,
   sessionId: string,
-  _role: Role,
+  principal: Role,
   input: { offered: ExternalListItem[]; wanted: ExternalListItem[] },
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
     if (session.status === 'completed') {
       throw statusError('Cannot edit a completed live trade.', 409);
     }
+    resolveActorSide(session, principal, 'guest');
     const { resolved: offered, unknown: uo } = await resolveList(
       db, input.offered, session.hostAlbumTypeKey, session.defaultBaseVariant,
     );
@@ -581,17 +609,19 @@ function pruneStaged(
 export async function setSideStaged(
   redis: Redis,
   sessionId: string,
-  role: Role,
+  principal: Role,
+  side: Role,
   staged: Array<{ stickerVariantId: string; quantity: number }>,
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
     if (session.status === 'completed') {
       throw statusError('Cannot edit a completed live trade.', 409);
     }
+    const target = resolveActorSide(session, principal, side);
     // Stage from the side's already-resolved offered list. Anything not in
     // that list is silently dropped — we never trust a sticker_variant_id
     // the side didn't first list as theirs to give.
-    const allowed = role === 'host'
+    const allowed = target === 'host'
       ? new Map(session.hostList.offered.map((r) => [r.stickerVariantId, r] as const))
       : new Map(session.guestList.offered.map((r) => [r.stickerVariantId, r] as const));
     const accepted: LiveTradeStickerRef[] = [];
@@ -602,7 +632,7 @@ export async function setSideStaged(
       if (qty === 0) continue;
       accepted.push({ ...ref, quantity: qty });
     }
-    if (role === 'host') session.hostStaged = accepted;
+    if (target === 'host') session.hostStaged = accepted;
     else session.guestStaged = accepted;
     // Editing the pile invalidates locks for the same reason as editing the list.
     session.hostLocked = false;
@@ -675,15 +705,17 @@ export async function setWeights(
 export async function setCash(
   redis: Redis,
   sessionId: string,
-  role: Role,
+  principal: Role,
+  side: Role,
   cents: number,
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
     if (session.status === 'completed') {
       throw statusError('Cannot change cash on a completed live trade.', 409);
     }
+    const target = resolveActorSide(session, principal, side);
     const clamped = Math.max(0, Math.min(MAX_CASH_CENTS, Math.floor(cents || 0)));
-    if (role === 'host') session.hostCashCents = clamped;
+    if (target === 'host') session.hostCashCents = clamped;
     else session.guestCashCents = clamped;
     session.hostLocked = false;
     session.guestLocked = false;
@@ -697,14 +729,16 @@ export async function setCash(
 export async function setSideLock(
   redis: Redis,
   sessionId: string,
-  role: Role,
+  principal: Role,
+  side: Role,
   locked: boolean,
 ): Promise<LiveTradeSession> {
   return await withSession(redis, sessionId, async (session) => {
     if (session.status === 'completed') {
       throw statusError('Cannot change lock on a completed live trade.', 409);
     }
-    if (role === 'host') session.hostLocked = locked;
+    const target = resolveActorSide(session, principal, side);
+    if (target === 'host') session.hostLocked = locked;
     else session.guestLocked = locked;
     await writeSession(redis, session);
     await publish(redis, sessionId, 'state', { session: toPublicSession(session) });

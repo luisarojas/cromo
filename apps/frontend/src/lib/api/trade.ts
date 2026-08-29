@@ -388,14 +388,20 @@ export async function setLiveTradeList(
   return session;
 }
 
+// `side` lets the host act on the guest's side while the guest hasn't joined
+// (the account-less, co-located guest whose side the host drives on one phone).
+// Omit for your own side. The backend rejects it once the guest has joined.
+export type LiveTradeSide = 'host' | 'guest';
+
 export async function setLiveTradeStaged(
   sessionId: string,
   items: Array<{ stickerVariantId: string; quantity: number }>,
   auth: LiveTradeAuth,
+  side?: LiveTradeSide,
 ): Promise<LiveTradeSession> {
   const { session } = await apiFetch<{ session: LiveTradeSession }>(
     `/api/v1/live-trade/${encodeURIComponent(sessionId)}/stage`,
-    { method: 'POST', body: JSON.stringify({ items }), headers: liveTradeAuthHeaders(auth) },
+    { method: 'POST', body: JSON.stringify({ items, side }), headers: liveTradeAuthHeaders(auth) },
     auth.token,
   );
   return session;
@@ -405,10 +411,11 @@ export async function setLiveTradeLock(
   sessionId: string,
   locked: boolean,
   auth: LiveTradeAuth,
+  side?: LiveTradeSide,
 ): Promise<LiveTradeSession> {
   const { session } = await apiFetch<{ session: LiveTradeSession }>(
     `/api/v1/live-trade/${encodeURIComponent(sessionId)}/lock`,
-    { method: 'POST', body: JSON.stringify({ locked }), headers: liveTradeAuthHeaders(auth) },
+    { method: 'POST', body: JSON.stringify({ locked, side }), headers: liveTradeAuthHeaders(auth) },
     auth.token,
   );
   return session;
@@ -433,10 +440,11 @@ export async function setLiveTradeCash(
   sessionId: string,
   cents: number,
   auth: LiveTradeAuth,
+  side?: LiveTradeSide,
 ): Promise<LiveTradeSession> {
   const { session } = await apiFetch<{ session: LiveTradeSession }>(
     `/api/v1/live-trade/${encodeURIComponent(sessionId)}/cash`,
-    { method: 'POST', body: JSON.stringify({ cents }), headers: liveTradeAuthHeaders(auth) },
+    { method: 'POST', body: JSON.stringify({ cents, side }), headers: liveTradeAuthHeaders(auth) },
     auth.token,
   );
   return session;

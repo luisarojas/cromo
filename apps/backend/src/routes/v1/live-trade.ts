@@ -29,14 +29,21 @@ const SetListBody = z.object({
   wanted: ItemListSchema.default([]),
 });
 
+// `side` lets the host act on the guest's side while the guest hasn't joined
+// (the co-located, account-less guest whose side the host enters on one phone).
+// Omitted → the caller's own side. The service authorises via resolveActorSide:
+// a guest can only ever pass 'guest'; a host may pass 'guest' only pre-join.
+const SideSchema = z.enum(['host', 'guest']);
+
 const StageBody = z.object({
   items: z.array(z.object({
     stickerVariantId: z.string().uuid(),
     quantity: z.number().int().min(0).max(99),
   })).max(500),
+  side: SideSchema.optional(),
 });
 
-const LockBody = z.object({ locked: z.boolean() });
+const LockBody = z.object({ locked: z.boolean(), side: SideSchema.optional() });
 
 // Per-trade variant weight overrides. Same shape and bounds as the third-party
 // match endpoints; the service re-validates inside sanitiseWeights. 0 is a
@@ -55,6 +62,7 @@ const SetWeightsBody = z.object({
 // Cash a side adds on top of stickers (cents). Guidance only.
 const SetCashBody = z.object({
   cents: z.number().int().min(0).max(10_000_000),
+  side: SideSchema.optional(),
 });
 
 function asListItems(items: { albumCode: string; variantToken?: string | null; quantity: number }[]) {
@@ -237,6 +245,8 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
           fastify.db, fastify.redis, id, principal.role,
           { offered: asListItems(parsed.data.offered), wanted: asListItems(parsed.data.wanted) },
         );
+        // principal.role authorises: the host may write the guest list only
+        // until the guest joins (enforced in the service under the lock).
         return reply.status(200).send({ session });
       } catch (err) {
         return forwardError(reply, err);
@@ -268,7 +278,9 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.message });
       }
       try {
-        const session = await live.setSideStaged(fastify.redis, id, principal.role, parsed.data.items);
+        const session = await live.setSideStaged(
+          fastify.redis, id, principal.role, parsed.data.side ?? principal.role, parsed.data.items,
+        );
         return reply.status(200).send({ session });
       } catch (err) {
         return forwardError(reply, err);
@@ -299,7 +311,9 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.message });
       }
       try {
-        const session = await live.setSideLock(fastify.redis, id, principal.role, parsed.data.locked);
+        const session = await live.setSideLock(
+          fastify.redis, id, principal.role, parsed.data.side ?? principal.role, parsed.data.locked,
+        );
         return reply.status(200).send({ session });
       } catch (err) {
         return forwardError(reply, err);
@@ -363,7 +377,9 @@ export async function liveTradeRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.message });
       }
       try {
-        const session = await live.setCash(fastify.redis, id, principal.role, parsed.data.cents);
+        const session = await live.setCash(
+          fastify.redis, id, principal.role, parsed.data.side ?? principal.role, parsed.data.cents,
+        );
         return reply.status(200).send({ session });
       } catch (err) {
         return forwardError(reply, err);

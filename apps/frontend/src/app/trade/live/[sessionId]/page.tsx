@@ -154,6 +154,17 @@ function SessionRoom({
     ? { token: hostToken ?? undefined }
     : { guestToken: guestToken ?? undefined };
 
+  // While the guest hasn't joined from their own device, the host drives the
+  // guest's side too — enter their list, stage their pile, lock them in — all
+  // from one phone (the account-less, co-located guest). The moment the guest
+  // joins they claim their side and this proxy control drops away (the backend
+  // rejects a host write to the guest side once `guest.joined` is true).
+  const controllingGuest = role === 'host' && !session.guest.joined;
+  const otherSide: Role = role === 'host' ? 'guest' : 'host';
+  // The wire `side` arg is only needed when acting on the OTHER side (proxy);
+  // for your own side it's omitted and the backend infers it from the principal.
+  const sideArg = (side: Role): Role | undefined => (side === role ? undefined : side);
+
   const isCompleted = session.status === 'completed';
   const bothLocked = myLocked && theirLocked;
 
@@ -169,40 +180,55 @@ function SessionRoom({
   }
 
   async function handleListChange(offered: ExternalListItem[], wanted: ExternalListItem[]) {
+    // The list is always the guest's (the host's side is inventory-derived), so
+    // both the guest and a proxying host POST it through the same endpoint.
     const next = await withBusy('save list', () => setLiveTradeList(session.id, { offered, wanted }, auth));
     if (next) onSession(next);
   }
 
-  async function handleToggleStage(ref: LiveTradeStickerRef) {
-    const current = stagedQuantity(ref, myStaged);
+  // Toggle a sticker in a side's staged pile. `side` is which pile to change —
+  // your own, or (when proxying) the guest's.
+  async function toggleStage(ref: LiveTradeStickerRef, side: Role) {
+    const pile = side === 'host' ? session.hostStaged : session.guestStaged;
+    const current = stagedQuantity(ref, pile);
     // Tap = toggle full quantity. The simplest possible interaction — long
     // press for a fractional pile is a follow-up if anyone asks.
-    const nextStaged = current > 0
-      ? myStaged.filter((s) => s.stickerVariantId !== ref.stickerVariantId)
-      : [...myStaged, { ...ref, quantity: ref.quantity }];
+    const nextPile = current > 0
+      ? pile.filter((s) => s.stickerVariantId !== ref.stickerVariantId)
+      : [...pile, { ...ref, quantity: ref.quantity }];
     const next = await withBusy('update pile', () => setLiveTradeStaged(
       session.id,
-      nextStaged.map((s) => ({ stickerVariantId: s.stickerVariantId, quantity: s.quantity })),
+      nextPile.map((s) => ({ stickerVariantId: s.stickerVariantId, quantity: s.quantity })),
       auth,
+      sideArg(side),
     ));
     if (next) onSession(next);
   }
 
   async function handleApplySuggestion() {
     if (!session.suggestion) return;
-    // The suggestion has the host's give and receive piles. Each role applies
-    // their own side — host stages `hostGives`, guest stages `hostReceives`.
-    const minePile = role === 'host' ? session.suggestion.hostGives : session.suggestion.hostReceives;
-    const next = await withBusy('apply suggestion', () => setLiveTradeStaged(
+    // The suggestion has the host's give and receive piles. Normally each role
+    // stages only their own side; a host proxying the absent guest stages both.
+    const stageSide = (side: Role, pile: LiveTradeStickerRef[]) => setLiveTradeStaged(
       session.id,
-      minePile.map((s) => ({ stickerVariantId: s.stickerVariantId, quantity: s.quantity })),
+      pile.map((s) => ({ stickerVariantId: s.stickerVariantId, quantity: s.quantity })),
       auth,
-    ));
+      sideArg(side),
+    );
+    const next = await withBusy('apply suggestion', async () => {
+      if (role === 'host') {
+        const afterHost = await stageSide('host', session.suggestion!.hostGives);
+        return controllingGuest
+          ? stageSide('guest', session.suggestion!.hostReceives)
+          : afterHost;
+      }
+      return stageSide('guest', session.suggestion!.hostReceives);
+    });
     if (next) onSession(next);
   }
 
-  async function handleToggleLock() {
-    const next = await withBusy('toggle lock', () => setLiveTradeLock(session.id, !myLocked, auth));
+  async function toggleLock(side: Role, locked: boolean) {
+    const next = await withBusy('toggle lock', () => setLiveTradeLock(session.id, locked, auth, sideArg(side)));
     if (next) onSession(next);
   }
 
@@ -244,8 +270,8 @@ function SessionRoom({
       onToast('Variant weights updated for this trade.', 'success');
     }
   }
-  async function handleSetCash(cents: number) {
-    const next = await withBusy('update cash', () => setLiveTradeCash(session.id, cents, auth));
+  async function setCashForSide(cents: number, side: Role) {
+    const next = await withBusy('update cash', () => setLiveTradeCash(session.id, cents, auth, sideArg(side)));
     if (next) onSession(next);
   }
 
@@ -266,25 +292,37 @@ function SessionRoom({
 
       {role === 'host' && <ShareCard session={session} />}
 
-      {role === 'guest' ? (
+      {/* The guest's list is editable by the guest, or by the host while the
+          guest hasn't joined (host drives the whole trade from one phone). */}
+      {role === 'guest' || controllingGuest ? (
         editingList ? (
           <GuestListSection
             session={session}
+            proxy={controllingGuest}
             onSubmit={handleListChange}
             onClose={() => setEditingList(false)}
             busy={busy}
           />
         ) : (
-          <button
-            type="button"
-            onClick={() => setEditingList(true)}
-            disabled={isCompleted}
-            className="w-full mb-4 text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
-          >
-            {myList.offered.length === 0 && myList.wanted.length === 0
-              ? 'Tap to add your stickers'
-              : 'Edit your list'}
-          </button>
+          <>
+            {controllingGuest && (
+              <p className="mb-2 text-xs text-[var(--cromo-fg-muted)]">
+                Your trade partner hasn’t joined — you’re entering their side. If they
+                open the join link, they take over their own list.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setEditingList(true)}
+              disabled={isCompleted}
+              className="w-full mb-4 text-xs text-[var(--cromo-accent)] hover:underline disabled:opacity-50"
+            >
+              {(controllingGuest ? theirList : myList).offered.length === 0
+                && (controllingGuest ? theirList : myList).wanted.length === 0
+                ? (controllingGuest ? 'Tap to add their stickers' : 'Tap to add your stickers')
+                : (controllingGuest ? 'Edit their list' : 'Edit your list')}
+            </button>
+          </>
         )
       ) : (
         <HostSideNote hasGuestList={theirList.offered.length > 0 || theirList.wanted.length > 0} />
@@ -306,7 +344,8 @@ function SessionRoom({
           weights={session.activeWeights}
           myCashCents={role === 'host' ? session.hostCashCents : session.guestCashCents}
           theirCashCents={role === 'host' ? session.guestCashCents : session.hostCashCents}
-          onSetMyCash={handleSetCash}
+          onSetMyCash={(cents) => setCashForSide(cents, role)}
+          onSetTheirCash={controllingGuest ? (cents) => setCashForSide(cents, otherSide) : undefined}
           busy={busy}
         />
       )}
@@ -330,29 +369,34 @@ function SessionRoom({
           staged={myStaged}
           locked={myLocked}
           disabled={isCompleted || busy}
-          onToggle={handleToggleStage}
+          onToggle={(ref) => toggleStage(ref, role)}
         />
         <StagingPanel
           title="Their side"
-          subtitle={role === 'host'
-            ? 'Stickers they will give you. Tap-to-stage is on their side.'
-            : 'Stickers the host will give you.'}
+          subtitle={controllingGuest
+            ? 'Tap a sticker to add to the pile they give you.'
+            : role === 'host'
+              ? 'Stickers they will give you. Tap-to-stage is on their side.'
+              : 'Stickers the host will give you.'}
           items={theirList.offered}
           staged={theirStaged}
           locked={theirLocked}
-          disabled
-          onToggle={() => undefined}
-          readOnly
+          disabled={isCompleted || busy || !controllingGuest}
+          onToggle={controllingGuest ? (ref) => toggleStage(ref, otherSide) : () => undefined}
+          readOnly={!controllingGuest}
         />
       </div>
 
       <LockBar
         role={role}
         session={session}
+        controllingGuest={controllingGuest}
         myLocked={myLocked}
         theirLocked={theirLocked}
         myStagedCount={myStaged.length}
-        onToggleLock={handleToggleLock}
+        theirStagedCount={theirStaged.length}
+        onToggleLock={(locked) => toggleLock(role, locked)}
+        onToggleTheirLock={(locked) => toggleLock(otherSide, locked)}
         busy={busy || isCompleted}
       />
     </div>
@@ -600,12 +644,15 @@ function HostSideNote({ hasGuestList }: { hasGuestList: boolean }) {
 // the host's side is inventory-derived.
 
 function GuestListSection({
-  session, onSubmit, onClose, busy,
+  session, onSubmit, onClose, busy, proxy = false,
 }: {
   session: LiveTradeSession;
   onSubmit: (offered: ExternalListItem[], wanted: ExternalListItem[]) => Promise<void>;
   onClose: () => void;
   busy: boolean;
+  /** True when the HOST is entering the guest's list on the guest's behalf
+   *  (guest hasn't joined). Flips the copy from "your"/"you" to "their"/"they". */
+  proxy?: boolean;
 }) {
   const [offered, setOffered] = useState<ExternalListItem[]>(
     () => session.guestList.offered.map(extToListItem),
@@ -651,7 +698,9 @@ function GuestListSection({
   return (
     <div className="mb-4 rounded-xl border border-[var(--cromo-border)] bg-[var(--cromo-surface)] p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">Your list</h2>
+        <h2 className="text-sm font-semibold text-[var(--cromo-fg)]">
+          {proxy ? 'Their list' : 'Your list'}
+        </h2>
         <button
           onClick={onClose}
           className="text-xs text-[var(--cromo-fg-muted)] hover:text-[var(--cromo-fg)]"
@@ -661,18 +710,18 @@ function GuestListSection({
       </div>
 
       <ListBucket
-        title="You have (offer)"
+        title={proxy ? 'They have (offer)' : 'You have (offer)'}
         accent="success"
         items={offered}
         onChange={setOffered}
-        emptyText="Add the duplicates you’ll trade away."
+        emptyText={proxy ? 'Add the duplicates they’ll trade away.' : 'Add the duplicates you’ll trade away.'}
       />
       <ListBucket
-        title="You want"
+        title={proxy ? 'They want' : 'You want'}
         accent="accent"
         items={wanted}
         onChange={setWanted}
-        emptyText="Add the stickers you’re looking for."
+        emptyText={proxy ? 'Add the stickers they’re looking for.' : 'Add the stickers you’re looking for.'}
       />
 
       <div className="rounded-md border border-[var(--cromo-border)] bg-[var(--cromo-surface-2)] p-3">
@@ -682,8 +731,10 @@ function GuestListSection({
               key={importKey}
               label=""
               helper={isEmpty
-                ? 'Type your list, or snap a photo. Untagged codes count as what you WANT — add a HAVE: header for dupes you’ll trade away. Tag variants like BRA5(red).'
-                : 'Add more — these merge into your lists above.'}
+                ? (proxy
+                    ? 'Type their list, or snap a photo. Untagged codes count as what they WANT — add a HAVE: header for dupes they’ll trade away. Tag variants like BRA5(red).'
+                    : 'Type your list, or snap a photo. Untagged codes count as what you WANT — add a HAVE: header for dupes you’ll trade away. Tag variants like BRA5(red).')
+                : 'Add more — these merge into the lists above.'}
               offered={[]}
               wanted={[]}
               onChange={setImportBuf}
@@ -865,7 +916,7 @@ function extToListItem(ref: LiveTradeStickerRef): ExternalListItem {
 // third-party editor's fairness banner and cash "top-up" nudge.
 
 function BalanceBar({
-  myStaged, theirStaged, weights, myCashCents, theirCashCents, onSetMyCash, busy,
+  myStaged, theirStaged, weights, myCashCents, theirCashCents, onSetMyCash, onSetTheirCash, busy,
 }: {
   myStaged: LiveTradeStickerRef[];
   theirStaged: LiveTradeStickerRef[];
@@ -873,6 +924,8 @@ function BalanceBar({
   myCashCents: number;
   theirCashCents: number;
   onSetMyCash: (cents: number) => void;
+  /** When set (host proxying the absent guest), their cash is editable too. */
+  onSetTheirCash?: (cents: number) => void;
   busy: boolean;
 }) {
   // Cash is shared session state: setting it writes Redis, drops both locks, and
@@ -885,9 +938,20 @@ function BalanceBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myCashCents]);
 
+  const [theirCashText, setTheirCashText] = useState(() => centsToInput(theirCashCents));
+  useEffect(() => {
+    if (parseCashCents(theirCashText || '0') !== theirCashCents) setTheirCashText(centsToInput(theirCashCents));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theirCashCents]);
+
   function commitCash() {
     const cents = parseCashCents(cashText);
     if (cents !== myCashCents) onSetMyCash(cents);
+  }
+  function commitTheirCash() {
+    if (!onSetTheirCash) return;
+    const cents = parseCashCents(theirCashText);
+    if (cents !== theirCashCents) onSetTheirCash(cents);
   }
 
   const balance = useMemo<ScarcityTotals>(
@@ -951,7 +1015,24 @@ function BalanceBar({
           aria-label="Cash you add"
           className="w-20 rounded border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
         />
-        {theirCashCents > 0 && (
+        {onSetTheirCash ? (
+          <>
+            <span className="text-xs text-[var(--cromo-fg-subtle)]">· they add $</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={theirCashText}
+              disabled={busy}
+              onChange={(e) => setTheirCashText(e.target.value)}
+              onBlur={commitTheirCash}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitTheirCash(); } }}
+              placeholder="0.00"
+              aria-label="Cash they add"
+              className="w-20 rounded border border-[var(--cromo-border)] bg-[var(--cromo-surface)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--cromo-accent)]"
+            />
+          </>
+        ) : theirCashCents > 0 && (
           <span className="text-xs text-[var(--cromo-fg-muted)]">· they add ${fmtDollars(theirCashCents)}</span>
         )}
       </div>
@@ -1154,25 +1235,70 @@ function StagingPanel({
 // ─── Lock bar (sticky-ish footer) ──────────────────────────────────────────
 
 function LockBar({
-  role, session, myLocked, theirLocked, myStagedCount, onToggleLock, busy,
+  role, session, controllingGuest, myLocked, theirLocked,
+  myStagedCount, theirStagedCount, onToggleLock, onToggleTheirLock, busy,
 }: {
   role: Role;
   session: LiveTradeSession;
+  controllingGuest: boolean;
   myLocked: boolean;
   theirLocked: boolean;
   myStagedCount: number;
-  onToggleLock: () => void;
+  theirStagedCount: number;
+  onToggleLock: (locked: boolean) => void;
+  onToggleTheirLock: (locked: boolean) => void;
   busy: boolean;
 }) {
   if (session.status === 'completed') return null;
   const guestJoined = session.guest.joined;
-  const canLock = guestJoined && myStagedCount > 0;
   const otherName = role === 'host'
     ? (session.guest.label ?? 'the guest')
     : (session.host.displayName ?? session.host.username ?? 'the host');
 
+  const shell = 'fixed inset-x-0 bottom-0 z-30 border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)]/95 backdrop-blur p-3 sm:static sm:z-auto sm:mt-4 sm:rounded-xl sm:border sm:bg-[var(--cromo-surface)] sm:p-4 sm:backdrop-blur-none';
+  const lockBtn = (locked: boolean, label: string, onClick: () => void, disabled: boolean) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+        locked
+          ? 'border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg)]'
+          : 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)]'
+      } disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+      {locked ? 'Unlock' : label}
+    </button>
+  );
+
+  // Host proxying the absent guest locks BOTH sides itself. Show two toggles.
+  if (controllingGuest) {
+    return (
+      <div className={shell}>
+        <div className="max-w-3xl mx-auto flex flex-col gap-2">
+          <p className="text-xs text-[var(--cromo-fg-muted)]">
+            {myLocked && theirLocked
+              ? 'Both sides locked — commit the trade above.'
+              : 'You’re entering both sides. Lock each when its pile is set.'}
+          </p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center justify-between gap-2 rounded-md border border-[var(--cromo-border)] px-3 py-1.5">
+              <span className="text-xs text-[var(--cromo-fg-muted)]">Your side</span>
+              {lockBtn(myLocked, 'Ready', () => onToggleLock(!myLocked), busy || (!myLocked && myStagedCount === 0))}
+            </div>
+            <div className="flex-1 flex items-center justify-between gap-2 rounded-md border border-[var(--cromo-border)] px-3 py-1.5">
+              <span className="text-xs text-[var(--cromo-fg-muted)]">Their side</span>
+              {lockBtn(theirLocked, 'Ready', () => onToggleTheirLock(!theirLocked), busy || (!theirLocked && theirStagedCount === 0))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const canLock = guestJoined && myStagedCount > 0;
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--cromo-border)] bg-[var(--cromo-surface)]/95 backdrop-blur p-3 sm:static sm:z-auto sm:mt-4 sm:rounded-xl sm:border sm:bg-[var(--cromo-surface)] sm:p-4 sm:backdrop-blur-none">
+    <div className={shell}>
       <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
         <div className="min-w-0 text-xs text-[var(--cromo-fg-muted)]">
           {!guestJoined
@@ -1185,18 +1311,7 @@ function LockBar({
                   ? `${otherName} is ready.`
                   : 'Tap stickers to stage, then lock in.'}
         </div>
-        <button
-          type="button"
-          onClick={onToggleLock}
-          disabled={busy || (!myLocked && !canLock)}
-          className={`shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
-            myLocked
-              ? 'border border-[var(--cromo-border-strong)] bg-[var(--cromo-surface)] text-[var(--cromo-fg)]'
-              : 'bg-[var(--cromo-accent)] text-[var(--cromo-accent-fg)] hover:bg-[var(--cromo-accent-strong)]'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {myLocked ? 'Unlock' : 'I’m ready'}
-        </button>
+        {lockBtn(myLocked, 'I’m ready', () => onToggleLock(!myLocked), busy || (!myLocked && !canLock))}
       </div>
     </div>
   );
