@@ -81,7 +81,6 @@ async function fetchAll(
 export async function buildAlbumExportText(
   username: string,
   albumId: string,
-  albumName: string,
   profileUrl: string,
   filters: ExportFilters = {},
 ): Promise<string> {
@@ -90,8 +89,8 @@ export async function buildAlbumExportText(
     fetchAll(fetchPublicWanted, username, albumId, filters),
   ]);
   return [
-    `Offers | ${albumName}\n${formatSection(offeredItems, true)}`,
-    `Needs | ${albumName}\n${formatSection(wantedItems, false)}`,
+    `Offers\n${formatSection(offeredItems, true)}`,
+    `Needs\n${formatSection(wantedItems, false)}`,
     profileUrl,
   ].join('\n\n');
 }

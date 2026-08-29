@@ -384,7 +384,6 @@ export default function PublicProfileClient({
     return buildAlbumExportText(
       username,
       activeAlbum.albumId,
-      albumLabel(activeAlbum),
       `${window.location.origin}/profile/${username}/${activeAlbum.slug}`,
       apiFilters,
     );

@@ -921,7 +921,6 @@ export default function AlbumDetailClient({ albumId }: { albumId: string }) {
                           buildAlbumExportText(
                             user.username,
                             activeAlbum.id,
-                            albumDisplayName(activeAlbum),
                             `${window.location.origin}/profile/${user.username}/${activeAlbum.slug}`,
                           )
                       : undefined
