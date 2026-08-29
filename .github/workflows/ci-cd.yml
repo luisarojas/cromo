@@ -61,7 +61,7 @@ jobs:
           POSTGRES_DB: cromo_dev
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U cromo"
+          --health-cmd "pg_isready -U cromo -d cromo_dev"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
