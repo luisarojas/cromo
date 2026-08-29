@@ -223,8 +223,14 @@ data "aws_ami" "al2023" {
   most_recent = true
   owners      = ["amazon"]
   filter {
-    name   = "name"
-    values = ["al2023-ami-*-kernel-6.1-x86_64"]
+    name = "name"
+    # Must be `al2023-ami-2023.*` (the standard AMI), NOT the bare `al2023-ami-*`
+    # wildcard — that also matches `al2023-ami-ecs-hvm-*`, and with most_recent
+    # the launch template can silently drift onto the ECS-optimized image. That
+    # runs a crash-looping ecs-agent and diverges from the vanilla environment
+    # user-data is written for. The `2023.` version prefix excludes the ecs/
+    # minimal variants (whose names carry `ecs`/`minimal` before the version).
+    values = ["al2023-ami-2023.*-kernel-6.1-x86_64"]
   }
 }
 

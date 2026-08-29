@@ -499,6 +499,7 @@ jobs:
               \"export IMAGE_TAG=${{ env.IMAGE_TAG }}\",
               \"export CROMO_ENV=dev\",
               \"export AWS_REGION=${{ env.AWS_REGION }}\",
+              \"export COMPOSE_PROFILES=local-redis\",
               \"cd /opt/cromo\",
               \"aws s3 cp s3://${{ vars.DEV_S3_BUCKET }}/_deploy/docker-compose.prod.yml docker-compose.yml\",
               \"aws s3 cp s3://${{ vars.DEV_S3_BUCKET }}/_deploy/render-cromo-env.sh render-cromo-env.sh\",
