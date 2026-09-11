@@ -116,4 +116,6 @@ module "scheduling" {
 }
 ```
 
-Then apply: `terraform apply -target=module.scheduling`
+Then commit and push to `main` — the same OIDC workflow applies it (see "Changing the schedule" above).
+
+Note that disabling leaves the ASG and RDS wherever they happen to be. If the schedule is disabled while dev is scaled to 0, dev stays down until someone scales it up by hand.
