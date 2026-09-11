@@ -7,7 +7,7 @@ dev.cromotrade.ca runs on a daily schedule to avoid unnecessary AWS costs. The s
 
 ## Current schedule
 
-**Mon–Sun, 07:00–23:00 ET** (`America/Toronto`)
+**Mon–Sun, 10:00–22:00 ET** (`America/Toronto`)
 
 ## Where the schedule lives
 
@@ -19,12 +19,18 @@ The module accepts these variables (defined in `modules/scheduling/variables.tf`
 
 | Variable | Current value | Meaning |
 |---|---|---|
-| `days` | `"MON-SUN"` | Day-of-week range for the schedule |
-| `start_hour` | `7` | Hour to scale up (24h, local time) |
+| `weekday_start_hour` | `10` | Hour to scale up Mon–Fri (24h, local time) |
+| `weekend_start_hour` | `10` | Hour to scale up Sat–Sun (24h, local time) |
 | `start_minute` | `0` | Minute offset for scale-up |
-| `stop_hour` | `23` | Hour to scale down (24h, local time) |
+| `stop_hour` | `22` | Hour to scale down, applied every day (24h, local time) |
 | `stop_minute` | `0` | Minute offset for scale-down |
 | `time_zone` | `"America/Toronto"` | IANA time zone for all expressions |
+
+Scale-up is split into two scheduled actions (`MON-FRI` and `SAT-SUN`) so weekdays
+and weekends can start at different hours. Set both to the same value for a
+uniform every-day window, as we do now. **There is no `days` variable** — the day
+grouping is fixed, and the way to exclude a day group is a different start hour,
+not a day range. The nightly stop is uniform across all seven days by design.
 
 ## Changing the schedule
 
@@ -39,22 +45,19 @@ module "scheduling" {
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
 
-  days       = "MON-SUN"   # e.g. "MON-FRI" to exclude weekends
-  start_hour = 7
-  stop_hour  = 23
+  weekday_start_hour = 10
+  weekend_start_hour = 10
+  stop_hour          = 22
 }
 ```
 
-**2. Apply only the scheduling module:**
+**2. Commit and push to `main`.**
 
-```bash
-cd infrastructure/terraform/env/dev
-terraform apply -target=module.scheduling
-```
+Terraform runs through GitHub Actions OIDC (`.github/workflows/terraform.yml`), not from a laptop — a PR posts the plan as a comment, and a push to `main` auto-applies `dev`. Terraform updates the ASG scheduled actions and EventBridge Scheduler schedules in place — no instance replacement, no downtime.
 
-Terraform updates the ASG scheduled actions and EventBridge Scheduler schedules in place — no instance replacement, no downtime.
+Local `terraform apply` stays for genuine emergencies only (via the `cromo` profile + MFA); for routine schedule edits it bypasses plan review and the prod gate.
 
-> **Note:** `terraform apply` does not immediately start or stop the environment. It only updates the future scheduled actions. Use the manual commands below to change the current state right away.
+> **Note:** applying does not immediately start or stop the environment. It only updates the future scheduled actions — the new window takes effect at its next boundary. Use the manual commands below to change the current state right away.
 
 ## Manually scaling up (outside scheduled hours)
 

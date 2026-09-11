@@ -91,7 +91,7 @@ cd ../../..
 
 Builds and pushes fresh images (or reuses cached layers), uploads the compose file, SSMs the new instance into starting containers, re-seeds the catalog from `scripts/seeds/`, smoke-tests health.
 
-> **If the ASG is at 0** (business-hours schedule keeps dev down outside Mon–Fri 5pm–11pm ET), the script fails at "look up ASG instance." Bring it up first: `aws autoscaling set-desired-capacity --auto-scaling-group-name cromo-dev-app --desired-capacity 1` (or the dev-env up toggle script).
+> **If the ASG is at 0** (business-hours schedule keeps dev down outside Mon–Sun 10:00–22:00 ET), the script fails at "look up ASG instance." Bring it up first: `aws autoscaling set-desired-capacity --auto-scaling-group-name cromo-dev-app --desired-capacity 1` (or the dev-env up toggle script).
 
 > **Do NOT run an instance refresh as part of a recreate.** `terraform apply` already gives a fresh instance whose boot user-data writes `/etc/cromo/cromo.env` from the secret; this bootstrap script starts the app on it. A refresh would replace that instance with a cold one that has no containers running (cold instances can't self-start — they need `IMAGE_TAG` from the deploy path), leaving the ALB returning 502. See `cloud-bootstrap.md` §10.
 

@@ -80,7 +80,7 @@ This provisions: VPC, subnets, security groups, NAT, ALB + ACM cert, EC2 (in a 1
 
 > **Bootstrapped admin.** Each address in `admin_emails` (e.g. `r.luisaf@gmail.com`) is created in the pool and added to the `admin` group, which maps to `role=admin`. `admin_temp_password` must satisfy the pool policy (12+ chars, upper, lower, number). After the environment is up, the admin sets a real password via the **Forgot password** flow on the login page — enter the email, then the 6-digit code Cognito emails, then a new password. This clears the temporary password and, on first login, JIT-creates the admin's DB row. There is no admin DB seed; the seed-based `admin@test.local` only exists in local mode.
 
-> **Cost reality check.** A full dev environment running 24/7 costs roughly $55–60 USD/month (RDS $15, ElastiCache $12, EC2 $15, ALB $8, NAT $3, plus a few cents of CloudWatch/Secrets/S3). The business-hours schedule (`docs/architecture/infrastructure.md` §19.2.2) brings that to roughly $20–25/month by stopping the ASG and RDS instance nights + weekends. The $75 budget alert is sized to fit that scheduled-dev footprint plus prod.
+> **Cost reality check.** A full dev environment running 24/7 costs roughly $55–60 USD/month (RDS $15, ElastiCache $12, EC2 $15, ALB $8, NAT $3, plus a few cents of CloudWatch/Secrets/S3). The business-hours schedule (`docs/architecture/infrastructure.md` §19.2.2) brings that to roughly $20–25/month by stopping the ASG and RDS instance overnight, every night. The $75 budget alert is sized to fit that scheduled-dev footprint plus prod.
 
 ## 4. Verify SES domain & request production access
 
@@ -114,7 +114,7 @@ What it does NOT do: trigger the GitHub Actions workflow. That's step 6 — once
 
 > **The script is single-use.** Use it for the very first dev bring-up and any time you nuke + recreate the env. For everyday changes, push to `main` and let CI deploy.
 
-> **If the ASG is paused.** The business-hours schedule scales the ASG to 0 outside Mon–Fri 08–19 ET. The script will fail at the "look up ASG instance" step in that case — either run during business hours, or temporarily set `desired_capacity = 1` via console / `aws autoscaling set-desired-capacity`.
+> **If the ASG is paused.** The business-hours schedule scales the ASG to 0 outside Mon–Sun 10:00–22:00 ET. The script will fail at the "look up ASG instance" step in that case — either run during business hours, or temporarily set `desired_capacity = 1` via console / `aws autoscaling set-desired-capacity`.
 
 ## 6. Wire CI/CD
 

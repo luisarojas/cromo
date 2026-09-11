@@ -238,15 +238,14 @@ The dev environment is scheduled **down outside business hours** to keep dev cos
 
 | Window | State |
 |---|---|
-| Mon–Fri 08:00 ET | EC2 ASG scaled to 1, RDS started |
-| Mon–Fri 19:00 ET | EC2 ASG scaled to 0, RDS stopped |
-| Sat / Sun | Down all day |
+| Mon–Sun 10:00 ET | EC2 ASG scaled to 1, RDS started |
+| Mon–Sun 22:00 ET | EC2 ASG scaled to 0, RDS stopped |
 
-Implementation lives in `infrastructure/terraform/modules/scheduling/`: three `aws_autoscaling_schedule` resources (up, down, weekend safety-net) plus two `aws_scheduler_schedule` resources calling `rds:StartDBInstance` / `rds:StopDBInstance` via EventBridge Scheduler universal targets, with a scoped IAM role. The whole module is gated on an `enable` variable that defaults to `true` for dev and **must be `false` in the prod env config**.
+Implementation lives in `infrastructure/terraform/modules/scheduling/`: three `aws_autoscaling_schedule` resources (weekday up, weekend up, uniform down) plus two `aws_scheduler_schedule` resources calling `rds:StartDBInstance` / `rds:StopDBInstance` via EventBridge Scheduler universal targets, with a scoped IAM role. Scale-up is split by day group so weekdays and weekends *can* differ; both are currently 10:00, giving a uniform every-day window. The whole module is gated on an `enable` variable that defaults to `true` for dev and **must be `false` in the prod env config**.
 
 ALB, NAT Gateway, and ElastiCache stay up — stopping them either breaks DNS or doesn't save money (NAT bills per AZ-hour regardless of traffic).
 
-If dev returns 502s outside the window, it's the schedule, not an incident.
+If dev is unreachable outside the window, it's the schedule, not an incident. The ALB serves its own `503` (`server: awselb/2.0`) because the target group is empty — not a 502.
 
 ### 19.2.3 Dev ALB IP Allowlist
 

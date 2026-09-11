@@ -231,7 +231,7 @@ module "monitoring" {
 }
 
 # ─── Business-hours schedule (dev only) ───────────────────────────────────────
-# Scales the ASG to 0 and stops RDS outside Mon-Fri 08:00-19:00 ET, cutting
+# Scales the ASG to 0 and stops RDS outside 10:00-22:00 ET every day, cutting
 # dev cost from ~$55-60/mo to ~$20-25/mo. See infrastructure.md §19.2.2.
 # MUST stay disabled for prod.
 
@@ -243,9 +243,10 @@ module "scheduling" {
   db_identifier = module.database.identifier
   db_arn        = module.database.arn
 
-  weekday_start_hour = 17 # Mon-Fri 5pm
-  weekend_start_hour = 7  # Sat-Sun 7am
-  stop_hour          = 23 # 11pm every day
+  # Same window every day, so both day groups start at the same hour.
+  weekday_start_hour = 10 # Mon-Fri 10am
+  weekend_start_hour = 10 # Sat-Sun 10am
+  stop_hour          = 22 # 10pm every day
 }
 
 # ─── Dev laptop access (IAM users + SSM/Secrets policy) ──────────────────────
