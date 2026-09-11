@@ -40,9 +40,20 @@ if [ -f /opt/cromo/docker-compose.yml ]; then
   # Non-prod runs Redis as an in-compose container (the `local-redis`
   # profile) instead of managed ElastiCache. Prod leaves the profile unset
   # and uses ElastiCache via REDIS_URL.
-%{~ if env != "prod" ~}
-  export COMPOSE_PROFILES=local-redis
-%{~ endif ~}
+  #
+  # This branch is plain bash, NOT a terraform template directive, on purpose.
+  # The directive form was written with tilde-trimmed markers (`%%{~ if ... ~}`
+  # / `%%{~ endif ~}`), and those `~` markers strip newlines on BOTH sides —
+  # which silently glued the export and the `docker compose pull` onto the end
+  # of the preceding COMMENT line, commenting both out. Dev then cold-booted
+  # with no redis
+  # container, the api crash-looped against an unreachable redis:6379, the
+  # frontend never left `Created` (it waits on api health), and the ALB served
+  # 502 with nothing listening. Keeping the conditional in bash means the
+  # rendered script is line-for-line what you read here.
+  if [ "$CROMO_ENV" != "prod" ]; then
+    export COMPOSE_PROFILES=local-redis
+  fi
   docker compose pull || true
   docker compose up -d || true
 fi
