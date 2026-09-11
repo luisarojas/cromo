@@ -27,33 +27,63 @@ aws ecr get-login-password --region ${region} \
   | docker login --username AWS --password-stdin ${ecr_registry}
 
 # Fetch compose file from S3 (uploaded by the deploy pipeline) and start.
-aws s3 cp s3://${uploads_bucket}/_deploy/docker-compose.prod.yml /opt/cromo/docker-compose.yml || true
-if [ -f /opt/cromo/docker-compose.yml ]; then
-  cd /opt/cromo
-  export ECR_REGISTRY=${ecr_registry}
-  # The deploy pipeline publishes a moving "<env>-latest" tag (plus the git
-  # SHA). A cold-booted instance (e.g. business-hours scale-up) has no
-  # IMAGE_TAG, so fall back to that moving tag — NOT "latest", which the
-  # pipeline never pushes and would leave the app unstarted.
-  export IMAGE_TAG=$${IMAGE_TAG:-${env}-latest}
-  export CROMO_ENV=${env}
-  # Non-prod runs Redis as an in-compose container (the `local-redis`
-  # profile) instead of managed ElastiCache. Prod leaves the profile unset
-  # and uses ElastiCache via REDIS_URL.
-  #
-  # This branch is plain bash, NOT a terraform template directive, on purpose.
-  # The directive form was written with tilde-trimmed markers (`%%{~ if ... ~}`
-  # / `%%{~ endif ~}`), and those `~` markers strip newlines on BOTH sides —
-  # which silently glued the export and the `docker compose pull` onto the end
-  # of the preceding COMMENT line, commenting both out. Dev then cold-booted
-  # with no redis
-  # container, the api crash-looped against an unreachable redis:6379, the
-  # frontend never left `Created` (it waits on api health), and the ALB served
-  # 502 with nothing listening. Keeping the conditional in bash means the
-  # rendered script is line-for-line what you read here.
-  if [ "$CROMO_ENV" != "prod" ]; then
-    export COMPOSE_PROFILES=local-redis
-  fi
-  docker compose pull || true
-  docker compose up -d || true
+#
+# Every step from here down fails LOUDLY. This block used to end each command
+# in `|| true`, and the S3 fetch fed an `if [ -f ... ]` that silently skipped
+# the whole startup when the file was missing. The result was a boot that
+# exited 0 having started nothing: the instance went InService, the ALB routed
+# to it, and the only symptom anywhere was a 502. Nothing was written to any
+# log that said "this failed". A boot that cannot start the app must exit
+# non-zero and say why.
+#
+# Markers are prefixed CROMO-BOOT-FATAL so they are greppable in
+# /var/log/cloud-init-output.log.
+if ! aws s3 cp "s3://${uploads_bucket}/_deploy/docker-compose.prod.yml" /opt/cromo/docker-compose.yml; then
+  echo "CROMO-BOOT-FATAL: could not fetch docker-compose.prod.yml from s3://${uploads_bucket}/_deploy/" >&2
+  exit 1
+fi
+if [ ! -f /opt/cromo/docker-compose.yml ]; then
+  echo "CROMO-BOOT-FATAL: /opt/cromo/docker-compose.yml missing after a successful s3 cp" >&2
+  exit 1
+fi
+cd /opt/cromo
+export ECR_REGISTRY=${ecr_registry}
+# The deploy pipeline publishes a moving "<env>-latest" tag (plus the git
+# SHA). A cold-booted instance (e.g. business-hours scale-up) has no
+# IMAGE_TAG, so fall back to that moving tag — NOT "latest", which the
+# pipeline never pushes and would leave the app unstarted.
+export IMAGE_TAG=$${IMAGE_TAG:-${env}-latest}
+export CROMO_ENV=${env}
+
+# Non-prod runs Redis as an in-compose container (the `local-redis` profile)
+# instead of managed ElastiCache. Prod leaves the profile unset and uses
+# ElastiCache via REDIS_URL.
+#
+# This branch is plain bash, NOT a terraform template directive, on purpose.
+# The directive form was written with tilde-trimmed markers (`%%{~ if ... ~}` /
+# `%%{~ endif ~}`), and those `~` markers strip newlines on BOTH sides — which
+# silently glued the export and the `docker compose pull` onto the end of the
+# preceding COMMENT line, commenting both out. Dev then cold-booted with no
+# redis container, the api crash-looped against an unreachable redis:6379, the
+# frontend never left `Created` (it waits on api health), and the ALB served
+# 502 with nothing listening. Keeping the conditional in bash means the
+# rendered script is line-for-line what you read here.
+if [ "$CROMO_ENV" != "prod" ]; then
+  export COMPOSE_PROFILES=local-redis
+fi
+
+if ! docker compose pull; then
+  echo "CROMO-BOOT-FATAL: docker compose pull failed (IMAGE_TAG=$IMAGE_TAG)" >&2
+  exit 1
+fi
+
+# On failure, dump state before exiting — this is the one moment the evidence
+# is still on the box. `docker compose ps` plus per-service logs is what turns
+# "the ALB returns 502" into a named cause (e.g. api exiting on
+# `getaddrinfo ENOTFOUND redis` because the local-redis profile never loaded).
+if ! docker compose up -d; then
+  echo "CROMO-BOOT-FATAL: docker compose up -d failed (COMPOSE_PROFILES=$${COMPOSE_PROFILES:-<unset>})" >&2
+  docker compose ps --all >&2 || true
+  docker compose logs --no-color --tail=50 >&2 || true
+  exit 1
 fi
