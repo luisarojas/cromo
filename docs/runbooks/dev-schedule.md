@@ -63,45 +63,40 @@ Local `terraform apply` stays for genuine emergencies only (via the `cromo` prof
 
 The deploy pipeline already handles this for deployments. For ad-hoc access outside hours:
 
-```bash
-# Find the ASG name
-ASG=$(aws autoscaling describe-auto-scaling-groups \
-  --region ca-central-1 \
-  --query "AutoScalingGroups[?contains(Tags[?Key=='Env'].Value,'dev')].AutoScalingGroupName" \
-  --output text)
+> These commands need the `cromo` admin profile with an MFA session
+> (`eval "$(./scripts/aws-mfa-session.sh --profile cromo)"`). The `cromo-dev`
+> profile is scoped to `ec2:DescribeInstances`, `ssm:StartSession`, and
+> `secretsmanager:GetSecretValue` — it has no `autoscaling:*` or `rds:*`.
 
+```bash
 # Scale the ASG up
 aws autoscaling update-auto-scaling-group \
-  --auto-scaling-group-name "$ASG" \
+  --auto-scaling-group-name cromo-dev-app \
   --min-size 1 --max-size 1 --desired-capacity 1 \
   --region ca-central-1
 
 # Start RDS (takes ~2 min)
 aws rds start-db-instance \
-  --db-instance-identifier cromo-dev \
+  --db-instance-identifier cromo-dev-db \
   --region ca-central-1
 ```
 
-The next scheduled stop will scale everything back down automatically.
+The next scheduled stop will scale everything back down automatically. Expect the
+first request after boot to take 60–120 s while the instance registers with SSM
+and the containers pull and start.
 
 ## Manually scaling down (before the scheduled stop)
 
 ```bash
-# Find the ASG name
-ASG=$(aws autoscaling describe-auto-scaling-groups \
-  --region ca-central-1 \
-  --query "AutoScalingGroups[?contains(Tags[?Key=='Env'].Value,'dev')].AutoScalingGroupName" \
-  --output text)
-
 # Scale the ASG down
 aws autoscaling update-auto-scaling-group \
-  --auto-scaling-group-name "$ASG" \
-  --min-size 0 --max-size 1 --desired-capacity 0 \
+  --auto-scaling-group-name cromo-dev-app \
+  --min-size 0 --max-size 0 --desired-capacity 0 \
   --region ca-central-1
 
 # Stop RDS
 aws rds stop-db-instance \
-  --db-instance-identifier cromo-dev \
+  --db-instance-identifier cromo-dev-db \
   --region ca-central-1
 ```
 
