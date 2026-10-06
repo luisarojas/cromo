@@ -1,35 +1,32 @@
 # Trivy ignore list — mirrors pnpm.auditConfig.ignoreGhsas in package.json.
+# Every entry here must also be in ignoreGhsas (and vice versa); the
+# auditConfig."//" comment there is the source of truth for WHY.
 #
 # Each entry carries an `expired_at` date so the suppression CANNOT become
 # permanent: once the date passes, Trivy stops ignoring the vuln and the CI
 # scan fails again, forcing a revisit. `pnpm audit`'s ignoreGhsas has no expiry,
 # so THIS file is the alarm clock — keep the dates here in sync with reality.
 #
-# Revisit trigger (what to check when this expires):
-#   - Have eslint-plugin-import / eslint-plugin-jsx-a11y dropped minimatch@3.1.5?
-#   - Has @sentry/webpack-plugin dropped glob@9's minimatch@8?
-#   - Has brace-expansion backported the OOM guard to the 1.x / 2.x lines?
-#   Re-check with:  pnpm why brace-expansion
-#   If the old CJS minimatch chain is gone, remove these entries AND the
-#   pnpm.auditConfig.ignoreGhsas block in package.json. Otherwise bump the dates.
+# Note: the CI step also runs with `ignore-unfixed: true`, so Trivy already
+# skips advisories with no patched release. Entries are still listed here so
+# the expiry forces a re-check even if Trivy's DB later records a fix.
 #
-# brace-expansion DoS advisories. Only reachable via dev/build-time tooling
-# (eslint plugins' minimatch@3.1.5; @sentry/webpack-plugin's glob>minimatch@8) —
-# never a production request path. The OOM fix (CVE-2026-14257) exists only in
-# brace-expansion 5.0.8, whose ESM-interop CJS build (`exports.expand`) breaks the
-# older minimatch that calls `require('brace-expansion')` as a bare function; the
-# 1.x/2.x lines have no OOM-guarded release. Overrides in package.json already pin
-# every consumer to the max-safe version.
+# braces stack-exhaustion DoS (GHSA-vfj7-8cjw-p6xm / CVE-2026-93687, high).
+# No patched release exists — braces 3.0.3 is the latest and is vulnerable.
+# Only reachable via frontend dev/build-time tooling on developer-authored globs
+# (eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch, and
+# tailwindcss@3 → chokidar/fast-glob) — never a production request path.
+# eslint-config-next@16 still pulls it, so no upgrade clears it.
+#
+# Revisit trigger (what to check when this expires):
+#   - Has braces shipped a release > 3.0.3?  pnpm view braces version
+#   If yes: refresh the lockfile (pnpm update braces -r --depth Infinity), then
+#   remove this entry AND GHSA-vfj7-8cjw-p6xm from ignoreGhsas. Otherwise bump
+#   the dates.
 vulnerabilities:
-  - id: CVE-2026-14257
-    statement: "brace-expansion OOM (GHSA-mh99-v99m-4gvg); dev/build-time only, no compatible fix — see header."
-    expired_at: 2026-10-25
-  - id: GHSA-mh99-v99m-4gvg
-    statement: "brace-expansion OOM; dev/build-time only, no compatible fix — see header."
-    expired_at: 2026-10-25
-  - id: CVE-2026-13149
-    statement: "brace-expansion DoS (GHSA-3jxr-9vmj-r5cp) on the 2.x line, patched 2.1.2 does not exist; dev/build-time only — see header."
-    expired_at: 2026-10-25
-  - id: GHSA-3jxr-9vmj-r5cp
-    statement: "brace-expansion DoS on the 2.x line; dev/build-time only — see header."
-    expired_at: 2026-10-25
+  - id: CVE-2026-93687
+    statement: "braces stack-exhaustion DoS (GHSA-vfj7-8cjw-p6xm); no upstream fix, dev/build-time only — see header."
+    expired_at: 2026-11-05
+  - id: GHSA-vfj7-8cjw-p6xm
+    statement: "braces stack-exhaustion DoS; no upstream fix, dev/build-time only — see header."
+    expired_at: 2026-11-05

@@ -317,5 +317,5 @@ docker compose down
 docker compose down -v
 ```
 
-Live reload is configured for both the frontend (Next.js fast refresh) and the backend (ts-node-dev). Saving a file reflects the change in the browser within 1–2 seconds.
+Live reload is configured for both the frontend (Next.js fast refresh) and the backend (`tsx watch`). Saving a file reflects the change in the browser within 1–2 seconds.
 
