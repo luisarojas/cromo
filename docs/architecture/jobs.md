@@ -43,54 +43,60 @@ Locally, `node-cron` runs in the same Node.js process as the API. Setting `JOBS_
 
 ## 35. Asynchronous Job Queue
 
-§34 covers **time-based** work (run every hour, run nightly). This section covers **event-based** background work — units of work triggered by something that just happened (a user registered, a scan was uploaded, a trade was accepted) that should not block the originating API request.
+> Status: the current implementation is a lightweight Redis-backed FIFO queue, not BullMQ. The queueing design described below reflects the implementation in [apps/backend/src/services/jobs.service.ts](../../apps/backend/src/services/jobs.service.ts) and the worker startup in [apps/backend/src/app.ts](../../apps/backend/src/app.ts). Any broader BullMQ-style architecture is still planned, not live.
+
+§34 covers **time-based** work (run every hour, run nightly). This section covers **event-based** background work triggered by user actions that should not block the request path.
 
 ### 35.1 Why a queue, not inline
 
-If the API tries to send the verification email synchronously inside `POST /auth/register`, the user waits for SES to respond — and if SES is slow or briefly unavailable, the registration appears to fail. The same problem applies to:
-- AI scan processing (Gemini vision can take 5–15 s per image)
-- Web push fan-out to multiple subscribers
-- Notification emails (trade requests, accepted, completed)
-- DMARC report ingestion
-- Audit log enrichment (e.g., GeoIP lookup)
+If the API sends verification or reminder emails synchronously inside the request path, the user waits for the SMTP call to finish. The current queue moves those email tasks off the request thread while retaining simple retry behaviour in Redis.
 
-A queue decouples request handling from external dependencies and gives free retries.
+The actual runtime queue is intentionally small and conservative:
+- email verification
+- password reset emails
+- rating reminder emails
 
-### 35.2 Stack: BullMQ on Redis
+That is enough for the codebase today; broader producer/consumer flows (scan jobs, push fan-out, webhook ingestion) are not implemented in the current backend.
 
-BullMQ is a battle-tested Node.js queue library that runs on the Redis already in the stack (§7.4). No new infrastructure.
+### 35.2 Current stack: Redis list queue
 
-| Concern | Local | Cloud |
-|---|---|---|
-| Queue backend | Redis in Docker | ElastiCache Redis |
-| Worker process | Same Node.js container, separate process | Same: a second container on the EC2 instance using the same image with `WORKER_MODE=true` |
-| Dashboard | Bull Board at `localhost:3001/admin/queues` | Same, gated behind admin auth |
+The implemented design is a single Redis-backed FIFO queue with a tiny dead-letter list. It does not use BullMQ, does not run a separate worker container, and does not expose a queue dashboard.
 
-In cloud the worker runs as a sibling docker-compose service on the same EC2 instance — same Docker image as the API but with `WORKER_MODE=true` env var that starts the BullMQ worker instead of the Fastify server. If worker load grows enough to need horizontal scaling, that is the trigger to move both API and worker to ECS Fargate (see [ADR-0001](decisions/0001-ec2-docker-compose-over-ecs-fargate.md)).
+| Concern | Current implementation |
+|---|---|
+| Queue backend | Redis list (`jobs:queue`) and dead-letter list (`jobs:dead`) |
+| Worker process | Same Node.js API process; a single in-process consumer starts in `startWorker()` |
+| Dashboard | Not implemented |
+| Worker mode toggle | Not present; the worker starts automatically when `NODE_ENV !== 'test'` |
 
-### 35.3 Queue Definitions
+This is a deliberate simplification: no priorities, no repeatables, no queue admin UI, and no external queue service. The worker uses `BRPOP` on the Redis queue and re-enqueues failed jobs up to a small retry limit before dead-lettering them.
 
-| Queue | Producer | Job payload | Retry policy |
+### 35.3 Current queue definitions
+
+| Queue / stream | Producer | Job payload | Retry policy |
 |---|---|---|---|
-| `email` | API on registration / password reset / trade events | `{ template, to, vars }` | 5 attempts with exponential backoff (1m, 5m, 30m, 2h, 8h) |
-| `scan` | API on `POST /scan/identify` after upload validation | `{ scanId, userId, s3Key }` | 3 attempts with 30s/2m/10m backoff |
-| `push` | API on trade events; expanded by `push-fanout` job | `{ subscriptionId, payload }` | 3 attempts; on `410 Gone`, delete the subscription |
-| `webhook-ingest` | SNS topic (SES bounces/complaints, DMARC reports) | `{ source, body }` | 5 attempts |
-| `account-deletion` | API on deletion request (queues the immediate soft-delete tasks; the 14-day hard delete is the cron job in §34) | `{ userId, requestedAt }` | 3 attempts |
-| `audit-enrichment` | API after writing audit_log row (GeoIP, user-agent parsing) | `{ auditLogId }` | 3 attempts; failure is non-blocking |
+| `jobs:queue` | API on registration / password reset / trade rating reminders | `QueueEntry { id, job, attempts, enqueuedAt }` | Up to 3 attempts before dead-letter |
+| `jobs:dead` | Worker after repeated failures | Same `QueueEntry` payload as above | No auto-retry; manual inspection or replay |
 
-### 35.4 Job Patterns
+The actual job types implemented today are limited to:
 
-**Idempotency.** Every job handler is idempotent — re-processing the same job must not cause duplicate side effects. Achieved by: (1) using stable job IDs (`email:registration:{userId}`), and (2) checking state before acting (e.g., `email` job checks `users.email_verified_at` before re-sending the verification mail).
+| Job type | Producer | Notes |
+|---|---|---|
+| `email:verify` | register flow | Sends verification mail |
+| `email:reset` | password-reset flow | Sends reset link |
+| `email:rating-reminder` | trade completion / reminder workflow | Sends reminder if the user has not rated |
 
-**Dead-letter handling.** A job that fails all retry attempts is moved to a dead-letter queue (`{queueName}:dead`). Bull Board lists dead jobs; the daily Grafana alert notifies admins. Manually requeue or discard via the dashboard.
+Any queue names like `scan`, `push`, or `webhook-ingest` are planned future work, not current runtime behaviour.
 
-**Concurrency.** Each worker handles configurable concurrency per queue:
-- `email`: 10 concurrent
-- `scan`: 2 concurrent (Claude API rate-limit-friendly)
-- `push`: 50 concurrent (cheap I/O)
+### 35.4 Job patterns
 
-**Job timeouts.** Each job has a hard timeout (e.g., `scan` = 30s, `email` = 10s). Timed-out jobs are marked failed and retried per policy.
+**Idempotency.** The implemented worker expects the producer to send jobs with stable payloads; the service is designed to avoid duplicate side effects by reusing the same business workflow rather than by a queue-specific dedupe layer.
+
+**Dead-letter handling.** A failed job is retried a small number of times. After the retry budget is exhausted it is pushed to `jobs:dead` for inspection or replay.
+
+**Concurrency.** There is a single worker loop, not per-queue concurrency settings.
+
+**Timeouts.** The current worker does not enforce per-job timeouts at the queue level; it simply runs the job and retries on thrown errors.
 
 ### 35.5 Cron vs Async Queue — Quick Reference
 
@@ -98,12 +104,12 @@ In cloud the worker runs as a sibling docker-compose service on the same EC2 ins
 |---|---|
 | "Run every night at 02:00" | "When a user registers, send a welcome email" |
 | Periodic sweeps over the database | One-off work tied to a specific user action |
-| Tasks that don't need retry semantics (next run will pick up missed work) | Tasks where each event must be processed exactly once |
+| Tasks that don't need retry semantics | Tasks where work should not block the request path |
 | No payload | Payload travels with the job |
 
-### 35.6 Local Behaviour
+### 35.6 Local behaviour
 
-Locally, the API container starts the BullMQ worker in-process (controlled by `WORKER_INPROCESS=true` in `.env.local`). This avoids running a second Docker service for dev iteration. Bull Board UI is reachable at `http://localhost:3001/admin/queues` — convenient for inspecting jobs while developing.
+Locally, the API process starts the Redis-backed worker automatically when `NODE_ENV !== 'test'`. The worker is in-process and uses `BRPOP` on `jobs:queue`; there is no `WORKER_MODE`, Bull Board, or separate Docker worker container in the repo today.
 
-When `EMAIL_PROVIDER=mailpit`, the email worker delivers to Mailpit. When `GEMINI_API_KEY=mock`, the scan worker returns the mock response. No code path differences — only env vars.
+The test suite skips the worker entirely to avoid SMTP or long-lived Redis side effects. In local development the same queue is used for email delivery; there is no alternate `EMAIL_PROVIDER`-specific queue implementation described by the code.
 
