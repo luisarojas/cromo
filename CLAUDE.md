@@ -1,5 +1,9 @@
 # Cromo
 
+## Project Status — Cloud Deprovisioned (2026-11-01)
+
+All AWS infrastructure is destroyed (`env/prod` was never applied) and the GitHub workflows are disabled. Local Docker development is unaffected. Terraform, SSM tunnels, `deploy-dev-bootstrap.sh` and CI deploys all fail until the stack is rebuilt via `docs/runbooks/redeploy-from-backup.md`. That runbook restores `backups/2026-11-01/`, which is git-ignored and holds user PII, so never commit it.
+
 ## Project Rules
 
 ### Mobile-First — Every Change Must Work on Both, Mobile Priority

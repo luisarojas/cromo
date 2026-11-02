@@ -1,5 +1,7 @@
 # Cloud Recreate — Nuke & Rebuild an Environment
 
+> **Deprovisioned 2026-11-01.** To rebuild, follow [`redeploy-from-backup.md`](./redeploy-from-backup.md).
+
 How to destroy a Cromo environment (`dev` or `prod`) and stand it back up cleanly. This is rare — for everyday changes, push to `main` and let CI redeploy. Use this when you need a hard reset: schema corruption, drift you can't reason about, deliberate cost-saving teardown over a long break.
 
 ## Architecture recap

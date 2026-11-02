@@ -1,5 +1,7 @@
 # Cloud Bootstrap
 
+> **Deprovisioned 2026-11-01.** To rebuild, follow [`redeploy-from-backup.md`](./redeploy-from-backup.md).
+
 How to take a fresh AWS account and turn it into a running Cromo `dev` environment. This is a one-time process per environment; ongoing deploys are handled by `.github/workflows/ci-cd.yml`.
 
 > **Prerequisites already met:**

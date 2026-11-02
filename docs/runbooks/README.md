@@ -1,5 +1,7 @@
 # Runbooks
 
+> **All AWS infrastructure was deprovisioned on 2026-11-01.** To bring it back, start with [`redeploy-from-backup.md`](./redeploy-from-backup.md).
+
 Operational playbooks for Cromo. Each runbook is task-focused: how to *do*
 a specific operation safely, not background context (that lives in
 `docs/architecture/`).
@@ -16,6 +18,7 @@ production-only runbooks become TODO once the prod environment is provisioned.
 | [`cloud-recreate.md`](./cloud-recreate.md) | cloud | ✅ written |
 | [`dev-schedule.md`](./dev-schedule.md) | cloud (dev) | ✅ written |
 | [`aws-access.md`](./aws-access.md) | cloud | ✅ written |
+| [`redeploy-from-backup.md`](./redeploy-from-backup.md) | cloud + local | ✅ written |
 | `deploy-hotfix.md` | cloud | TODO (extension of cloud-bootstrap §7) |
 | `rollback-deployment.md` | cloud | TODO |
 | `restore-database.md` | cloud | TODO (RDS PITR — see ADR-0002) |

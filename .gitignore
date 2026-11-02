@@ -55,3 +55,5 @@ test-results/
 playwright-report/
 
 ignored/
+# Deprovisioning backups (DB dump, Cognito export, S3 copy) — local only, contain PII
+backups/
